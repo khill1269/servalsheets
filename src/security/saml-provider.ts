@@ -32,6 +32,7 @@ import { SAML, type SamlConfig } from '@node-saml/node-saml';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { ConfigError } from '../core/errors.js';
 
 // ============================================================================
 // Security: allowed redirect origins for RelayState validation
@@ -127,7 +128,7 @@ function extractAttr(profile: Record<string, unknown>, ...keys: string[]): strin
     if (typeof val === 'string' && val) return val;
     if (Array.isArray(val) && typeof val[0] === 'string' && val[0]) return val[0];
   }
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**
@@ -313,15 +314,29 @@ export class SamlProvider {
 
         // Validate RelayState against origin allowlist before passing to IdP
         const allowedOrigins = this.config.allowedRedirectOrigins ?? [];
-        if (relayStateParam && !isAllowedRedirect(relayStateParam, allowedOrigins)) {
-          logger.warn('SSO login: RelayState rejected by origin allowlist', {
-            relayState: relayStateParam.slice(0, 100),
-          });
-          res.status(400).json({
-            error: 'SSO_INVALID_RELAY_STATE',
-            message: 'RelayState URL is not in the allowed redirect origins list',
-          });
-          return;
+        if (relayStateParam) {
+          // Enforce absolute URL when redirect allowlist is configured
+          if (allowedOrigins.length > 0 && !/^https?:\/\//.test(relayStateParam)) {
+            logger.warn('SSO login: RelayState rejected (relative path not allowed)', {
+              relayState: relayStateParam.slice(0, 100),
+            });
+            res.status(400).json({
+              error: 'SSO_INVALID_RELAY_STATE',
+              message: 'RelayState must be an absolute URL (http:// or https://)',
+            });
+            return;
+          }
+          // Validate against allowlist
+          if (!isAllowedRedirect(relayStateParam, allowedOrigins)) {
+            logger.warn('SSO login: RelayState rejected by origin allowlist', {
+              relayState: relayStateParam.slice(0, 100),
+            });
+            res.status(400).json({
+              error: 'SSO_INVALID_RELAY_STATE',
+              message: 'RelayState URL is not in the allowed redirect origins list',
+            });
+            return;
+          }
         }
 
         const relayState = relayStateParam ?? this.config.defaultRedirectUrl;
@@ -528,9 +543,10 @@ export function createSamlProviderFromEnv(
 
   const sigAlg = env.SAML_SIGNATURE_ALGORITHM;
   if (sigAlg === 'sha1') {
-    logger.warn(
-      'SECURITY WARNING: SAML_SIGNATURE_ALGORITHM=sha1 is a broken algorithm (SHATTERED 2017). ' +
-        'Update to sha256 or sha512.'
+    throw new ConfigError(
+      'SAML_SIGNATURE_ALGORITHM=sha1 is not allowed (broken algorithm, SHATTERED 2017). ' +
+        'Must be sha256 or sha512.',
+      'SAML_SIGNATURE_ALGORITHM'
     );
   }
 

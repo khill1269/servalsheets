@@ -22,7 +22,7 @@ export function getFieldMask(operation: 'metadata' | 'sheets_list' | 'full'): st
   const aggressiveMasking = getEnv().ENABLE_AGGRESSIVE_FIELD_MASKS;
 
   if (!aggressiveMasking) {
-    return undefined; // Full response
+    return undefined; // OK: Explicit empty — Full response
   }
 
   // Return optimized masks based on operation type
@@ -37,7 +37,7 @@ export function getFieldMask(operation: 'metadata' | 'sheets_list' | 'full'): st
 
     case 'full':
     default:
-      return undefined; // Full response
+      return undefined; // OK: Explicit empty — Full response
   }
 }
 

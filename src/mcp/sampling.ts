@@ -1711,7 +1711,7 @@ export async function generateAIInsight(
   data?: unknown,
   options?: { maxTokens?: number; context?: string }
 ): Promise<string | undefined> {
-  if (!server) return undefined;
+  if (!server) return undefined; // OK: Explicit empty
 
   try {
     assertSamplingSupport(server.getClientCapabilities());
@@ -1750,7 +1750,7 @@ export async function generateAIInsight(
       promptType,
       reason: err instanceof Error ? err.message : 'unknown',
     });
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 }
 

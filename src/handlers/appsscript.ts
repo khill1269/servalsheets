@@ -132,12 +132,12 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private static getRememberedBoundScript(spreadsheetId: string): string | undefined {
     const cached = SheetsAppsScriptHandler.boundScriptCache.get(spreadsheetId);
     if (!cached) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     if (Date.now() - cached.cachedAt > SheetsAppsScriptHandler.BOUND_SCRIPT_CACHE_TTL_MS) {
       SheetsAppsScriptHandler.boundScriptCache.delete(spreadsheetId);
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return cached.scriptId;

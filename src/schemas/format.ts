@@ -238,7 +238,7 @@ const SetAlignmentActionSchema = CommonFieldsSchema.extend({
 const LLMBorderSchema = z.preprocess((val) => {
   // Convert true to { style: "SOLID" } and false to undefined
   if (val === true) return { style: 'SOLID' };
-  if (val === false || val === null) return undefined;
+  if (val === false || val === null) return undefined; // OK: Explicit empty
   // Also handle string style directly: "SOLID" -> { style: "SOLID" }
   if (typeof val === 'string') return { style: val };
   return val;

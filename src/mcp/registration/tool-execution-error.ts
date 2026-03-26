@@ -68,7 +68,7 @@ function isPlainRecord(value: unknown): value is PlainRecord {
 
 function getThrownErrorCode(error: unknown): string | undefined {
   if (!isPlainRecord(error)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return typeof error['code'] === 'string' ? error['code'] : undefined;

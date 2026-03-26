@@ -390,7 +390,7 @@ export class AuditMiddleware {
       return String(requestContext['userAgent']);
     }
 
-    return undefined; // no userAgent in request context
+    return undefined; // OK: Explicit empty — no userAgent in request context
   }
 
   /**
@@ -406,7 +406,7 @@ export class AuditMiddleware {
       return requestContext['scopes'].map(String);
     }
 
-    return undefined; // no scopes in request context
+    return undefined; // OK: Explicit empty — no scopes in request context
   }
 
   /**
@@ -510,7 +510,7 @@ export class AuditMiddleware {
     if (typeof args['oldValue'] === 'string') {
       return this.sanitizeConfigValue(this.extractConfigKey(args), args['oldValue']);
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -520,7 +520,7 @@ export class AuditMiddleware {
     if (typeof args['newValue'] === 'string') {
       return this.sanitizeConfigValue(this.extractConfigKey(args), args['newValue']);
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -546,7 +546,7 @@ export class AuditMiddleware {
     ) {
       return result.cellsModified;
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -561,7 +561,7 @@ export class AuditMiddleware {
     ) {
       return result.rowsModified;
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -576,7 +576,7 @@ export class AuditMiddleware {
     ) {
       return result.columnsModified;
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -591,7 +591,7 @@ export class AuditMiddleware {
     ) {
       return result.recordCount;
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -618,12 +618,12 @@ export class AuditMiddleware {
     if (report && typeof report['sizeBytes'] === 'number') {
       return report['sizeBytes'];
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   private getNestedRecord(result: unknown, key: string): Record<string, unknown> | undefined {
     if (!result || typeof result !== 'object' || !(key in result)) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     const value = (result as Record<string, unknown>)[key];
     return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;

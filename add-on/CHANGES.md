@@ -2,11 +2,11 @@
 
 ## Session 80 — Schema Alignment + History/UI Corrections (2026-03-15)
 
-- Corrected add-on wrapper drift for `sheets_history`, `sheets_agent`, `sheets_compute`, `sheets_connectors`, and `sheets_federation` so requests now match the live 402-action schemas instead of stale aliases
+- Corrected add-on wrapper drift for `sheets_history`, `sheets_agent`, `sheets_compute`, `sheets_connectors`, and `sheets_federation` so requests now match the live 407-action schemas instead of stale aliases
 - Fixed history semantics in the sidebar: per-row action is now `Revert to Here` via `sheets_history.revert_to`, while `undoLastOperations()` loops over real `sheets_history.undo`
 - Added `executeToolAction()` helper so structured sidebar actions can inject active-sheet context when needed
 - Sidebar now renders structured `dataQualityWarnings` with expandable details and executable Fix buttons, per-field `_truncated` chips, proper `warning`/`system` labels, and a `📊 Build Dashboard` quick action
-- Updated add-on docs to 402 actions and extended doc-count validation coverage to include `add-on/README.md`
+- Updated add-on docs to 407 actions and extended doc-count validation coverage to include `add-on/README.md`
 
 ## Session 79 — Full Tool Coverage + Rich Suggestions UI (2026-03-15)
 
@@ -27,7 +27,7 @@
 
 **Sidebar.html enhancements:**
 
-- 4 new quick action buttons: 💡 Smart Suggestions, 🤖 Run Agent, 📉 Compute, 🌐 Live Data
+- 4 new quick action buttons: 💡 Smart Suggestions, 🤖 Run Agent, 📊 Compute, 🌐 Live Data
 - Rich suggestion cards: `suggest_next_actions` responses now render as clickable cards with confidence %, Apply button per suggestion (`renderSuggestionsPanel`, `applySuggestionCard`, `addMessageHtml`)
 - New client-side handlers: `quickAction_suggestNext`, `quickAction_runAgent`, `quickAction_compute`, `quickAction_liveData`
 
@@ -168,7 +168,7 @@ if (result.result && result.result.content && result.result.content[0]) {
 - [src/http-server.ts:1800](src/http-server.ts#L1800): `const { mcpServer, taskStore } = await createMcpServerInstance(googleToken)`
 - [src/cli.ts:252-268](src/cli.ts#L252-268): Conditional startup (STDIO vs HTTP)
 
-### 🧪 Testing Performed
+### 🧸 Testing Performed
 
 1. **HTTP Server Test:**
 

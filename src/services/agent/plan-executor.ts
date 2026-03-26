@@ -60,7 +60,7 @@ function getResponsePayload(result: unknown): ParsedHandlerResponse | null {
 function extractValuesFromResult(result: unknown): unknown[][] | undefined {
   const payload = getResponsePayload(result);
   if (!payload || !Array.isArray(payload.values)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   return payload.values as unknown[][];
 }
@@ -368,7 +368,7 @@ function getA1Range(range: unknown): string | undefined {
   }
 
   if (!isPlainRecord(range)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (typeof range['a1'] === 'string') {
@@ -381,7 +381,7 @@ function getA1Range(range: unknown): string | undefined {
     return innerRange ? `${sheetName}!${innerRange}` : sheetName;
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 function buildVerificationTarget(
@@ -723,12 +723,19 @@ async function runStepWithGuards(
     if (samplingServer) {
       const aiValidation = await aiValidateStepResult(step, result);
       if (!aiValidation.valid && aiValidation.issue) {
-        logger.warn('AI step validation detected issue', {
+        logger.warn('AI step validation detected issue — pausing execution', {
           planId: plan.planId,
           stepId: step.stepId,
           issue: aiValidation.issue,
           suggestedFix: aiValidation.suggestedFix,
         });
+        // Pause execution when AI validation fails instead of silently continuing
+        return {
+          status: 'pause' as const,
+          completedSteps: (plan.results?.length ?? 0) + 1,
+          pauseReason: `AI validation failed on step ${step.stepId}: ${aiValidation.issue}`,
+          suggestedFix: aiValidation.suggestedFix,
+        };
       }
     }
 

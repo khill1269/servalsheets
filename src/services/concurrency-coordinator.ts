@@ -370,7 +370,7 @@ export class ConcurrencyCoordinator {
 
       // Update quota utilization metric
       recordQuotaUtilization(quotaUtilization * 100);
-    }, this.config.adjustmentIntervalMs!);
+    }, this.config.adjustmentIntervalMs!).unref();
 
     logger.info('Adaptive concurrency adjustment started', {
       interval: this.config.adjustmentIntervalMs,

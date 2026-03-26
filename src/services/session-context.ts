@@ -1294,11 +1294,11 @@ export class SessionContextManager {
       }
     | undefined {
     const result = this.recentAnalyses.get(spreadsheetId);
-    if (!result) return undefined;
+    if (!result) return undefined; // OK: Explicit empty
     // Expire after 5 minutes
     if (Date.now() - result.timestamp > 5 * 60 * 1000) {
       this.recentAnalyses.delete(spreadsheetId);
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     return result;
   }
@@ -1448,9 +1448,9 @@ export class SessionContextManager {
       ...rejection,
       timestamp: Date.now(),
     });
-    // Keep bounded at 50 entries
-    if (this.elicitationRejections.length > 50) {
-      this.elicitationRejections = this.elicitationRejections.slice(-50);
+    // FIFO eviction: remove oldest entry when over 50 (avoids array copy via slice)
+    while (this.elicitationRejections.length > 50) {
+      this.elicitationRejections.shift();
     }
   }
 

@@ -575,7 +575,7 @@ export class SchemaValidator {
     deprecationMessage: string;
   }): string | undefined {
     // OK: Explicit empty - no field provided
-    if (!field) return undefined;
+    if (!field) return undefined; // OK: Explicit empty
 
     return `// Before (deprecated)
 const value = spreadsheet.${field.path};
@@ -594,7 +594,7 @@ const value = spreadsheet.${field.path};
     newType: string;
   }): string | undefined {
     // OK: Explicit empty - no field provided
-    if (!field) return undefined;
+    if (!field) return undefined; // OK: Explicit empty
 
     return `// Before
 const value: ${field.oldType} = data.${field.path};
@@ -617,7 +617,7 @@ if (typeof value === '${field.newType}') {
     description: string;
   }): string | undefined {
     // OK: Explicit empty - no field provided
-    if (!field) return undefined;
+    if (!field) return undefined; // OK: Explicit empty
 
     return `// New field available: ${field.description}
 const ${field.path.split('.').pop()} = spreadsheet.${field.path};

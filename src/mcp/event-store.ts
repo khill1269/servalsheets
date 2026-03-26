@@ -215,7 +215,7 @@ export class RedisEventStore implements EventStore {
   async getStreamIdForEventId(eventId: EventId): Promise<StreamId | undefined> {
     const parsed = this.parseEventId(eventId);
     if (!parsed) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     await this.ensureConnected();
     const exists = await RedisEventStore.client!.exists(

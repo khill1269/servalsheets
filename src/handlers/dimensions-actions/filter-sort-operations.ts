@@ -37,7 +37,7 @@ async function resolveSheetTitleForSortRange(
   }
 
   if (input.sheetId === undefined) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (ha.context.sheetResolver) {

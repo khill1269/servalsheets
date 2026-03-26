@@ -87,11 +87,14 @@ jobs:
         run: npm ci
 
       - name: Run npm audit (fail on high/critical)
-        # continue-on-error: node-saml → xml-encryption → node-forge has unfixable high/critical
+        # SECURITY EXCEPTION: node-saml → xml-encryption → node-forge has unfixable high/critical
         # vulns (GHSA-65ch-62r8-g69g etc.) with no upstream fix. xmldom patched via overrides.
         # Re-evaluate when node-saml v4 stable ships.
+        # Exception tracked in SECURITY_EXCEPTIONS.md — review by 2026-06-26.
         continue-on-error: true
-        run: npm audit --audit-level=high
+        run: |
+          echo "::warning::npm audit high-level check has continue-on-error due to node-saml transitive vuln (GHSA-65ch-62r8-g69g). See SECURITY_EXCEPTIONS.md."
+          npm audit --audit-level=high
 
       - name: Run npm audit (warn on moderate)
         run: npm audit --audit-level=moderate

@@ -190,7 +190,7 @@ export class LRUCache<K, V> {
    */
   getHitRate(): number | undefined {
     if (!this.trackHits) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const total = this.hitCount + this.missCount;

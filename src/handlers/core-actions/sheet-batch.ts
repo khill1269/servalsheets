@@ -27,7 +27,7 @@ async function resolveSheetFromContext(
   input: { spreadsheetId: string; sheetId?: number; sheetName?: string }
 ): Promise<SheetResolutionResult | undefined> {
   if (!deps.context.sheetResolver || (input.sheetId === undefined && !input.sheetName)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   try {
@@ -36,7 +36,7 @@ async function resolveSheetFromContext(
       sheetName: input.sheetName,
     });
   } catch {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 }
 

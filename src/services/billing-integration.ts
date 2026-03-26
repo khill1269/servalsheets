@@ -101,7 +101,7 @@ export class BillingIntegration extends EventEmitter {
     };
 
     this.stripe = new Stripe(this.config.stripeSecretKey, {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2025-02-24.acacia',
       typescript: true,
     });
 
@@ -539,7 +539,7 @@ export class BillingIntegration extends EventEmitter {
   private startAutoInvoicing(): void {
     const checkInterval = 24 * 60 * 60 * 1000; // Check daily
 
-    setInterval(async () => {
+    const timer = setInterval(async () => {
       const now = new Date();
       const isEndOfMonth =
         now.getDate() === new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -557,6 +557,7 @@ export class BillingIntegration extends EventEmitter {
         }
       }
     }, checkInterval);
+    timer.unref();
   }
 
   // ==========================================================================

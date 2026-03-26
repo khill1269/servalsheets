@@ -30,7 +30,7 @@ import type { WorkflowTemplate } from './templates.js';
 export function summarizePlanningContext(context?: string): string | undefined {
   const trimmed = context?.trim();
   if (!trimmed) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   return trimmed.length <= 2000 ? trimmed : `${trimmed.slice(0, 2000)}...`;
 }
@@ -73,7 +73,7 @@ async function aiParsePlan(
   maxSteps?: number
 ): Promise<ExecutionStep[] | undefined> {
   const samplingServer = getSamplingServer();
-  if (!samplingServer) return undefined;
+  if (!samplingServer) return undefined; // OK: Explicit empty
 
   try {
     await assertSamplingConsent();
@@ -221,7 +221,7 @@ Maximum ${maxSteps || 10} steps.`;
       description: description.slice(0, 100),
       reason: err instanceof Error ? err.message : 'unknown',
     });
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 }
 
@@ -465,7 +465,7 @@ export function compileFromTemplate(
   overrides?: Record<string, unknown>
 ): PlanState | undefined {
   const template: WorkflowTemplate | undefined = WORKFLOW_TEMPLATES[templateName];
-  if (!template) return undefined;
+  if (!template) return undefined; // OK: Explicit empty
 
   const planId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const steps: ExecutionStep[] = template.steps.map((step, i) => {

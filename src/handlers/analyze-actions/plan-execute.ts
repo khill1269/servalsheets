@@ -81,13 +81,13 @@ function severityFromErrorType(errorType: unknown): AnalysisFinding['severity'] 
     case '#ERROR!':
       return 'error';
     default:
-      return undefined;
+      return undefined; // OK: Explicit empty
   }
 }
 
 function extractSheetNameFromCell(cell: string | undefined): string | undefined {
   if (!cell) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const match = cell.match(/^(?:'([^']+)'!|([^!]+)!)/);

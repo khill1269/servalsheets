@@ -1,7 +1,7 @@
 /**
  * ServalSheets — Action Fuzzer
  *
- * Schema-layer property-based testing for all 402 actions.
+ * Schema-layer property-based testing for all 407 actions.
  * Generates systematic edge-case mutations and fires them through Zod validation.
  * Runs ~30K validation rounds in < 20s with zero API calls.
  *

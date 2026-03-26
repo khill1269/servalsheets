@@ -25,10 +25,10 @@ export class AnalyzerLRUCache {
 
   get(spreadsheetId: string): ImpactAnalyzer | undefined {
     const entry = this.map.get(spreadsheetId);
-    if (!entry) return undefined;
+    if (!entry) return undefined; // OK: Explicit empty
     if (Date.now() - entry.lastUsed > 30 * 60 * 1000) {
       this.map.delete(spreadsheetId);
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     // Refresh: delete + re-insert moves to end (insertion-order)
     entry.lastUsed = Date.now();

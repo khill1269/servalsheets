@@ -118,10 +118,10 @@ export interface ConfidenceAssessment {
  *   CONFIDENCE_THRESHOLD_VERY_HIGH (default 85)
  */
 function getConfidenceThresholds(): Record<ConfidenceLevel, [number, number]> {
-  const low = parseInt(process.env['CONFIDENCE_THRESHOLD_LOW'] ?? '10', 10);
-  const moderate = parseInt(process.env['CONFIDENCE_THRESHOLD_MODERATE'] ?? '35', 10);
-  const high = parseInt(process.env['CONFIDENCE_THRESHOLD_HIGH'] ?? '65', 10);
-  const veryHigh = parseInt(process.env['CONFIDENCE_THRESHOLD_VERY_HIGH'] ?? '85', 10);
+  const low = parseInt(process.env['CONFIDENCE_THRESHOLD_LOW'] ?? '10', 10) || 10;
+  const moderate = parseInt(process.env['CONFIDENCE_THRESHOLD_MODERATE'] ?? '35', 10) || 35;
+  const high = parseInt(process.env['CONFIDENCE_THRESHOLD_HIGH'] ?? '65', 10) || 65;
+  const veryHigh = parseInt(process.env['CONFIDENCE_THRESHOLD_VERY_HIGH'] ?? '85', 10) || 85;
   return {
     none: [0, low],
     low: [low, moderate],

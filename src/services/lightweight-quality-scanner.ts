@@ -74,7 +74,7 @@ function buildFixAction(
   context: QualityScanContext
 ): QualityWarning['fixAction'] | undefined {
   if (!context.range) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   switch (warning.type) {
@@ -119,7 +119,7 @@ function buildFixAction(
         },
       };
     default:
-      return undefined;
+      return undefined; // OK: Explicit empty
   }
 }
 
@@ -136,7 +136,7 @@ function getAlternativeStrategies(type: QualityWarning['type']): string[] | unde
     case 'outliers':
       return ['iqr', 'zscore'];
     default:
-      return undefined;
+      return undefined; // OK: Explicit empty
   }
 }
 

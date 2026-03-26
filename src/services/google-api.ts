@@ -1475,6 +1475,7 @@ export class GoogleApiClient {
     this.poolMonitorInterval = setInterval(() => {
       this.logConnectionPoolStats();
     }, intervalMs);
+    this.poolMonitorInterval.unref();
 
     // Register cleanup to prevent memory leak
     registerCleanup(
@@ -1634,11 +1635,11 @@ export class GoogleApiClient {
    */
   private getSharedDriveMembership(driveId: string): boolean | undefined {
     const entry = this.sharedDriveMembershipCache.get(driveId);
-    if (!entry) return undefined;
+    if (!entry) return undefined; // OK: Explicit empty
     // Check if TTL has expired
     if (Date.now() - entry.timestamp > GoogleApiClient.DRIVE_CACHE_TTL_MS) {
       this.sharedDriveMembershipCache.delete(driveId);
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     return entry.value;
   }

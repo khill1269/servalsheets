@@ -579,11 +579,15 @@ export interface KMeansResult {
   /** Final centroid positions (one per cluster) */
   centroids: number[][];
   /** Number of points per cluster */
-  clusterSizes: number[];
+  clusterSizes?: number[];
   /** Within-cluster sum of squares (lower = tighter clusters) */
-  wcss: number;
+  wcss?: number;
   /** Iterations used to converge */
   iterations: number;
+  /** Whether the algorithm converged */
+  converged?: boolean;
+  /** Error or warning message (e.g. identical data points) */
+  error?: string;
 }
 
 /**
@@ -619,6 +623,20 @@ export function kMeansClustering(
       'data',
       'non-empty rows'
     );
+  }
+
+  // Early exit: if all data points are identical, K-Means is meaningless
+  const firstPoint = data[0]!;
+  const allIdentical = data.every((point) => point.every((val, d) => val === firstPoint[d]));
+  if (allIdentical) {
+    // All points are the same — return single cluster with all indices
+    return {
+      centroids: [firstPoint],
+      assignments: new Array(n).fill(0),
+      iterations: 0,
+      converged: true,
+      error: 'All data points are identical — clustering is not meaningful',
+    };
   }
 
   // K-Means++ initialization: pick well-spread initial centroids
@@ -726,7 +744,7 @@ export function findOptimalK(data: number[][], maxK: number = 10): { k: number; 
 
   for (let k = 2; k <= effectiveMax; k++) {
     const result = kMeansClustering(data, k);
-    results.push({ k, wcss: Math.round(result.wcss * 100) / 100 });
+    results.push({ k, wcss: Math.round((result.wcss ?? 0) * 100) / 100 });
   }
 
   return results;

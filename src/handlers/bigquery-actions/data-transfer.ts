@@ -11,6 +11,7 @@ import type {
   BigQueryImportInput,
 } from '../../schemas/index.js';
 import { ErrorCodes } from '../error-codes.js';
+import { ServiceError } from '../../core/errors.js';
 import { validateBigQuerySql, safeBqTableRef } from './helpers.js';
 import { logger } from '../../utils/logger.js';
 import { sendProgress } from '../../utils/request-context.js';
@@ -36,8 +37,7 @@ export async function handleExportToBigQuery(
         code: ErrorCodes.INVALID_PARAMS,
         message: 'Range must be a string, A1 notation object, or named range',
         retryable: false,
-        suggestedFix:
-          'Check the parameter format and ensure all required parameters are provided',
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -53,8 +53,7 @@ export async function handleExportToBigQuery(
         code: ErrorCodes.INVALID_PARAMS,
         message: 'No data found in the specified range',
         retryable: false,
-        suggestedFix:
-          'Check the parameter format and ensure all required parameters are provided',
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -62,21 +61,41 @@ export async function handleExportToBigQuery(
 
     // WRITE_EMPTY: fail if the table already has rows
     if (writeDisposition === 'WRITE_EMPTY') {
-      const tableRef = safeBqTableRef(req.destination.projectId, req.destination.datasetId, req.destination.tableId);
-      const countJob = await bigquery.jobs.insert({
-        projectId: req.destination.projectId,
-        requestBody: {
-          configuration: {
-            query: {
-              query: `SELECT COUNT(1) AS row_count FROM ${tableRef}`,
-              useLegacySql: false,
+      const tableRef = safeBqTableRef(
+        req.destination.projectId,
+        req.destination.datasetId,
+        req.destination.tableId
+      );
+      const countJob = await ha.withBigQueryCircuitBreaker(() =>
+        bigquery.jobs.insert({
+          projectId: req.destination.projectId,
+          requestBody: {
+            configuration: {
+              query: {
+                query: `SELECT COUNT(1) AS row_count FROM ${tableRef}`,
+                useLegacySql: false,
+              },
             },
           },
-        },
-      });
+        })
+      );
       const jobId = countJob.data.jobReference?.jobId;
       if (jobId) {
+        const deadline = Date.now() + 120_000; // 120 second wall-clock deadline
         for (let attempt = 0; attempt < 15; attempt++) {
+          if (Date.now() > deadline) {
+            throw new ServiceError(
+              'BigQuery WRITE_EMPTY poll timeout exceeded',
+              'OPERATION_FAILED',
+              'bigquery',
+              true,
+              {
+                spreadsheetId: req.spreadsheetId,
+                projectId: req.destination.projectId,
+                tableId: req.destination.tableId,
+              }
+            );
+          }
           const delay = Math.min(500 * Math.pow(2, attempt), 5000);
           await new Promise((r) => setTimeout(r, delay));
           const pollResp = await bigquery.jobs.get({
@@ -106,21 +125,41 @@ export async function handleExportToBigQuery(
 
     // WRITE_TRUNCATE: delete all existing rows via DML before streaming new ones
     if (writeDisposition === 'WRITE_TRUNCATE') {
-      const tableRef = safeBqTableRef(req.destination.projectId, req.destination.datasetId, req.destination.tableId);
-      const truncateJob = await bigquery.jobs.insert({
-        projectId: req.destination.projectId,
-        requestBody: {
-          configuration: {
-            query: {
-              query: `DELETE FROM ${tableRef} WHERE TRUE`,
-              useLegacySql: false,
+      const tableRef = safeBqTableRef(
+        req.destination.projectId,
+        req.destination.datasetId,
+        req.destination.tableId
+      );
+      const truncateJob = await ha.withBigQueryCircuitBreaker(() =>
+        bigquery.jobs.insert({
+          projectId: req.destination.projectId,
+          requestBody: {
+            configuration: {
+              query: {
+                query: `DELETE FROM ${tableRef} WHERE TRUE`,
+                useLegacySql: false,
+              },
             },
           },
-        },
-      });
+        })
+      );
       const truncJobId = truncateJob.data.jobReference?.jobId;
       if (truncJobId) {
+        const deadline = Date.now() + 120_000; // 120 second wall-clock deadline
         for (let attempt = 0; attempt < 20; attempt++) {
+          if (Date.now() > deadline) {
+            throw new ServiceError(
+              'BigQuery WRITE_TRUNCATE poll timeout exceeded',
+              'OPERATION_FAILED',
+              'bigquery',
+              true,
+              {
+                spreadsheetId: req.spreadsheetId,
+                projectId: req.destination.projectId,
+                tableId: req.destination.tableId,
+              }
+            );
+          }
           const delay = Math.min(500 * Math.pow(2, attempt), 5000);
           await new Promise((r) => setTimeout(r, delay));
           const pollResp = await bigquery.jobs.get({
@@ -220,11 +259,7 @@ export async function handleExportToBigQuery(
         allInsertErrors.push(...chunkErrors);
       }
 
-      await sendProgress(
-        chunkNumber,
-        totalChunks,
-        `Exported chunk ${chunkNumber}/${totalChunks}`
-      );
+      await sendProgress(chunkNumber, totalChunks, `Exported chunk ${chunkNumber}/${totalChunks}`);
     }
 
     const successfulRows = totalRows - allInsertErrors.length;

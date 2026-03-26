@@ -54,14 +54,14 @@ export interface DiagnoseErrorsDeps {
  * so we handle both raw strings and the transformed object.
  */
 function resolveRange(range: unknown): string | undefined {
-  if (!range) return undefined;
+  if (!range) return undefined; // OK: Explicit empty
   if (typeof range === 'string') return range;
   if (typeof range === 'object' && range !== null) {
     const obj = range as Record<string, unknown>;
     if (typeof obj['a1'] === 'string') return obj['a1'];
     if (typeof obj['namedRange'] === 'string') return obj['namedRange'];
   }
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 function hasUnbalancedParentheses(formulaBody: string): boolean {

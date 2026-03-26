@@ -756,7 +756,12 @@ export class OAuthProvider {
       } = req.body as Record<string, string | undefined>;
 
       // Validate client
-      if (client_id !== this.config.clientId || client_secret !== this.config.clientSecret) {
+      const clientIdMatch = client_id === this.config.clientId;
+      const clientSecretMatch = timingSafeEqual(
+        Buffer.from(client_secret ?? ''),
+        Buffer.from(this.config.clientSecret)
+      );
+      if (!clientIdMatch || !clientSecretMatch) {
         res.status(401).json({ error: 'invalid_client' });
         return;
       }
@@ -829,9 +834,35 @@ export class OAuthProvider {
     });
 
     // Dynamic Client Registration (RFC 7591)
-    // Allows clients to register themselves dynamically
+    // Requires OAUTH_DCR_INITIAL_ACCESS_TOKEN when set (SEC-H1: prevent unauthenticated registration)
     router.post('/oauth/register', express.json(), async (req, res) => {
       try {
+        // SEC-H1: Gate DCR behind an initial access token if configured
+        const dcrToken = process.env['OAUTH_DCR_INITIAL_ACCESS_TOKEN'];
+        if (dcrToken) {
+          const authHeader = req.headers.authorization;
+          if (!authHeader || authHeader !== `Bearer ${dcrToken}`) {
+            res.status(401).json({
+              error: 'invalid_token',
+              error_description: 'A valid initial access token is required for dynamic client registration.',
+            });
+            return;
+          }
+        }
+
+        // Per-IP rate limiting for DCR endpoint
+        const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+        const dcrRateKey = `dcr:${clientIp}`;
+        const dcrCount = (this as Record<string, unknown>)[dcrRateKey] as number | undefined;
+        if (dcrCount !== undefined && dcrCount >= 10) {
+          res.status(429).json({
+            error: 'too_many_requests',
+            error_description: 'Too many client registration attempts. Try again later.',
+          });
+          return;
+        }
+        (this as Record<string, unknown>)[dcrRateKey] = (dcrCount ?? 0) + 1;
+
         const {
           redirect_uris,
           client_name,
@@ -1301,7 +1332,7 @@ export class OAuthProvider {
    */
   async getGoogleToken(req: Request): Promise<string | undefined> {
     const userId = (req as Request & { auth?: TokenPayload }).auth?.sub;
-    if (!userId) return undefined;
+    if (!userId) return undefined; // OK: Explicit empty
 
     const tokens = (await this.sessionStore.get(`google_tokens:${userId}`)) as
       | { googleAccessToken?: string; googleRefreshToken?: string }
@@ -1314,7 +1345,7 @@ export class OAuthProvider {
    */
   async getGoogleRefreshToken(req: Request): Promise<string | undefined> {
     const userId = (req as Request & { auth?: TokenPayload }).auth?.sub;
-    if (!userId) return undefined;
+    if (!userId) return undefined; // OK: Explicit empty
 
     const tokens = (await this.sessionStore.get(`google_tokens:${userId}`)) as
       | { googleAccessToken?: string; googleRefreshToken?: string }

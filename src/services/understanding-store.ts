@@ -414,7 +414,7 @@ export class UnderstandingStore {
    */
   getSummary(spreadsheetId: string): UnderstandingSummary | undefined {
     const understanding = this.store.get(spreadsheetId);
-    if (!understanding) return undefined;
+    if (!understanding) return undefined; // OK: Explicit empty
 
     return {
       spreadsheetId,
@@ -455,7 +455,7 @@ export class UnderstandingStore {
    */
   serialize(spreadsheetId: string): string | undefined {
     const understanding = this.store.get(spreadsheetId);
-    if (!understanding) return undefined;
+    if (!understanding) return undefined; // OK: Explicit empty
     return JSON.stringify(understanding);
   }
 

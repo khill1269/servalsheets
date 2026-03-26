@@ -32,7 +32,7 @@ function tryGetTransactionSpreadsheetId(
   try {
     return transactionManager.getTransaction(transactionId)?.spreadsheetId;
   } catch {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 }
 

@@ -161,7 +161,7 @@ export class CacheManager {
     if (!this.enabled) {
       this.misses++;
       // OK: Explicit empty - typed as optional, cache disabled
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const cacheKey = this.buildKey(key, namespace);
@@ -170,7 +170,7 @@ export class CacheManager {
     if (!entry) {
       this.misses++;
       // OK: Explicit empty - typed as optional, cache miss
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const now = Date.now();
@@ -181,7 +181,7 @@ export class CacheManager {
       this.cache.delete(cacheKey);
       this.misses++;
       logger.debug('Cache entry expired', { key, namespace });
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Probabilistic early expiration (XFetch algorithm)
@@ -192,7 +192,8 @@ export class CacheManager {
     // Simplified: use remaining TTL ratio — probability increases as expiry nears
     const ttlTotal = entry.expires - entry.storedAt;
     const remaining = entry.expires - now;
-    if (ttlTotal > 0 && remaining < ttlTotal * 0.15) {
+    const MIN_TTL_FOR_EARLY_EXPIRY = 2000; // Skip early-expiry if TTL < 2s
+    if (ttlTotal > 0 && remaining < ttlTotal * 0.15 && remaining > MIN_TTL_FOR_EARLY_EXPIRY) {
       // In the last 15% of TTL, probabilistically expire
       // Probability scales from 0% at 15% remaining to ~63% at 0% remaining
       const ratio = remaining / (ttlTotal * 0.15);
@@ -204,7 +205,7 @@ export class CacheManager {
           remainingMs: remaining,
           ttlMs: ttlTotal,
         });
-        return undefined;
+        return undefined; // OK: Explicit empty — SWR probabilistic early expiration (logged above)
       }
     }
 

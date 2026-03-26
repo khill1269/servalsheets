@@ -181,12 +181,12 @@ export function resolveCostTrackingApiType(toolName: string): 'bigquery' | 'driv
 
 export function extractRowsProcessed(result: unknown): number | undefined {
   if (!isPlainRecord(result)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const response = getResponseRecord(result);
   if (!response) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return (

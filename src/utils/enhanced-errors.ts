@@ -438,7 +438,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
-      return undefined; // no suggestion for this error
+      return undefined; // OK: Explicit empty — no suggestion for this error
 
     case 'NO_DATA':
       // No data → read range to verify it exists
@@ -449,7 +449,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId, range },
         };
       }
-      return undefined; // no suggestion for this error
+      return undefined; // OK: Explicit empty — no suggestion for this error
 
     case 'NOT_FOUND':
       // Generic not found → list accessible spreadsheets
@@ -498,7 +498,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
-      return undefined; // no suggestion for this error
+      return undefined; // OK: Explicit empty — no suggestion for this error
 
     case 'PARSE_ERROR':
       // Parse error → analyze data to understand structure
@@ -509,18 +509,18 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId, range },
         };
       }
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'TRANSACTION_TIMEOUT':
       // Transaction timeout → retry the operation
       // Note: Client should implement retry logic
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'QUOTA_EXCEEDED':
     case 'RATE_LIMIT_EXCEEDED':
       // Quota/rate limit → wait and retry (not automatically fixable)
       // Note: Client should implement backoff strategy
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'ELICITATION_UNAVAILABLE':
       // Elicitation unavailable → use wizard alternative via sheets_confirm
@@ -534,7 +534,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
 
     case 'SAMPLING_UNAVAILABLE':
       // Missing MCP Sampling → cannot be fixed automatically
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'OPERATION_FAILED':
       // Operation failed → retry with minimal verbosity to reduce payload
@@ -563,11 +563,11 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId, range },
         };
       }
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     default:
       // No automated fix available
-      return undefined;
+      return undefined; // OK: Explicit empty
   }
 }
 

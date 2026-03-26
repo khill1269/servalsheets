@@ -293,7 +293,7 @@ export class HistoryService {
     const stack = this.undoStacks.get(spreadsheetId);
     if (!stack || stack.operationIds.length === 0) {
       // OK: Explicit empty - typed as optional, no undoable operations available
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const operationId = stack.operationIds.at(-1);
@@ -307,7 +307,7 @@ export class HistoryService {
     const stack = this.redoStacks.get(spreadsheetId);
     if (!stack || stack.operationIds.length === 0) {
       // OK: Explicit empty - typed as optional, no redoable operations available
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const operationId = stack.operationIds.at(-1);
@@ -483,7 +483,7 @@ export class HistoryService {
       return operation;
     }
     // OK: Explicit empty - typed as optional, operation not found
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**

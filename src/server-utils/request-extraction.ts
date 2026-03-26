@@ -12,12 +12,12 @@ function getSingleHeaderValue(
 /**
  * Extract action from args, checking up to 3 levels deep for nested request objects.
  */
-export function extractActionFromArgs(args: unknown): string {
+export function extractActionFromArgs(args: Record<string, unknown>): string {
   if (typeof args !== 'object' || args === null) {
     return 'unknown';
   }
 
-  const record = args as Record<string, unknown>;
+  const record = args;
 
   if (typeof record['action'] === 'string' && record['action']) {
     return record['action'];
@@ -41,7 +41,7 @@ export function extractPrincipalIdFromHeaders(
   headers: Record<string, string | string[] | undefined> | undefined
 ): string | undefined {
   if (!headers) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const candidateHeaders = ['x-user-id', 'x-session-id', 'x-client-id'] as const;

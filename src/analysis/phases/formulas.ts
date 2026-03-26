@@ -80,7 +80,7 @@ export function suggestOptimization(formula: string): string | undefined {
     return 'Use specific range instead of full column reference';
   }
   // OK: Explicit empty - no optimization suggestion for this formula
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**

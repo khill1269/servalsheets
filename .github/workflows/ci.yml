@@ -133,9 +133,13 @@ jobs:
 
       - name: Type check
         run: npm run typecheck
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Lint
         run: npm run lint
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Check architecture
         run: npm run check:architecture

@@ -176,7 +176,7 @@ class TraceAggregatorImpl {
         return trace;
       }
     }
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**

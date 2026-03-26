@@ -211,7 +211,7 @@ export class WebhookManager {
   }
 
   private extractSpreadsheetId(resourceName?: string): string | undefined {
-    if (!resourceName) return undefined;
+    if (!resourceName) return undefined; // OK: Explicit empty
     const match = resourceName.match(/\/files\/([a-zA-Z0-9_-]+)/);
     return match?.[1];
   }

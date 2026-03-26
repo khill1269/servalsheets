@@ -174,7 +174,7 @@ export class ConnectorsHandler {
 
   private getConnectorEntry(connectorId: string | undefined): ConnectorCatalogEntry | undefined {
     if (!connectorId) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     return this.getConnectorCatalog().find((connector) => connector.id === connectorId);
   }

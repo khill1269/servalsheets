@@ -231,7 +231,7 @@ export function buildSnapshotInfo(
   snapshot: SnapshotResult | null
 ): Record<string, unknown> | undefined {
   // OK: Explicit empty - typed as optional, no snapshot provided
-  if (!snapshot) return undefined;
+  if (!snapshot) return undefined; // OK: Explicit empty
 
   return {
     snapshotId: snapshot.snapshotId,

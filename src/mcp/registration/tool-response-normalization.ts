@@ -49,7 +49,7 @@ function getOptionalBoolean(value: unknown): boolean | undefined {
 
 function getOptionalNonNegativeInt(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const normalized = Math.trunc(value);

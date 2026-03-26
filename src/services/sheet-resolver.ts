@@ -385,7 +385,7 @@ export class SheetResolver {
 
     if (!sheet) {
       // OK: Explicit empty - typed as optional, sheet not found by name
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Return in format expected by tests
@@ -410,7 +410,7 @@ export class SheetResolver {
 
     if (!sheet) {
       // OK: Explicit empty - typed as optional, sheet not found by ID
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Return in format expected by tests

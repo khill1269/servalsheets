@@ -298,7 +298,7 @@ export class ContextManager {
   getInferredValue(paramName: 'spreadsheetId' | 'sheetId' | 'range'): string | number | undefined {
     if (this.isContextStale()) {
       // OK: Explicit empty - typed as optional, stale context returns undefined
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return this.context[paramName];

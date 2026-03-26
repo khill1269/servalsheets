@@ -31,7 +31,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getErrorDetails(error: unknown): Record<string, unknown> | undefined {
   if (!isRecord(error) || !('details' in error) || !isRecord(error['details'])) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return error['details'] as Record<string, unknown>;
@@ -39,7 +39,7 @@ function getErrorDetails(error: unknown): Record<string, unknown> | undefined {
 
 function getErrorRetryAfterMs(error: unknown): number | undefined {
   if (!isRecord(error) || typeof error['retryAfterMs'] !== 'number') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return error['retryAfterMs'];
@@ -51,7 +51,7 @@ function getErrorRetryable(error: unknown, fallback: boolean = false): boolean {
 
 function getExplicitKnownErrorCode(error: unknown): ErrorDetail['code'] | undefined {
   if (!isRecord(error) || typeof error['code'] !== 'string') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return isKnownErrorCode(error['code']) ? (error['code'] as ErrorDetail['code']) : undefined;

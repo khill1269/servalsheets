@@ -737,7 +737,7 @@ export async function handleBatchFormat(
 function toFlatRgb(
   color: Record<string, unknown>
 ): { red?: number; green?: number; blue?: number } | undefined {
-  if ('themeColor' in color) return undefined;
+  if ('themeColor' in color) return undefined; // OK: Explicit empty
   if ('rgbColor' in color && color['rgbColor'] && typeof color['rgbColor'] === 'object') {
     return color['rgbColor'] as { red?: number; green?: number; blue?: number };
   }

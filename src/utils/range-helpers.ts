@@ -332,7 +332,7 @@ export function extractRangeA1Optional(
   fieldName = 'range'
 ): string | undefined {
   if (range === undefined || range === null) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   return extractRangeA1(range, fieldName);
 }

@@ -52,7 +52,7 @@ type QueryResultData = {
 
 function parseQueryResultChartType(value: unknown): QueryResultChartType | undefined {
   if (typeof value !== 'string') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   const normalized = value.toUpperCase();
   return (QUERY_RESULT_CHART_TYPES as readonly string[]).includes(normalized)
@@ -69,7 +69,7 @@ export interface QueryNaturalLanguageDeps {
 
 function resolveRange(range: unknown): string | undefined {
   if (!range) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (typeof range === 'string') {
@@ -86,12 +86,12 @@ function resolveRange(range: unknown): string | undefined {
     }
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 function extractSheetName(range: string | undefined): string | undefined {
   if (!range) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const match = range.match(/^(?:'([^']+)'!|([^!]+)!)/);
@@ -280,17 +280,17 @@ export async function handleQueryNaturalLanguageAction(
     const parsedData = (() => {
       const candidate = parsed['data'];
       if (typeof candidate !== 'object' || candidate === null) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       const record = candidate as Record<string, unknown>;
       if (!Array.isArray(record['headers']) || !Array.isArray(record['rows'])) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       if (!record['headers'].every((value) => typeof value === 'string')) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       if (!record['rows'].every((row) => Array.isArray(row))) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
 
       return {
@@ -302,12 +302,12 @@ export async function handleQueryNaturalLanguageAction(
     const parsedVisualization = (() => {
       const candidate = parsed['visualizationSuggestion'];
       if (typeof candidate !== 'object' || candidate === null) {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
       const record = candidate as Record<string, unknown>;
       const chartType = parseQueryResultChartType(record['chartType']);
       if (!chartType || typeof record['reasoning'] !== 'string') {
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
 
       return {

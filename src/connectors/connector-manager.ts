@@ -75,14 +75,27 @@ function getOrCreateSalt(configDir: string = CONNECTOR_CONFIG_DIR): Buffer {
   }
 }
 
+// Memoize derived key per password+salt to avoid 800ms scryptSync on every call.
+// Key is derived once per process lifetime; invalidated if env var or salt changes.
+let _cachedDerivedKey: { password: string; salt: string; key: Buffer } | null = null;
+
 function deriveKey(configDir: string = CONNECTOR_CONFIG_DIR): Buffer | null {
   const password = process.env['CONNECTOR_ENCRYPTION_KEY'];
   if (!password) return null;
   const salt = getOrCreateSalt(configDir);
+  const saltHex = salt.toString('hex');
+
+  // Return cached key if password and salt are unchanged
+  if (_cachedDerivedKey && _cachedDerivedKey.password === password && _cachedDerivedKey.salt === saltHex) {
+    return _cachedDerivedKey.key;
+  }
+
   // OWASP-recommended scrypt parameters: N=131072 (2^17), r=8, p=1
   // Node.js defaults (N=16384) are insufficient for credential encryption.
   // Explicit maxmem is required for these stronger parameters; Node's default limit is too low.
-  return scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
+  const key = scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
+  _cachedDerivedKey = { password, salt: saltHex, key };
+  return key;
 }
 
 function encryptConfig(plaintext: string, configDir: string = CONNECTOR_CONFIG_DIR): string {

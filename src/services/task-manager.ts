@@ -336,7 +336,7 @@ export class TaskManager {
     const task = this.tasks.get(taskId);
     if (!task) {
       // OK: Explicit empty - typed as optional, task not found
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Return a copy to prevent external mutations

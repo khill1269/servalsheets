@@ -26,7 +26,7 @@ import { logger } from '../utils/logger.js';
  */
 function extractAction(args: unknown): string | undefined {
   if (!args || typeof args !== 'object') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const record = args as Record<string, unknown>;
@@ -45,7 +45,7 @@ function extractAction(args: unknown): string | undefined {
     }
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**

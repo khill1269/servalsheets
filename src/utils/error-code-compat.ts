@@ -61,7 +61,7 @@ export function isKnownErrorCode(code: unknown): code is KnownErrorCode {
 
 export function getCanonicalErrorCode(code: unknown): KnownErrorCode | undefined {
   if (!isKnownErrorCode(code)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return LEGACY_TO_CANONICAL_ERROR_CODE[code] ?? code;
@@ -163,7 +163,7 @@ export function getErrorCodeFamily(code: KnownErrorCode): ErrorCodeFamily {
 
 export function getErrorCodeCompatibility(code: unknown): ErrorCodeCompatibility | undefined {
   if (typeof code !== 'string' || code.length === 0) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const canonicalCode = getCanonicalErrorCode(code) ?? 'UNKNOWN_ERROR';

@@ -88,7 +88,7 @@ function getTaskRoutingHint(
   actionName: string,
   executionTimeMs: number
 ): string | undefined {
-  if (!toolName || !actionName) return undefined;
+  if (!toolName || !actionName) return undefined; // OK: Explicit empty
 
   const key = `${toolName}.${actionName}`;
   const knownHint = LONG_RUNNING_ACTIONS[key];
@@ -132,7 +132,7 @@ function extractResponseConfidence(
 
   // Don't report confidence for deterministic operations
   if (DETERMINISTIC_ACTIONS.has(actionName)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   // 1. Direct overallScore in response (scout, quality, performance)

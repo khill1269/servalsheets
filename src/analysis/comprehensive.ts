@@ -27,7 +27,8 @@ import type { sheets_v4 } from 'googleapis';
 import { TieredRetrieval } from './tiered-retrieval.js';
 import { getCacheAdapter } from '../utils/cache-adapter.js';
 import { logger } from '../utils/logger.js';
-import { NotFoundError } from '../core/errors.js';
+import { NotFoundError, ServiceError } from '../core/errors.js';
+import { isHeapCritical } from '../utils/heap-watchdog.js';
 import {
   MAX_RESPONSE_SIZE_BYTES,
   // MAX_SHEETS_INLINE, // Reserved for future pagination use
@@ -436,6 +437,17 @@ export class ComprehensiveAnalyzer {
     for (const sheet of paginatedSheets) {
       truncationOriginalRows += sheet.rowCount;
       truncationOriginalCols = Math.max(truncationOriginalCols, sheet.columnCount);
+
+      // CRITICAL: Check heap before large data retrieval
+      if (isHeapCritical()) {
+        throw new ServiceError(
+          'Heap memory critical — cannot retrieve sheet data',
+          'INTERNAL_ERROR',
+          'comprehensive-analysis',
+          false,
+          { spreadsheetId, sheetTitle: sheet.title }
+        );
+      }
 
       // Determine if we need sampling based on row count
       const needsSampling =

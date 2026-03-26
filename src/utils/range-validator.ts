@@ -240,7 +240,7 @@ function findSheetByName(
   );
   if (caseInsensitive) return caseInsensitive;
 
-  return undefined; // Explicit: no sheet matched by exact or case-insensitive title
+  return undefined; // OK: Explicit empty — no sheet matched by exact or case-insensitive title
 }
 
 /**

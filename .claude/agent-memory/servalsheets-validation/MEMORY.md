@@ -192,7 +192,7 @@ Cmd+G Cmd+A  # All gates
 **Source:** `src/schemas/action-counts.ts`
 
 - Line 38: `export const TOOL_COUNT = 25` (computed from Object.keys)
-- Line 43: `export const ACTION_COUNT = 402` (computed from Object.values sum)
+- Line 43: `export const ACTION_COUNT = 407` (computed from Object.values sum)
 
 **Verification:**
 

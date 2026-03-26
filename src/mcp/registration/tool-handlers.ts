@@ -265,7 +265,7 @@ function normalizeRequestHeaders(
   headers: unknown
 ): Record<string, string | string[] | undefined> | undefined {
   if (!headers || typeof headers !== 'object') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (
@@ -360,12 +360,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function extractSpreadsheetIdFromResult(result: unknown): string | undefined {
   if (!isRecord(result)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const response = isRecord(result['response']) ? result['response'] : undefined;
   if (!response) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (typeof response['spreadsheetId'] === 'string') {
@@ -386,7 +386,7 @@ function extractSpreadsheetIdFromResult(result: unknown): string | undefined {
     return updatedSpreadsheet['spreadsheetId'];
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 function resolveActionLogSpreadsheetId(

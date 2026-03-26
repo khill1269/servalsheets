@@ -246,13 +246,25 @@ export async function indexSpreadsheet(
 
   logger.info('semantic-search: indexing spreadsheet', { spreadsheetId });
 
-  // Fetch spreadsheet data (sample: first 200 rows per sheet)
+  // Fetch spreadsheet metadata first to get sheet names
+  const sheetsMeta = await sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets(properties(title,sheetId))',
+  });
+
+  // Build ranges for first 200 rows per sheet to limit data fetched
+  const ranges = (sheetsMeta.data.sheets ?? []).map((sheet) => {
+    const sheetName = sheet.properties?.title ?? 'Sheet1';
+    return `'${sheetName}'!A1:Z200`;
+  });
+
+  // Fetch spreadsheet data (limited to A1:Z200 per sheet to avoid full grid fetch)
   const spreadsheet = await sheetsApi.spreadsheets.get({
     spreadsheetId,
     includeGridData: true,
     fields:
       'sheets(properties(title,sheetId),data(rowData(values(formattedValue,effectiveValue,userEnteredFormula))))',
-    ranges: undefined,
+    ranges: ranges.length > 0 ? ranges : undefined,
   });
 
   const allChunks: Array<{ range: string; snippet: string }> = [];

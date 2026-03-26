@@ -564,6 +564,8 @@ export const ErrorCodeSchema = z
     'QUERY_REJECTED', // SQL safety rejection (non-SELECT, DDL/DML, file-system access, invalid name)
     // Write locking
     'LOCK_TIMEOUT', // Write lock acquisition timed out (concurrent write contention)
+    // Task lifecycle (SEP-1686)
+    'TASK_CANCELLED', // Task was cancelled before completion
   ])
   .describe(
     'Structured error code for tool call failures. ' +
@@ -791,7 +793,7 @@ export const ConditionSchema = z
     values: z
       .preprocess((val) => {
         // Undefined/null - return undefined
-        if (val === undefined || val === null) return undefined;
+        if (val === undefined || val === null) return undefined; // OK: Explicit empty
 
         // Helper to extract string value from various formats
         const extractValue = (v: unknown): string => {

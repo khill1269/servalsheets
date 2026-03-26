@@ -11,7 +11,7 @@ tags: [sheets]
 # ServalSheets Documentation
 
 > **Production-grade Google Sheets MCP server documentation**  
-> Version 1.7.0 | Updated March 2026
+> Version 2.0.0 | Updated March 2026
 
 ## 📁 Documentation Structure
 

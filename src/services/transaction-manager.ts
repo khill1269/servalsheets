@@ -663,7 +663,7 @@ export class TransactionManager {
     sheetLookup: SheetLookupContext
   ): string | undefined {
     if (rangeInput === undefined || rangeInput === null) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     if (typeof rangeInput === 'string') {
@@ -1694,7 +1694,7 @@ export class TransactionManager {
       return nestedGrid as sheets_v4.Schema$GridRange;
     }
 
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   private resolveSheetId(
@@ -1851,7 +1851,7 @@ export class TransactionManager {
       !Number.isFinite(timeoutMs) ||
       timeoutMs <= 0
     ) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     return AbortSignal.timeout(timeoutMs);
