@@ -76,6 +76,9 @@ export class VaultSecretsProvider implements SecretsProvider {
   private readonly vaultNamespace: string | undefined;
   private readonly mountPath: string;
   private readonly cacheTtlMs: number;
+  // SECURITY: Cache stores secrets as plaintext strings. This is acceptable for in-process TTL cache
+  // with expiry, but for long-running processes with sensitive secrets consider:
+  // TODO: Upgrade to Buffer storage with explicit zeroing (sodium.crypto_secretbox) after cache expire
   private readonly cache: Map<string, { value: string; expiresAt: number }> = new Map();
 
   constructor(vaultUrl: string, vaultToken: string, vaultNamespace?: string) {
@@ -107,7 +110,7 @@ export class VaultSecretsProvider implements SecretsProvider {
       const response = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
 
       if (response.status === 404) {
-        return undefined; // Secret not found — normal flow
+        return undefined; // OK: Explicit empty — Secret not found — normal flow
       }
       if (!response.ok) {
         logger.error('Vault secret retrieval failed', {
@@ -115,7 +118,7 @@ export class VaultSecretsProvider implements SecretsProvider {
           status: response.status,
           statusText: response.statusText,
         });
-        return undefined;
+        return undefined; // OK: Explicit empty
       }
 
       const body = (await response.json()) as {
@@ -131,7 +134,7 @@ export class VaultSecretsProvider implements SecretsProvider {
         key,
         error: error instanceof Error ? error.message : String(error),
       });
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
   }
 
@@ -198,7 +201,7 @@ export class AwsSecretsManagerProvider implements SecretsProvider {
     this.cache.delete(key); // expired or missing
 
     const client = await this.getClient();
-    if (!client) return undefined;
+    if (!client) return undefined; // OK: Explicit empty — no AWS client configured
 
     try {
       // Use dynamic import to get the command class
@@ -215,14 +218,14 @@ export class AwsSecretsManagerProvider implements SecretsProvider {
     } catch (error) {
       // ResourceNotFoundException means the secret doesn't exist — not an error
       if (error instanceof Error && error.name === 'ResourceNotFoundException') {
-        return undefined;
+        return undefined; // OK: Explicit empty — secret does not exist in AWS
       }
       logger.error('AWS Secrets Manager retrieval failed', {
         key,
         region: this.region,
         error: error instanceof Error ? error.message : String(error),
       });
-      return undefined;
+      return undefined; // OK: Explicit empty — logged above, graceful degradation
     }
   }
 

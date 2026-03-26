@@ -18,6 +18,12 @@ const FORMULA_CANDIDATE_KEYS = new Set([
   'formula',
   'formulaValue',
   'content',
+  // SEC-M2: Additional keys that could carry formula injection payloads
+  // (e.g., =IMPORTDATA(...) in cell notes/titles would bypass scanning without these)
+  'note',
+  'title',
+  'text',
+  'message',
 ]);
 
 export interface MutationSafetyViolation {

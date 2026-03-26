@@ -16,6 +16,7 @@ interface TokenBucket {
   lastRefill: number;
 }
 
+const MAX_BUCKETS = 10000; // Prevent unbounded growth in STDIO path
 const buckets = new Map<string, TokenBucket>();
 
 /**
@@ -34,6 +35,18 @@ export function checkRateLimit(principalId: string): {
   let bucket = buckets.get(principalId);
 
   if (!bucket) {
+    // Evict least recently used bucket if at capacity to prevent unbounded growth
+    if (buckets.size >= MAX_BUCKETS) {
+      let oldestKey: string | undefined;
+      let oldestTime = Infinity;
+      for (const [key, val] of buckets.entries()) {
+        if (val.lastRefill < oldestTime) {
+          oldestTime = val.lastRefill;
+          oldestKey = key;
+        }
+      }
+      if (oldestKey) buckets.delete(oldestKey);
+    }
     bucket = { tokens: maxTokens, lastRefill: now };
     buckets.set(principalId, bucket);
   }
