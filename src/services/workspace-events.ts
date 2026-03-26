@@ -1,141 +1,225 @@
 /**
- * Workspace Events Service
+ * ServalSheets - Workspace Events Service (Phase 4)
  *
- * Integrates Google Workspace Events API for real-time spreadsheet notifications.
- * Handles subscription creation, renewal, and CloudEvent parsing.
+ * Google Workspace Events API integration for push notification subscriptions.
+ * Provides event-driven change detection via Pub/Sub for Google Workspace resources.
+ *
+ * Note: The Workspace Events API delivers events via Pub/Sub topics (not HTTP endpoints).
+ * The notificationEndpoint field requires a Pub/Sub topic in the format:
+ * projects/{project}/topics/{topic}
+ *
+ * @see https://developers.google.com/workspace/events
  */
 
-import { getRequestLogger } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
+import { executeWithRetry } from '../utils/retry.js';
+import { AuthenticationError, ServiceError } from '../core/errors.js';
+import type { GoogleApiClient } from './google-api.js';
 
-export interface WorkspaceEventSubscription {
-  subscriptionId: string;
+interface ActiveSubscription {
+  id: string;
   spreadsheetId: string;
-  eventTypes: string[];
-  expirationTime: number; // timestamp
-  createdAt: number;
+  notificationEndpoint: string;
+  expireTime: string;
+  renewalTimer?: ReturnType<typeof setTimeout>;
+  createdAt: string;
 }
 
-export interface WorkspaceEvent {
-  type: string;
-  source: string; // spreadsheetId
-  subject: string; // event descriptor
-  timestamp: number;
-  data?: Record<string, unknown>;
-}
+const WORKSPACE_EVENTS_BASE_URL = 'https://workspaceevents.googleapis.com/v1beta';
+const DRIVE_CONTENT_CHANGED_EVENT = 'google.workspace.drive.file.v3.contentChanged';
+const SUBSCRIPTION_TTL = '604800s';
+const MAX_SUBSCRIPTIONS = 1000;
 
 export class WorkspaceEventsService {
-  private subscriptions: Map<string, WorkspaceEventSubscription> = new Map();
-  private logger = getRequestLogger();
-  private maxSubscriptions = 1000;
+  private subscriptions = new Map<string, ActiveSubscription>();
 
-  /**
-   * Create a subscription for Sheets monitoring
-   */
-  async subscribe(spreadsheetId: string, eventTypes: string[] = ['update', 'delete', 'create']): Promise<WorkspaceEventSubscription> {
-    const subscriptionId = `sub_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const expirationMs = 48 * 60 * 60 * 1000; // 48 hours
+  constructor(private googleClient: GoogleApiClient) {}
 
-    const subscription: WorkspaceEventSubscription = {
-      subscriptionId,
-      spreadsheetId,
-      eventTypes,
-      expirationTime: Date.now() + expirationMs,
-      createdAt: Date.now(),
-    };
+  private isSubscriptionResourceName(name: string): boolean {
+    return name.startsWith('subscriptions/');
+  }
 
-    this.subscriptions.set(subscriptionId, subscription);
+  private async getFreshAccessToken(): Promise<string> {
+    const credentials = this.googleClient.oauth2.credentials;
+    const expiryDate = credentials?.expiry_date as number | undefined;
+    const isExpiringSoon = expiryDate !== undefined && expiryDate - Date.now() < 60_000;
 
-    this.logger.info('Workspace Events subscription created', { subscriptionId, spreadsheetId });
-
-    // FIFO eviction if max reached
-    if (this.subscriptions.size > this.maxSubscriptions) {
-      const oldest = Array.from(this.subscriptions.values()).sort((a, b) => a.createdAt - b.createdAt)[0];
-      if (oldest) {
-        this.subscriptions.delete(oldest.subscriptionId);
+    if (isExpiringSoon || !credentials?.access_token) {
+      const result = await this.googleClient.oauth2.getAccessToken();
+      const token = result?.token ?? credentials?.access_token;
+      if (!token) {
+        throw new AuthenticationError('Workspace Events API requires an OAuth access token');
       }
+      return token;
     }
 
-    return subscription;
+    return credentials.access_token;
+  }
+
+  private async executeWorkspaceEventsRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return executeWithRetry(async (signal) => {
+      const token = await this.getFreshAccessToken();
+      const response = await fetch(`${WORKSPACE_EVENTS_BASE_URL}${path}`, {
+        ...init,
+        signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(init.headers ?? {}),
+        },
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        const error = new Error(
+          `Workspace Events API ${response.status}: ${body.substring(0, 200)}`
+        ) as Error & {
+          response?: { status?: number; data?: string };
+        };
+        error.response = {
+          status: response.status,
+          data: body,
+        };
+        throw error;
+      }
+
+      if (response.status === 204) {
+        return undefined as T; // OK: 204 No Content — subscription successful
+      }
+
+      return (await response.json()) as T;
+    });
   }
 
   /**
-   * Unsubscribe
+   * Create a Workspace Events subscription for a spreadsheet.
+   * @param spreadsheetId - Google Sheets file ID to monitor
+   * @param pubsubTopic - Pub/Sub topic in format: projects/{project}/topics/{topic}
    */
-  async unsubscribe(subscriptionId: string): Promise<void> {
-    this.subscriptions.delete(subscriptionId);
-    this.logger.info('Workspace Events subscription removed', { subscriptionId });
+  async createSubscription(spreadsheetId: string, pubsubTopic: string): Promise<string> {
+    try {
+      const operationData = await this.executeWorkspaceEventsRequest<{
+        name?: string;
+        response?: { name?: string };
+        metadata?: { subscription?: { name?: string; expireTime?: string } };
+      }>('/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({
+          targetResource: `//drive.googleapis.com/files/${spreadsheetId}`,
+          eventTypes: [DRIVE_CONTENT_CHANGED_EVENT],
+          notificationEndpoint: {
+            pubsubTopic,
+          },
+          payloadOptions: { includeResource: false },
+        }),
+      });
+
+      const subscriptionId =
+        operationData?.response?.name ??
+        operationData?.metadata?.subscription?.name ??
+        operationData?.name ??
+        `ws-sub-${Date.now()}`;
+      const expireTime =
+        operationData?.metadata?.subscription?.expireTime ??
+        new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+
+      const sub: ActiveSubscription = {
+        id: subscriptionId,
+        spreadsheetId,
+        notificationEndpoint: pubsubTopic,
+        expireTime,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Enforce MAX_SUBSCRIPTIONS limit with FIFO eviction
+      if (this.subscriptions.size >= MAX_SUBSCRIPTIONS) {
+        const oldestEntry = this.subscriptions.entries().next().value;
+        if (oldestEntry) {
+          this.subscriptions.delete(oldestEntry[0]);
+        }
+      }
+
+      this.subscriptions.set(sub.id, sub);
+      if (this.isSubscriptionResourceName(sub.id)) {
+        this.scheduleRenewal(sub);
+      } else {
+        logger.warn(
+          'Workspace Events subscription create returned operation name without resource',
+          {
+            spreadsheetId,
+            operationName: sub.id,
+          }
+        );
+      }
+      logger.info('Workspace Events subscription created', { id: sub.id, spreadsheetId });
+      return sub.id;
+    } catch (err) {
+      throw new ServiceError(
+        `Failed to create Workspace Events subscription: ${err instanceof Error ? err.message : String(err)}`,
+        'INTERNAL_ERROR',
+        'WorkspaceEvents',
+        true
+      );
+    }
   }
 
-  /**
-   * Renew subscription (called 12 hours before expiration)
-   */
-  async renew(subscriptionId: string): Promise<void> {
+  private scheduleRenewal(sub: ActiveSubscription): void {
+    const msUntilRenewal = new Date(sub.expireTime).getTime() - Date.now() - 12 * 3600 * 1000;
+    if (msUntilRenewal > 0) {
+      sub.renewalTimer = setTimeout(() => this.renewSubscription(sub.id), msUntilRenewal);
+    }
+  }
+
+  async renewSubscription(subscriptionId: string): Promise<void> {
     const sub = this.subscriptions.get(subscriptionId);
-    if (sub) {
-      sub.expirationTime = Date.now() + 48 * 60 * 60 * 1000;
-      this.logger.info('Workspace Events subscription renewed', { subscriptionId });
+    if (!sub) return;
+    if (!this.isSubscriptionResourceName(subscriptionId)) {
+      logger.warn('Skipping Workspace Events renewal for unresolved operation name', {
+        id: subscriptionId,
+      });
+      return;
     }
-  }
-
-  /**
-   * Parse CloudEvent from Pub/Sub push
-   */
-  parseCloudEvent(message: unknown): WorkspaceEvent | null {
-    const msg = message as { data?: string; attributes?: Record<string, string> };
-    if (!msg.data) return null;
 
     try {
-      const decoded = Buffer.from(msg.data, 'base64').toString('utf-8');
-      const event = JSON.parse(decoded) as Record<string, unknown>;
-      const resourceName = event.resourceName as string | undefined;
-      const spreadsheetId = resourceName?.split('/').pop() ?? '';
+      const patchData = await this.executeWorkspaceEventsRequest<{ expireTime?: string }>(
+        `/${subscriptionId}?updateMask=ttl`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ ttl: SUBSCRIPTION_TTL }),
+        }
+      );
 
-      return {
-        type: (event.eventType as string) ?? 'unknown',
-        source: spreadsheetId,
-        subject: (event.eventSubject as string) ?? '',
-        timestamp: Date.now(),
-        data: event.data as Record<string, unknown>,
-      };
-    } catch (error) {
-      this.logger.warn('Failed to parse CloudEvent', { error: error instanceof Error ? error.message : String(error) });
-      return null;
+      sub.expireTime =
+        patchData?.expireTime ?? new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+      if (sub.renewalTimer) clearTimeout(sub.renewalTimer);
+      this.scheduleRenewal(sub);
+      logger.info('Workspace Events subscription renewed', { id: subscriptionId });
+    } catch (err) {
+      logger.warn('Failed to renew Workspace Events subscription', {
+        id: subscriptionId,
+        error: String(err),
+      });
     }
   }
 
-  /**
-   * List subscriptions needing renewal (12 hours before expiration)
-   */
-  listNeedingRenewal(): WorkspaceEventSubscription[] {
-    const renewalWindowMs = 12 * 60 * 60 * 1000;
-    return Array.from(this.subscriptions.values()).filter(
-      (s) => Date.now() > s.expirationTime - renewalWindowMs
-    );
+  async deleteSubscription(subscriptionId: string): Promise<void> {
+    const sub = this.subscriptions.get(subscriptionId);
+    if (sub?.renewalTimer) clearTimeout(sub.renewalTimer);
+
+    if (this.isSubscriptionResourceName(subscriptionId)) {
+      try {
+        await this.executeWorkspaceEventsRequest<void>(`/${subscriptionId}`, {
+          method: 'DELETE',
+        });
+      } catch {
+        // Best effort — remove from local tracking regardless
+      }
+    }
+    this.subscriptions.delete(subscriptionId);
   }
 
-  /**
-   * List all subscriptions
-   */
-  listAll(): WorkspaceEventSubscription[] {
-    return Array.from(this.subscriptions.values());
+  listSubscriptions(spreadsheetId?: string): ActiveSubscription[] {
+    const all = Array.from(this.subscriptions.values());
+    return spreadsheetId ? all.filter((s) => s.spreadsheetId === spreadsheetId) : all;
   }
-
-  /**
-   * Get subscription count
-   */
-  getCount(): number {
-    return this.subscriptions.size;
-  }
-}
-
-/**
- * Singleton instance
- */
-let globalService: WorkspaceEventsService | null = null;
-
-export function getWorkspaceEventsService(): WorkspaceEventsService {
-  if (!globalService) {
-    globalService = new WorkspaceEventsService();
-  }
-  return globalService;
 }
