@@ -63,7 +63,7 @@ export interface ToolCallExecutionDependencies {
 
 function buildToolSpanParentContext(requestContext: RequestContext): SpanContext | undefined {
   if (!requestContext.traceId || !requestContext.spanId) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return {
