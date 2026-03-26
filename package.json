@@ -1,1 +1,238 @@
-{"name":"servalsheets","description":"Production-grade Google Sheets MCP server - 25 tools, 407 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features","version":"2.0.0","author":{"name":"Thomas Lee Cahill","url":"https://github.com/khill1269"},"bin":{"servalsheets":"./dist/cli.js"},"workspaces":["packages/*"],"bugs":{"url":"https://github.com/khill1269/servalsheets/issues"},"dependencies":{"@apollo/server":"^5.4.0","@duckdb/node-api":"^1.5.0-r.1","@modelcontextprotocol/sdk":"^1.28.0","@node-saml/node-saml":"^5.1.0","@opentelemetry/api":"^1.9.0","@opentelemetry/auto-instrumentations-node":"^0.71.0","@opentelemetry/exporter-prometheus":"^0.213.0","@opentelemetry/sdk-metrics":"^2.6.0","@opentelemetry/sdk-node":"^0.213.0","@opentelemetry/sdk-trace-node":"^2.6.0","@serval/core":"workspace:*","@serval/mcp-client":"workspace:*","@serval/mcp-http":"workspace:*","@serval/mcp-runtime":"workspace:*","@serval/mcp-stdio":"workspace:*","@types/node-cron":"^3.0.11","better-sqlite3":"^12.6.2","chalk":"^5.6.2","cli-table3":"^0.6.5","compression":"^1.8.1","cors":"^2.8.6","deep-diff":"^1.0.2","dotenv":"^17.2.4","express":"^5.2.1","express-rate-limit":"^8.3.1","google-auth-library":"^10.5.0","googleapis":"^171.4.0","graphql":"^16.12.0","helmet":"^8.1.0","hyperformula":"^3.2.0","jsonwebtoken":"^9.0.3","lru-cache":"^11.2.5","node-cron":"^4.2.1","open":"^11.0.0","p-queue":"^9.1.0","prom-client":"^15.1.3","stripe":"^17.5.0","uuid":"^13.0.0","winston":"^3.19.0","zod":"^4.3.6"},"devDependencies":{"@stryker-mutator/core":"^9.6.0","@stryker-mutator/jest-runner":"^9.6.0","@stryker-mutator/typescript-checker":"^9.6.0","@stryker-mutator/vitest-runner":"^9.6.0","@types/better-sqlite3":"^7.6.13","@types/compression":"^1.8.1","@types/cors":"^2.8.19","@types/deep-diff":"^1.0.5","@types/express":"^5.0.6","@types/jsonwebtoken":"^9.0.10","@types/node":"^20.17.0","@types/react":"^18.3.28","@types/react-dom":"^18.3.7","@types/stripe":"^8.0.416","@types/supertest":"^6.0.3","@types/swagger-ui-express":"^4.1.8","@types/ws":"^8.5.13","@typescript-eslint/eslint-plugin":"^8.54.0","@typescript-eslint/parser":"^8.54.0","@vitejs/plugin-react":"^5.1.4","@vitest/coverage-v8":"^4.0.18","ajv":"^8.18.0","ajv-formats":"^3.0.1","autocannon":"^8.0.0","bindings":"^1.5.0","chokidar":"^5.0.0","commander":"^14.0.3","cspell":"^9.6.4","dependency-cruiser":"^17.2.0","eslint":"^9.39.2","eslint-plugin-boundaries":"^5.4.0","fast-check":"^4.5.3","husky":"^9.1.7","knip":"^5.83.0","lint-staged":"^16.2.7","markdownlint-cli2":"^0.21.0","npm-run-all":"^4.1.5","openapi-types":"^12.1.3","prettier":"^3.8.1","react":"^18.3.1","react-dom":"^18.3.1","rollup-linux-x64-gnu":"^0.1.0","supertest":"^7.2.2","swagger-ui-express":"^5.0.1","syncpack":"^14.0.0","ts-prune":"^0.10.3","tsx":"^4.21.0","turbo":"^2.8.3","typedoc":"^0.28.16","typescript":"^5.9.3","vite":"^7.3.1","vitepress":"^1.6.4","vitest":"^4.0.18","yaml":"^2.8.2","zod-to-json-schema":"^3.25.1"},"engines":{"node":">=20.0.0","npm":">=10.0.0"},"exports":{".":{"types":"./dist/index.d.ts","import":"./dist/index.js"},"./server":{"types":"./dist/server.d.ts","import":"./dist/server.js"},"./http-server":{"types":"./dist/http-server.d.ts","import":"./dist/http-server.js"},"./oauth-provider":{"types":"./dist/oauth-provider.d.ts","import":"./dist/oauth-provider.js"},"./utils/webhook-verification":{"types":"./dist/utils/webhook-verification.d.ts","import":"./dist/utils/webhook-verification.js"},"./security/webhook-signature":{"types":"./dist/security/webhook-signature.d.ts","import":"./dist/security/webhook-signature.js"},"./schemas":{"types":"./dist/schemas/index.d.ts","import":"./dist/schemas/index.js"},"./package.json":"./package.json"},"files":["dist","packages/mcp-client/dist","packages/mcp-runtime/dist","packages/mcp-http/dist","packages/mcp-stdio/dist","examples","docs/guides","assets","manifest.json","openapi.json","openapi.yaml","server.json","README.md","LICENSE","SECURITY.md","CHANGELOG.md","skill"],"homepage":"https://github.com/khill1269/servalsheets#readme","keywords":["ai-tools","anthropic","anthropic-mcp","claude","claude-desktop","connector","enterprise","google-sheets","google-workspace","gsheets","mcp","mcp-server","model-context-protocol","oauth","oauth2","production-ready","spreadsheet"],"license":"MIT","lint-staged":{"src/**/*.ts":["node --max-old-space-size=4096 node_modules/.bin/eslint --cache --fix","prettier --write"],"scripts/**/*.ts":["node --max-old-space-size=4096 node_modules/.bin/eslint --cache --fix","prettier --write"],"*.{json,md}":["prettier --write"]},"optionalDependencies":{"rollup-linux-x64-gnu":"^0.1.0"},"private":false,"repository":{"type":"git","url":"https://github.com/khill1269/servalsheets.git"},"scripts":{"audit:coverage":"vitest run tests/audit/action-coverage.test.ts","audit:full":"npm-run-all --sequential audit:coverage audit:perf audit:memory audit:gate audit:snapshot","audit:gate":"bash scripts/audit-gate.sh","audit:memory":"vitest run tests/audit/memory-leaks.test.ts","audit:perf":"vitest run tests/audit/performance-profile.bench.ts","audit:snapshot":"node scripts/generate-health-snapshot.ts","build":"tsc --noEmit && node scripts/build.mjs","build:docs":"typedoc src --out docs/api","build:local":"npm run build","check:dead-code":"ts-prune --skip generated","check:drift":"tsx scripts/check-drift.mjs","check:integration-wiring":"node scripts/check-integration-wiring.mjs","check:mutation-actions":"node scripts/check-mutation-actions.mjs","check:placeholders":"grep -r 'TODO\\|FIXME' src/ || true","check:silent-fallbacks":"node scripts/check-silent-fallbacks.mjs","dev":"tsx watch --env-file=.env.local src/server.ts","format":"prettier --check src/ scripts/ tests/","generate:audit-report":"node scripts/generate-audit-report.mjs","lint":"eslint src/ scripts/ tests/ --cache","lint:fix":"eslint src/ scripts/ tests/ --cache --fix","precommit":"lint-staged","schema:commit":"tsx scripts/schema-commit.mjs","start":"node dist/cli.js","test":"vitest run","test:fast":"vitest run tests/handlers tests/contracts tests/utils","test:watch":"vitest watch","test:watch:handlers":"vitest watch tests/handlers","test:watch:integration":"vitest watch tests/integration","typecheck":"tsc --noEmit","typecheck:watch":"tsc --noEmit --watch","validate:alignment":"tsx scripts/validate-alignment.mjs","validate:audit":"tsx scripts/validate-audit.mjs","validate:dead-code":"tsx scripts/validate-dead-code.mjs","validate:eslint":"eslint src/ --cache --max-warnings 0","verify":"npm-run-all --sequential typecheck lint test check:drift","verify:build":"npm-run-all --sequential build lint test","verify:safe":"npm-run-all --sequential typecheck test check:drift"},"version":"2.0.0"}
+{
+  "name": "servalsheets",
+  "description": "Production-grade Google Sheets MCP server - 25 tools, 407 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "version": "2.0.0",
+  "author": {
+    "name": "Thomas Lee Cahill",
+    "url": "https://github.com/khill1269"
+  },
+  "bin": {
+    "servalsheets": "./dist/cli.js"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "bugs": {
+    "url": "https://github.com/khill1269/servalsheets/issues"
+  },
+  "dependencies": {
+    "@apollo/server": "^5.4.0",
+    "@duckdb/node-api": "^1.5.0-r.1",
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "@node-saml/node-saml": "^5.1.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.71.0",
+    "@opentelemetry/exporter-prometheus": "^0.213.0",
+    "@opentelemetry/sdk-metrics": "^2.6.0",
+    "@opentelemetry/sdk-node": "^0.213.0",
+    "@opentelemetry/sdk-trace-node": "^2.6.0",
+    "@serval/core": "workspace:*",
+    "@serval/mcp-client": "workspace:*",
+    "@serval/mcp-http": "workspace:*",
+    "@serval/mcp-runtime": "workspace:*",
+    "@serval/mcp-stdio": "workspace:*",
+    "@types/node-cron": "^3.0.11",
+    "better-sqlite3": "^12.6.2",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "deep-diff": "^1.0.2",
+    "dotenv": "^17.2.4",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^171.4.0",
+    "graphql": "^16.12.0",
+    "helmet": "^8.1.0",
+    "hyperformula": "^3.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "lru-cache": "^11.2.5",
+    "node-cron": "^4.2.1",
+    "open": "^11.0.0",
+    "p-queue": "^9.1.0",
+    "prom-client": "^15.1.3",
+    "stripe": "^17.5.0",
+    "uuid": "^13.0.0",
+    "winston": "^3.19.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^9.6.0",
+    "@stryker-mutator/jest-runner": "^9.6.0",
+    "@stryker-mutator/typescript-checker": "^9.6.0",
+    "@stryker-mutator/vitest-runner": "^9.6.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/deep-diff": "^1.0.5",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@types/stripe": "^8.0.416",
+    "@types/supertest": "^6.0.3",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/ws": "^8.5.13",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "@vitest/coverage-v8": "^4.0.18",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
+    "autocannon": "^8.0.0",
+    "bindings": "^1.5.0",
+    "chokidar": "^5.0.0",
+    "commander": "^14.0.3",
+    "cspell": "^9.6.4",
+    "dependency-cruiser": "^17.2.0",
+    "eslint": "^9.39.2",
+    "eslint-plugin-boundaries": "^5.4.0",
+    "fast-check": "^4.5.3",
+    "husky": "^9.1.7",
+    "knip": "^5.83.0",
+    "lint-staged": "^16.2.7",
+    "markdownlint-cli2": "^0.21.0",
+    "npm-run-all": "^4.1.5",
+    "openapi-types": "^12.1.3",
+    "prettier": "^3.8.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "supertest": "^7.2.2",
+    "swagger-ui-express": "^5.0.1",
+    "syncpack": "^14.0.0",
+    "ts-prune": "^0.10.3",
+    "tsx": "^4.21.0",
+    "turbo": "^2.8.3",
+    "typedoc": "^0.28.16",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitepress": "^1.6.4",
+    "vitest": "^4.0.18",
+    "yaml": "^2.8.2",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./http-server": {
+      "types": "./dist/http-server.d.ts",
+      "import": "./dist/http-server.js"
+    },
+    "./oauth-provider": {
+      "types": "./dist/oauth-provider.d.ts",
+      "import": "./dist/oauth-provider.js"
+    },
+    "./utils/webhook-verification": {
+      "types": "./dist/utils/webhook-verification.d.ts",
+      "import": "./dist/utils/webhook-verification.js"
+    },
+    "./security/webhook-signature": {
+      "types": "./dist/security/webhook-signature.d.ts",
+      "import": "./dist/security/webhook-signature.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "packages/mcp-client/dist",
+    "packages/mcp-runtime/dist",
+    "packages/mcp-http/dist",
+    "packages/mcp-stdio/dist",
+    "examples",
+    "docs/guides",
+    "assets",
+    "manifest.json",
+    "openapi.json",
+    "openapi.yaml",
+    "server.json",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "skill"
+  ],
+  "homepage": "https://github.com/khill1269/servalsheets#readme",
+  "keywords": [
+    "ai-tools",
+    "anthropic",
+    "anthropic-mcp",
+    "claude",
+    "claude-desktop",
+    "connector",
+    "enterprise",
+    "google-sheets",
+    "google-workspace",
+    "gsheets",
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "oauth",
+    "oauth2",
+    "production-ready",
+    "spreadsheet"
+  ],
+  "license": "MIT",
+  "lint-staged": {
+    "src/**/*.ts": [
+      "node --max-old-space-size=4096 node_modules/.bin/eslint --cache --fix",
+      "prettier --write"
+    ],
+    "scripts/**/*.ts": [
+      "node --max-old-space-size=4096 node_modules/.bin/eslint --cache --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "main": "dist/index.js",
+  "mcpName": "io.github.khill1269/servalsheets",
+  "optionalDependencies": {
+    "ioredis": "^5.10.0",
+    "keytar": "7.9.0",
+    "pyodide": "^0.29.3",
+    "redis": "5.10.0"
+  },
+  "overrides": {
+    "esbuild": "^0.27.2",
+    "express-rate-limit": "^8.3.1",
+    "hono": "^4.12.7",
+    "@hono/node-server": "^1.19.11",
+    "underscore": "^1.13.8",
+    "eslint": {
+      "ajv": "^6.12.4"
+    },
+    "@eslint/eslintrc": {
+      "ajv": "^6.12.4"
+    },
+    "minimatch": "^10.2.1",
+    "xmldom": "npm:@xmldom/xmldom@^0.8.10",
+    "xml2js": "^0.5.0"
+  },
+  "packageManager": "npm@10.9.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khill1269/servalsheets"
+  }
+}
