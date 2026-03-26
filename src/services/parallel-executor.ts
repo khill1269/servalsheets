@@ -216,9 +216,11 @@ export class ParallelExecutor {
           this.stats.totalSucceeded++;
           this.stats.totalDuration += duration;
           this.stats.totalRetries += retries;
-          this.stats.durations.push(duration);
-          if (this.stats.durations.length > 10500) {
-            this.stats.durations = this.stats.durations.slice(-10000);
+          // Ring buffer: overwrite oldest entry instead of slice() copy (avoids GC spike)
+          if (this.stats.durations.length < 10000) {
+            this.stats.durations.push(duration);
+          } else {
+            this.stats.durations[this.stats.totalExecuted % 10000] = duration;
           }
           completed++;
 

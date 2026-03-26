@@ -561,7 +561,7 @@ export class CostTracker extends EventEmitter {
   private startPeriodicReset(): void {
     const checkInterval = 60 * 60 * 1000; // Check every hour
 
-    setInterval(() => {
+    const timer = setInterval(() => {
       const now = new Date();
       if (now.getDate() === 1 && now.getHours() === 0) {
         // Reset all usage at start of month
@@ -569,6 +569,7 @@ export class CostTracker extends EventEmitter {
         this.usage.clear();
       }
     }, checkInterval);
+    timer.unref();
   }
 
   /**

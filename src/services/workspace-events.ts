@@ -28,6 +28,7 @@ interface ActiveSubscription {
 const WORKSPACE_EVENTS_BASE_URL = 'https://workspaceevents.googleapis.com/v1beta';
 const DRIVE_CONTENT_CHANGED_EVENT = 'google.workspace.drive.file.v3.contentChanged';
 const SUBSCRIPTION_TTL = '604800s';
+const MAX_SUBSCRIPTIONS = 1000;
 
 export class WorkspaceEventsService {
   private subscriptions = new Map<string, ActiveSubscription>();
@@ -130,6 +131,14 @@ export class WorkspaceEventsService {
         createdAt: new Date().toISOString(),
       };
 
+      // Enforce MAX_SUBSCRIPTIONS limit with FIFO eviction
+      if (this.subscriptions.size >= MAX_SUBSCRIPTIONS) {
+        const oldestEntry = this.subscriptions.entries().next().value;
+        if (oldestEntry) {
+          this.subscriptions.delete(oldestEntry[0]);
+        }
+      }
+
       this.subscriptions.set(sub.id, sub);
       if (this.isSubscriptionResourceName(sub.id)) {
         this.scheduleRenewal(sub);
@@ -158,6 +167,9 @@ export class WorkspaceEventsService {
     const msUntilRenewal = new Date(sub.expireTime).getTime() - Date.now() - 12 * 3600 * 1000;
     if (msUntilRenewal > 0) {
       sub.renewalTimer = setTimeout(() => this.renewSubscription(sub.id), msUntilRenewal);
+      if (typeof sub.renewalTimer === 'object' && 'unref' in sub.renewalTimer) {
+        sub.renewalTimer.unref();
+      }
     }
   }
 
