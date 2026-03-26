@@ -5,7 +5,7 @@
 # NOTE: Pin to specific tag for reproducibility. Run `docker pull node:20-alpine`
 # then `docker inspect --format='{{index .RepoDigests 0}}' node:20-alpine` to get
 # the current digest and append @sha256:... to the FROM line below.
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ RUN npm run build
 RUN npm prune --production
 
 # Stage 2: Runtime (same pin as builder — keep in sync)
-FROM node:20-alpine
+FROM node:25-alpine
 
 WORKDIR /app
 
