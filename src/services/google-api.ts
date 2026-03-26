@@ -1,1 +1,0 @@
-cat /tmp/google-api.ts
