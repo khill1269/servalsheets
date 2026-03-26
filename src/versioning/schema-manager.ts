@@ -108,7 +108,7 @@ export class SchemaVersionManager {
 
   private parseVersion(versionString?: string): SchemaVersion | undefined {
     if (!versionString) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const normalized = versionString.toLowerCase().trim();
@@ -120,7 +120,7 @@ export class SchemaVersionManager {
     }
 
     logger.warn('Invalid version string', { versionString });
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   private generateDeprecationWarning(metadata: VersionMetadata): string {

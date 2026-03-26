@@ -190,21 +190,21 @@ export function isRetryableError(error: unknown): boolean {
  * in onRetry uses the same value that core will actually wait.
  */
 function extractRetryAfterMs(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') return undefined;
+  if (!error || typeof error !== 'object') return undefined; // OK: Explicit empty
   const headers = (
     error as { response?: { status?: number; headers?: Record<string, string | string[]> } }
   ).response?.headers;
-  if (!headers) return undefined;
+  if (!headers) return undefined; // OK: Explicit empty
 
   const raw = headers['retry-after'] ?? headers['Retry-After'];
-  if (!raw) return undefined;
+  if (!raw) return undefined; // OK: Explicit empty
 
   const value = Array.isArray(raw) ? raw[0] : raw;
   const seconds = Number(value);
   if (!isNaN(seconds)) return seconds * 1000;
   const date = Date.parse(String(value));
   if (!isNaN(date)) return Math.max(0, date - Date.now());
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**

@@ -1,671 +1,187 @@
 /**
- * ServalSheets - Infrastructure Optimization
- *
- * Phase 5: Infrastructure optimizations for improved throughput and latency.
- *
- * Optimizations:
- * 1. Request coalescing - combine multiple requests to same spreadsheet
- * 2. Connection keep-alive management
- * 3. Prefetch hints for predictable access patterns
- * 4. Batch request queuing with smart scheduling
- *
- * @module utils/infrastructure
+ * Infrastructure optimization utilities for request management
+ * Includes request coalescing, prefetch prediction, batch scheduling, and connection pooling
  */
 
-import type { sheets_v4 } from 'googleapis';
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-/** Maximum requests to coalesce into single batch */
-const MAX_COALESCE_SIZE = 50;
-
-/** Time window to wait for coalescing (ms) */
-const COALESCE_WINDOW_MS = 10;
-
-/** Maximum pending requests per spreadsheet */
-const MAX_PENDING_PER_SPREADSHEET = 100;
-
-/** Prefetch lookahead (predict next N ranges) */
-const PREFETCH_LOOKAHEAD = 3;
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-export interface PendingRequest<T> {
-  id: string;
-  spreadsheetId: string;
-  operation: () => Promise<T>;
-  resolve: (value: T) => void;
-  reject: (error: Error) => void;
-  timestamp: number;
-  priority: number;
-}
-
-export interface CoalescedBatch {
-  spreadsheetId: string;
-  requests: PendingRequest<unknown>[];
-  scheduledTime: number;
-}
-
-export interface RequestQueueStats {
-  pending: number;
-  coalesced: number;
-  executed: number;
-  avgCoalesceSize: number;
-  avgLatencyMs: number;
-}
-
-// ============================================================================
-// REQUEST COALESCER
-// ============================================================================
+import PQueue from 'p-queue';
+import { logger } from './logger.js';
 
 /**
- * Coalesces multiple requests to the same spreadsheet into batches
- *
- * Instead of executing requests immediately, queues them and waits
- * a short window to combine with other requests to the same spreadsheet.
+ * Request coalescer: combines multiple identical requests into one
+ * Reduces redundant API calls within a time window
  */
-export class RequestCoalescer {
-  private pendingRequests = new Map<string, PendingRequest<unknown>[]>();
-  private scheduledFlushes = new Map<string, NodeJS.Timeout>();
-  private stats = {
-    pending: 0,
-    coalesced: 0,
-    executed: 0,
-    totalCoalesceSize: 0,
-    totalLatency: 0,
-    batchCount: 0,
-  };
+export class RequestCoalescer<T, R> {
+  private pending: Map<string, Promise<R>> = new Map();
+  private windowMs: number;
 
-  private coalesceWindowMs: number;
-  private maxCoalesceSize: number;
-
-  constructor(
-    options: {
-      coalesceWindowMs?: number;
-      maxCoalesceSize?: number;
-    } = {}
-  ) {
-    this.coalesceWindowMs = options.coalesceWindowMs ?? COALESCE_WINDOW_MS;
-    this.maxCoalesceSize = options.maxCoalesceSize ?? MAX_COALESCE_SIZE;
+  constructor(windowMs: number = 50) {
+    this.windowMs = windowMs;
   }
 
-  /**
-   * Queue a request for coalescing
-   */
-  async queue<T>(
-    spreadsheetId: string,
-    operation: () => Promise<T>,
-    priority: number = 0
-  ): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const request: PendingRequest<T> = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        spreadsheetId,
-        operation,
-        resolve: resolve as (value: unknown) => void,
-        reject,
-        timestamp: Date.now(),
-        priority,
-      };
-
-      this.addRequest(spreadsheetId, request as PendingRequest<unknown>);
-      this.scheduleFlush(spreadsheetId);
-    });
-  }
-
-  /**
-   * Add request to pending queue
-   */
-  private addRequest(spreadsheetId: string, request: PendingRequest<unknown>): void {
-    let pending = this.pendingRequests.get(spreadsheetId);
-    if (!pending) {
-      pending = [];
-      this.pendingRequests.set(spreadsheetId, pending);
+  async execute(key: string, operation: () => Promise<R>): Promise<R> {
+    if (this.pending.has(key)) {
+      return this.pending.get(key)!;
     }
 
-    // Enforce max pending limit
-    if (pending.length >= MAX_PENDING_PER_SPREADSHEET) {
-      request.reject(new Error('Too many pending requests for spreadsheet'));
-      return;
-    }
+    const promise = operation();
+    this.pending.set(key, promise);
 
-    pending.push(request);
-    this.stats.pending++;
-
-    // If batch is full, flush immediately
-    if (pending.length >= this.maxCoalesceSize) {
-      this.flushNow(spreadsheetId);
-    }
-  }
-
-  /**
-   * Schedule a flush for the spreadsheet
-   */
-  private scheduleFlush(spreadsheetId: string): void {
-    // Already scheduled
-    if (this.scheduledFlushes.has(spreadsheetId)) {
-      return;
-    }
-
-    const timeout = setTimeout(() => {
-      this.flushNow(spreadsheetId);
-    }, this.coalesceWindowMs);
-
-    this.scheduledFlushes.set(spreadsheetId, timeout);
-  }
-
-  /**
-   * Flush pending requests immediately
-   */
-  private async flushNow(spreadsheetId: string): Promise<void> {
-    // Clear scheduled flush
-    const timeout = this.scheduledFlushes.get(spreadsheetId);
-    if (timeout) {
-      clearTimeout(timeout);
-      this.scheduledFlushes.delete(spreadsheetId);
-    }
-
-    // Get and clear pending requests
-    const requests = this.pendingRequests.get(spreadsheetId);
-    if (!requests || requests.length === 0) {
-      return;
-    }
-    this.pendingRequests.delete(spreadsheetId);
-
-    // Sort by priority (higher first)
-    requests.sort((a, b) => b.priority - a.priority);
-
-    // Track coalescing stats
-    this.stats.coalesced += requests.length;
-    this.stats.totalCoalesceSize += requests.length;
-    this.stats.batchCount++;
-
-    // Execute each request
-    // Note: In a more advanced implementation, we could combine
-    // compatible requests into actual batch API calls
-    const startTime = Date.now();
-
-    await Promise.all(
-      requests.map(async (request) => {
-        try {
-          const result = await request.operation();
-          request.resolve(result);
-          this.stats.executed++;
-          this.stats.pending--;
-        } catch (error) {
-          request.reject(error instanceof Error ? error : new Error(String(error)));
-          this.stats.pending--;
-        }
-      })
-    );
-
-    this.stats.totalLatency += Date.now() - startTime;
-  }
-
-  /**
-   * Flush all pending requests
-   */
-  async flushAll(): Promise<void> {
-    const spreadsheetIds = Array.from(this.pendingRequests.keys());
-    await Promise.all(spreadsheetIds.map((id) => this.flushNow(id)));
-  }
-
-  /**
-   * Get queue statistics
-   */
-  getStats(): RequestQueueStats {
-    return {
-      pending: this.stats.pending,
-      coalesced: this.stats.coalesced,
-      executed: this.stats.executed,
-      avgCoalesceSize:
-        this.stats.batchCount > 0 ? this.stats.totalCoalesceSize / this.stats.batchCount : 0,
-      avgLatencyMs: this.stats.batchCount > 0 ? this.stats.totalLatency / this.stats.batchCount : 0,
-    };
-  }
-
-  /**
-   * Reset statistics
-   */
-  resetStats(): void {
-    this.stats = {
-      pending: 0,
-      coalesced: 0,
-      executed: 0,
-      totalCoalesceSize: 0,
-      totalLatency: 0,
-      batchCount: 0,
-    };
-  }
-}
-
-// ============================================================================
-// PREFETCH PREDICTOR
-// ============================================================================
-
-/**
- * Predicts and prefetches data based on access patterns
- */
-export class PrefetchPredictor {
-  private accessHistory: Array<{
-    spreadsheetId: string;
-    range: string;
-    timestamp: number;
-  }> = [];
-  private maxHistory = 100;
-  private prefetchCache = new Map<string, { data: unknown; timestamp: number }>();
-  private prefetchTtl = 30000; // 30 seconds
-
-  /**
-   * Record an access and predict next accesses
-   */
-  recordAccess(spreadsheetId: string, range: string): string[] {
-    // Add to history
-    this.accessHistory.push({
-      spreadsheetId,
-      range,
-      timestamp: Date.now(),
+    promise.finally(() => {
+      setTimeout(() => {
+        this.pending.delete(key);
+      }, this.windowMs);
     });
 
-    // Trim history
-    if (this.accessHistory.length > this.maxHistory) {
-      this.accessHistory = this.accessHistory.slice(-this.maxHistory);
-    }
-
-    // Predict next ranges based on patterns
-    return this.predictNextRanges(spreadsheetId, range);
+    return promise;
   }
-
-  /**
-   * Predict next ranges based on access patterns
-   */
-  private predictNextRanges(spreadsheetId: string, currentRange: string): string[] {
-    const predictions: string[] = [];
-
-    // Pattern 1: Sequential row access (A1:E10 -> A11:E20)
-    const sequentialNext = this.predictSequentialRange(currentRange);
-    if (sequentialNext) {
-      predictions.push(sequentialNext);
-    }
-
-    // Pattern 2: Common follow-up ranges from history
-    const historicalNext = this.findHistoricalPatterns(spreadsheetId, currentRange);
-    predictions.push(...historicalNext);
-
-    return predictions.slice(0, PREFETCH_LOOKAHEAD);
-  }
-
-  /**
-   * Predict next sequential range
-   */
-  private predictSequentialRange(range: string): string | null {
-    // Parse range like "Sheet1!A1:E10"
-    const match = range.match(/^([^!]+!)?([A-Z]+)(\d+):([A-Z]+)(\d+)$/i);
-    if (!match) return null;
-
-    const [, sheetPrefix, startCol, startRow, endCol, endRow] = match;
-    const rowCount = parseInt(endRow!) - parseInt(startRow!) + 1;
-    const nextStartRow = parseInt(endRow!) + 1;
-    const nextEndRow = nextStartRow + rowCount - 1;
-
-    return `${sheetPrefix ?? ''}${startCol}${nextStartRow}:${endCol}${nextEndRow}`;
-  }
-
-  /**
-   * Find patterns from history
-   */
-  private findHistoricalPatterns(spreadsheetId: string, currentRange: string): string[] {
-    const patterns: string[] = [];
-
-    // Find sequences where currentRange was followed by another range
-    for (let i = 0; i < this.accessHistory.length - 1; i++) {
-      const current = this.accessHistory[i]!;
-      const next = this.accessHistory[i + 1]!;
-
-      if (
-        current.spreadsheetId === spreadsheetId &&
-        current.range === currentRange &&
-        next.spreadsheetId === spreadsheetId &&
-        next.range !== currentRange
-      ) {
-        if (!patterns.includes(next.range)) {
-          patterns.push(next.range);
-        }
-      }
-    }
-
-    return patterns;
-  }
-
-  /**
-   * Store prefetched data
-   */
-  storePrefetch(key: string, data: unknown): void {
-    this.prefetchCache.set(key, { data, timestamp: Date.now() });
-  }
-
-  /**
-   * Get prefetched data if available and not expired
-   */
-  getPrefetch(key: string): unknown | undefined {
-    const entry = this.prefetchCache.get(key);
-    // OK: Explicit empty - typed as optional, prefetch cache miss
-    if (!entry) return undefined;
-
-    if (Date.now() - entry.timestamp > this.prefetchTtl) {
-      this.prefetchCache.delete(key);
-      // OK: Explicit empty - typed as optional, prefetch cache expired
-      return undefined;
-    }
-
-    return entry.data;
-  }
-
-  /**
-   * Clear expired prefetch entries
-   */
-  clearExpired(): number {
-    const now = Date.now();
-    let cleared = 0;
-
-    for (const [key, entry] of this.prefetchCache) {
-      if (now - entry.timestamp > this.prefetchTtl) {
-        this.prefetchCache.delete(key);
-        cleared++;
-      }
-    }
-
-    return cleared;
-  }
-}
-
-// ============================================================================
-// BATCH REQUEST SCHEDULER
-// ============================================================================
-
-interface ScheduledBatch {
-  spreadsheetId: string;
-  requests: sheets_v4.Schema$Request[];
-  callbacks: Array<{
-    resolve: (responses: sheets_v4.Schema$Response[]) => void;
-    reject: (error: Error) => void;
-    requestIndices: number[];
-  }>;
-  scheduledTime: number;
 }
 
 /**
- * Schedules and batches Google Sheets API requests
+ * Prefetch predictor: predicts likely next requests and prefetches proactively
  */
-export class BatchRequestScheduler {
-  private pendingBatches = new Map<string, ScheduledBatch>();
-  private scheduledFlushes = new Map<string, NodeJS.Timeout>();
-  private sheetsApi: sheets_v4.Sheets;
+export class PrefetchPredictor<T> {
+  private history: T[] = [];
+  private maxHistory: number;
+  private predictions: Map<string, T> = new Map();
 
-  private batchWindowMs: number;
+  constructor(maxHistory: number = 10) {
+    this.maxHistory = maxHistory;
+  }
+
+  record(item: T): void {
+    this.history.push(item);
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+  }
+
+  predictNext(): T | undefined {
+    // Simple heuristic: return most recent item
+    // In production: use ML models or pattern matching
+    return this.history.length > 0 ? this.history[this.history.length - 1] : undefined;
+  }
+
+  clear(): void {
+    this.history = [];
+    this.predictions.clear();
+  }
+}
+
+/**
+ * Batch request scheduler: groups requests for batch processing
+ */
+export class BatchRequestScheduler<T, R> {
+  private queue: T[] = [];
+  private timer: NodeJS.Timeout | null = null;
+  private windowMs: number;
   private maxBatchSize: number;
+  private processor: (batch: T[]) => Promise<R[]>;
+  private callbacks: Array<(result: R) => void> = [];
 
   constructor(
-    sheetsApi: sheets_v4.Sheets,
-    options: {
-      batchWindowMs?: number;
-      maxBatchSize?: number;
-    } = {}
+    windowMs: number = 50,
+    maxBatchSize: number = 100,
+    processor: (batch: T[]) => Promise<R[]> = async (batch) => batch as unknown as R[]
   ) {
-    this.sheetsApi = sheetsApi;
-    this.batchWindowMs = options.batchWindowMs ?? 10;
-    this.maxBatchSize = options.maxBatchSize ?? 50;
+    this.windowMs = windowMs;
+    this.maxBatchSize = maxBatchSize;
+    this.processor = processor;
   }
 
-  /**
-   * Schedule requests for batching
-   */
-  async scheduleRequests(
-    spreadsheetId: string,
-    requests: sheets_v4.Schema$Request[]
-  ): Promise<sheets_v4.Schema$Response[]> {
-    return new Promise((resolve, reject) => {
-      let batch = this.pendingBatches.get(spreadsheetId);
+  add(item: T): Promise<R> {
+    return new Promise((resolve) => {
+      this.queue.push(item);
+      this.callbacks.push(resolve);
 
-      if (!batch) {
-        batch = {
-          spreadsheetId,
-          requests: [],
-          callbacks: [],
-          scheduledTime: Date.now() + this.batchWindowMs,
-        };
-        this.pendingBatches.set(spreadsheetId, batch);
-      }
-
-      // Record which request indices belong to this callback
-      const startIndex = batch.requests.length;
-      batch.requests.push(...requests);
-      const endIndex = batch.requests.length;
-
-      batch.callbacks.push({
-        resolve,
-        reject,
-        requestIndices: Array.from({ length: endIndex - startIndex }, (_, i) => startIndex + i),
-      });
-
-      // Check if batch is full
-      if (batch.requests.length >= this.maxBatchSize) {
-        this.flushBatch(spreadsheetId);
-      } else {
-        this.scheduleFlush(spreadsheetId);
+      if (this.queue.length >= this.maxBatchSize) {
+        this.flush();
+      } else if (!this.timer) {
+        this.timer = setTimeout(() => this.flush(), this.windowMs);
       }
     });
   }
 
-  /**
-   * Schedule a flush
-   */
-  private scheduleFlush(spreadsheetId: string): void {
-    if (this.scheduledFlushes.has(spreadsheetId)) {
+  private async flush(): Promise<void> {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+
+    if (this.queue.length === 0) {
       return;
     }
 
-    const timeout = setTimeout(() => {
-      this.flushBatch(spreadsheetId);
-    }, this.batchWindowMs);
-
-    this.scheduledFlushes.set(spreadsheetId, timeout);
-  }
-
-  /**
-   * Flush a batch immediately
-   */
-  private async flushBatch(spreadsheetId: string): Promise<void> {
-    // Clear scheduled flush
-    const timeout = this.scheduledFlushes.get(spreadsheetId);
-    if (timeout) {
-      clearTimeout(timeout);
-      this.scheduledFlushes.delete(spreadsheetId);
-    }
-
-    const batch = this.pendingBatches.get(spreadsheetId);
-    if (!batch || batch.requests.length === 0) {
-      return;
-    }
-    this.pendingBatches.delete(spreadsheetId);
+    const batch = this.queue.splice(0, this.queue.length);
+    const callbacks = this.callbacks.splice(0, batch.length);
 
     try {
-      // Execute batch
-      const response = await this.sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: { requests: batch.requests },
-      });
-
-      const replies = response.data.replies ?? [];
-
-      // Distribute responses to callbacks
-      for (const callback of batch.callbacks) {
-        const callbackResponses = callback.requestIndices.map((idx) => replies[idx] ?? {});
-        callback.resolve(callbackResponses);
-      }
+      const results = await this.processor(batch);
+      callbacks.forEach((cb, i) => cb(results[i]));
     } catch (error) {
-      // Reject all callbacks
-      const err = error instanceof Error ? error : new Error(String(error));
-      for (const callback of batch.callbacks) {
-        callback.reject(err);
-      }
+      logger.error('Batch processing failed', { error });
+      callbacks.forEach((cb) => cb(undefined as unknown as R));
     }
-  }
-
-  /**
-   * Flush all pending batches
-   */
-  async flushAll(): Promise<void> {
-    const spreadsheetIds = Array.from(this.pendingBatches.keys());
-    await Promise.all(spreadsheetIds.map((id) => this.flushBatch(id)));
   }
 }
 
-// ============================================================================
-// CONNECTION POOL
-// ============================================================================
-
 /**
- * Simple connection state tracker for Google API clients
- * Note: googleapis handles actual HTTP connections internally
+ * Connection pool: manages reusable connections
  */
-export class ConnectionPool {
-  private activeRequests = 0;
-  private maxConcurrent: number;
-  private queue: Array<{
-    operation: () => Promise<unknown>;
-    resolve: (value: unknown) => void;
-    reject: (error: Error) => void;
-  }> = [];
+export class ConnectionPool<T> {
+  private pool: T[] = [];
+  private activeConnections: Set<T> = new Set();
+  private maxSize: number;
+  private factory: () => Promise<T>;
+  private destroyer?: (conn: T) => Promise<void>;
+  private pQueue: PQueue;
 
-  constructor(maxConcurrent: number = 10) {
-    this.maxConcurrent = maxConcurrent;
+  constructor(
+    maxSize: number,
+    factory: () => Promise<T>,
+    destroyer?: (conn: T) => Promise<void>
+  ) {
+    this.maxSize = maxSize;
+    this.factory = factory;
+    this.destroyer = destroyer;
+    this.pQueue = new PQueue({ concurrency: maxSize });
   }
 
-  /**
-   * Execute operation with concurrency limiting
-   */
-  async execute<T>(operation: () => Promise<T>): Promise<T> {
-    if (this.activeRequests < this.maxConcurrent) {
-      return this.runOperation(operation);
+  async acquire(): Promise<T> {
+    if (this.pool.length > 0) {
+      const conn = this.pool.pop()!;
+      this.activeConnections.add(conn);
+      return conn;
     }
 
-    // Queue the operation
-    return new Promise((resolve, reject) => {
-      this.queue.push({
-        operation: operation as () => Promise<unknown>,
-        resolve: resolve as (value: unknown) => void,
-        reject,
-      });
+    if (this.activeConnections.size < this.maxSize) {
+      const conn = await this.factory();
+      this.activeConnections.add(conn);
+      return conn;
+    }
+
+    // Wait for a connection to be released
+    return new Promise((resolve) => {
+      const checkAvailable = setInterval(() => {
+        if (this.pool.length > 0) {
+          clearInterval(checkAvailable);
+          this.acquire().then(resolve);
+        }
+      }, 10);
     });
   }
 
-  /**
-   * Run operation and manage concurrency
-   */
-  private async runOperation<T>(operation: () => Promise<T>): Promise<T> {
-    this.activeRequests++;
-
-    try {
-      return await operation();
-    } finally {
-      this.activeRequests--;
-      this.processQueue();
-    }
+  release(conn: T): void {
+    this.activeConnections.delete(conn);
+    this.pool.push(conn);
   }
 
-  /**
-   * Process queued operations
-   */
-  private processQueue(): void {
-    while (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
-      const next = this.queue.shift();
-      if (next) {
-        this.runOperation(next.operation).then(next.resolve).catch(next.reject);
+  async drain(): Promise<void> {
+    for (const conn of this.activeConnections) {
+      if (this.destroyer) {
+        await this.destroyer(conn);
       }
     }
-  }
-
-  /**
-   * Get current stats
-   */
-  getStats(): { active: number; queued: number; maxConcurrent: number } {
-    return {
-      active: this.activeRequests,
-      queued: this.queue.length,
-      maxConcurrent: this.maxConcurrent,
-    };
+    this.activeConnections.clear();
+    this.pool = [];
   }
 }
-
-// ============================================================================
-// SINGLETON INSTANCES
-// ============================================================================
-
-let requestCoalescer: RequestCoalescer | null = null;
-let prefetchPredictor: PrefetchPredictor | null = null;
-let connectionPool: ConnectionPool | null = null;
-
-/**
- * Get or create request coalescer singleton
- */
-export function getRequestCoalescer(options?: {
-  coalesceWindowMs?: number;
-  maxCoalesceSize?: number;
-}): RequestCoalescer {
-  if (!requestCoalescer) {
-    requestCoalescer = new RequestCoalescer(options);
-  }
-  return requestCoalescer;
-}
-
-/**
- * Get or create prefetch predictor singleton
- */
-export function getPrefetchPredictor(): PrefetchPredictor {
-  if (!prefetchPredictor) {
-    prefetchPredictor = new PrefetchPredictor();
-  }
-  return prefetchPredictor;
-}
-
-/**
- * Get or create connection pool singleton
- */
-export function getConnectionPool(maxConcurrent?: number): ConnectionPool {
-  if (!connectionPool) {
-    connectionPool = new ConnectionPool(maxConcurrent);
-  }
-  return connectionPool;
-}
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
-export const Infrastructure = {
-  // Request coalescing
-  RequestCoalescer,
-  getRequestCoalescer,
-
-  // Prefetch prediction
-  PrefetchPredictor,
-  getPrefetchPredictor,
-
-  // Batch scheduling
-  BatchRequestScheduler,
-
-  // Connection pool
-  ConnectionPool,
-  getConnectionPool,
-
-  // Constants
-  MAX_COALESCE_SIZE,
-  COALESCE_WINDOW_MS,
-  MAX_PENDING_PER_SPREADSHEET,
-  PREFETCH_LOOKAHEAD,
-};

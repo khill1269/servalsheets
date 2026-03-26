@@ -1,56 +1,60 @@
-function getSingleHeaderValue(
-  headers: Record<string, string | string[] | undefined>,
-  headerName: string
-): string | undefined {
-  const raw = headers[headerName];
-  if (Array.isArray(raw)) {
-    return raw[0];
+/**
+ * Helper functions for extracting action and principal information from requests
+ */
+
+/**
+ * Extract action from nested request arguments
+ * Checks up to 3 levels deep for nested request objects
+ */
+export function extractActionFromArgs(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object') return undefined;
+
+  const obj = args as Record<string, unknown>;
+
+  // Level 1: Direct action property
+  if (typeof obj.action === 'string') {
+    return obj.action;
   }
-  return raw;
+
+  // Level 2: Nested in request object
+  if (obj.request && typeof obj.request === 'object') {
+    const req = obj.request as Record<string, unknown>;
+    if (typeof req.action === 'string') {
+      return req.action;
+    }
+
+    // Level 3: Nested deeper
+    if (req.request && typeof req.request === 'object') {
+      const deepReq = req.request as Record<string, unknown>;
+      if (typeof deepReq.action === 'string') {
+        return deepReq.action;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 /**
- * Extract action from args, checking up to 3 levels deep for nested request objects.
+ * Extract principal ID from request headers
+ * Checks multiple header names for user/session/client identification
  */
-export function extractActionFromArgs(args: unknown): string {
-  if (typeof args !== 'object' || args === null) {
-    return 'unknown';
-  }
-
-  const record = args as Record<string, unknown>;
-
-  if (typeof record['action'] === 'string' && record['action']) {
-    return record['action'];
-  }
-
-  let current: unknown = record['request'];
-  for (let depth = 0; depth < 3 && current; depth++) {
-    if (typeof current === 'object' && current !== null) {
-      const nested = current as Record<string, unknown>;
-      if (typeof nested['action'] === 'string' && nested['action']) {
-        return nested['action'];
-      }
-      current = nested['request'];
-    }
-  }
-
-  return 'unknown';
-}
-
 export function extractPrincipalIdFromHeaders(
-  headers: Record<string, string | string[] | undefined> | undefined
+  headers: Record<string, string | string[] | undefined>
 ): string | undefined {
-  if (!headers) {
-    return undefined;
-  }
+  const headerNames = ['x-user-id', 'x-session-id', 'x-client-id', 'x-principal-id'];
 
-  const candidateHeaders = ['x-user-id', 'x-session-id', 'x-client-id'] as const;
-  for (const header of candidateHeaders) {
-    const value = getSingleHeaderValue(headers, header)?.trim();
-    if (value) {
-      return value;
+  for (const name of headerNames) {
+    const value = headers[name] || headers[name.toLowerCase()];
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    } else if (Array.isArray(value) && value.length > 0) {
+      const trimmed = value[0].trim();
+      if (trimmed) return trimmed;
     }
   }
 
-  return undefined; // OK: Explicit empty — no matching header found
+  return undefined;
 }
