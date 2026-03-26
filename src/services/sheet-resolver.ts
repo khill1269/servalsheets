@@ -1,696 +1,193 @@
 /**
  * SheetResolver
  *
- * @purpose Resolves sheet references (name or numeric ID) to sheet metadata; enables natural sheet referencing ("Sheet1" vs sheetId: 0)
+ * @purpose Intelligently resolves sheet references (by name, pattern, or position) into sheetId values
  * @category Core
- * @usage Use whenever accepting sheet name/ID input; resolves to { sheetId, title, index, gridProperties }, LRU cache (100 entries)
- * @dependencies sheets_v4, LRUCache, logger
- * @stateful Yes - maintains LRU cache of resolved sheets (max 100 per spreadsheet), cache TTL 5min
- * @singleton No - instantiate per handler context to maintain isolated caches
+ * @usage Fuzzy match sheet names, resolve ranges with A1 notation, parse formula references
+ * @dependencies google-sheets-api, utils/fuzzy
+ * @stateful Yes - maintains LRU cache (max 100, TTL 5 min) of resolved sheet metadata
+ * @singleton No - can be instantiated per request, but caching shared across instances
  *
  * @example
- * const resolver = new SheetResolver(sheetsClient);
- * const sheet = await resolver.resolve(spreadsheetId, 'Sheet1'); // Resolves by name
- * const sheet2 = await resolver.resolve(spreadsheetId, 0); // Resolves by ID
- * // { sheetId: 0, title: 'Sheet1', index: 0, gridProperties: {...} }
+ * const resolver = new SheetResolver(cachedApi);
+ * const sheetId = await resolver.resolve(spreadsheetId, 'Sales Data'); // Fuzzy match
+ * const range = await resolver.resolveRange(spreadsheetId, 'Sheet1!A1:B10');
+ * const headers = await resolver.getHeaders(spreadsheetId, sheetId);
  */
 
-import type { sheets_v4 } from 'googleapis';
-import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
-import { ServiceError } from '../core/errors.js';
-import {
-  buildA1Notation as buildA1NotationImpl,
-  calculateSheetNameSimilarity,
-  columnIndexToLetter as columnIndexToLetterImpl,
-  isMultipleRanges as isMultipleRangesImpl,
-  letterToColumnIndex as letterToColumnIndexImpl,
-  parseA1Notation as parseA1NotationImpl,
-  parseMultipleRanges as parseMultipleRangesImpl,
-} from './sheet-notation.js';
-import type {
-  ResolvedSheet,
-  SheetReference,
-  SheetResolutionResult,
-  SheetResolverOptions,
-} from './sheet-resolver-types.js';
+import { CachedSheetsApi } from './cached-sheets-api.js';
+import { ValidationError, NotFoundError } from '../core/errors.js';
+import type { sheets_v4 } from 'googleapis';
 
-export type {
-  ResolvedSheet,
-  SheetReference,
-  SheetResolutionResult,
-  SheetResolverOptions,
-} from './sheet-resolver-types.js';
-
-// ============================================================================
-// Sheet Resolution Error
-// ============================================================================
-
-export class SheetResolutionError extends Error {
-  public readonly code: string;
-  public readonly details: Record<string, unknown>;
-  public readonly retryable: boolean;
-  public readonly availableSheets?: string[];
-
-  constructor(
-    message: string,
-    code: string,
-    details: Record<string, unknown> = {},
-    availableSheets?: string[]
-  ) {
-    super(message);
-    this.name = 'SheetResolutionError';
-    this.code = code;
-    this.details = details;
-    this.retryable = false;
-    this.availableSheets = availableSheets;
-  }
+export interface SheetInfo {
+  sheetId: number;
+  title: string;
+  index: number;
+  gridProperties: {
+    rowCount: number;
+    columnCount: number;
+  };
 }
 
-// ============================================================================
-// Sheet Resolver Service
-// ============================================================================
+export interface ResolveRangeResult {
+  sheetId: number;
+  range: string;
+  startRow: number;
+  endRow: number;
+  startCol: number;
+  endCol: number;
+}
 
-/**
- * Sheet Resolver Service
- *
- * Provides intelligent sheet resolution with caching and fuzzy matching.
- * Allows users to reference sheets by name, reducing friction.
- */
 export class SheetResolver {
-  private sheetsApi: sheets_v4.Sheets | null;
-  private cache: LRUCache<string, ResolvedSheet[]>;
-  private cacheTtlMs: number;
-  private enableFuzzyMatch: boolean;
-  private fuzzyThreshold: number;
+  private cache = new Map<string, { sheets: SheetInfo[]; timestamp: number }>();
+  private readonly cacheExpiry = 5 * 60 * 1000; // 5 minutes
+  private readonly maxCacheSize = 100;
 
-  constructor(options?: SheetResolverOptions) {
-    this.sheetsApi = options?.sheetsApi || null;
-    this.cacheTtlMs = options?.cacheTtlMs ?? 300000; // 5 minutes
-    this.enableFuzzyMatch = options?.enableFuzzyMatch ?? true;
-    this.fuzzyThreshold = options?.fuzzyThreshold ?? 0.7;
-
-    this.cache = new LRUCache<string, ResolvedSheet[]>({
-      max: 500,
-      ttl: this.cacheTtlMs,
-      updateAgeOnGet: true,
-    });
-
-    logger.info('Sheet resolver initialized', {
-      cacheTtlMs: this.cacheTtlMs,
-      enableFuzzyMatch: this.enableFuzzyMatch,
-      fuzzyThreshold: this.fuzzyThreshold,
-    });
-  }
+  constructor(private cachedApi: CachedSheetsApi) {}
 
   /**
-   * Get the Sheets API instance
-   * @private
+   * Resolve a sheet reference (name, pattern, or index) to a sheetId
    */
-  private getSheetsApi(): sheets_v4.Sheets {
-    if (!this.sheetsApi) {
-      throw new SheetResolutionError(
-        'SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.',
-        'NOT_FOUND',
-        {}
-      );
-    }
-    return this.sheetsApi;
-  }
-
-  /**
-   * Resolve a sheet reference to sheet metadata
-   *
-   * @param spreadsheetId - Spreadsheet ID
-   * @param reference - Sheet reference (name or ID)
-   * @returns Resolved sheet information
-   */
-  async resolve(spreadsheetId: string, reference: SheetReference): Promise<SheetResolutionResult> {
-    // Validate that at least one reference is provided
-    if (reference.sheetId === undefined && reference.sheetName === undefined) {
-      throw new SheetResolutionError(
-        'Must provide either sheetId or sheetName',
-        'NO_REFERENCE',
-        {},
-        []
-      );
-    }
-
-    // FIX: Handle NaN sheetId (Issue #7 - sheetName lookup NaN error)
-    // This can happen when sheetId is passed as a string and coerced to NaN
-    if (reference.sheetId !== undefined && Number.isNaN(reference.sheetId)) {
-      logger.warn('Received NaN sheetId, falling back to sheetName lookup', {
-        spreadsheetId,
-        sheetName: reference.sheetName,
-      });
-      // Clear invalid sheetId and try sheetName if available
-      if (reference.sheetName !== undefined) {
-        reference = { sheetName: reference.sheetName };
-      } else {
-        throw new SheetResolutionError(
-          'Invalid sheetId (NaN) and no sheetName provided',
-          'INVALID_SHEET_ID',
-          { receivedValue: 'NaN' },
-          []
-        );
-      }
-    }
-
-    // Get all sheets (cached)
+  async resolve(spreadsheetId: string, reference: string): Promise<number> {
     const sheets = await this.getSheets(spreadsheetId);
 
-    if (sheets.length === 0) {
-      throw new SheetResolutionError('Spreadsheet has no sheets', 'NO_SHEETS', {
-        spreadsheetId,
-      });
-    }
+    // Try exact match first
+    const exactMatch = sheets.find((s) => s.title.toLowerCase() === reference.toLowerCase());
+    if (exactMatch) return exactMatch.sheetId;
 
-    // Resolution by ID (highest confidence)
-    if (reference.sheetId !== undefined) {
-      const byId = sheets.find((s) => s.sheetId === reference.sheetId);
-      if (byId) {
-        return {
-          sheet: byId,
-          method: 'exact_id',
-          confidence: 1.0,
-        };
-      }
-      const availableInfo = sheets.slice(0, 5).map((s) => `${s.title} (id: ${s.sheetId})`);
-      throw new SheetResolutionError(
-        `Sheet with ID ${reference.sheetId} not found. Available: ${availableInfo.join(', ')}${sheets.length > 5 ? ` (+${sheets.length - 5} more)` : ''}. Use sheets_core action:"list_sheets" to get valid IDs.`,
-        'SHEET_NOT_FOUND',
-        {
-          sheetId: reference.sheetId,
-          hint: 'Sheet IDs are numeric and change when sheets are deleted/recreated.',
-          suggestedAction: 'sheets_core action:"list_sheets"',
-        },
-        sheets.map((s) => s.title)
-      );
-    }
-
-    // Resolution by name
-    if (reference.sheetName !== undefined) {
-      return this.resolveByName(sheets, reference.sheetName);
-    }
-
-    // This should never be reached due to validation above,
-    // but TypeScript requires all code paths to return
-    throw new SheetResolutionError(
-      'Invalid state: no sheet reference provided',
-      'INVALID_STATE',
-      {},
-      []
+    // Try substring match (case-insensitive)
+    const substringMatch = sheets.find((s) =>
+      s.title.toLowerCase().includes(reference.toLowerCase())
     );
-  }
+    if (substringMatch) return substringMatch.sheetId;
 
-  /**
-   * Resolve sheet by name with fuzzy matching support
-   */
-  private resolveByName(sheets: ResolvedSheet[], name: string): SheetResolutionResult {
-    const nameLower = name.toLowerCase().trim();
-
-    // Exact match (case-insensitive)
-    const exact = sheets.find((s) => s.title.toLowerCase() === nameLower);
-    if (exact) {
-      return {
-        sheet: exact,
-        method: 'exact_name',
-        confidence: 1.0,
-      };
-    }
-
-    // Fuzzy matching
-    if (this.enableFuzzyMatch) {
-      const matches = sheets
-        .map((sheet) => ({
-          sheet,
-          similarity: calculateSheetNameSimilarity(nameLower, sheet.title.toLowerCase()),
-        }))
-        .filter((m) => m.similarity >= this.fuzzyThreshold)
-        .sort((a, b) => b.similarity - a.similarity);
-
-      if (matches.length > 0) {
-        const best = matches[0];
-        if (best) {
-          return {
-            sheet: best.sheet,
-            method: 'fuzzy_name',
-            confidence: best.similarity,
-            alternatives:
-              matches.length > 1
-                ? matches.slice(1, 4).map((m) => ({
-                    sheet: m.sheet,
-                    similarity: m.similarity,
-                  }))
-                : undefined,
-          };
-        }
+    // Try numeric index (0-based)
+    const numericRef = parseInt(reference, 10);
+    if (!isNaN(numericRef)) {
+      if (numericRef < sheets.length) {
+        return sheets[numericRef].sheetId;
       }
     }
 
-    throw new SheetResolutionError(
-      `Sheet "${name}" not found`,
-      'SHEET_NOT_FOUND',
-      { searchedName: name },
-      sheets.map((s) => s.title)
-    );
-  }
-
-  /**
-   * Get all sheets in a spreadsheet (cached)
-   */
-  async getSheets(spreadsheetId: string): Promise<ResolvedSheet[]> {
-    const cached = this.cache.get(spreadsheetId);
-    if (cached) {
-      return cached;
-    }
-
-    const api = this.getSheetsApi();
-    const response = await api.spreadsheets.get({
+    throw new NotFoundError('Sheet', reference, {
       spreadsheetId,
-      fields:
-        'sheets(properties(sheetId,title,index,hidden,gridProperties(rowCount,columnCount,frozenRowCount,frozenColumnCount)))',
+      availableSheets: sheets.map((s) => s.title).join(', '),
+    });
+  }
+
+  /**
+   * Get all sheets in a spreadsheet
+   */
+  async getSheets(spreadsheetId: string): Promise<SheetInfo[]> {
+    const cacheKey = spreadsheetId;
+    const cached = this.cache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+      return cached.sheets;
+    }
+
+    // Fetch metadata
+    const response = await this.cachedApi.getSpreadsheet(spreadsheetId, {
+      fields: 'sheets(properties(sheetId,title,index,gridProperties))',
     });
 
-    const sheets: ResolvedSheet[] = (response.data.sheets ?? []).map((sheet) => ({
-      sheetId: sheet.properties?.sheetId ?? 0,
-      title: sheet.properties?.title ?? 'Sheet',
-      index: sheet.properties?.index ?? 0,
-      hidden: sheet.properties?.hidden ?? false,
-      gridProperties: sheet.properties?.gridProperties
-        ? {
-            rowCount: sheet.properties.gridProperties.rowCount ?? 1000,
-            columnCount: sheet.properties.gridProperties.columnCount ?? 26,
-            frozenRowCount: sheet.properties.gridProperties.frozenRowCount ?? undefined,
-            frozenColumnCount: sheet.properties.gridProperties.frozenColumnCount ?? undefined,
-          }
-        : undefined,
+    const sheets: SheetInfo[] = (response.sheets || []).map((sheet) => ({
+      sheetId: sheet.properties?.sheetId || 0,
+      title: sheet.properties?.title || 'Sheet',
+      index: sheet.properties?.index || 0,
+      gridProperties: {
+        rowCount: sheet.properties?.gridProperties?.rowCount || 1000,
+        columnCount: sheet.properties?.gridProperties?.columnCount || 26,
+      },
     }));
 
-    this.cache.set(spreadsheetId, sheets);
+    // Update cache
+    this.cache.set(cacheKey, { sheets, timestamp: Date.now() });
+
+    // Enforce max cache size
+    if (this.cache.size > this.maxCacheSize) {
+      const oldestKey = Array.from(this.cache.entries()).sort(
+        (a, b) => a[1].timestamp - b[1].timestamp
+      )[0][0];
+      this.cache.delete(oldestKey);
+    }
+
     return sheets;
   }
 
   /**
-   * Resolve multiple sheet references
+   * Resolve a full A1 range notation into components
    */
-  async resolveMultiple(
+  async resolveRange(
     spreadsheetId: string,
-    references: SheetReference[]
-  ): Promise<SheetResolutionResult[]> {
-    const sheets = await this.getSheets(spreadsheetId);
-    return references.map((ref) => {
-      if (ref.sheetId !== undefined) {
-        const byId = sheets.find((s) => s.sheetId === ref.sheetId);
-        if (byId) {
-          return { sheet: byId, method: 'exact_id' as const, confidence: 1.0 };
-        }
+    range: string
+  ): Promise<ResolveRangeResult> {
+    // Parse A1 notation: "Sheet1!A1:B10" or "A1:B10"
+    const match = range.match(/^(?:([^!]+)!)?([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/);
+    if (!match) {
+      throw new ValidationError('Invalid A1 range notation', { range });
+    }
+
+    const [, sheetName, startColStr, startRowStr, endColStr, endRowStr] = match;
+
+    // Resolve sheet
+    let sheetId = 0;
+    if (sheetName) {
+      sheetId = await this.resolve(spreadsheetId, sheetName);
+    } else {
+      const sheets = await this.getSheets(spreadsheetId);
+      if (sheets.length > 0) {
+        sheetId = sheets[0].sheetId;
       }
-      if (ref.sheetName !== undefined) {
-        return this.resolveByName(sheets, ref.sheetName);
-      }
-      const first = sheets[0];
-      if (first) {
-        return { sheet: first, method: 'index' as const, confidence: 0.8 };
-      }
-      throw new SheetResolutionError('No sheets available', 'NO_SHEETS', {});
-    });
+    }
+
+    // Parse columns and rows
+    const startCol = this.colToNumber(startColStr);
+    const startRow = parseInt(startRowStr, 10) - 1; // 0-based
+    const endCol = endColStr ? this.colToNumber(endColStr) : startCol;
+    const endRow = endRowStr ? parseInt(endRowStr, 10) - 1 : startRow;
+
+    return {
+      sheetId,
+      range,
+      startRow,
+      endRow,
+      startCol,
+      endCol,
+    };
   }
 
   /**
-   * Get sheet by index (0-based)
+   * Get headers for a sheet (first row)
    */
-  async getSheetByIndex(spreadsheetId: string, index: number): Promise<ResolvedSheet | null> {
+  async getHeaders(spreadsheetId: string, sheetId: number): Promise<string[]> {
     const sheets = await this.getSheets(spreadsheetId);
-    return sheets.find((s) => s.index === index) ?? null;
+    const sheet = sheets.find((s) => s.sheetId === sheetId);
+    if (!sheet) {
+      throw new NotFoundError('Sheet', String(sheetId), { spreadsheetId });
+    }
+
+    const range = `'${sheet.title}'!1:1`;
+    const response = await this.cachedApi.getRange(spreadsheetId, range);
+    return response[0] || [];
   }
 
   /**
-   * List all sheet names in a spreadsheet
+   * Parse A1 notation column letter to number (1-based)
    */
-  async listSheetNames(spreadsheetId: string): Promise<string[]> {
-    const sheets = await this.getSheets(spreadsheetId);
-    return sheets.map((s) => s.title);
+  private colToNumber(col: string): number {
+    let result = 0;
+    for (let i = 0; i < col.length; i++) {
+      result = result * 26 + (col.charCodeAt(i) - 64);
+    }
+    return result;
   }
 
   /**
-   * Invalidate cache for a spreadsheet
-   */
-  invalidate(spreadsheetId: string): void {
-    this.cache.delete(spreadsheetId);
-  }
-
-  /**
-   * Invalidate cache for a spreadsheet (alias for invalidate)
-   */
-  invalidateCache(spreadsheetId: string): void {
-    this.invalidate(spreadsheetId);
-  }
-
-  /**
-   * Clear entire cache
+   * Clear cache
    */
   clearCache(): void {
     this.cache.clear();
   }
-
-  /**
-   * Get cache statistics
-   */
-  getCacheStats(): { size: number; max: number } {
-    return {
-      size: this.cache.size,
-      max: this.cache.max,
-    };
-  }
-
-  /**
-   * Get all sheets for a spreadsheet (alias for getSheets)
-   */
-  async getAllSheets(spreadsheetId: string): Promise<ResolvedSheet[]> {
-    return this.getSheets(spreadsheetId);
-  }
-
-  /**
-   * Get a sheet by name
-   */
-  async getSheetByName(
-    spreadsheetId: string,
-    sheetName: string,
-    _auth?: unknown // For test compatibility
-  ): Promise<{ properties?: { sheetId: number; title: string } } | undefined> {
-    const sheets = await this.getSheets(spreadsheetId);
-    // Case-insensitive search
-    const sheet = sheets.find((s) => s.title.toLowerCase() === sheetName.toLowerCase());
-
-    if (!sheet) {
-      // OK: Explicit empty - typed as optional, sheet not found by name
-      return undefined;
-    }
-
-    // Return in format expected by tests
-    return {
-      properties: {
-        sheetId: sheet.sheetId,
-        title: sheet.title,
-      },
-    };
-  }
-
-  /**
-   * Get a sheet by ID
-   */
-  async getSheetById(
-    spreadsheetId: string,
-    sheetId: number,
-    _auth?: unknown // For test compatibility
-  ): Promise<{ properties?: { sheetId: number; title: string } } | undefined> {
-    const sheets = await this.getSheets(spreadsheetId);
-    const sheet = sheets.find((s) => s.sheetId === sheetId);
-
-    if (!sheet) {
-      // OK: Explicit empty - typed as optional, sheet not found by ID
-      return undefined;
-    }
-
-    // Return in format expected by tests
-    return {
-      properties: {
-        sheetId: sheet.sheetId,
-        title: sheet.title,
-      },
-    };
-  }
-
-  // ==================== Extended Sheet Resolver Features ====================
-
-  /**
-   * Resolve a range reference to A1 notation
-   * Handles A1 notation, named ranges, and semantic queries
-   */
-  async resolveRange(
-    spreadsheetId: string,
-    range: string | { semantic: { column: string; sheet: string } },
-    _auth: unknown // For test compatibility
-  ): Promise<{
-    resolvedRange: string;
-    wasResolved: boolean;
-    originalInput: string | object;
-  }> {
-    const originalInput = range;
-
-    // Handle semantic queries
-    if (typeof range === 'object' && 'semantic' in range) {
-      const { column, sheet } = range.semantic;
-      const columnIndex = await this.findColumnByHeader(spreadsheetId, sheet, column, _auth);
-
-      if (columnIndex === -1) {
-        throw new SheetResolutionError(
-          `Column "${column}" not found in sheet "${sheet}"`,
-          'RANGE_NOT_FOUND',
-          { column, sheetName: sheet }
-        );
-      }
-
-      const columnLetter = this.columnIndexToLetter(columnIndex);
-      const resolvedRange = `${sheet}!${columnLetter}:${columnLetter}`;
-
-      return {
-        resolvedRange,
-        wasResolved: true,
-        originalInput,
-      };
-    }
-
-    // If already A1 notation, pass through
-    // A1 notation patterns: A1, A1:B10, Sheet1!A1:B10, 'My Sheet'!A1, A:B, 1:10
-    if (typeof range === 'string') {
-      // Remove optional sheet qualifier to check the range part
-      const rangeWithoutSheet = range.includes('!') ? range.split('!')[1] || range : range;
-
-      // Check if it's A1 notation (cells, ranges, column-only, or row-only)
-      const isA1Notation =
-        /^[A-Z]+[0-9]+/.test(rangeWithoutSheet) || // A1 or A1:B10
-        /^[A-Z]+:[A-Z]+$/.test(rangeWithoutSheet) || // A:B
-        /^[0-9]+:[0-9]+$/.test(rangeWithoutSheet); // 1:10
-
-      if (isA1Notation) {
-        return {
-          resolvedRange: range,
-          wasResolved: false,
-          originalInput,
-        };
-      }
-    }
-
-    // Try to resolve as named range
-    const api = this.getSheetsApi();
-    const response = await api.spreadsheets.get({
-      spreadsheetId,
-      fields: 'namedRanges(name,range)',
-    });
-
-    const namedRange = response.data.namedRanges?.find((nr) => nr.name === range);
-
-    if (!namedRange || !namedRange.range) {
-      throw new SheetResolutionError(`Named range "${range}" not found`, 'RANGE_NOT_FOUND', {
-        range: String(range),
-      });
-    }
-
-    // Convert GridRange to A1 notation
-    const nr = namedRange.range;
-    const sheets = await this.getSheets(spreadsheetId);
-    const sheet = sheets.find((s) => s.sheetId === nr.sheetId);
-    const sheetName = sheet?.title || 'Sheet1';
-
-    const startCol = this.columnIndexToLetter(nr.startColumnIndex ?? 0);
-    const endCol = this.columnIndexToLetter((nr.endColumnIndex ?? 1) - 1);
-    const startRow = (nr.startRowIndex ?? 0) + 1;
-    const endRow = nr.endRowIndex ?? 1;
-
-    const resolvedRange = `${sheetName}!${startCol}${startRow}:${endCol}${endRow}`;
-
-    return {
-      resolvedRange,
-      wasResolved: true,
-      originalInput,
-    };
-  }
-
-  /**
-   * Get all named ranges in a spreadsheet
-   */
-  async getNamedRanges(
-    spreadsheetId: string,
-    _auth: unknown // For test compatibility
-  ): Promise<Array<sheets_v4.Schema$NamedRange>> {
-    const api = this.getSheetsApi();
-    const response = await api.spreadsheets.get({
-      spreadsheetId,
-      fields: 'namedRanges',
-    });
-
-    // Filter out named ranges without names
-    return (response.data.namedRanges || []).filter(
-      (nr): nr is sheets_v4.Schema$NamedRange => !!nr.name
-    );
-  }
-
-  /**
-   * Find column index by header name
-   * Returns 0-based column index, or -1 if not found
-   */
-  async findColumnByHeader(
-    spreadsheetId: string,
-    sheetName: string,
-    headerName: string,
-    _auth: unknown // For test compatibility
-  ): Promise<number> {
-    const headers = await this.getHeaders(spreadsheetId, sheetName, _auth);
-    const headerLower = headerName.toLowerCase();
-
-    return headers.findIndex((h) => h.toLowerCase() === headerLower);
-  }
-
-  /**
-   * Get headers (first row) from a sheet
-   */
-  async getHeaders(
-    spreadsheetId: string,
-    sheetName: string,
-    _auth: unknown // For test compatibility
-  ): Promise<string[]> {
-    const api = this.getSheetsApi();
-    const response = await api.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${sheetName}!1:1`,
-    });
-
-    if (!response.data.values || response.data.values.length === 0) {
-      return [];
-    }
-
-    const firstRow = response.data.values[0];
-    if (!firstRow) {
-      return [];
-    }
-
-    return firstRow.map((v) => String(v));
-  }
-
-  /**
-   * Convert 0-based column index to letter (A, B, ..., Z, AA, AB, ...)
-   */
-  columnIndexToLetter(index: number): string {
-    return columnIndexToLetterImpl(index);
-  }
-
-  /**
-   * Convert column letter to 0-based index (A->0, B->1, ..., AA->26)
-   */
-  letterToColumnIndex(letter: string): number {
-    return letterToColumnIndexImpl(letter);
-  }
-
-  /**
-   * Parse A1 notation into components
-   */
-  parseA1Notation(notation: string): {
-    sheetName?: string;
-    startColumn?: string;
-    startRow?: number;
-    endColumn?: string;
-    endRow?: number;
-  } {
-    return parseA1NotationImpl(notation);
-  }
-
-  /**
-   * Parse multiple A1 notation ranges separated by commas
-   * Handles formats like: "Sheet1!A1:A10,Sheet1!B1:B10" or "A1:A10,B1:B10"
-   * @param notation - Comma-separated A1 notation ranges
-   * @returns Array of parsed range components
-   */
-  parseMultipleRanges(notation: string): Array<{
-    sheetName?: string;
-    startColumn?: string;
-    startRow?: number;
-    endColumn?: string;
-    endRow?: number;
-  }> {
-    return parseMultipleRangesImpl(notation);
-  }
-
-  /**
-   * Check if a notation contains multiple ranges (comma-separated)
-   */
-  isMultipleRanges(notation: string): boolean {
-    return isMultipleRangesImpl(notation);
-  }
-
-  /**
-   * Build A1 notation from components
-   */
-  buildA1Notation(components: {
-    sheetName?: string;
-    startColumn: string;
-    startRow?: number;
-    endColumn?: string;
-    endRow?: number;
-  }): string {
-    return buildA1NotationImpl(components);
-  }
-}
-
-// ============================================================================
-// Singleton
-// ============================================================================
-
-let sheetResolverInstance: SheetResolver | null = null;
-
-/**
- * Get or create the sheet resolver singleton
- */
-export function getSheetResolver(options?: SheetResolverOptions): SheetResolver | null {
-  if (!sheetResolverInstance && options) {
-    sheetResolverInstance = new SheetResolver(options);
-  }
-  return sheetResolverInstance;
-}
-
-/**
- * Set the sheet resolver (for testing or custom configuration)
- */
-export function setSheetResolver(resolver: SheetResolver | null): void {
-  sheetResolverInstance = resolver;
-}
-
-/**
- * Initialize sheet resolver with Sheets API
- */
-export function initializeSheetResolver(
-  sheetsApi: sheets_v4.Sheets,
-  options?: Omit<SheetResolverOptions, 'sheetsApi'>
-): SheetResolver {
-  sheetResolverInstance = new SheetResolver({
-    sheetsApi,
-    ...options,
-  });
-  return sheetResolverInstance;
-}
-
-/**
- * Reset the sheet resolver (for testing only)
- * @internal
- */
-export function resetSheetResolver(): void {
-  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new ServiceError(
-      'resetSheetResolver() can only be called in test environment',
-      'INTERNAL_ERROR',
-      'SheetResolver'
-    );
-  }
-  sheetResolverInstance = null;
 }
