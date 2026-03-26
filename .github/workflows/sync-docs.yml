@@ -1,17 +1,16 @@
 name: Sync Documentation
 
 on:
-  workflow_run:
-    workflows: ['106-Category Audit']
-    types:
-      - completed
+  # Auto-triggers disabled until audit pipeline is fully configured
+  # workflow_run:
+  #   workflows: ['106-Category Audit']
+  #   types: [completed]
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'audit-output/results.json'
 
-  workflow_dispatch:
-
-  push:
-    branches: [main]
-    paths:
-      - 'audit-output/results.json'
+  workflow_dispatch: # Manual only until audit pipeline is set up
 
 permissions:
   contents: write

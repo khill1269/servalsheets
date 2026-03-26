@@ -1,19 +1,18 @@
 name: Deploy Audit Dashboard
 
 on:
-  workflow_run:
-    workflows: ['106-Category Audit']
-    types:
-      - completed
+  # Auto-triggers disabled until GitHub Pages is configured
+  # workflow_run:
+  #   workflows: ['106-Category Audit']
+  #   types: [completed]
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'audit-output/results.json'
+  #     - 'dashboard/**'
+  #     - '.github/workflows/deploy-dashboard.yml'
 
-  workflow_dispatch:
-
-  push:
-    branches: [main]
-    paths:
-      - 'audit-output/results.json'
-      - 'dashboard/**'
-      - '.github/workflows/deploy-dashboard.yml'
+  workflow_dispatch: # Manual only until Pages is set up
 
 permissions:
   contents: read
