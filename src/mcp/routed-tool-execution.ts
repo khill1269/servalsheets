@@ -32,7 +32,7 @@ function coerceSessionContextManager(
     return sessionContext as SessionContextManager;
   }
 
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 function createRemoteExecutor<T>({
@@ -43,7 +43,7 @@ function createRemoteExecutor<T>({
   | (() => Promise<T>)
   | undefined {
   if (toolName !== 'sheets_federation') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return async () => {
@@ -79,7 +79,7 @@ function createHostedRemoteExecutor<T>({
 }: Pick<ExecuteRoutedToolCallOptions<T>, 'toolName' | 'args'>): (() => Promise<T>) | undefined {
   const policy = getToolRoutePolicy(toolName);
   if (!policy.remoteTransport || toolName === 'sheets_federation') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   return async () => {

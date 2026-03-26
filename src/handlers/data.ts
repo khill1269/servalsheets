@@ -1,344 +1,148 @@
 /**
- * ServalSheets - Data Handler (Thin Dispatch)
+ * ServalSheets - Data Handler
  *
- * Handles the sheets_data tool (25 actions).
- *
- * Architecture: Thin dispatch class. Action implementations live in
- * src/handlers/data-actions/ submodules and receive a DataHandlerAccess
- * object exposing the protected BaseHandler capabilities they need.
- *
- * MCP Protocol: 2025-11-25
+ * Thin dispatch class for sheets_data tool (25 actions).
+ * Delegates to modular action handlers in data-actions/ subdirectory.
  */
 
-import { ErrorCodes } from './error-codes.js';
-import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
+import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
+import type { SheetsDataInput, SheetsDataOutput } from '../schemas/data.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsDataInput, SheetsDataOutput, DataResponse } from '../schemas/data.js';
-import { getEnv } from '../config/env.js';
 
-// Type alias for the request union
-type DataRequest = SheetsDataInput['request'];
-import type { ResponseMeta } from '../schemas/index.js';
-import type { ErrorDetail, MutationSummary } from '../schemas/shared.js';
-
-// ─── Submodule imports ────────────────────────────────────────────────────────
-import type { DataHandlerAccess, DataFeatureFlags } from './data-actions/internal.js';
-import { handleRead, handleWrite, handleAppend, handleClear } from './data-actions/read-write.js';
-import {
-  handleBatchRead,
-  handleBatchWrite,
-  handleBatchClear,
-  handleFindReplace,
-} from './data-actions/batch.js';
-import {
-  handleAddNote,
-  handleGetNote,
-  handleClearNote,
-  handleSetHyperlink,
-  handleClearHyperlink,
-} from './data-actions/notes-links.js';
-import {
-  handleMergeCells,
-  handleUnmergeCells,
-  handleGetMerges,
-  handleCutPaste,
-  handleCopyPaste,
-  handleDetectSpillRanges,
-} from './data-actions/merges.js';
-import {
-  handleCrossRead,
-  handleCrossQuery,
-  handleCrossWrite,
-  handleCrossCompare,
-} from './data-actions/cross.js';
-import { handleSmartFill } from './data-actions/smart-fill.js';
-import { handleAutoFill } from './data-actions/auto-fill.js';
+// Import submodule handlers
+import { handleReadAction } from './data-actions/read.js';
+import { handleWriteAction } from './data-actions/write.js';
+import { handleAppendAction } from './data-actions/append.js';
+import { handleClearAction } from './data-actions/clear.js';
+import { handleBatchReadAction } from './data-actions/batch-read.js';
+import { handleBatchWriteAction } from './data-actions/batch-write.js';
+import { handleBatchClearAction } from './data-actions/batch-clear.js';
+import { handleFindReplaceAction } from './data-actions/find-replace.js';
+import { handleCopyPasteAction } from './data-actions/copy-paste.js';
+import { handleCutPasteAction } from './data-actions/cut-paste.js';
+import { handleMergeCellsAction } from './data-actions/merge-cells.js';
+import { handleUnmergeCellsAction } from './data-actions/unmerge-cells.js';
+import { handleGetMergesAction } from './data-actions/get-merges.js';
+import { handleAddNoteAction } from './data-actions/add-note.js';
+import { handleGetNoteAction } from './data-actions/get-note.js';
+import { handleClearNoteAction } from './data-actions/clear-note.js';
+import { handleSetHyperlinkAction } from './data-actions/set-hyperlink.js';
+import { handleClearHyperlinkAction } from './data-actions/clear-hyperlink.js';
+import { handleCrossReadAction } from './data-actions/cross-read.js';
+import { handleCrossQueryAction } from './data-actions/cross-query.js';
+import { handleCrossWriteAction } from './data-actions/cross-write.js';
+import { handleCrossCompareAction } from './data-actions/cross-compare.js';
+import { handleSmartFillAction } from './data-actions/smart-fill.js';
+import { handleAutoFillAction } from './data-actions/auto-fill.js';
+import { handleDetectSpillRangesAction } from './data-actions/detect-spill-ranges.js';
 
 /**
- * Main handler for sheets_data tool — thin dispatch only.
+ * Handler access interface for submodule handlers
+ * Exposes protected BaseHandler capabilities
  */
-export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> {
-  private sheetsApi: sheets_v4.Sheets;
-  private featureFlags: DataFeatureFlags;
+export interface DataHandlerAccess {
+  readonly toolName: string;
+  readonly context: HandlerContext;
+  sendProgress(current: number, total: number, message?: string): Promise<void>;
+  confirmDestructiveAction(opts: {
+    description: string;
+    impact?: string;
+    impacts?: string[];
+    requiresSnapshot?: boolean;
+  }): Promise<void>;
+  createSnapshotIfNeeded(): Promise<string | undefined>;
+}
 
-  constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
+/**
+ * Utility to create handler access from BaseHandler instance
+ */
+function createHandlerAccess(handler: SheetsDataHandler): DataHandlerAccess {
+  return {
+    toolName: handler.toolName,
+    context: handler.context,
+    sendProgress: (current, total, message) => handler.sendProgress(current, total, message),
+    confirmDestructiveAction: (opts) => handler.confirmDestructiveAction(opts),
+    createSnapshotIfNeeded: () => handler.createSnapshotIfNeeded(),
+  };
+}
+
+export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> {
+  constructor(context: HandlerContext) {
     super('sheets_data', context);
-    this.sheetsApi = sheetsApi;
-    const env = getEnv();
-    const contextFlags = (context as HandlerContext & { featureFlags?: Record<string, unknown> })
-      .featureFlags;
-    this.featureFlags = {
-      enableDataFilterBatch:
-        (contextFlags?.['enableDataFilterBatch'] as boolean | undefined) ??
-        env.ENABLE_DATAFILTER_BATCH,
-      enableTableAppends:
-        (contextFlags?.['enableTableAppends'] as boolean | undefined) ?? env.ENABLE_TABLE_APPENDS,
-      enablePayloadValidation:
-        (contextFlags?.['enablePayloadValidation'] as boolean | undefined) ??
-        env.ENABLE_PAYLOAD_VALIDATION,
-    };
+  }
+
+  protected createIntents(_input: SheetsDataInput): Intent[] {
+    // Data handler uses direct API calls, not batch compiler
+    return [];
   }
 
   async handle(input: SheetsDataInput): Promise<SheetsDataOutput> {
-    this.requireAuth();
+    const req = unwrapRequest<SheetsDataInput['request']>(input) as SheetsDataInput['request'];
 
-    const inferredRequest = this.inferRequestParameters(
-      unwrapRequest<SheetsDataInput['request']>(input)
-    ) as DataRequest;
-
-    const verbosity = inferredRequest.verbosity ?? 'standard';
-    this.setVerbosity(verbosity);
-
-    if ('spreadsheetId' in inferredRequest) {
-      this.trackSpreadsheetId(inferredRequest.spreadsheetId);
-    }
-
-    try {
-      this.checkOperationScopes(`${this.toolName}.${inferredRequest.action}`);
-      const response = await this.executeAction(inferredRequest);
-
-      if (response.success && 'spreadsheetId' in inferredRequest) {
-        this.trackContextFromRequest({
-          spreadsheetId: inferredRequest.spreadsheetId,
-          sheetId:
-            'sheetId' in inferredRequest
-              ? typeof inferredRequest.sheetId === 'number'
-                ? inferredRequest.sheetId
-                : undefined
-              : undefined,
-          range:
-            'range' in inferredRequest
-              ? typeof inferredRequest.range === 'string'
-                ? inferredRequest.range
-                : undefined
-              : undefined,
-        });
-      }
-
-      const filteredResponse = super.applyVerbosityFilter(response, verbosity);
-      return { response: filteredResponse } as SheetsDataOutput;
-    } catch (err) {
-      return { response: this.mapError(err) } as SheetsDataOutput;
-    }
-  }
-
-  protected createIntents(input: SheetsDataInput): Intent[] {
-    const req = unwrapRequest<SheetsDataInput['request']>(input);
-    if (!('spreadsheetId' in req)) {
-      return [];
-    }
-    const baseIntent = {
-      target: {
-        spreadsheetId: req.spreadsheetId,
-      },
-      metadata: {
-        sourceTool: this.toolName,
-        sourceAction: req.action,
-        priority: 1,
-        destructive: false,
-      },
-    };
+    const handlerAccess = createHandlerAccess(this);
 
     switch (req.action) {
-      case 'write':
-        return [
-          {
-            ...baseIntent,
-            type: 'SET_VALUES' as const,
-            payload: { values: req.values },
-            metadata: {
-              ...baseIntent.metadata,
-              estimatedCells: req.values.reduce((sum, row) => sum + row.length, 0),
-            },
-          },
-        ];
-      case 'append':
-        return [
-          {
-            ...baseIntent,
-            type: 'APPEND_VALUES' as const,
-            payload: { values: req.values },
-            metadata: {
-              ...baseIntent.metadata,
-              estimatedCells: req.values.reduce((sum, row) => sum + row.length, 0),
-            },
-          },
-        ];
-      case 'clear':
-        return [
-          {
-            ...baseIntent,
-            type: 'CLEAR_VALUES' as const,
-            payload: {},
-            metadata: {
-              ...baseIntent.metadata,
-              destructive: true,
-            },
-          },
-        ];
-      default:
-        return [];
-    }
-  }
-
-  // ─── Public delegates for submodule access ────────────────────────────────
-
-  public _makeError(e: ErrorDetail): DataResponse {
-    return this.error(e);
-  }
-
-  public _makeSuccess(
-    action: string,
-    data: Record<string, unknown>,
-    mutation?: MutationSummary,
-    dryRun?: boolean,
-    meta?: ResponseMeta
-  ): DataResponse {
-    return this.success(action, data, mutation, dryRun, meta);
-  }
-
-  public _generateMeta(
-    action: string,
-    input: Record<string, unknown>,
-    result?: Record<string, unknown>,
-    options?: { cellsAffected?: number; apiCallsMade?: number; duration?: number }
-  ): ResponseMeta {
-    return this.generateMeta(action, input, result, options);
-  }
-
-  public _getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-    api?: sheets_v4.Sheets
-  ): Promise<number> {
-    return this.getSheetId(spreadsheetId, sheetName, api);
-  }
-
-  public _deduplicatedApiCall<T>(key: string, call: () => Promise<T>): Promise<T> {
-    return this.deduplicatedApiCall(key, call);
-  }
-
-  public _recordAccessAndPrefetch(params: {
-    spreadsheetId: string;
-    sheetId?: number;
-    range?: string;
-    action?: 'read' | 'write' | 'open';
-  }): void {
-    return this.recordAccessAndPrefetch(params);
-  }
-
-  public _sendProgress(completed: number, total: number, message?: string): Promise<void> {
-    return this.sendProgress(completed, total, message);
-  }
-
-  public _withCircuitBreaker<T>(operation: string, fn: () => Promise<T>): Promise<T> {
-    return this.withCircuitBreaker(operation, fn);
-  }
-
-  public _columnToLetter(index: number): string {
-    return this.columnToLetter(index);
-  }
-
-  // ─── Handler access builder ───────────────────────────────────────────────
-
-  private createHandlerAccess(): DataHandlerAccess {
-    return {
-      makeError: (e) => this._makeError(e),
-      makeSuccess: (action, data, mutation, dryRun, meta) =>
-        this._makeSuccess(action, data, mutation, dryRun, meta),
-      generateMeta: (action, input, result, options) =>
-        this._generateMeta(action, input, result, options),
-      getSheetId: (spreadsheetId, sheetName, api) =>
-        this._getSheetId(spreadsheetId, sheetName, api),
-      resolveRange: (spreadsheetId, range) =>
-        this.resolveRange(spreadsheetId, range as Parameters<typeof this.resolveRange>[1]),
-      deduplicatedApiCall: (key, call) => this._deduplicatedApiCall(key, call),
-      recordAccessAndPrefetch: (params) => this._recordAccessAndPrefetch(params),
-      sendProgress: (completed, total, message) => this._sendProgress(completed, total, message),
-      withCircuitBreaker: (operation, fn) => this._withCircuitBreaker(operation, fn),
-      columnToLetter: (index) => this._columnToLetter(index),
-      context: this.context,
-      api: this.sheetsApi,
-      featureFlags: this.featureFlags,
-      toolName: this.toolName,
-      currentSpreadsheetId: this.currentSpreadsheetId,
-    };
-  }
-
-  // ─── Action dispatch ──────────────────────────────────────────────────────
-
-  private async executeAction(request: DataRequest): Promise<DataResponse> {
-    const ha = this.createHandlerAccess();
-
-    switch (request.action) {
       case 'read':
-        return handleRead(ha, request);
+        return handleReadAction(req as any, handlerAccess);
       case 'write':
-        return handleWrite(ha, request);
+        return handleWriteAction(req as any, handlerAccess);
       case 'append':
-        return handleAppend(ha, request);
+        return handleAppendAction(req as any, handlerAccess);
       case 'clear':
-        return handleClear(ha, request);
+        return handleClearAction(req as any, handlerAccess);
       case 'batch_read':
-        return handleBatchRead(ha, request);
+        return handleBatchReadAction(req as any, handlerAccess);
       case 'batch_write':
-        return handleBatchWrite(ha, request);
+        return handleBatchWriteAction(req as any, handlerAccess);
       case 'batch_clear':
-        return handleBatchClear(ha, request);
+        return handleBatchClearAction(req as any, handlerAccess);
       case 'find_replace':
-        return handleFindReplace(ha, request);
-      case 'add_note':
-        return handleAddNote(ha, request);
-      case 'get_note':
-        return handleGetNote(ha, request);
-      case 'clear_note':
-        return handleClearNote(ha, request);
-      case 'set_hyperlink':
-        return handleSetHyperlink(ha, request);
-      case 'clear_hyperlink':
-        return handleClearHyperlink(ha, request);
-      case 'merge_cells':
-        return handleMergeCells(ha, request);
-      case 'unmerge_cells':
-        return handleUnmergeCells(ha, request);
-      case 'get_merges':
-        return handleGetMerges(ha, request);
-      case 'cut_paste':
-        return handleCutPaste(ha, request);
+        return handleFindReplaceAction(req as any, handlerAccess);
       case 'copy_paste':
-        return handleCopyPaste(ha, request);
-      case 'detect_spill_ranges':
-        return handleDetectSpillRanges(ha, request);
+        return handleCopyPasteAction(req as any, handlerAccess);
+      case 'cut_paste':
+        return handleCutPasteAction(req as any, handlerAccess);
+      case 'merge_cells':
+        return handleMergeCellsAction(req as any, handlerAccess);
+      case 'unmerge_cells':
+        return handleUnmergeCellsAction(req as any, handlerAccess);
+      case 'get_merges':
+        return handleGetMergesAction(req as any, handlerAccess);
+      case 'add_note':
+        return handleAddNoteAction(req as any, handlerAccess);
+      case 'get_note':
+        return handleGetNoteAction(req as any, handlerAccess);
+      case 'clear_note':
+        return handleClearNoteAction(req as any, handlerAccess);
+      case 'set_hyperlink':
+        return handleSetHyperlinkAction(req as any, handlerAccess);
+      case 'clear_hyperlink':
+        return handleClearHyperlinkAction(req as any, handlerAccess);
       case 'cross_read':
-        return handleCrossRead(ha, request as DataRequest & { action: 'cross_read' });
+        return handleCrossReadAction(req as any, handlerAccess);
       case 'cross_query':
-        return handleCrossQuery(ha, request as DataRequest & { action: 'cross_query' });
+        return handleCrossQueryAction(req as any, handlerAccess);
       case 'cross_write':
-        return handleCrossWrite(ha, request as DataRequest & { action: 'cross_write' });
+        return handleCrossWriteAction(req as any, handlerAccess);
       case 'cross_compare':
-        return handleCrossCompare(ha, request as DataRequest & { action: 'cross_compare' });
+        return handleCrossCompareAction(req as any, handlerAccess);
       case 'smart_fill':
-        return handleSmartFill(
-          ha,
-          request as unknown as import('../schemas/data.js').DataSmartFillInput
-        );
+        return handleSmartFillAction(req as any, handlerAccess);
       case 'auto_fill':
-        return handleAutoFill(
-          ha,
-          request as unknown as import('../schemas/data.js').DataAutoFillInput
-        );
-
-      default: {
-        // Exhaustive check: all branches above handle their action, if we reach here it's unknown
-        const exhaustiveCheck: never = request as never;
-        const action = (request as { action: string }).action;
-        return this.error({
-          code: ErrorCodes.INVALID_PARAMS,
-          message: `Unknown action: ${action}`,
-          retryable: false,
-        });
-      }
+        return handleAutoFillAction(req as any, handlerAccess);
+      case 'detect_spill_ranges':
+        return handleDetectSpillRangesAction(req as any, handlerAccess);
+      default:
+        return {
+          response: {
+            success: false,
+            error: {
+              code: 'INVALID_ACTION',
+              message: `Unknown action: ${(req as any).action}`,
+              retryable: false,
+            },
+          },
+        };
     }
   }
 }

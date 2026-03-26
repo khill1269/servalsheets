@@ -79,7 +79,7 @@ export function extractSpreadsheetId(args: Record<string, unknown>): string | un
   }
 
   // OK: Explicit empty - typed as optional, spreadsheetId field not found in args
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**
@@ -119,7 +119,7 @@ export function extractSheetId(args: Record<string, unknown>): number | undefine
   }
 
   // OK: Explicit empty - typed as optional, sheetId field not found in args
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 // ============================================================================
@@ -186,7 +186,7 @@ export function isSuccessResult(result: unknown): boolean {
 export function extractCellsAffected(result: unknown): number | undefined {
   if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   const response = (result as Record<string, unknown>)['response'];
   const data = response && typeof response === 'object' ? response : result;
@@ -207,7 +207,7 @@ export function extractCellsAffected(result: unknown): number | undefined {
   }
 
   // OK: Explicit empty - typed as optional, cellsAffected field not found in result
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**
@@ -230,7 +230,7 @@ export function extractCellsAffected(result: unknown): number | undefined {
 export function extractSnapshotId(result: unknown): string | undefined {
   if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   const response = (result as Record<string, unknown>)['response'];
   const data = response && typeof response === 'object' ? response : result;
@@ -243,7 +243,7 @@ export function extractSnapshotId(result: unknown): string | undefined {
   }
 
   // OK: Explicit empty - typed as optional, revertSnapshotId field not found in result
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**
@@ -265,7 +265,7 @@ export function extractSnapshotId(result: unknown): string | undefined {
 export function extractErrorMessage(result: unknown): string | undefined {
   if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   const response = (result as Record<string, unknown>)['response'];
   if (response && typeof response === 'object') {
@@ -277,7 +277,7 @@ export function extractErrorMessage(result: unknown): string | undefined {
     }
   }
   // OK: Explicit empty - typed as optional, error message field not found in result
-  return undefined;
+  return undefined; // OK: Explicit empty
 }
 
 /**
@@ -299,7 +299,7 @@ export function extractErrorMessage(result: unknown): string | undefined {
 export function extractErrorCode(result: unknown): string | undefined {
   if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
   const response = (result as Record<string, unknown>)['response'];
   if (response && typeof response === 'object') {
@@ -311,5 +311,5 @@ export function extractErrorCode(result: unknown): string | undefined {
     }
   }
   // OK: Explicit empty - typed as optional, error code field not found in result
-  return undefined;
+  return undefined; // OK: Explicit empty
 }

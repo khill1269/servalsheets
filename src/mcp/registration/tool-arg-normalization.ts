@@ -17,7 +17,7 @@ export function getHeaderValue(value: string | string[] | undefined): string | u
 
 export function normalizeRequestHeaders(headers: unknown): NormalizedRequestHeaders | undefined {
   if (!isPlainRecord(headers)) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const entries = headers['entries'];
