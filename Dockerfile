@@ -2,6 +2,9 @@
 # Multi-stage build for optimal image size (~50MB final)
 
 # Stage 1: Build
+# NOTE: Pin to specific tag for reproducibility. Run `docker pull node:20-alpine`
+# then `docker inspect --format='{{index .RepoDigests 0}}' node:20-alpine` to get
+# the current digest and append @sha256:... to the FROM line below.
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -26,7 +29,7 @@ RUN npm run build
 # Prune devDependencies
 RUN npm prune --production
 
-# Stage 2: Runtime
+# Stage 2: Runtime (same pin as builder — keep in sync)
 FROM node:20-alpine
 
 WORKDIR /app
