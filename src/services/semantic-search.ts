@@ -326,7 +326,6 @@ export async function indexSpreadsheet(
 /**
  * Search a previously-indexed spreadsheet by natural language query.
  * Returns the top-K most relevant ranges, sorted by cosine similarity.
- * Session 110 fix: Bound topK to MAX_CHUNKS_PER_SHEET to prevent unbounded results.
  */
 export async function semanticSearch(
   spreadsheetId: string,
@@ -355,9 +354,7 @@ export async function semanticSearch(
   // Sort descending by score
   scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-  // Session 110 fix: Bound topK to prevent unbounded results
-  const boundedK = Math.min(Math.max(1, topK), MAX_CHUNKS_PER_SHEET);
-  return scored.slice(0, boundedK).map((r) => ({
+  return scored.slice(0, topK).map((r) => ({
     range: r.range,
     relevanceScore: Math.round(r.relevanceScore * 10000) / 10000,
     snippet: r.snippet.slice(0, 500), // truncate long snippets for response

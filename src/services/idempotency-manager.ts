@@ -181,7 +181,7 @@ export class IdempotencyManager {
     const cached = this.cache.get(key);
 
     if (!cached) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Verify fingerprint to prevent key collision attacks
@@ -193,7 +193,7 @@ export class IdempotencyManager {
         cachedTool: cached.tool,
         cachedAction: cached.action,
       });
-      return undefined; // key mismatch — not a cache hit
+      return undefined; // OK: Explicit empty — key mismatch — not a cache hit
     }
 
     if (this.config.verbose) {
