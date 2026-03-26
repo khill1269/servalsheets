@@ -326,6 +326,7 @@ describe('MCP Protocol Compliance', () => {
             PROFILE_STORAGE_DIR: profileDir,
             RESTART_STATE_FILE: restartStateFile,
             ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
           },
           stdio: ['pipe', 'pipe', 'pipe'],
         }
