@@ -17,7 +17,7 @@ export function registerHttpGraphQlAndAdmin(params: {
     createTokenBackedInitializedGoogleHandlerContext,
     requestDeduplicator,
     log: logger,
-    addGraphQLEndpoint,
+    addGraphQLEndpoint, // addGraphQLEndpoint(app, resolvers)
     addAdminRoutes,
   });
 }

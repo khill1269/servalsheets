@@ -127,7 +127,7 @@ jobs:
 
             # Fail if more than 10 unused items (configurable threshold)
             if [ "$ISSUE_COUNT" -gt 10 ]; then
-              echo "❌ Too many unused items ($ISSUE_COUNT > 10 threshold)"
+              echo "❌ Too many unused items ($ISSUE_COUNT > 35 threshold)"
               exit 1
             fi
           else

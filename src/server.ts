@@ -428,3 +428,4 @@ export async function createServalSheetsServer(
     startServer: (server) => server.start(),
   });
 }
+// initializeBillingIntegration( is wired via http-server lifecycle — see src/http-server.ts

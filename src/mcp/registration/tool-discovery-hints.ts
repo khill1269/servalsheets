@@ -2131,9 +2131,6 @@ function applyActionHintOverrides(
   const merged: Record<string, ActionParamHint> = { ...actionParams };
 
   for (const [action, override] of Object.entries(overrides)) {
-    if (!(action in actionParams)) {
-      continue;
-    }
     const current = merged[action] ?? { required: [] };
     const required = override.required ?? current.required ?? [];
     const requiredOneOf = override.requiredOneOf ?? current.requiredOneOf;

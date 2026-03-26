@@ -59,9 +59,13 @@ vi.mock('../../src/handlers/analyze.js', async (importOriginal) => {
 
   class MockAnalyzeHandler extends actual.AnalyzeHandler {
     override async handle(input: Parameters<actual.AnalyzeHandler['handle']>[0]) {
+      // Check action only — spreadsheetId may be at a different nesting level
+      // after parseForHandler schema validation (passthrough vs strict)
+      const req = input.request ?? input;
       if (
-        input.request.action === 'analyze_data' &&
-        input.request.spreadsheetId === 'remote-failover-analyze'
+        req.action === 'analyze_data' &&
+        ((req as Record<string, unknown>).spreadsheetId === 'remote-failover-analyze' ||
+          (input as Record<string, unknown>).spreadsheetId === 'remote-failover-analyze')
       ) {
         throw new Error('local analyze failed');
       }

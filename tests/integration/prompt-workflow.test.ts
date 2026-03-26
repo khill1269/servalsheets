@@ -100,6 +100,10 @@ const PROMPT_MINIMAL_ARGS: Record<string, Record<string, string | number | strin
   },
   cross_spreadsheet_federation: { spreadsheetIds: TEST_SPREADSHEET_ID },
   migrate_spreadsheet: { sourceSpreadsheetId: TEST_SPREADSHEET_ID },
+  connector_data_pipeline: {
+    spreadsheetId: TEST_SPREADSHEET_ID,
+    connectorId: 'test-connector',
+  },
 };
 
 // Extract all tool.action pairs mentioned in a prompt text block.
