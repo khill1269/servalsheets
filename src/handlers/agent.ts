@@ -75,7 +75,7 @@ export class AgentHandler {
   private extractScoutPayload(scoutResult: unknown): Record<string, unknown> | undefined {
     const payload = this.getResponsePayload(scoutResult);
     if (!payload) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const nestedScout = payload['scout'];
@@ -104,7 +104,7 @@ export class AgentHandler {
   }): Promise<string | undefined> {
     const { spreadsheetId, scoutSheets, label, includeSamples } = args;
     if (scoutSheets.length === 0) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const rankedSheets = scoutSheets
@@ -162,7 +162,7 @@ export class AgentHandler {
     }
 
     if (parts.length === 0) {
-      return undefined;
+      return undefined; // OK: Explicit empty — no summary parts to report
     }
 
     return `\nSpreadsheet scout (${label}): ${parts.join(' | ')}`;
@@ -183,7 +183,7 @@ export class AgentHandler {
     }
 
     if (!spreadsheetId || !this.handlers) {
-      return undefined;
+      return undefined; // OK: Explicit empty — no spreadsheet or handler context available
     }
 
     try {
@@ -193,7 +193,7 @@ export class AgentHandler {
       });
       const scoutPayload = this.extractScoutPayload(scoutResult);
       if (!scoutPayload) {
-        return undefined;
+        return undefined; // OK: Explicit empty — scout returned no usable payload
       }
 
       return this.summarizeScoutSheets({

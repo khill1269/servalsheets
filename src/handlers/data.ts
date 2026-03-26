@@ -330,6 +330,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         );
 
       default: {
+        // Legacy alias path — handle old action names for backwards compat
         const action = (request as { action: string }).action;
         if (action === 'set_note' || action === 'notes') {
           return handleAddNote(ha, request as unknown as DataRequest & { action: 'add_note' });
@@ -353,9 +354,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           );
         }
 
+        // Exhaustive check: all branches above handle their action, if we reach here it's unknown
+        const exhaustiveCheck: never = action;
         return this.error({
           code: ErrorCodes.INVALID_PARAMS,
-          message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
+          message: `Unknown action: ${exhaustiveCheck}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
           retryable: false,
           suggestedFix:
             'Check the parameter format and ensure all required parameters are provided',
