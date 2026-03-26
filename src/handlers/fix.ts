@@ -227,7 +227,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return { revisionId: `auto_${Date.now()}` };
     } catch {
       // OK: Explicit empty — snapshot creation failed (versions API not available)
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
   }
 }
