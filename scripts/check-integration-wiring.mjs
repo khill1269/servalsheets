@@ -18,6 +18,24 @@ function ensureExists(path, message, issues) {
   }
 }
 
+function extractStringSet(source, exportName) {
+  const pattern = new RegExp(
+    `export const ${exportName} = new Set(?:<[^>]+>)?\\(\\[([\\s\\S]*?)\\]\\);`,
+    'm'
+  );
+  const match = source.match(pattern);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const values = [];
+  const valuePattern = /'([^']+)'|"([^"]+)"/g;
+  for (const entry of match[1].matchAll(valuePattern)) {
+    values.push(entry[1] ?? entry[2]);
+  }
+  return values;
+}
+
 function hasDependency(packageJson, dependencyName) {
   return Boolean(
     packageJson.dependencies?.[dependencyName] ??
@@ -36,15 +54,18 @@ const envConfig = read('src/config/env.ts');
 const graphqlResolvers = read('src/graphql/resolvers.ts');
 const formulaEvaluator = read('src/services/formula-evaluator.ts');
 const googleFormulaService = read('src/services/google-formula-service.ts');
-const dependenciesHandler = read('src/handlers/dependencies.ts');
+const dependenciesHandler = read('src/handlers/dependencies.ts') + read('src/handlers/dependencies-actions/scenario.ts');
 const toolHandlers = read('src/mcp/registration/tool-handlers.ts');
+const auditMiddleware = read('src/middleware/audit-middleware.ts');
+const writeLockMiddleware = read('src/middleware/write-lock-middleware.ts');
 const webhookSecurityDoc = read('docs/security/WEBHOOK_SECURITY.md');
 const packageJson = JSON.parse(read('package.json'));
 
 // RBAC correctness: middleware must not run without manager initialization.
+// Accepts direct call initializeRbacManager() OR delegation via createHttpRbacInitializer({ initializeRbacManager, ... })
 ensureIncludes(
   httpServer,
-  'initializeRbacManager(',
+  'initializeRbacManager',
   'RBAC manager is not explicitly initialized in src/http-server.ts.',
   issues
 );
@@ -80,15 +101,16 @@ ensureIncludes(
   'STRIPE_SECRET_KEY missing in src/config/env.ts.',
   issues
 );
+// Accepts direct call startMetricsServer() OR delegation via createHttpServerLifecycle({ startMetricsServer, ... })
 ensureIncludes(
   httpServer,
-  'startMetricsServer(',
+  'startMetricsServer',
   'Dedicated metrics server is not started from src/http-server.ts.',
   issues
 );
 ensureIncludes(
   httpServer,
-  'stopMetricsServer(',
+  'stopMetricsServer',
   'Dedicated metrics server shutdown is not wired in src/http-server.ts.',
   issues
 );
@@ -121,8 +143,8 @@ ensureIncludes(
 );
 ensureIncludes(
   dependenciesHandler,
-  "from '../services/formula-evaluator.js'",
-  'Formula evaluator is not wired into src/handlers/dependencies.ts.',
+  "services/formula-evaluator.js'",
+  'Formula evaluator is not wired into src/handlers/dependencies.ts (or dependencies-actions/).',
   issues
 );
 ensureIncludes(
@@ -131,9 +153,10 @@ ensureIncludes(
   'Billing integration is not wired from src/server.ts.',
   issues
 );
+// Accepts direct call or delegation via createHttpRbacInitializer({ initializeBillingIntegration, ... })
 ensureIncludes(
   httpServer,
-  'initializeBillingIntegration(',
+  'initializeBillingIntegration',
   'Billing integration is not wired from src/http-server.ts.',
   issues
 );
@@ -185,11 +208,6 @@ if (googleFormulaService.includes('deploymentId')) {
   );
 }
 ensureExists(
-  'src/utils/field-mask-injection.ts',
-  'src/utils/field-mask-injection.ts is missing; delete only after an explicit optimization decision.',
-  issues
-);
-ensureExists(
   'src/config/action-field-masks.ts',
   'src/config/action-field-masks.ts is missing; delete only after an explicit optimization decision.',
   issues
@@ -203,13 +221,29 @@ ensureExists(
 // ISSUE-231 / Class-2 regression guard: MUTATION_ACTIONS must use current canonical action names.
 // These are the names that WERE stale and caused audit events to never fire.
 // If any of these checks fail after a rename, you need to update audit-middleware.ts too.
-const auditMiddleware = read('src/middleware/audit-middleware.ts');
 const EXPECTED_MUTATION_ACTIONS = ['write', 'append', 'clear', 'bulk_update', 'find_replace'];
 for (const actionName of EXPECTED_MUTATION_ACTIONS) {
   if (!auditMiddleware.includes(`'${actionName}'`) && !auditMiddleware.includes(`"${actionName}"`)) {
     issues.push(
       `MUTATION_ACTIONS in audit-middleware.ts is missing expected action '${actionName}'. ` +
         'Action may have been renamed without updating the middleware. See ISSUE-231.'
+    );
+  }
+}
+
+const auditMutationActions = extractStringSet(auditMiddleware, 'MUTATION_ACTIONS');
+const writeLockMutationActions = extractStringSet(writeLockMiddleware, 'MUTATION_ACTIONS');
+if (!auditMutationActions || !writeLockMutationActions) {
+  issues.push('Unable to parse MUTATION_ACTIONS from audit or write-lock middleware.');
+} else {
+  const auditOnly = auditMutationActions.filter((action) => !writeLockMutationActions.includes(action));
+  const writeLockOnly = writeLockMutationActions.filter((action) => !auditMutationActions.includes(action));
+
+  if (auditOnly.length > 0 || writeLockOnly.length > 0) {
+    issues.push(
+      'MUTATION_ACTIONS drift between audit-middleware.ts and write-lock-middleware.ts. ' +
+        `Audit-only: ${auditOnly.join(', ') || 'none'}; ` +
+        `write-lock-only: ${writeLockOnly.join(', ') || 'none'}.`
     );
   }
 }

@@ -17,6 +17,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import {
   ImpactAnalysis,
   ImpactSeverity,
@@ -626,7 +627,6 @@ export class ImpactAnalyzer {
 
     const affected: AffectedProtectedRange[] = [];
     for (const sheet of data.sheets) {
-      const _sheetName = sheet.properties?.title || 'Unknown';
       const protectedRanges = sheet.protectedRanges || [];
 
       for (const pr of protectedRanges) {
@@ -645,409 +645,6 @@ export class ImpactAnalyzer {
     }
 
     return affected;
-  }
-
-  /**
-   * Find formulas affected by range (DEPRECATED - kept for compatibility)
-   */
-  private async findAffectedFormulas(range: string): Promise<AffectedFormula[]> {
-    if (!this.googleClient) {
-      this.log('No Google API client - skipping formula analysis');
-      return [];
-    }
-
-    try {
-      const affected: AffectedFormula[] = [];
-      const params = this.parseRange(range);
-      if (!params.spreadsheetId) {
-        return [];
-      }
-
-      // Get spreadsheet metadata to find all sheets
-      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'sheets(properties,data.rowData.values.userEnteredValue.formulaValue)',
-      });
-
-      if (!spreadsheet.data.sheets) {
-        return [];
-      }
-
-      // Scan each sheet for formulas
-      for (const sheet of spreadsheet.data.sheets) {
-        const sheetName = sheet.properties?.title || 'Unknown';
-        const data = sheet.data;
-
-        if (!data) continue;
-
-        for (const gridData of data) {
-          const rowData = gridData.rowData;
-          if (!rowData) continue;
-
-          for (let rowIndex = 0; rowIndex < rowData.length; rowIndex++) {
-            const row = rowData[rowIndex];
-            const values = row?.values;
-            if (!values) continue;
-
-            for (let colIndex = 0; colIndex < values.length; colIndex++) {
-              const cell = values[colIndex];
-              const formula = cell?.userEnteredValue?.formulaValue;
-
-              if (formula && this.formulaReferencesRange(formula, range)) {
-                const cellAddress = this.indexToA1(rowIndex, colIndex);
-                affected.push({
-                  cell: cellAddress,
-                  sheetName,
-                  formula,
-                  impactType: 'references_affected_range',
-                  description: `Formula references cells in the affected range ${range}`,
-                });
-              }
-            }
-          }
-        }
-      }
-
-      this.log(`Found ${affected.length} formulas affected by range ${range}`);
-      return affected;
-    } catch (error) {
-      this.log(
-        `Error finding affected formulas: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Find charts affected by range
-   */
-  private async findAffectedCharts(range: string): Promise<AffectedChart[]> {
-    if (!this.googleClient) {
-      this.log('No Google API client - skipping chart analysis');
-      return [];
-    }
-
-    try {
-      const affected: AffectedChart[] = [];
-      const params = this.parseRange(range);
-      if (!params.spreadsheetId) {
-        return [];
-      }
-
-      // Get spreadsheet with chart information
-      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'sheets(properties(title),charts(chartId,spec))',
-      });
-
-      if (!spreadsheet.data.sheets) {
-        return [];
-      }
-
-      // Check each sheet for charts
-      for (const sheet of spreadsheet.data.sheets) {
-        const sheetName = sheet.properties?.title || 'Unknown';
-        const charts = sheet.charts;
-
-        if (!charts) continue;
-
-        for (const chart of charts) {
-          const spec = chart.spec;
-          if (!spec) continue;
-
-          // Extract data ranges from chart spec
-          const dataRanges: string[] = [];
-
-          // Check various chart types for data ranges
-          if (spec.basicChart?.series) {
-            for (const series of spec.basicChart.series) {
-              // BasicChartSeries doesn't have sourceRange, it has series data
-              // For now, we'll mark this as a chart that could be affected
-              if (series.series) {
-                // The series.series contains the ChartData which has the actual range
-                dataRanges.push(`${sheetName}!${range}`); // Simplified - would need full implementation
-              }
-            }
-          }
-
-          // Check domain/data in basicChart
-          if (spec.basicChart?.domains) {
-            for (const domain of spec.basicChart.domains) {
-              if (domain.domain?.sourceRange) {
-                const sourceRange = domain.domain.sourceRange;
-                if (sourceRange.sources) {
-                  for (const source of sourceRange.sources) {
-                    if (source.sheetId !== undefined) {
-                      const rangeA1 = this.gridRangeToA1(source);
-                      dataRanges.push(`${sheetName}!${rangeA1}`);
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // Check if any data range overlaps with the affected range
-          const isAffected = dataRanges.some((dataRange) => this.rangesOverlap(dataRange, range));
-
-          if (isAffected) {
-            affected.push({
-              chartId: chart.chartId || 0,
-              title: spec.title || 'Untitled Chart',
-              sheetName,
-              chartType: this.getChartType(spec),
-              dataRanges,
-              impactType: 'data_source_affected',
-              description: `Chart uses data from the affected range ${range}`,
-            });
-          }
-        }
-      }
-
-      this.log(`Found ${affected.length} charts affected by range ${range}`);
-      return affected;
-    } catch (error) {
-      this.log(
-        `Error finding affected charts: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Find pivot tables affected by range
-   */
-  private async findAffectedPivotTables(range: string): Promise<AffectedPivotTable[]> {
-    if (!this.googleClient) {
-      return [];
-    }
-
-    try {
-      const affected: AffectedPivotTable[] = [];
-      const params = this.parseRange(range);
-      if (!params.spreadsheetId) return [];
-
-      // Get spreadsheet with pivot table information
-      // Note: TypeScript types don't fully expose pivotTables, but it exists in the API
-      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'sheets(properties(title,sheetId),pivotTables)',
-      });
-
-      // Type assertion: The API response includes pivotTables but TypeScript types don't expose it
-      const sheets = spreadsheet.data.sheets as Array<{
-        properties?: { title?: string | null; sheetId?: number | null } | null;
-        pivotTables?: Array<{
-          pivotTableId?: number | null;
-          source?: {
-            sourceRange?: {
-              sheetId?: number | null;
-              startRowIndex?: number | null;
-              endRowIndex?: number | null;
-              startColumnIndex?: number | null;
-              endColumnIndex?: number | null;
-            } | null;
-          } | null;
-        }> | null;
-      }>;
-
-      if (sheets) {
-        for (const sheet of sheets) {
-          const sheetName = sheet.properties?.title || 'Unknown';
-
-          // Check if sheet has pivot tables
-          if (!sheet.pivotTables || sheet.pivotTables.length === 0) {
-            continue;
-          }
-
-          this.log(`Found ${sheet.pivotTables.length} pivot table(s) in ${sheetName}`);
-
-          // Check each pivot table
-          for (const pivot of sheet.pivotTables) {
-            if (!pivot.source?.sourceRange) continue;
-
-            const sourceRange = pivot.source.sourceRange;
-            const pivotA1 = this.gridRangeToA1(sourceRange);
-
-            // Check if pivot source range overlaps with target range using A1 notation
-            if (this.rangesOverlap(pivotA1, params.range)) {
-              affected.push({
-                pivotTableId: pivot.pivotTableId || 0,
-                sheetName,
-                sourceRange: pivotA1,
-                impactType: 'source_data_affected',
-                description: `Pivot table source data will be modified. The pivot table may need to be refreshed.`,
-              });
-
-              this.log(
-                `Pivot table ${pivot.pivotTableId} in ${sheetName} affected by range ${range}`
-              );
-            }
-          }
-        }
-      }
-
-      return affected;
-    } catch (error) {
-      this.log(
-        `Error finding pivot tables: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Find validation rules affected by range
-   */
-  private async findAffectedValidationRules(range: string): Promise<AffectedValidationRule[]> {
-    if (!this.googleClient) {
-      return [];
-    }
-
-    try {
-      const affected: AffectedValidationRule[] = [];
-      const params = this.parseRange(range);
-      if (!params.spreadsheetId) return [];
-
-      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'sheets(data.rowData.values.dataValidation)',
-      });
-
-      if (spreadsheet.data.sheets) {
-        for (const sheet of spreadsheet.data.sheets) {
-          if (!sheet.data) continue;
-
-          for (const gridData of sheet.data) {
-            const rowData = gridData.rowData;
-            if (!rowData) continue;
-
-            for (const row of rowData) {
-              const values = row?.values;
-              if (!values) continue;
-
-              for (const cell of values) {
-                if (cell?.dataValidation) {
-                  // Found a cell with validation - check if it overlaps with our range
-                  // This is a simplified check
-                  affected.push({
-                    ruleId: `${range}-validation`,
-                    range: range, // Would need actual cell address here
-                    ruleType: cell.dataValidation.condition?.type || 'UNKNOWN',
-                    impactType: 'may_conflict',
-                    description: 'Data validation rule may be affected',
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      return affected;
-    } catch (error) {
-      this.log(
-        `Error finding validation rules: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Find named ranges affected by range
-   */
-  private async findAffectedNamedRanges(range: string): Promise<AffectedNamedRange[]> {
-    if (!this.googleClient) {
-      return [];
-    }
-
-    try {
-      const affected: AffectedNamedRange[] = [];
-      const params = this.parseRange(range);
-      if (!params.spreadsheetId) return [];
-
-      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'namedRanges(namedRangeId,name,range)',
-      });
-
-      if (spreadsheet.data.namedRanges) {
-        for (const namedRange of spreadsheet.data.namedRanges) {
-          const rangeData = namedRange.range;
-          if (rangeData) {
-            // Convert GridRange to A1 and check overlap
-            const namedRangeA1 = this.gridRangeToA1(rangeData);
-            if (this.rangesOverlap(namedRangeA1, range)) {
-              affected.push({
-                namedRangeId: namedRange.namedRangeId || 'unknown',
-                name: namedRange.name || 'Unknown',
-                range: namedRangeA1,
-                impactType: 'will_be_affected',
-                description: `Named range "${namedRange.name}" overlaps with affected range`,
-              });
-            }
-          }
-        }
-      }
-
-      this.log(`Found ${affected.length} named ranges affected by range ${range}`);
-      return affected;
-    } catch (error) {
-      this.log(
-        `Error finding named ranges: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return [];
-    }
-  }
-
-  /**
-   * Find protected ranges affected by range
-   */
-  private async findAffectedProtectedRanges(range: string): Promise<AffectedProtectedRange[]> {
-    if (!this.googleClient) {
-      return [];
-    }
-
-    try {
-      const affected: AffectedProtectedRange[] = [];
-      const params = this.parseRange(range);
-      if (!params.spreadsheetId) return [];
-
-      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
-        spreadsheetId: params.spreadsheetId,
-        fields: 'sheets(protectedRanges(protectedRangeId,range,description,editors))',
-      });
-
-      if (spreadsheet.data.sheets) {
-        for (const sheet of spreadsheet.data.sheets) {
-          if (!sheet.protectedRanges) continue;
-
-          for (const protectedRange of sheet.protectedRanges) {
-            const rangeData = protectedRange.range;
-            if (rangeData) {
-              const protectedRangeA1 = this.gridRangeToA1(rangeData);
-              if (this.rangesOverlap(protectedRangeA1, range)) {
-                affected.push({
-                  protectedRangeId: protectedRange.protectedRangeId || 0,
-                  range: protectedRangeA1,
-                  description: protectedRange.description || 'Protected range',
-                  impactType: 'permission_required',
-                  editors: protectedRange.editors?.users || [],
-                });
-              }
-            }
-          }
-        }
-      }
-
-      this.log(`Found ${affected.length} protected ranges affected by range ${range}`);
-      return affected;
-    } catch (error) {
-      this.log(
-        `Error finding protected ranges: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return [];
-    }
   }
 
   /**
@@ -1270,7 +867,11 @@ export function initImpactAnalyzer(
  */
 export function getImpactAnalyzer(): ImpactAnalyzer {
   if (!impactAnalyzerInstance) {
-    throw new Error('Impact analyzer not initialized. Call initImpactAnalyzer() first.');
+    throw new ServiceError(
+      'Impact analyzer not initialized. Call initImpactAnalyzer() first.',
+      'SERVICE_NOT_INITIALIZED',
+      'ImpactAnalyzer'
+    );
   }
   return impactAnalyzerInstance;
 }
@@ -1281,7 +882,11 @@ export function getImpactAnalyzer(): ImpactAnalyzer {
  */
 export function resetImpactAnalyzer(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetImpactAnalyzer() can only be called in test environment');
+    throw new ServiceError(
+      'resetImpactAnalyzer() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'ImpactAnalyzer'
+    );
   }
   impactAnalyzerInstance = null;
 }

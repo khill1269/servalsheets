@@ -13,7 +13,19 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 
 # Check if log file exists
-LOG_FILE="$HOME/Library/Logs/Claude/mcp-server-ServalSheets.log"
+LOG_CANDIDATES=(
+  "$HOME/Library/Logs/Claude/mcp-server-servalsheets.log"
+  "$HOME/Library/Logs/Claude/mcp-server-ServalSheets.log"
+  "$HOME/Library/Logs/Claude/mcp-server-servalsheets-new.log"
+)
+LOG_FILE="${LOG_CANDIDATES[0]}"
+for candidate in "${LOG_CANDIDATES[@]}"; do
+  if [ -f "$candidate" ]; then
+    LOG_FILE="$candidate"
+    break
+  fi
+done
+
 if [ ! -f "$LOG_FILE" ]; then
   echo -e "${YELLOW}⚠️  Log file not found: $LOG_FILE${NC}"
   echo -e "${YELLOW}   Make sure Claude Desktop is running with ServalSheets configured.${NC}"

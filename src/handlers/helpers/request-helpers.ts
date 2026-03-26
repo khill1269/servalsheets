@@ -6,9 +6,7 @@
  */
 
 /**
- * Unwrap legacy direct inputs to the request envelope.
- *
- * Handles backward compatibility for requests that may be wrapped in a `{ request: {...} }` envelope.
+ * Unwrap the canonical `{ request: ... }` envelope while preserving legacy flat inputs.
  */
 export function unwrapRequest<TRequest extends Record<string, unknown>>(
   input: { request?: TRequest } | TRequest

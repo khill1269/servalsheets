@@ -717,6 +717,51 @@ export AUDIT_LOG_PATH=/var/log/servalsheets/audit.log
 
 ---
 
+## Security Architecture
+
+### Defense-in-Depth Layers
+
+ServalSheets employs multiple security layers to protect against common attack vectors:
+
+**SAML/SSO Security:**
+- SSO tokens delivered via httpOnly cookies (never in URL query parameters)
+- RelayState validated against configurable origin allowlist (`SAML_ALLOWED_REDIRECT_ORIGINS`)
+- Assertion signature verification enforced by default (`wantAssertionsSigned=true`)
+- Warning logged when signature verification is disabled
+
+**SQL Injection Prevention (BigQuery):**
+- 12-pattern blocklist validates all user-supplied SQL (DROP, DELETE, INSERT, UPDATE, MERGE, etc.)
+- Comment and string literal stripping before pattern matching to prevent evasion
+- Allowlist-based identifier validation for project/dataset/table names
+- Only SELECT queries permitted through Connected Sheets interface
+
+**Code Execution Sandbox (Python/Pyodide):**
+- Allowlist-based import restriction (math, statistics, json, pandas, numpy, scipy only)
+- Pre-execution AST validation blocks sandbox escape patterns (importlib, ctypes, eval, __subclasses__)
+- Each execution runs in isolated Worker thread with fresh Pyodide runtime
+- Hard wall-clock timeout via `worker.terminate()` (default 60s)
+- `exec()` and `open()` removed from builtins
+
+**Prompt Injection Defense:**
+- User-controlled data (sheet names, cell values, queries) sanitized before embedding in LLM prompts
+- XML data boundaries (`<user_data>`) with explicit instructions to treat as data, not instructions
+- Length truncation prevents context exhaustion attacks
+
+**WAL Durability:**
+- `fsync()` after every WAL append and compact operation
+- Stale `.tmp` files cleaned on startup (from interrupted compact operations)
+
+**OAuth/Admin Security:**
+- Google tokens stored server-side in session store, never in JWT payloads
+- Admin consent endpoints (`/oauth/consent/*`) require Bearer token authentication
+- PKCE enforced for all OAuth flows
+
+**CI/CD Supply Chain:**
+- All GitHub Actions pinned to immutable commit SHAs (176 references across 27 workflow files)
+- Dependabot configured for automated security updates
+
+---
+
 ## Known Security Advisories
 
 ### CVE-2025-XXXX: Hono JWT Middleware Vulnerability (Non-Impact)

@@ -3,7 +3,7 @@ title: TLS/SSL Certificate Rotation
 category: runbook
 last_updated: 2026-01-31
 description: Procedures for rotating TLS/SSL certificates with zero downtime. Covers self-signed, Let's Encrypt, and commercial certificate authorities.
-version: 1.6.0
+version: 2.0.0
 tags: [prometheus, docker, kubernetes]
 estimated_time: 15-30 minutes
 ---

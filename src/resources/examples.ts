@@ -13,6 +13,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Register examples library resources
@@ -997,7 +998,7 @@ export async function readExamplesResource(uri: string): Promise<{
 
   const exampleSet = examples[resourceId];
   if (!exampleSet) {
-    throw new Error(`Unknown examples resource: ${resourceId}`);
+    throw new NotFoundError('examples_resource', resourceId);
   }
 
   return {

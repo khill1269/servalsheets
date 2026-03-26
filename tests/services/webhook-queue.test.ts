@@ -70,7 +70,7 @@ describe('WebhookQueue', () => {
         eventType: 'sheet.update',
         payload: { test: true },
         maxAttempts: 3,
-        scheduledAt: Date.now(),
+        scheduledAt: 1704067200000,
       });
 
       expect(deliveryId).toMatch(/^delivery_/);
@@ -92,7 +92,7 @@ describe('WebhookQueue', () => {
           eventType: 'sheet.update',
           payload: {},
           maxAttempts: 3,
-          scheduledAt: Date.now(),
+          scheduledAt: 1704067200000,
         })
       ).rejects.toThrow('Redis required');
     });
@@ -106,7 +106,7 @@ describe('WebhookQueue', () => {
         payload: { spreadsheetId: '1ABC' },
         secret: 'secret123',
         maxAttempts: 3,
-        scheduledAt: Date.now(),
+        scheduledAt: 1704067200000,
       });
 
       const enqueuedData = JSON.parse(mockRedis.rPush.mock.calls[0][1]);
@@ -138,8 +138,8 @@ describe('WebhookQueue', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        createdAt: Date.now(),
-        scheduledAt: Date.now(),
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       mockRedis.blPop.mockResolvedValueOnce({
@@ -163,7 +163,7 @@ describe('WebhookQueue', () => {
     });
 
     it('should prioritize retry queue over pending queue', async () => {
-      const now = Date.now();
+      const now = 1704067200000;
       const retryJob = {
         deliveryId: 'delivery_retry',
         webhookId: 'webhook_123',
@@ -204,8 +204,8 @@ describe('WebhookQueue', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        createdAt: Date.now(),
-        scheduledAt: Date.now(),
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       const queue = getWebhookQueue();
@@ -229,8 +229,8 @@ describe('WebhookQueue', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        createdAt: Date.now(),
-        scheduledAt: Date.now(),
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       const queue = getWebhookQueue();
@@ -255,8 +255,8 @@ describe('WebhookQueue', () => {
         payload: {},
         attemptCount: 2, // Last attempt
         maxAttempts: 3,
-        createdAt: Date.now(),
-        scheduledAt: Date.now(),
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       const queue = getWebhookQueue();
@@ -290,8 +290,8 @@ describe('WebhookQueue', () => {
         payload: {},
         attemptCount: 0,
         maxAttempts: 5,
-        createdAt: Date.now(),
-        scheduledAt: Date.now(),
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
       await queue.markFailure(job1, 'Error 1');
       const retry1 = JSON.parse(mockRedis.rPush.mock.calls[0][1]);
@@ -326,8 +326,8 @@ describe('WebhookQueue', () => {
         payload: {},
         attemptCount: 4, // Will be incremented to 5 in markFailure
         maxAttempts: 10,
-        createdAt: Date.now(),
-        scheduledAt: Date.now(),
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       const startTime = Date.now();

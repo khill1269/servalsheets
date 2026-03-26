@@ -55,6 +55,8 @@ vi.mock('../../src/mcp/elicitation.js', () => ({
     sendNotification: true,
     message: undefined,
   }),
+  // Required for FormatHandler.add_conditional_format_rule wizard
+  elicitConditionalFormatPreset: vi.fn().mockResolvedValue({ preset: 'highlight_blanks' }),
 }));
 
 vi.mock('../../src/utils/safety-helpers.js', () => ({
@@ -112,7 +114,7 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
-import { elicitSpreadsheetCreation } from '../../src/mcp/elicitation.js';
+import { elicitSpreadsheetCreation, elicitConditionalFormatPreset } from '../../src/mcp/elicitation.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -124,7 +126,15 @@ const createMockSheetsApi = (): sheets_v4.Sheets =>
       get: vi.fn().mockResolvedValue({
         data: {
           spreadsheetId: 'test-spreadsheet-id',
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+          ],
         },
       }),
       create: vi.fn().mockResolvedValue({
@@ -173,7 +183,17 @@ const createMockContext = (elicitationServer?: any): HandlerContext =>
       resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B5' }),
     } as any,
     sheetResolver: {
-      resolveSheetId: vi.fn().mockResolvedValue(0),
+      resolve: vi.fn().mockResolvedValue({
+        sheet: {
+          sheetId: 0,
+          title: 'Sheet1',
+          index: 0,
+          hidden: false,
+          gridProperties: { rowCount: 1000, columnCount: 26 },
+        },
+        method: 'exact_name',
+        confidence: 1,
+      }),
       invalidate: vi.fn(),
     } as any,
     metadataCache: undefined,
@@ -287,7 +307,8 @@ describe('FormatHandler — add_conditional_format_rule elicitation wizard', () 
       },
     } as any);
 
-    expect(elicitServer.elicitInput).toHaveBeenCalled();
+    // elicitConditionalFormatPreset is called when elicitationServer is present and rulePreset absent
+    expect(elicitConditionalFormatPreset).toHaveBeenCalled();
     const response = result.response as any;
     expect(response.success).toBe(true);
     expect(response.action).toBe('add_conditional_format_rule');
@@ -313,6 +334,9 @@ describe('FormatHandler — add_conditional_format_rule elicitation wizard', () 
   });
 
   it('proceeds with highlight_blanks default when elicitation fails', async () => {
+    // Override the mock to return null (simulates elicitation timeout/failure)
+    vi.mocked(elicitConditionalFormatPreset).mockResolvedValueOnce(null);
+
     const elicitServer = {
       elicitInput: vi.fn().mockRejectedValue(new Error('timeout')),
       getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
@@ -326,7 +350,7 @@ describe('FormatHandler — add_conditional_format_rule elicitation wizard', () 
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
         range: 'Sheet1!A1:A10',
-        // rulePreset absent
+        // rulePreset absent — falls back to highlight_blanks when elicitation returns null
       },
     } as any);
 

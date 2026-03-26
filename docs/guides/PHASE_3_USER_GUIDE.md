@@ -1,3 +1,13 @@
+---
+title: 'Phase 3 Features: User Guide'
+category: guide
+last_updated: 2026-03-10
+description: Complete guide to ServalSheets' cutting-edge MCP features
+version: 2.0.0
+audience: user
+difficulty: intermediate
+---
+
 # Phase 3 Features: User Guide
 
 **Complete guide to ServalSheets' cutting-edge MCP features**
@@ -64,7 +74,7 @@ console.log(response.content[0].text);
 ```typescript
 // Subscribe to spreadsheet changes
 const subscription = await transport.subscribe({
-  resourceUri: 'spreadsheet://your-spreadsheet-id',
+  resourceUri: 'sheets:///your-spreadsheet-id',
   events: ['cell_change', 'sheet_add', 'sheet_delete'],
 });
 
@@ -638,10 +648,10 @@ workflowPlan.steps.forEach((step, i) => {
 });
 
 // Example output:
-// 1. Import CSV data (sheets_data.import_csv)
-// 2. Remove duplicate rows (sheets_quality.deduplicate)
+// 1. Import CSV data (sheets_composite.import_csv)
+// 2. Remove duplicate rows (sheets_composite.deduplicate)
 // 3. Analyze sales trends (sheets_analyze.detect_patterns)
-// 4. Create trend visualization (sheets_visualize.create_chart)
+// 4. Create trend visualization (sheets_visualize.chart_create)
 // 5. Share with stakeholders (sheets_collaborate.share_add)
 //    ⚠️ Requires confirmation (medium risk)
 ```
@@ -710,7 +720,7 @@ Steps can depend on previous steps:
 ```typescript
 {
   id: 'step-3',
-  action: 'sheets_visualize.create_chart',
+  action: 'sheets_visualize.chart_create',
   dependencies: ['step-1', 'step-2'], // Wait for data import and cleaning
   params: { ... },
 }
@@ -753,7 +763,7 @@ const checkpoint = await timeTravelService.createCheckpoint(
 
 // 3. Subscribe to real-time changes
 await transport.subscribe({
-  resourceUri: 'spreadsheet://dashboard-spreadsheet',
+  resourceUri: 'sheets:///dashboard-spreadsheet',
   events: ['cell_change'],
 });
 

@@ -6,6 +6,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { memoize } from './memoization.js';
+import { ValidationError } from '../core/errors.js';
 
 // ============================================================================
 // PRE-COMPILED REGEX PATTERNS (hot path — avoid recompilation per call)
@@ -81,7 +82,11 @@ export interface ParsedCell {
 function _parseA1Notation(a1: string): ParsedA1 {
   // Defensive: ensure input is a string
   if (typeof a1 !== 'string' || !a1.trim()) {
-    throw new Error(`Invalid A1 notation: expected non-empty string, got ${typeof a1}`);
+    throw new ValidationError(
+      `Invalid A1 notation: expected non-empty string, got ${typeof a1}`,
+      'range',
+      'Sheet1!A1:D10'
+    );
   }
 
   // Handle full column notation (A:A, A:C)
@@ -91,7 +96,11 @@ function _parseA1Notation(a1: string): ParsedA1 {
     const startColLetter = fullColMatch[3];
     const endColLetter = fullColMatch[4];
     if (!startColLetter || !endColLetter) {
-      throw new Error(`Invalid A1 notation (full column): ${a1}`);
+      throw new ValidationError(
+        `Invalid A1 notation (full column): ${a1}`,
+        'range',
+        'Sheet1!A1:D10'
+      );
     }
     return {
       sheetName,
@@ -105,8 +114,10 @@ function _parseA1Notation(a1: string): ParsedA1 {
   // Standard range notation - supports emoji sheet names in quotes
   const match = a1.match(A1_RANGE_RE);
   if (!match) {
-    throw new Error(
-      `Invalid A1 notation: ${a1}. Expected format: "A1", "A1:B10", "Sheet1!A1:B10", or "'Sheet Name'!A1:B10"`
+    throw new ValidationError(
+      `Invalid A1 notation: ${a1}. Expected format: "A1", "A1:B10", "Sheet1!A1:B10", or "'Sheet Name'!A1:B10"`,
+      'range',
+      'Sheet1!A1:D10'
     );
   }
 
@@ -118,7 +129,11 @@ function _parseA1Notation(a1: string): ParsedA1 {
 
   // Defensive: ensure required capture groups are present
   if (!startColLetter || !startRowStr) {
-    throw new Error(`Invalid A1 notation (missing cell reference): ${a1}`);
+    throw new ValidationError(
+      `Invalid A1 notation (missing cell reference): ${a1}`,
+      'range',
+      'Sheet1!A1:D10'
+    );
   }
 
   const startCol = columnLetterToIndex(startColLetter);
@@ -133,7 +148,7 @@ function _parseA1Notation(a1: string): ParsedA1 {
     Number.isNaN(startCol) ||
     Number.isNaN(endCol)
   ) {
-    throw new Error(`Invalid A1 notation (parse error): ${a1}`);
+    throw new ValidationError(`Invalid A1 notation (parse error): ${a1}`, 'range', 'Sheet1!A1:D10');
   }
 
   return { sheetName, startCol, startRow, endCol, endRow };
@@ -155,7 +170,7 @@ export const parseA1Notation = memoize(_parseA1Notation, {
 function _parseCellReference(cell: string): ParsedCell {
   const match = cell.match(CELL_REF_RE);
   if (!match) {
-    throw new Error(`Invalid cell reference: ${cell}`);
+    throw new ValidationError(`Invalid cell reference: ${cell}`, 'range', 'Sheet1!A1');
   }
 
   const sheetName = match[1] ?? match[2];
@@ -370,7 +385,11 @@ export function extractSpreadsheetId(urlOrId: string): string {
     return match[1]!;
   }
 
-  throw new Error(`Cannot extract spreadsheet ID from: ${urlOrId}`);
+  throw new ValidationError(
+    `Cannot extract spreadsheet ID from: ${urlOrId}`,
+    'spreadsheetId',
+    'https://docs.google.com/spreadsheets/d/...'
+  );
 }
 
 // ============================================================================
@@ -449,7 +468,11 @@ export function buildDriveChip(fileId: string, displayText?: string): sheets_v4.
 
   // Validate URI length (Google API limit: 2000 bytes)
   if (new TextEncoder().encode(driveUri).length > 2000) {
-    throw new Error('Drive URI exceeds 2000 bytes limit');
+    throw new ValidationError(
+      'Drive URI exceeds 2000 bytes limit',
+      'fileId',
+      'valid-drive-file-id'
+    );
   }
 
   const defaultDisplay = `Drive File: ${fileId.slice(0, 8)}...`;
@@ -481,12 +504,16 @@ export function buildDriveChip(fileId: string, displayText?: string): sheets_v4.
 export function buildRichLinkChip(uri: string, displayText?: string): sheets_v4.Schema$CellData {
   // Validate URI length (Google API limit: 2000 bytes)
   if (new TextEncoder().encode(uri).length > 2000) {
-    throw new Error('URI exceeds 2000 bytes limit');
+    throw new ValidationError('URI exceeds 2000 bytes limit', 'uri', 'https://docs.google.com/...');
   }
 
   // Accept both Google Drive and Google Docs URLs (Sheets, Docs, Slides, Forms)
   if (!uri.startsWith('https://drive.google.com/') && !uri.startsWith('https://docs.google.com/')) {
-    throw new Error('Only Google Drive and Google Docs links can be written as rich link chips');
+    throw new ValidationError(
+      'Only Google Drive and Google Docs links can be written as rich link chips',
+      'uri',
+      'https://docs.google.com/...'
+    );
   }
 
   const hostname = displayText ?? new URL(uri).hostname;

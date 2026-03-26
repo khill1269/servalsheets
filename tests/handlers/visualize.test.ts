@@ -198,6 +198,7 @@ describe('VisualizeHandler', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   // ====================================================================
@@ -240,6 +241,94 @@ describe('VisualizeHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+    });
+
+    it('respects position.sheetId when anchorCell omits the sheet prefix', async () => {
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-spreadsheet-id',
+          properties: { title: 'Test Spreadsheet' },
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+            {
+              properties: {
+                sheetId: 88964099,
+                title: 'KPI Dashboard',
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'chart_create',
+        spreadsheetId: 'test-spreadsheet-id',
+        sheetId: 0,
+        chartType: 'LINE',
+        data: {
+          sourceRange: { a1: 'Sheet1!A1:B10' },
+          categories: 0,
+          series: [{ column: 1 }],
+        },
+        position: { anchorCell: 'E2', sheetId: 88964099 },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            requests: [
+              expect.objectContaining({
+                addChart: expect.objectContaining({
+                  chart: expect.objectContaining({
+                    position: expect.objectContaining({
+                      overlayPosition: expect.objectContaining({
+                        anchorCell: expect.objectContaining({
+                          sheetId: 88964099,
+                        }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            ],
+          }),
+        })
+      );
+    });
+
+    it('rejects an out-of-bounds anchorCell before chart creation', async () => {
+      const result = await handler.handle({
+        action: 'chart_create',
+        spreadsheetId: 'test-spreadsheet-id',
+        sheetId: 0,
+        chartType: 'LINE',
+        data: {
+          sourceRange: { a1: 'Sheet1!A1:B10' },
+          categories: 0,
+          series: [{ column: 1 }],
+        },
+        position: { anchorCell: 'AA1' },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INVALID_PARAMS');
+        expect(result.response.error.message).toContain('outside the grid bounds');
+        expect(result.response.error.details).toMatchObject({
+          reasonCode: 'ANCHOR_OUT_OF_BOUNDS',
+          anchorCell: 'AA1',
+          suggestedAnchor: 'A1',
+        });
+      }
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
     it('should create a COLUMN chart', async () => {
@@ -652,6 +741,47 @@ describe('VisualizeHandler', () => {
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
     });
 
+    it('should surface FEATURE_UNAVAILABLE when the Sheets API rejects trendline updates', async () => {
+      mockApi.spreadsheets.get.mockResolvedValueOnce({
+        data: {
+          sheets: [
+            {
+              charts: [
+                {
+                  chartId: 123,
+                  spec: {
+                    basicChart: {
+                      chartType: 'LINE',
+                      legendPosition: 'BOTTOM_LEGEND',
+                      axis: [],
+                      domains: [{ domain: {} }],
+                      series: [{ series: {} }],
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      mockApi.spreadsheets.batchUpdate.mockRejectedValueOnce(
+        new Error('Unknown name "trendline" at requests[0].updateChartSpec')
+      );
+
+      const result = await handler.handle({
+        action: 'chart_add_trendline',
+        spreadsheetId: 'test-spreadsheet-id',
+        chartId: 123,
+        seriesIndex: 0,
+        trendline: {
+          type: 'LINEAR',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('FEATURE_UNAVAILABLE');
+    });
+
     it('should error when series index out of range', async () => {
       const result = await handler.handle({
         action: 'chart_add_trendline',
@@ -923,6 +1053,51 @@ describe('VisualizeHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
+    });
+
+    it('falls back to heuristic suggestions when AI support is unavailable', async () => {
+      vi.stubEnv('LLM_API_KEY', '');
+      vi.stubEnv('ANTHROPIC_API_KEY', '');
+      vi.stubEnv('OPENAI_API_KEY', '');
+      vi.stubEnv('GOOGLE_API_KEY', '');
+
+      handler = new VisualizeHandler(
+        createMockContext({ server: undefined }),
+        mockApi as unknown as sheets_v4.Sheets
+      );
+
+      const result = await handler.handle({
+        action: 'suggest_chart',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:D100' },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.suggestions?.length).toBeGreaterThan(0);
+        expect(result.response.suggestions?.[0]?.type).toBe('chart');
+      }
+    });
+
+    it('falls back to heuristic suggestions when AI suggestion generation fails', async () => {
+      mockContext = createMockContext({
+        server: {
+          createMessage: vi.fn().mockRejectedValue(new Error('Sampling temporarily unavailable')),
+          getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
+        } as any,
+      });
+      handler = new VisualizeHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'suggest_chart',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:D100' },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.suggestions?.length).toBeGreaterThan(0);
+      }
     });
   });
 
@@ -1256,6 +1431,45 @@ describe('VisualizeHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
+    });
+
+    it('falls back to heuristic suggestions when AI support is unavailable', async () => {
+      mockContext = createMockContext({ server: undefined });
+      handler = new VisualizeHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'suggest_pivot',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:F100' },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.suggestions?.length).toBeGreaterThan(0);
+      expect(result.response.suggestions?.[0]?.type).toBe('pivot');
+    });
+
+    it('falls back to heuristic suggestions when AI returns invalid JSON', async () => {
+      mockContext = createMockContext({
+        server: {
+          createMessage: vi.fn().mockResolvedValue({
+            model: 'claude-3-sonnet',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'not valid json' }],
+          }),
+          getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
+        } as any,
+      });
+      handler = new VisualizeHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'suggest_pivot',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:F100' },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.suggestions?.length).toBeGreaterThan(0);
+      expect(result.response.suggestions?.[0]?.type).toBe('pivot');
     });
   });
 

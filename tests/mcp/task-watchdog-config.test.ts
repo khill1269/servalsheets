@@ -20,7 +20,7 @@ async function waitForTaskResult(
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes('No result found')) {
+      if (!message.includes('No result found') && !message.includes('task not found')) {
         throw error;
       }
     }

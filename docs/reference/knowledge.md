@@ -3,7 +3,7 @@ title: Knowledge Base Resources
 category: reference
 last_updated: 2026-01-31
 description: ServalSheets includes embedded knowledge resources for Google Sheets API patterns, formulas, and best practices.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 stability: stable
 ---
@@ -273,7 +273,7 @@ When using tools, relevant knowledge is automatically:
 Knowledge files are located in:
 
 ```
-bundle/server/knowledge/
+dist/knowledge/
 ├── api/
 │   ├── batch-operations.md
 │   ├── charts.md
@@ -286,7 +286,8 @@ bundle/server/knowledge/
 └── README.md
 ```
 
-**Note**: These files are bundled with ServalSheets for offline access.
+**Note**: These files are copied into the runtime `dist/knowledge/` tree during build and can
+then be staged into deployment bundles for offline access.
 
 ## Resource Metadata
 

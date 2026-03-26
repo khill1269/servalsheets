@@ -16,6 +16,8 @@
 
 import type { HyperFormula, ExportedCellChange } from 'hyperformula';
 import { logger } from '../utils/logger.js';
+import { AppsScriptEvaluator } from './apps-script-evaluator.js';
+import type { GoogleApiClient } from './google-api.js';
 
 // ============================================================================
 // Types
@@ -58,11 +60,19 @@ export interface SheetData {
   formulas: (string | null)[][];
   /** Sheet name */
   sheetName: string;
+  /**
+   * Google Sheets spreadsheet locale (e.g. 'en_US', 'fr_FR', 'de_DE').
+   * Used to configure HyperFormula's decimal/thousands separators so that
+   * European-style formulas like =SUMME(A1:A10) or =1,5+2,5 evaluate correctly.
+   * Defaults to 'en_US' when absent.
+   */
+  locale?: string;
 }
 
 interface HFInstance {
   hf: HyperFormula;
   sheetIndex: number;
+  sheetName: string;
   loadedAt: number;
   /** Scenario fingerprint → result cache */
   resultCache: Map<string, ScenarioResult>;
@@ -77,6 +87,11 @@ interface HFInstance {
    * Key: `${col},${row}`.
    */
   volatileFormulaeCells: Set<string>;
+  /**
+   * Formula map for Google-specific cells: `${col},${row}` → formula string.
+   * Used by Layer 3 (AppsScriptEvaluator) to evaluate Google-only formulas.
+   */
+  googleCellFormulas: Map<string, string>;
 }
 
 // ============================================================================
@@ -167,6 +182,96 @@ function isVolatileFormula(formula: string): boolean {
 }
 
 // ============================================================================
+// Locale → HyperFormula config
+// ============================================================================
+
+interface HFLocaleOptions {
+  decimalSeparator: '.' | ',';
+  thousandSeparator: '.' | ' ' | '';
+  functionArgSeparator: ',' | ';';
+}
+
+/**
+ * Map a Google Sheets locale string (e.g. 'fr_FR', 'de_DE') to HyperFormula
+ * separator options so that European formulas parse correctly.
+ *
+ * European locales use comma as decimal separator and semicolon as function
+ * argument separator (e.g. =SOMME(A1;A10) in French).
+ *
+ * HyperFormula constraint: functionArgSeparator and thousandSeparator MUST NOT
+ * be the same character. For US-style locales (functionArgSeparator=',') we
+ * therefore use thousandSeparator='' to avoid the conflict. HyperFormula does not
+ * use thousandSeparator for output formatting — it only affects number literal
+ * parsing inside formula strings, which is uncommon in practice.
+ */
+/** @internal exported for testing */
+export function localeToHfOptions(locale?: string): HFLocaleOptions {
+  // Default: US/en locale
+  if (!locale) return { decimalSeparator: '.', thousandSeparator: '', functionArgSeparator: ',' };
+
+  // Locales that use comma as decimal separator (most of non-English world)
+  const europeanDecimalLocales = new Set([
+    'af',
+    'ar',
+    'az',
+    'be',
+    'bg',
+    'bs',
+    'ca',
+    'cs',
+    'da',
+    'de',
+    'el',
+    'es',
+    'et',
+    'eu',
+    'fa',
+    'fi',
+    'fr',
+    'gl',
+    'hr',
+    'hu',
+    'hy',
+    'is',
+    'it',
+    'ka',
+    'kk',
+    'lt',
+    'lv',
+    'mk',
+    'mn',
+    'nb',
+    'nl',
+    'pl',
+    'pt',
+    'ro',
+    'ru',
+    'sk',
+    'sl',
+    'sq',
+    'sr',
+    'sv',
+    'tr',
+    'uk',
+    'uz',
+  ]);
+
+  // Extract base language code (e.g. 'fr' from 'fr_FR', 'fr_BE')
+  const lang = locale.split('_')[0]?.toLowerCase() ?? '';
+
+  if (!europeanDecimalLocales.has(lang)) {
+    // English, Chinese, Japanese, Indonesian, etc. — dot decimal, comma arg sep
+    return { decimalSeparator: '.', thousandSeparator: '', functionArgSeparator: ',' };
+  }
+
+  // Swiss German/French/Italian use space as thousands separator
+  const swissLocales = new Set(['de_CH', 'fr_CH', 'it_CH', 'rm_CH']);
+  const thousandSeparator: '.' | ' ' = swissLocales.has(locale) ? ' ' : '.';
+
+  return { decimalSeparator: ',', thousandSeparator, functionArgSeparator: ';' };
+}
+
+// ============================================================================
 // FormulaEvaluator
 // ============================================================================
 
@@ -177,6 +282,8 @@ const SCENARIO_CACHE_MAX = 50;
 export class FormulaEvaluator {
   /** Per-spreadsheet HyperFormula instances (LRU-evicted) */
   private instances = new Map<string, HFInstance>();
+
+  constructor(private readonly googleClient?: GoogleApiClient) {}
 
   /**
    * Load a sheet's data into HyperFormula (or refresh if already loaded).
@@ -209,20 +316,31 @@ export class FormulaEvaluator {
       })
     );
 
+    // Map spreadsheet locale to HyperFormula separator config (ISSUE-086)
+    const hfLocale = localeToHfOptions(sheet.locale);
+
     const hf = HyperFormula.buildFromArray(data, {
       licenseKey: 'gpl-v3',
       useArrayArithmetic: true,
       // AlwaysSparse avoids allocating dense arrays for large sparse sheets
       chooseAddressMappingPolicy: new AlwaysSparse(),
+      // Locale-aware separators: European locales use comma as decimal, semicolon as arg separator
+      decimalSeparator: hfLocale.decimalSeparator,
+      thousandSeparator: hfLocale.thousandSeparator,
+      functionArgSeparator: hfLocale.functionArgSeparator,
     });
 
     // Pre-scan formulas to classify Google-specific and volatile cells
     const googleSpecificCells = new Set<string>();
     const volatileFormulaeCells = new Set<string>();
+    const googleCellFormulas = new Map<string, string>();
     sheet.formulas.forEach((row, rowIdx) => {
       row.forEach((formula, colIdx) => {
         if (!formula) return;
-        if (requiresGoogleEval(formula)) googleSpecificCells.add(`${colIdx},${rowIdx}`);
+        if (requiresGoogleEval(formula)) {
+          googleSpecificCells.add(`${colIdx},${rowIdx}`);
+          googleCellFormulas.set(`${colIdx},${rowIdx}`, formula);
+        }
         if (isVolatileFormula(formula)) volatileFormulaeCells.add(`${colIdx},${rowIdx}`);
       });
     });
@@ -230,10 +348,12 @@ export class FormulaEvaluator {
     this.instances.set(spreadsheetId, {
       hf,
       sheetIndex: 0,
+      sheetName: sheet.sheetName,
       loadedAt: Date.now(),
       resultCache: new Map(),
       googleSpecificCells,
       volatileFormulaeCells,
+      googleCellFormulas,
     });
 
     logger.debug('formula_evaluator_loaded', {
@@ -419,9 +539,74 @@ export class FormulaEvaluator {
       localResults.push(predicted);
     }
 
+    // Layer 3: API evaluation for Google-only cells
+    // If a googleClient was provided and there are Google-only cells, evaluate them
+    // via the Sheets API and merge results into localResults.
+    const resolvedGoogleCells: string[] = [];
+    if (this.googleClient && googleFallbackCells.length > 0) {
+      const appsScriptEval = new AppsScriptEvaluator(this.googleClient);
+      for (const fullCell of googleFallbackCells) {
+        // Derive col,row key from the A1 ref to look up the formula
+        const addr = parseA1(fullCell);
+        const formulaKey = addr ? `${addr.col},${addr.row}` : null;
+        const formula = formulaKey ? instance.googleCellFormulas.get(formulaKey) : undefined;
+
+        if (!formula) {
+          resolvedGoogleCells.push(fullCell);
+          continue;
+        }
+
+        try {
+          const apiResult = await appsScriptEval.evaluateFormula(
+            spreadsheetId,
+            instance.sheetName,
+            formula
+          );
+          if (!apiResult.error) {
+            // Read old value from HyperFormula (already in base state)
+            let oldValue: CellValueType = null;
+            if (addr) {
+              try {
+                oldValue = normalizeCellValue(
+                  hf.getCellValue({ sheet: instance.sheetIndex, col: addr.col, row: addr.row })
+                );
+              } catch {
+                // Out of range — stays null
+              }
+            }
+            const apiCell: PredictedCell & { evaluatedViaApi?: boolean } = {
+              cell: fullCell,
+              formula,
+              oldValue,
+              newValue: apiResult.value as CellValueType,
+              evaluatedViaApi: true,
+            };
+            if (
+              typeof oldValue === 'number' &&
+              typeof apiResult.value === 'number' &&
+              oldValue !== 0
+            ) {
+              apiCell.percentageChange =
+                Math.round(((apiResult.value - oldValue) / Math.abs(oldValue)) * 10000) / 100;
+            }
+            localResults.push(apiCell);
+            // Successfully resolved — do NOT add to needsGoogleEval
+          } else {
+            resolvedGoogleCells.push(fullCell);
+          }
+        } catch {
+          // Non-blocking: if evaluation fails, fall back to reporting in needsGoogleEval
+          resolvedGoogleCells.push(fullCell);
+        }
+      }
+    } else {
+      // No googleClient — all Google-only cells remain in needsGoogleEval
+      resolvedGoogleCells.push(...googleFallbackCells);
+    }
+
     const result: ScenarioResult = {
       localResults,
-      needsGoogleEval: googleFallbackCells,
+      needsGoogleEval: resolvedGoogleCells,
       volatileCells,
       cellsRecalculated: exportedChanges.length,
       durationMs: Date.now() - startMs,

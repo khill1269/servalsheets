@@ -14,7 +14,7 @@ import type { PrefetchPredictor } from '../services/prefetch-predictor.js';
 import type { AccessPatternTracker } from '../services/access-pattern-tracker.js';
 import type { AdaptiveQueryOptimizer } from '../services/query-optimizer.js';
 import type { PrefetchingSystem } from '../services/prefetching-system.js';
-import { getPrefetchConfig } from '../config/env.js';
+import { getEnv, getPrefetchConfig } from '../config/env.js';
 
 export interface PerformanceServices {
   /** Time-window batching system for reducing API calls */
@@ -64,11 +64,17 @@ export async function initializePerformanceOptimizations(
     import('../services/prefetching-system.js'),
   ]);
 
+  const cfg = getEnv();
+
   // Initialize batching system for time-window operation batching
   const batchingSystem = initBatchingSystem(sheetsApi);
 
   // Initialize request merger first so CachedSheetsApi can use it (20-40% API savings)
-  const requestMerger = new RequestMerger({ enabled: true, windowMs: 50, maxWindowSize: 100 });
+  const requestMerger = new RequestMerger({
+    enabled: true,
+    windowMs: cfg.REQUEST_MERGER_WINDOW_MS,
+    maxWindowSize: 100,
+  });
 
   // Initialize cached Sheets API with RequestMerger for overlapping range optimization
   const cachedSheetsApi = getCachedSheetsApi(sheetsApi, requestMerger);
@@ -76,22 +82,22 @@ export async function initializePerformanceOptimizations(
   // Initialize parallel executor for concurrent batch operations (40% faster batch ops)
   // Concurrency capped at 5 (quota-safe default from remediation phase 1 — ISSUE-233)
   const parallelExecutor = new ParallelExecutor({
-    concurrency: parseInt(process.env['PARALLEL_CONCURRENCY'] ?? '5', 10),
+    concurrency: cfg.PARALLEL_CONCURRENCY,
     retryOnError: true,
-    maxRetries: 3,
+    maxRetries: cfg.PARALLEL_MAX_RETRIES,
   });
 
   // Initialize prefetch predictor for predictive caching (200-500ms latency reduction)
   const prefetchPredictor = new PrefetchPredictor({
-    minConfidence: 0.6,
-    maxPredictions: 5,
+    minConfidence: cfg.PREFETCH_MIN_CONFIDENCE,
+    maxPredictions: cfg.PREFETCH_MAX_PREDICTIONS,
     enablePrefetch: true,
   });
 
   // Initialize access pattern tracker for learning user patterns
   const accessPatternTracker = new AccessPatternTracker({
-    maxHistory: 1000,
-    patternWindow: 300000,
+    maxHistory: cfg.ACCESS_PATTERN_MAX_HISTORY,
+    patternWindow: cfg.ACCESS_PATTERN_WINDOW_MS,
   });
 
   // Initialize adaptive query optimizer for ML-based optimization

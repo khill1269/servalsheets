@@ -2,13 +2,20 @@
 # Multi-stage build for optimal image size (~50MB final)
 
 # Stage 1: Build
+# NOTE: Pin to specific tag for reproducibility. Run `docker pull node:20-alpine`
+# then `docker inspect --format='{{index .RepoDigests 0}}' node:20-alpine` to get
+# the current digest and append @sha256:... to the FROM line below.
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files (root + all workspace packages for npm ci)
 COPY package*.json ./
 COPY packages/serval-core/package*.json ./packages/serval-core/
+COPY packages/mcp-client/package*.json ./packages/mcp-client/
+COPY packages/mcp-http/package*.json ./packages/mcp-http/
+COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
+COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
 # Install dependencies (including devDependencies for build)
 RUN npm ci
@@ -22,7 +29,7 @@ RUN npm run build
 # Prune devDependencies
 RUN npm prune --production
 
-# Stage 2: Runtime
+# Stage 2: Runtime (same pin as builder — keep in sync)
 FROM node:20-alpine
 
 WORKDIR /app

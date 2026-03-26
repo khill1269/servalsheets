@@ -14,7 +14,9 @@ vi.mock('googleapis', () => {
   // Create a mock class for OAuth2
   class MockOAuth2 {
     credentials = {};
-    setCredentials = vi.fn();
+    setCredentials = vi.fn((tokens: Record<string, unknown>) => {
+      this.credentials = { ...this.credentials, ...tokens };
+    });
     on = vi.fn();
     off = vi.fn();
     generateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/o/oauth2/auth');
@@ -266,6 +268,32 @@ describe('GoogleApiClient', () => {
       await client.initialize();
 
       expect(client.sheets).toBeDefined();
+    });
+
+    it('should preserve explicit oauth token metadata during initialization', async () => {
+      client = new GoogleApiClient({
+        credentials: {
+          clientId: 'test-client-id',
+          clientSecret: 'test-client-secret',
+          redirectUri: 'http://localhost:3000/callback',
+        },
+        oauthTokens: {
+          access_token: 'test-access-token',
+          refresh_token: 'test-refresh-token',
+          expiry_date: 1234567890,
+          token_type: 'Bearer',
+          scope: 'scope-a scope-b',
+        },
+      });
+
+      await client.initialize();
+
+      expect(client.getTokenStatus()).toEqual({
+        hasAccessToken: true,
+        hasRefreshToken: true,
+        expiryDate: 1234567890,
+        scope: 'scope-a scope-b',
+      });
     });
   });
 

@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
+import { ValidationError, NotFoundError } from '../core/errors.js';
 
 export interface ScheduledJob {
   id: string;
@@ -92,7 +93,10 @@ export class SchedulerService {
 
   async create(jobData: Omit<ScheduledJob, 'id' | 'createdAt'>): Promise<ScheduledJob> {
     if (!cron.validate(jobData.cronExpression)) {
-      throw new Error(`Invalid cron expression: ${jobData.cronExpression}`);
+      throw new ValidationError(
+        `Invalid cron expression: ${jobData.cronExpression}`,
+        'cronExpression'
+      );
     }
     const job: ScheduledJob = {
       ...jobData,
@@ -106,7 +110,7 @@ export class SchedulerService {
 
   async cancel(jobId: string): Promise<void> {
     const entry = this.jobs.get(jobId);
-    if (!entry) throw new Error(`Scheduled job not found: ${jobId}`);
+    if (!entry) throw new NotFoundError('scheduled job', jobId);
     if (entry.task) entry.task.stop();
     this.jobs.delete(jobId);
     this.persist();
@@ -119,7 +123,7 @@ export class SchedulerService {
 
   async runNow(jobId: string): Promise<void> {
     const entry = this.jobs.get(jobId);
-    if (!entry) throw new Error(`Scheduled job not found: ${jobId}`);
+    if (!entry) throw new NotFoundError('scheduled job', jobId);
     await this.dispatchFn(entry.job);
     entry.job.lastRun = new Date().toISOString();
     entry.job.lastRunResult = 'success';

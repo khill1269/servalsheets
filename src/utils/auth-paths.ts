@@ -3,6 +3,7 @@
  */
 
 import { homedir, tmpdir } from 'os';
+import { ValidationError } from '../core/errors.js';
 import { join, resolve, isAbsolute } from 'path';
 
 export function getDefaultTokenStorePath(): string {
@@ -19,7 +20,10 @@ export function sanitizeTokenStorePath(rawPath: string): string {
   // Defense-in-depth: constrain to home or temp directory to prevent access to /etc, /proc, etc.
   const allowedPrefixes = [homedir(), tmpdir()];
   if (!allowedPrefixes.some((prefix) => resolved.startsWith(prefix))) {
-    throw new Error(`Token store path must be within home or temp directory. Got: ${resolved}`);
+    throw new ValidationError(
+      `Token store path must be within home or temp directory. Got: ${resolved}`,
+      'tokenStorePath'
+    );
   }
   return resolved;
 }

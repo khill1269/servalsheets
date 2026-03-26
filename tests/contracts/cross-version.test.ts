@@ -174,6 +174,7 @@ describe('Cross-Version Compatibility - v1.6.0 New Features', () => {
         request: {
           action: 'run',
           scriptId: 'script-123',
+          deploymentId: 'AKfycb-deployment',
           functionName: 'myFunction',
         },
       });

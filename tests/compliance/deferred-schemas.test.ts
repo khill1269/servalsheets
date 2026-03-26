@@ -13,6 +13,14 @@ import { DEFER_SCHEMAS, DEFER_DESCRIPTIONS } from '../../src/config/constants.js
 import { zodSchemaToJsonSchema } from '../../src/utils/schema-compat.js';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
 
+function toPreparedJsonSchema(prepared: unknown): Record<string, unknown> {
+  if (prepared && typeof prepared === 'object' && !('_def' in (prepared as Record<string, unknown>))) {
+    return prepared as Record<string, unknown>;
+  }
+
+  return zodSchemaToJsonSchema(prepared as z.ZodType);
+}
+
 describe('Deferred Schema Mode', () => {
   describe('Schema preparation', () => {
     it('should return minimal schema when DEFER_SCHEMAS is enabled', () => {
@@ -26,7 +34,7 @@ describe('Deferred Schema Mode', () => {
       });
 
       const prepared = prepareSchemaForRegistration(testSchema, 'input');
-      const json = zodSchemaToJsonSchema(prepared as z.ZodType);
+      const json = toPreparedJsonSchema(prepared);
 
       // Deferred schemas are small passthrough objects (~200-700 bytes)
       expect(JSON.stringify(json).length).toBeLessThan(1000);
@@ -43,12 +51,12 @@ describe('Deferred Schema Mode', () => {
       });
 
       const prepared = prepareSchemaForRegistration(testSchema, 'output');
-      const json = zodSchemaToJsonSchema(prepared as z.ZodType);
+      const json = toPreparedJsonSchema(prepared);
 
       expect(JSON.stringify(json).length).toBeLessThan(1000);
     });
 
-    it('should include schema resource hint in description', () => {
+    it('should include inline action guidance in description', () => {
       if (!DEFER_SCHEMAS) return;
 
       const testSchema = z.object({
@@ -58,10 +66,10 @@ describe('Deferred Schema Mode', () => {
       });
 
       const prepared = prepareSchemaForRegistration(testSchema, 'input');
-      const json = zodSchemaToJsonSchema(prepared as z.ZodType);
-      const jsonStr = JSON.stringify(json);
-
-      expect(jsonStr).toContain('schema://tools/');
+      const json = toPreparedJsonSchema(prepared);
+      const request = json.properties?.['request'] as Record<string, unknown>;
+      const properties = request?.['properties'] as Record<string, unknown>;
+      expect((properties?.['action'] as Record<string, unknown>)?.['type']).toBe('string');
     });
   });
 
@@ -98,24 +106,28 @@ describe('Deferred Schema Mode', () => {
     it('should have prepared input schemas that accept request objects in deferred mode', () => {
       if (!DEFER_SCHEMAS) return;
 
-      // In deferred mode, prepareSchemaForRegistration returns a z.looseObject()
-      // passthrough schema that accepts any action string and allows additional properties
+      // In deferred mode, prepareSchemaForRegistration returns a flat typed JSON Schema
+      // with action enum, request properties, and additionalProperties enabled.
       const testSchema = z.object({
         request: z.object({
           action: z.enum(['read', 'write']),
+          spreadsheetId: z.string(),
         }),
       });
 
-      const prepared = prepareSchemaForRegistration(testSchema, 'input') as z.ZodType;
-      // Flat deferred schemas extract action enum from full schema, so use a valid action
-      const result = prepared.safeParse({ request: { action: 'read' } });
-      expect(result.success).toBe(true);
+      const prepared = prepareSchemaForRegistration(testSchema, 'input');
+      const json = toPreparedJsonSchema(prepared);
+      const request = json.properties?.['request'] as Record<string, unknown>;
+      const properties = request?.['properties'] as Record<string, unknown>;
 
-      // Verify additionalProperties are allowed (spreadsheetId, range, etc.)
-      const withExtra = prepared.safeParse({
-        request: { action: 'read', spreadsheetId: 'abc123', range: 'Sheet1!A1:B2' },
-      });
-      expect(withExtra.success).toBe(true);
+      expect(request?.['type']).toBe('object');
+      expect(request?.['additionalProperties']).toBe(true);
+      expect(request?.['required']).toEqual(expect.arrayContaining(['action']));
+      expect((properties?.['action'] as Record<string, unknown>)?.['enum']).toEqual([
+        'read',
+        'write',
+      ]);
+      expect((properties?.['spreadsheetId'] as Record<string, unknown>)?.['type']).toBe('string');
     });
 
     it('should have prepared output schemas that accept response objects in deferred mode', () => {
@@ -152,8 +164,8 @@ describe('Deferred Schema Mode', () => {
           tool.outputSchema as z.ZodType,
           'output'
         );
-        const inputJson = zodSchemaToJsonSchema(preparedInput as z.ZodType);
-        const outputJson = zodSchemaToJsonSchema(preparedOutput as z.ZodType);
+        const inputJson = toPreparedJsonSchema(preparedInput);
+        const outputJson = toPreparedJsonSchema(preparedOutput);
         totalSize += JSON.stringify(inputJson).length;
         totalSize += JSON.stringify(outputJson).length;
       }

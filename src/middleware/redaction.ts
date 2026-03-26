@@ -83,6 +83,18 @@ const REDACTION_PATTERNS: Array<{
     pattern: /redis:\/\/[^:]+:[^@]+@/g,
     replacement: 'redis://[CREDENTIALS_REDACTED]@',
   },
+  // US phone numbers (various formats: (555) 555-5555, 555-555-5555, +1 555 555 5555, etc.)
+  {
+    name: 'phone_us',
+    pattern: /(?<!\d)(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)/g,
+    replacement: '[PHONE_REDACTED]',
+  },
+  // International phone numbers in E.164 format (+14155552671, +447700900000, etc.)
+  {
+    name: 'phone_e164',
+    pattern: /\+\d{7,15}/g,
+    replacement: '[PHONE_REDACTED]',
+  },
 ];
 
 /**

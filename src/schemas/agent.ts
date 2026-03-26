@@ -58,14 +58,21 @@ const PlanActionSchema = CommonFieldsSchema.extend({
     .number()
     .int()
     .positive()
+    .max(50)
     .optional()
     .default(10)
-    .describe('Maximum number of steps to generate in the plan (default: 10)'),
+    .describe('Maximum number of steps to generate in the plan (default: 10, max: 50)'),
   context: z
     .string()
     .optional()
     .describe(
       'Additional context to help the planner (e.g., "Data is in columns A-D, rows 2-100. Headers in row 1.")'
+    ),
+  scoutResult: z
+    .unknown()
+    .optional()
+    .describe(
+      'Optional scout payload from sheets_analyze.scout. When provided, the planner skips its internal workbook scout to avoid large-workbook timeouts.'
     ),
 }).strict();
 
@@ -77,12 +84,24 @@ const ExecuteActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Preview execution without applying changes (default: false)'),
+  interactiveMode: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'When true, each plan step requires user approval via elicitation before executing (default: false)'
+    ),
 }).strict();
 
 const ExecuteStepActionSchema = CommonFieldsSchema.extend({
   action: z.literal('execute_step').describe('Execute single step from plan'),
   planId: z.string().min(1).describe('Plan ID'),
-  stepId: z.string().min(1).describe('Step ID from plan'),
+  // BUG-15 fix: Accept both string step IDs and numeric step indices.
+  // Plan responses use numeric indices (0, 1, 2) but schema originally required string.
+  stepId: z
+    .union([z.string().min(1), z.number().int().min(0)])
+    .transform((val) => String(val))
+    .describe('Step ID or index from plan (string or number)'),
 }).strict();
 
 const ObserveActionSchema = CommonFieldsSchema.extend({
@@ -210,6 +229,21 @@ const PlanStepSchema = z.object({
     .array(z.string())
     .optional()
     .describe('Step IDs that must complete before this step (if any)'),
+  validation: z
+    .object({
+      valid: z.boolean(),
+      issues: z
+        .array(
+          z.object({
+            field: z.string(),
+            message: z.string(),
+          })
+        )
+        .optional(),
+      suggestedFix: z.string().optional(),
+    })
+    .optional()
+    .describe('Optional compile-time validation result for AI-generated draft steps'),
 });
 
 const AgentResponseSchema = z.discriminatedUnion('success', [
@@ -331,6 +365,8 @@ export type AgentPlanInput = SheetsAgentInput['request'] & {
 export type AgentExecuteInput = SheetsAgentInput['request'] & {
   action: 'execute';
   planId: string;
+  dryRun?: boolean;
+  interactiveMode?: boolean;
 };
 
 export type AgentExecuteStepInput = SheetsAgentInput['request'] & {

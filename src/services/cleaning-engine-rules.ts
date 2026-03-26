@@ -91,6 +91,49 @@ const STATE_ABBREV_MAP = new Map<string, string>([
   ['united states virgin islands', 'VI'],
 ]);
 
+const ACRONYM_ALLOWLIST = new Set([
+  'SMB',
+  'CEO',
+  'CTO',
+  'CFO',
+  'COO',
+  'B2B',
+  'B2C',
+  'SAAS',
+  'API',
+  'URL',
+  'ID',
+  'HR',
+  'CRM',
+  'ERP',
+  'KPI',
+  'ROI',
+  'ARR',
+  'MRR',
+  'CAC',
+  'LTV',
+  'COGS',
+  'EBITDA',
+  'PL',
+  'YTD',
+  'QTD',
+  'MTD',
+]);
+
+function normalizeAcronymKey(word: string): string {
+  return word.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
+function isProtectedAcronym(word: string): boolean {
+  const normalized = normalizeAcronymKey(word);
+  return normalized.length >= 2 && ACRONYM_ALLOWLIST.has(normalized);
+}
+
+function consistsOnlyOfProtectedAcronyms(value: string): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.every((word) => isProtectedAcronym(word));
+}
+
 export const BUILT_IN_RULES: Record<
   string,
   {
@@ -145,8 +188,16 @@ export const BUILT_IN_RULES: Record<
     description: 'Remove exact duplicate rows',
   },
   fix_emails: {
-    detect: (v) =>
-      typeof v === 'string' && v.includes('@') && (v !== v.toLowerCase().trim() || /\s/.test(v)),
+    detect: (v) => {
+      if (typeof v !== 'string') return false;
+      const trimmed = v.trim();
+      // RFC 5321-inspired validation: local@domain with at least one dot in domain
+      const emailRegex =
+        /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+      if (!emailRegex.test(trimmed)) return false;
+      // Detect if it needs cleaning (case, whitespace)
+      return v !== trimmed || trimmed !== trimmed.toLowerCase();
+    },
     fix: (v) => (typeof v === 'string' ? v.toLowerCase().trim() : v),
     description: 'Lowercase and trim email addresses',
   },
@@ -165,8 +216,16 @@ export const BUILT_IN_RULES: Record<
     description: 'Normalize phone numbers',
   },
   fix_urls: {
-    detect: (v) =>
-      typeof v === 'string' && /^(www\.|[a-z0-9-]+\.(com|org|net|io|dev|co))/i.test(v.trim()),
+    detect: (v) => {
+      if (typeof v !== 'string') return false;
+      const trimmed = v.trim();
+      // Broader TLD coverage + domain validation (M-A5 hardening)
+      // Matches: www.example.com, example.com, sub.example.co.uk — without protocol
+      return (
+        /^(www\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z]{2,})+/i.test(trimmed) &&
+        !trimmed.startsWith('http')
+      );
+    },
     fix: (v) => (typeof v === 'string' && !v.startsWith('http') ? `https://${v.trim()}` : v),
     description: 'Add https:// to URLs missing protocol',
   },
@@ -310,6 +369,9 @@ export const BUILT_IN_RULES: Record<
     detect: (v) => {
       if (typeof v !== 'string') return false;
       const trimmed = v.trim();
+      if (trimmed.length === 0 || consistsOnlyOfProtectedAcronyms(trimmed)) {
+        return false;
+      }
       // Detect names in ALL CAPS, all lowercase, or extra spaces
       return (
         (trimmed.length > 0 && trimmed === trimmed.toUpperCase()) ||
@@ -326,6 +388,9 @@ export const BUILT_IN_RULES: Record<
       result = result
         .split(/\s+/)
         .map((word, idx) => {
+          if (isProtectedAcronym(word)) {
+            return normalizeAcronymKey(word);
+          }
           const lower = word.toLowerCase();
           // Handle prefixes: mc, mac, o', van, de, von
           if (idx > 0 && /^(mc|mac|o'|van|de|von)/.test(lower)) {
@@ -576,6 +641,82 @@ export const ANOMALY_DETECTORS: Record<
     if (mad === 0) return 0;
     return Math.abs((0.6745 * (value - median)) / mad);
   },
+
+  /**
+   * Isolation Forest anomaly detection (simplified single-feature variant).
+   *
+   * Algorithm: Build an ensemble of random binary search trees that recursively
+   * partition data by random split points. Anomalies are isolated in fewer splits
+   * (shorter path lengths). The anomaly score is normalized against the expected
+   * average path length for a dataset of size n.
+   *
+   * Reference: Liu, Ting & Zhou (2008) "Isolation Forest"
+   * Score interpretation: >0.6 = potential anomaly, score used directly as threshold comparison
+   */
+  isolation_forest: (value, allValues, _threshold) => {
+    const n = allValues.length;
+    if (n < 4) return 0; // Need minimum data for meaningful isolation
+
+    // Expected average path length for BST of n items (Euler-Mascheroni approximation)
+    const avgPathLength = (size: number): number => {
+      if (size <= 1) return 0;
+      if (size === 2) return 1;
+      return 2 * (Math.log(size - 1) + 0.5772156649) - (2 * (size - 1)) / size;
+    };
+
+    const NUM_TREES = 100;
+    const SUBSAMPLE_SIZE = Math.min(256, n);
+    const c = avgPathLength(SUBSAMPLE_SIZE);
+    if (c === 0) return 0;
+
+    let totalPathLength = 0;
+
+    for (let t = 0; t < NUM_TREES; t++) {
+      // Subsample (deterministic seed per tree for reproducibility within a call)
+      const subsample: number[] = [];
+      for (let i = 0; i < SUBSAMPLE_SIZE; i++) {
+        // Fisher-Yates-lite: pick random indices
+        const idx = Math.floor(((t * 7919 + i * 6271 + 1) * 2654435761) % n);
+        subsample.push(allValues[Math.abs(idx) % n]!);
+      }
+
+      // Isolate the target value by approximating the iTree path
+      let pathLength = 0;
+      let lo = Math.min(...subsample);
+      let hi = Math.max(...subsample);
+      let currentSize = SUBSAMPLE_SIZE;
+      const maxDepth = Math.ceil(Math.log2(SUBSAMPLE_SIZE));
+
+      while (pathLength < maxDepth && lo < hi && currentSize > 1) {
+        // Random split point between lo and hi
+        const splitSeed = ((t * 31 + pathLength * 17 + 1) * 2654435761) >>> 0;
+        const splitPoint = lo + ((splitSeed % 10000) / 10000) * (hi - lo);
+
+        if (value < splitPoint) {
+          hi = splitPoint;
+          // Estimate fraction of data below split
+          const fractionBelow = subsample.filter((v) => v < splitPoint).length / subsample.length;
+          currentSize = Math.max(1, Math.floor(currentSize * fractionBelow));
+        } else {
+          lo = splitPoint;
+          const fractionAbove = subsample.filter((v) => v >= splitPoint).length / subsample.length;
+          currentSize = Math.max(1, Math.floor(currentSize * fractionAbove));
+        }
+        pathLength++;
+      }
+
+      // Adjust for unfinished traversal
+      totalPathLength += pathLength + avgPathLength(currentSize);
+    }
+
+    const avgPath = totalPathLength / NUM_TREES;
+    // Anomaly score: 2^(-avgPath / c) — closer to 1 = more anomalous
+    const anomalyScore = Math.pow(2, -avgPath / c);
+
+    // Return score normalized so it can be compared against threshold (default 0.6)
+    // Score > threshold → anomaly
+    return anomalyScore;
+  },
 };
 
 function toTitleCase(str: string): string {
@@ -624,29 +765,10 @@ function parseAnyDate(str: string): ParsedDate | null {
   m = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
   if (m) {
     const monthNames: Record<string, number> = {
-      jan: 1,
-      january: 1,
-      feb: 2,
-      february: 2,
-      mar: 3,
-      march: 3,
-      apr: 4,
-      april: 4,
-      may: 5,
-      jun: 6,
-      june: 6,
-      jul: 7,
-      july: 7,
-      aug: 8,
-      august: 8,
-      sep: 9,
-      september: 9,
-      oct: 10,
-      october: 10,
-      nov: 11,
-      november: 11,
-      dec: 12,
-      december: 12,
+      jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+      apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+      aug: 8, august: 8, sep: 9, september: 9, oct: 10, october: 10,
+      nov: 11, november: 11, dec: 12, december: 12,
     };
     const month = monthNames[m[1]!.toLowerCase()];
     if (month) return { year: parseInt(m[3]!, 10), month, day: parseInt(m[2]!, 10) };
@@ -657,6 +779,5 @@ function parseAnyDate(str: string): ParsedDate | null {
 
 function normalizeDate(str: string): string {
   const d = parseAnyDate(str);
-  if (!d) return str;
-  return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`;
+  return d ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : str;
 }

@@ -9,6 +9,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -41,8 +42,9 @@ export class FredConnector implements SpreadsheetConnector {
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
     if (!credentials.apiKey) {
-      throw new Error(
-        'FRED requires an API key. Get one free at https://fred.stlouisfed.org/docs/api/api_key.html'
+      throw new ConfigError(
+        'FRED requires an API key. Get one free at https://fred.stlouisfed.org/docs/api/api_key.html',
+        'FRED_API_KEY'
       );
     }
     this.apiKey = credentials.apiKey;
@@ -240,7 +242,12 @@ export class FredConnector implements SpreadsheetConnector {
     const url = this.buildUrl(endpoint, params);
     const resp = await fetch(url);
     if (!resp.ok) {
-      throw new Error(`FRED API error: HTTP ${resp.status} ${resp.statusText}`);
+      throw new ServiceError(
+        `FRED API error: HTTP ${resp.status} ${resp.statusText}`,
+        'INTERNAL_ERROR',
+        'fred',
+        true
+      );
     }
     const data = (await resp.json()) as Record<string, unknown>;
     return this.formatResult(endpoint, data);

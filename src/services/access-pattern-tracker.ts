@@ -16,6 +16,7 @@
 
 import { logger } from '../utils/logger.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import { ServiceError } from '../core/errors.js';
 
 export interface AccessRecord {
   timestamp: number;
@@ -439,7 +440,11 @@ export function getAccessPatternTracker(): AccessPatternTracker {
  */
 export function resetAccessPatternTracker(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetAccessPatternTracker() can only be called in test environment');
+    throw new ServiceError(
+      'resetAccessPatternTracker() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'AccessPatternTracker'
+    );
   }
   accessPatternTracker = null;
 }

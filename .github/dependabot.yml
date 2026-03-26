@@ -2,7 +2,14 @@ version: 2
 updates:
   # npm dependencies
   - package-ecosystem: 'npm'
-    directory: '/'
+    directories:
+      - '/'
+      - '/packages/serval-core'
+      - '/tools/google-docs-server'
+      - '/tools/gcloud-console-server'
+      - '/tools/test-intelligence-server'
+      - '/src/ui/tracing-dashboard'
+      - '/k8s/operator'
     schedule:
       interval: 'weekly'
       day: 'monday'
@@ -39,13 +46,15 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
-    # Allow only minor and patch updates for MCP SDK (it's pinned)
+    # Allow only minor and patch updates for pinned deps
     ignore:
       - dependency-name: '@modelcontextprotocol/sdk'
         update-types: ['version-update:semver-major']
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']
       - dependency-name: 'vitest'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'eslint'
         update-types: ['version-update:semver-major']
 
   # GitHub Actions
@@ -71,7 +80,10 @@ updates:
 
   # Docker base images
   - package-ecosystem: 'docker'
-    directory: '/'
+    directories:
+      - '/'
+      - '/deployment/demo'
+      - '/deployment/docker'
     schedule:
       interval: 'weekly'
       day: 'monday'

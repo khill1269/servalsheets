@@ -1,7 +1,7 @@
 /**
  * Action Discovery Service
  *
- * Provides intent-aware search across all 377 ServalSheets actions.
+ * Provides intent-aware search across all 407 ServalSheets actions.
  * Builds an inverted index from action names, tool descriptions,
  * and action annotations for fast lookup.
  *

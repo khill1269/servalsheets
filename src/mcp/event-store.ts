@@ -14,6 +14,7 @@ import type {
 } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 
 type StoredEvent = {
   streamId: StreamId;
@@ -32,24 +33,38 @@ export class InMemoryEventStore implements EventStore {
   private events = new Map<EventId, StoredEvent>();
   private order: EventId[] = [];
   private maxEvents: number;
+  private maxBytes: number;
+  private currentBytes: number = 0;
   private ttlMs: number;
 
-  constructor(options?: { maxEvents?: number; ttlMs?: number }) {
+  constructor(options?: { maxEvents?: number; maxBytes?: number; ttlMs?: number }) {
     this.maxEvents = Math.max(1, options?.maxEvents ?? 5000);
+    this.maxBytes = Math.max(1024, options?.maxBytes ?? 50 * 1024 * 1024); // 50MB default (M-PR2)
     this.ttlMs = Math.max(1000, options?.ttlMs ?? 5 * 60 * 1000);
   }
 
   async storeEvent(streamId: StreamId, message: JSONRPCMessage): Promise<EventId> {
     this.prune();
     const eventId = `${streamId}_${Date.now()}_${randomUUID()}`;
-    this.events.set(eventId, {
+    const storedEvent: StoredEvent = {
       streamId,
       message,
       createdAt: Date.now(),
-    });
+    };
+    const eventSize = this.estimateSize(message);
+    this.events.set(eventId, storedEvent);
     this.order.push(eventId);
+    this.currentBytes += eventSize;
     this.enforceMax();
     return eventId;
+  }
+
+  private estimateSize(message: JSONRPCMessage): number {
+    try {
+      return JSON.stringify(message).length * 2; // UTF-16 approximation
+    } catch {
+      return 1024; // Fallback estimate for non-serializable messages
+    }
   }
 
   async getStreamIdForEventId(eventId: EventId): Promise<StreamId | undefined> {
@@ -96,6 +111,7 @@ export class InMemoryEventStore implements EventStore {
   clear(): void {
     this.events.clear();
     this.order = [];
+    this.currentBytes = 0;
   }
 
   private prune(): void {
@@ -108,22 +124,46 @@ export class InMemoryEventStore implements EventStore {
     }
     if (expired.length > 0) {
       for (const eventId of expired) {
+        const event = this.events.get(eventId);
+        if (event) {
+          this.currentBytes -= this.estimateSize(event.message);
+        }
         this.events.delete(eventId);
       }
       this.order = this.order.filter((eventId) => this.events.has(eventId));
+      if (this.currentBytes < 0) this.currentBytes = 0;
     }
     this.enforceMax();
   }
 
   private enforceMax(): void {
-    if (this.order.length <= this.maxEvents) {
-      return;
+    // Phase 1: Enforce per-count limit
+    if (this.order.length > this.maxEvents) {
+      const overflow = this.order.length - this.maxEvents;
+      const toDelete = this.order.splice(0, overflow);
+      for (const eventId of toDelete) {
+        const event = this.events.get(eventId);
+        if (event) {
+          this.currentBytes -= this.estimateSize(event.message);
+        }
+        this.events.delete(eventId);
+      }
     }
-    const overflow = this.order.length - this.maxEvents;
-    const toDelete = this.order.splice(0, overflow);
-    for (const eventId of toDelete) {
-      this.events.delete(eventId);
+
+    // Phase 2: Enforce per-bytes limit (M-PR2)
+    while (this.currentBytes > this.maxBytes && this.order.length > 0) {
+      const oldestId = this.order.shift();
+      if (oldestId) {
+        const event = this.events.get(oldestId);
+        if (event) {
+          this.currentBytes -= this.estimateSize(event.message);
+        }
+        this.events.delete(oldestId);
+      }
     }
+
+    // Ensure currentBytes never goes negative from estimation drift
+    if (this.currentBytes < 0) this.currentBytes = 0;
   }
 }
 
@@ -175,7 +215,7 @@ export class RedisEventStore implements EventStore {
   async getStreamIdForEventId(eventId: EventId): Promise<StreamId | undefined> {
     const parsed = this.parseEventId(eventId);
     if (!parsed) {
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     await this.ensureConnected();
     const exists = await RedisEventStore.client!.exists(
@@ -283,7 +323,7 @@ export class RedisEventStore implements EventStore {
     }
 
     if (RedisEventStore.redisUrl && RedisEventStore.redisUrl !== this.redisUrl) {
-      throw new Error('RedisEventStore configured with multiple Redis URLs.');
+      throw new ConfigError('RedisEventStore configured with multiple Redis URLs.', 'REDIS_URL');
     }
 
     if (!RedisEventStore.connecting) {
@@ -305,10 +345,13 @@ export class RedisEventStore implements EventStore {
           logger.info('Redis event store connected');
         } catch (error) {
           RedisEventStore.connecting = null;
-          throw new Error(
+          throw new ServiceError(
             `Failed to connect to Redis at ${this.redisUrl}. ` +
               `Make sure Redis is installed (npm install redis) and running. ` +
-              `Error: ${error instanceof Error ? error.message : String(error)}`
+              `Error: ${error instanceof Error ? error.message : String(error)}`,
+            'INTERNAL_ERROR',
+            'redis',
+            true
           );
         }
       })();
@@ -370,7 +413,7 @@ export class RedisEventStore implements EventStore {
   private async deleteStream(streamId: StreamId): Promise<void> {
     const client = RedisEventStore.client;
     if (!client) {
-      throw new Error('Redis client not connected');
+      throw new ServiceError('Redis client not connected', 'INTERNAL_ERROR', 'redis');
     }
 
     const eventsKey = this.getEventsKey(streamId);

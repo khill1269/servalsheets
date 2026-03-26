@@ -15,7 +15,7 @@ function getHeaderValue(
   headers: Record<string, HeaderValue> | undefined,
   names: string[]
 ): string | undefined {
-  if (!headers) return undefined;
+  if (!headers) return undefined; // OK: Explicit empty
 
   for (const name of names) {
     const value = headers[name] ?? headers[name.toLowerCase()];

@@ -3,7 +3,7 @@ title: Caching Patterns Guide
 category: guide
 last_updated: 2026-01-31
 description: Quick Reference for AI Agents
-version: 1.6.0
+version: 2.0.0
 audience: user
 difficulty: intermediate
 ---

@@ -3,7 +3,7 @@ title: ServalSheets Usage Guide
 category: guide
 last_updated: 2026-01-31
 description: Complete guide to using ServalSheets MCP Server
-version: 1.6.0
+version: 2.0.0
 tags: [sheets, docker]
 audience: user
 difficulty: intermediate
@@ -13,7 +13,7 @@ difficulty: intermediate
 
 **Complete guide to using ServalSheets MCP Server**
 
-Version: 1.6.0 | Last Updated: 2026-01-30
+Version: 2.0.0 | Last Updated: 2026-03-24
 
 ---
 
@@ -39,7 +39,7 @@ Version: 1.6.0 | Last Updated: 2026-01-30
 
 ### Key Features
 
-- **21 Tools, 291 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 407 Actions**: Comprehensive Google Sheets API v4 coverage
 - **Safety Rails**: Dry-run preview, effect scope limits, expected state validation, auto-snapshots
 - **Smart Operations**: Semantic range resolution (find columns by header name), tiered diff engine
 - **Production Ready**: Rate limiting, encrypted token storage, structured logging, health checks
@@ -335,6 +335,11 @@ ID: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 
 Claude Desktop is the easiest way to use ServalSheets.
 
+This section is for the **local stdio** setup path. If you are trying to use a
+hosted ServalSheets deployment as a remote connector, use
+[`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md) instead and add the connector
+through Claude's settings UI.
+
 ### Step 1: Configure Claude Desktop
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -360,6 +365,16 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```
 
 **See**: [CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md) for detailed setup
+
+### Hosted Connector Path
+
+For a hosted remote deployment:
+
+1. Start the HTTP server on your public deployment.
+2. Configure OAuth and the Claude callback URLs on that hosted deployment.
+3. Add the connector through Claude `Settings > Connectors`.
+
+Do not reuse the local stdio config block above for that hosted path.
 
 ### Step 2: Restart Claude Desktop
 
@@ -1017,4 +1032,4 @@ export LOG_LEVEL=debug
 
 **Need help?** Open an issue: https://github.com/khill1269/servalsheets/issues
 
-**Version**: 1.6.0 | **License**: MIT | **Protocol**: MCP 2025-11-25
+**Version**: 2.0.0 | **License**: MIT | **Protocol**: MCP 2025-11-25

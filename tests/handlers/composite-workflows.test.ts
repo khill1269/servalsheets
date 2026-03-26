@@ -389,7 +389,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
-          sourceRange: 'Sheet1!A1:C6',
+          sourceRange: { a1: 'Sheet1!A1:C6' },
           steps: [
             { type: 'filter', config: { column: 'Region', value: 'East' } },
           ],
@@ -411,7 +411,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
-          sourceRange: 'Sheet1!A1:C6',
+          sourceRange: { a1: 'Sheet1!A1:C6' },
           steps: [
             { type: 'sort', config: { column: 'Revenue', order: 'desc' } },
           ],
@@ -430,7 +430,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
-          sourceRange: 'Sheet1!A1:C6',
+          sourceRange: { a1: 'Sheet1!A1:C6' },
           steps: [
             { type: 'deduplicate', config: { columns: ['Name'] } },
           ],
@@ -450,7 +450,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
-          sourceRange: 'Sheet1!A1:C6',
+          sourceRange: { a1: 'Sheet1!A1:C6' },
           steps: [],
           dryRun: true,
         },
@@ -467,8 +467,8 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
-          sourceRange: 'Sheet1!A1:C6',
-          outputRange: 'Output!A1',
+          sourceRange: { a1: 'Sheet1!A1:C6' },
+          outputRange: { a1: 'Output!A1' },
           steps: [
             { type: 'filter', config: { column: 'Region', value: 'West' } },
           ],
@@ -489,7 +489,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
-          sourceRange: 'Sheet1!A1:C6',
+          sourceRange: { a1: 'Sheet1!A1:C6' },
           steps: [],
           dryRun: true,
         },
@@ -623,9 +623,9 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'migrate_spreadsheet',
           sourceSpreadsheetId: 'source-id',
-          sourceRange: 'Sheet1!A1:D4',
+          sourceRange: { a1: 'Sheet1!A1:D4' },
           destinationSpreadsheetId: 'dest-id',
-          destinationRange: 'Dest!A1',
+          destinationRange: { a1: 'Dest!A1' },
           columnMapping: [
             { sourceColumn: 'FirstName', destinationColumn: 'first_name', transform: 'none' },
             { sourceColumn: 'Email', destinationColumn: 'email', transform: 'lowercase' },
@@ -649,9 +649,9 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'migrate_spreadsheet',
           sourceSpreadsheetId: 'source-id',
-          sourceRange: 'Sheet1!A1:D4',
+          sourceRange: { a1: 'Sheet1!A1:D4' },
           destinationSpreadsheetId: 'dest-id',
-          destinationRange: 'Dest!A1',
+          destinationRange: { a1: 'Dest!A1' },
           columnMapping: [
             { sourceColumn: 'Email', destinationColumn: 'email', transform: 'lowercase' },
           ],
@@ -674,9 +674,9 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'migrate_spreadsheet',
           sourceSpreadsheetId: 'source-id',
-          sourceRange: 'Sheet1!A1:D4',
+          sourceRange: { a1: 'Sheet1!A1:D4' },
           destinationSpreadsheetId: 'dest-id',
-          destinationRange: 'Dest!A1',
+          destinationRange: { a1: 'Dest!A1' },
           columnMapping: [
             { sourceColumn: 'FirstName', destinationColumn: 'name', transform: 'none' },
           ],
@@ -702,9 +702,9 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         request: {
           action: 'migrate_spreadsheet',
           sourceSpreadsheetId: 'source-id',
-          sourceRange: 'Sheet1!A1:D4',
+          sourceRange: { a1: 'Sheet1!A1:D4' },
           destinationSpreadsheetId: 'dest-id',
-          destinationRange: 'Dest!A1',
+          destinationRange: { a1: 'Dest!A1' },
           columnMapping: [
             { sourceColumn: 'FirstName', destinationColumn: 'name', transform: 'none' },
           ],

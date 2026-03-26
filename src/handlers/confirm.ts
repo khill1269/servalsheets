@@ -59,6 +59,9 @@ type ServerElicitFormParams = Extract<ServerElicitInputParams, { requestedSchema
 // In-memory wizard session store (could be upgraded to Redis for production)
 const wizardSessions = new Map<string, WizardSession>();
 
+// DoS protection: maximum concurrent wizard sessions
+const MAX_WIZARD_SESSIONS = 1000;
+
 // Cleanup old sessions every 5 minutes
 const wizardCleanupInterval = setInterval(
   () => {
@@ -84,6 +87,26 @@ export interface ConfirmHandlerOptions {
   context: HandlerContext;
 }
 
+function buildElicitationUnavailableError(message: string): {
+  code: typeof ErrorCodes.ELICITATION_UNAVAILABLE;
+  message: string;
+  retryable: false;
+  fixableVia: { tool: string; action: string; params: { title: string } };
+} {
+  return {
+    code: ErrorCodes.ELICITATION_UNAVAILABLE,
+    message,
+    retryable: false,
+    fixableVia: {
+      tool: 'sheets_confirm',
+      action: 'wizard_start',
+      params: {
+        title: 'Confirm operation',
+      },
+    },
+  } as const;
+}
+
 /**
  * Confirmation Handler
  *
@@ -94,6 +117,19 @@ export class ConfirmHandler {
 
   constructor(options: ConfirmHandlerOptions) {
     this.context = options.context;
+  }
+
+  private normalizeWizardSteps(steps: WizardStepDef[]): WizardStepDef[] {
+    return steps.map((step) => ({
+      ...step,
+      fields: step.fields.map((field) => {
+        const rawField = field as { type?: unknown };
+        return {
+          ...field,
+          type: (rawField.type === 'string' ? 'text' : field.type) as typeof field.type,
+        };
+      }),
+    }));
   }
 
   /**
@@ -142,11 +178,9 @@ export class ConfirmHandler {
           if (!this.context.server) {
             response = {
               success: false,
-              error: {
-                code: ErrorCodes.ELICITATION_UNAVAILABLE,
-                message: 'MCP Server instance not available. Cannot perform elicitation.',
-                retryable: false,
-              },
+              error: buildElicitationUnavailableError(
+                'MCP Server instance not available. Cannot perform elicitation.'
+              ),
             };
             break;
           }
@@ -157,12 +191,9 @@ export class ConfirmHandler {
           if (!clientCapabilities?.elicitation) {
             response = {
               success: false,
-              error: {
-                code: ErrorCodes.ELICITATION_UNAVAILABLE,
-                message:
-                  'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.',
-                retryable: false,
-              },
+              error: buildElicitationUnavailableError(
+                'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.'
+              ),
             };
             break;
           }
@@ -241,13 +272,31 @@ export class ConfirmHandler {
         case 'wizard_start': {
           const wizardInput = req as ConfirmWizardStartInput;
           const wizardId = wizardInput.wizardId || `wiz_${randomUUID()}`;
+          const normalizedSteps = this.normalizeWizardSteps(wizardInput.steps);
+
+          // DoS protection: evict oldest session if at capacity
+          if (wizardSessions.size >= MAX_WIZARD_SESSIONS) {
+            let oldest: [string, WizardSession] | undefined;
+            for (const entry of wizardSessions) {
+              if (!oldest || entry[1].createdAt < oldest[1].createdAt) {
+                oldest = entry;
+              }
+            }
+            if (oldest) {
+              wizardSessions.delete(oldest[0]);
+              logger.warn('Evicted oldest wizard session due to capacity limit', {
+                evictedId: oldest[0],
+                capacity: MAX_WIZARD_SESSIONS,
+              });
+            }
+          }
 
           // Create wizard session
           const session: WizardSession = {
             wizardId,
             title: wizardInput.title,
             description: wizardInput.description,
-            steps: wizardInput.steps,
+            steps: normalizedSteps,
             currentStepIndex: 0,
             completedSteps: [],
             collectedValues: {},
@@ -391,6 +440,8 @@ export class ConfirmHandler {
             >,
             isComplete: true,
           };
+
+          getConfirmationService().recordWizardCompletion();
 
           // Clean up session
           wizardSessions.delete(completeInput.wizardId);

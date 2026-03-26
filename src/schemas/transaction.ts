@@ -26,75 +26,134 @@ const CommonFieldsSchema = z.object({
 
 const BeginActionSchema = CommonFieldsSchema.extend({
   action: z.literal('begin').describe('Begin a new transaction'),
-  spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
+  spreadsheetId: z
+    .string()
+    .min(1)
+    .describe(
+      'Spreadsheet ID from the Google Sheets URL (the long alphanumeric string between /d/ and /edit). ' +
+        'All queued operations in this transaction will target this spreadsheet. ' +
+        'Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
   autoSnapshot: z
     .boolean()
     .optional()
     .default(true)
     .describe(
-      'NOTE: Currently ignored - snapshots controlled by server config. Metadata-only snapshots may fail for spreadsheets with >50MB metadata (many sheets). For large spreadsheets, use sheets_history for undo instead.'
+      'NOTE: Currently ignored — snapshots are controlled by server config. ' +
+        'Metadata-only snapshots may fail for spreadsheets with >50MB metadata (spreadsheets with many sheets). ' +
+        'For large spreadsheets, use sheets_history action:"create_snapshot" before the transaction instead.'
     ),
   autoRollback: z
     .boolean()
     .optional()
     .default(false)
     .describe(
-      'Auto-rollback on error (default: false). WARNING: Automatic rollback cannot restore ' +
-        'in-place — it requires manual recovery via sheets_history undo or version restore. ' +
-        'Set to true only if you understand the limitations.'
+      'Whether to automatically attempt rollback when a queued operation fails during commit (default: false). ' +
+        'WARNING: Automatic rollback cannot undo in-place writes — it requires manual recovery via ' +
+        'sheets_history action:"undo" or version restore. ' +
+        'Set to true only for non-critical transactions where partial rollback is acceptable.'
     ),
   isolationLevel: z
     .enum(['read_uncommitted', 'read_committed', 'serializable'])
     .optional()
     .default('read_committed')
-    .describe('Transaction isolation level (default: read_committed)'),
+    .describe(
+      'Transaction isolation level (default: read_committed). ' +
+        '"read_uncommitted": reads may see uncommitted changes from other transactions (fastest, least safe). ' +
+        '"read_committed": reads only see committed data (default — recommended for most use cases). ' +
+        '"serializable": full isolation, transactions execute as if sequential (slowest, safest for audits).'
+    ),
 });
 
 const QueueActionSchema = CommonFieldsSchema.extend({
   action: z.literal('queue').describe('Queue an operation in the transaction'),
-  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
-  operation: z
-    .object({
-      tool: z
-        .string()
-        .min(1)
-        .max(100, 'Tool name exceeds 100 character limit')
-        .describe('Tool name (e.g., sheets_data, sheets_format)'),
-      action: z
-        .string()
-        .min(1)
-        .max(100, 'Action name exceeds 100 character limit')
-        .describe('Action name (e.g., write, update, format)'),
-      params: z
-        .record(
-          z.string(),
-          z.union([
+  transactionId: z
+    .string()
+    .min(1)
+    .describe(
+      'Transaction ID returned by the begin action. ' +
+        'All queued operations with this ID are executed atomically on commit. ' +
+        'Example: "txn_1709123456789_abc123"'
+    ),
+  operation: z.preprocess(
+    (val) => {
+      if (typeof val !== 'object' || val === null) return val;
+      const op = val as Record<string, unknown>;
+      // If tool and action are present but params is absent, collect remaining fields into params
+      if (
+        typeof op['tool'] === 'string' &&
+        typeof op['action'] === 'string' &&
+        op['params'] === undefined
+      ) {
+        const { tool, action, ...rest } = op;
+        return { tool, action, params: rest };
+      }
+      return val;
+    },
+    z
+      .object({
+        tool: z
+          .string()
+          .min(1)
+          .max(100, 'Tool name exceeds 100 character limit')
+          .describe('Tool name (e.g., sheets_data, sheets_format)'),
+        action: z
+          .string()
+          .min(1)
+          .max(100, 'Action name exceeds 100 character limit')
+          .describe('Action name (e.g., write, update, format)'),
+        params: z
+          .record(
             z.string(),
-            z.number(),
-            z.boolean(),
-            z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
-          ])
-        )
-        .describe('Operation parameters (string, number, boolean, null, array, or object)'),
-    })
-    .describe('Operation to queue for batch execution'),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.any()),
+              z.record(z.string(), z.any()),
+            ])
+          )
+          .describe('Operation parameters (string, number, boolean, null, array, or object)'),
+      })
+      .describe('Operation to queue for batch execution')
+  ),
 });
 
 const CommitActionSchema = CommonFieldsSchema.extend({
   action: z.literal('commit').describe('Commit a transaction (execute all queued operations)'),
-  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+  transactionId: z
+    .string()
+    .min(1)
+    .describe(
+      'Transaction ID from the begin response. Executes all queued operations in order. ' +
+        'Example: "txn_1709123456789_abc123"'
+    ),
 });
 
 const RollbackActionSchema = CommonFieldsSchema.extend({
   action: z.literal('rollback').describe('Rollback a transaction (discard all queued operations)'),
-  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+  transactionId: z
+    .string()
+    .min(1)
+    .describe(
+      'Transaction ID from the begin response. Discards all queued operations without executing them. ' +
+        'Safe to call even if the transaction has already failed. ' +
+        'Example: "txn_1709123456789_abc123"'
+    ),
 });
 
 const StatusActionSchema = CommonFieldsSchema.extend({
   action: z.literal('status').describe('Get status of a transaction'),
-  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+  transactionId: z
+    .string()
+    .min(1)
+    .describe(
+      'Transaction ID from the begin response. Returns current status: ' +
+        'pending (not yet committed), queued (operations waiting), executing (commit in progress), ' +
+        'committed (complete), rolled_back (discarded), or failed. ' +
+        'Example: "txn_1709123456789_abc123"'
+    ),
 });
 
 const ListActionSchema = CommonFieldsSchema.extend({

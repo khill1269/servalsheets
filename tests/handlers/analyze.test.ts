@@ -810,4 +810,80 @@ describe('AnalyzeHandler', () => {
       });
     });
   });
+
+  describe('formula_health_check action', () => {
+    it('should bound whole-workbook scans by maxSheets', async () => {
+      mockApi.spreadsheets.get.mockReset();
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              { properties: { title: 'Sheet1' } },
+              { properties: { title: 'Sheet2' } },
+              { properties: { title: 'Sheet3' } },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { title: 'Sheet1' },
+                data: [
+                  {
+                    startRow: 0,
+                    startColumn: 0,
+                    rowData: [
+                      {
+                        values: [{ userEnteredValue: { formulaValue: '=SUM(A2:A10)' } }],
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                properties: { title: 'Sheet2' },
+                data: [
+                  {
+                    startRow: 0,
+                    startColumn: 0,
+                    rowData: [
+                      {
+                        values: [{ userEnteredValue: { formulaValue: '=AVERAGE(B2:B10)' } }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'formula_health_check',
+        spreadsheetId: 'test-id',
+        maxSheets: 2,
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.get).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          fields: 'sheets(properties(title))',
+        })
+      );
+      expect(mockApi.spreadsheets.get).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          includeGridData: true,
+          ranges: ["'Sheet1'", "'Sheet2'"],
+        })
+      );
+      if (result.response.success) {
+        expect(result.response.message).toContain('Audited 2 of 3 sheet(s)');
+      }
+    });
+  });
 });

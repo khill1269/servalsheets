@@ -40,6 +40,66 @@ export async function handlePivotCreateAction(
   input: PivotCreateInput,
   deps: PivotsDeps
 ): Promise<VisualizeResponse> {
+  // Idempotency guard: check if a pivot table with the same source range already exists
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties,sheets.data.rowData.values.pivotTable',
+    });
+
+    const sourceRangeGrid = await deps.toGridRange(input.spreadsheetId, input.sourceRange);
+    const sourceGridRange = toApiGridRange(sourceRangeGrid);
+
+    // Check all sheets for a pivot table with the same source range
+    for (const sheet of existing.data.sheets ?? []) {
+      if (sheet.data) {
+        for (const data of sheet.data) {
+          if (data.rowData) {
+            for (const row of data.rowData) {
+              if (row.values) {
+                for (const value of row.values) {
+                  if (value.pivotTable && value.pivotTable.source) {
+                    // Compare source ranges: check sheet ID, row boundaries, and column boundaries
+                    const existing_source = value.pivotTable.source;
+                    const sameSheetId = existing_source.sheetId === sourceGridRange.sheetId;
+                    const sameRows =
+                      (existing_source.startRowIndex ?? 0) === (sourceGridRange.startRowIndex ?? 0) &&
+                      (existing_source.endRowIndex ?? 0) === (sourceGridRange.endRowIndex ?? 0);
+                    const sameCols =
+                      (existing_source.startColumnIndex ?? 0) ===
+                        (sourceGridRange.startColumnIndex ?? 0) &&
+                      (existing_source.endColumnIndex ?? 0) ===
+                        (sourceGridRange.endColumnIndex ?? 0);
+
+                    if (sameSheetId && sameRows && sameCols) {
+                      // Duplicate pivot table found (same source range)
+                      return deps.success('pivot_create', {
+                        pivotTable: {
+                          sheetId: sheet.properties?.sheetId ?? 0,
+                          sourceRange: normalizeGridRange(
+                            existing_source,
+                            sheet.properties?.sheetId ?? 0
+                          ),
+                          rowGroups: value.pivotTable.rows?.length ?? 0,
+                          columnGroups: value.pivotTable.columns?.length ?? 0,
+                          values: value.pivotTable.values?.length ?? 0,
+                        },
+                        _idempotent: true,
+                        _hint: 'A pivot table with the same source range already exists. Returning existing pivot instead of creating a duplicate.',
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const sourceRange = await deps.toGridRange(input.spreadsheetId, input.sourceRange);
   const destination = await toDestination(
     deps,
@@ -56,7 +116,7 @@ export async function handlePivotCreateAction(
     filterSpecs: input.filters?.map(mapPivotFilter),
   };
 
-  const _response = await deps.sheetsApi.spreadsheets.batchUpdate({
+  await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
     requestBody: {
       requests: [

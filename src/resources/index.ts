@@ -80,8 +80,12 @@ export { registerDiscoveryResources } from './discovery.js';
 // Master index resource (servalsheets://index)
 export { registerMasterIndexResource } from './master-index.js';
 
-// Resource change notifications (MCP notifications/resources/list_changed)
-export { resourceNotifications, initializeResourceNotifications } from './notifications.js';
+// Resource change notifications (MCP notifications/resources/list_changed, resources/updated)
+export {
+  resourceNotifications,
+  initializeResourceNotifications,
+  teardownResourceNotifications,
+} from './notifications.js';
 
 // Connection health resource (Phase 0, Priority 1)
 export {

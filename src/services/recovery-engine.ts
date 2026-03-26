@@ -434,14 +434,26 @@ const RECOVERY_STRATEGIES: Record<string, (ctx: RecoveryContext) => RecoveryStra
     autoRetryable: false,
   }),
 
-  ELICITATION_UNAVAILABLE: (_ctx) => ({
+  ELICITATION_UNAVAILABLE: (ctx) => ({
     resolutionSteps: [
       'Interactive confirmation is unavailable in this client',
-      'Pass safety.confirmed: true to skip confirmation prompts',
+      'Use sheets_confirm.wizard_start to start an interactive wizard instead',
+      'Or pass safety.confirmed: true to skip confirmation prompts',
       'Or use a client that supports MCP Elicitation (SEP-1036)',
     ],
-    alternatives: [],
-    suggestedTools: [],
+    alternatives: [
+      {
+        tool: 'sheets_confirm',
+        action: 'wizard_start',
+        description: 'Start interactive wizard as alternative to elicitation',
+      },
+      {
+        tool: ctx.toolName || 'sheets_data',
+        action: ctx.actionName || 'read',
+        description: 'Retry with safety.confirmed: true to bypass confirmation',
+      },
+    ],
+    suggestedTools: ['sheets_confirm'],
     autoRetryable: false,
   }),
 };
@@ -542,10 +554,16 @@ export function suggestRecovery(
       // If no primary fix yet, promote first alternative with params
       if (!result.primaryFix && strategy.alternatives.length > 0) {
         const first = strategy.alternatives[0]!;
+        const primaryParams: Record<string, unknown> = context.spreadsheetId
+          ? { spreadsheetId: context.spreadsheetId }
+          : {};
+        if (first.tool === 'sheets_confirm' && first.action === 'wizard_start') {
+          primaryParams['title'] = 'Confirm operation';
+        }
         result.primaryFix = {
           tool: first.tool,
           action: first.action,
-          params: context.spreadsheetId ? { spreadsheetId: context.spreadsheetId } : {},
+          params: primaryParams,
           description: first.description,
           confidence: 0.6,
           automatic: strategy.autoRetryable,

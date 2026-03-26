@@ -1,14 +1,12 @@
 /**
  * ServalSheets - Auth Handler
  *
- * Handles OAuth authentication flows for sheets_auth tool.
+ * Thin dispatch handler for OAuth authentication flows.
+ * Action implementations are in src/handlers/auth-actions/
  */
 
-import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import type { GoogleApiClient } from '../services/google-api.js';
-import { getRecommendedScopes } from '../config/oauth-scopes.js';
-import { EncryptedFileTokenStore } from '../services/token-store.js';
 import { getDefaultTokenStorePath, sanitizeTokenStorePath } from '../utils/auth-paths.js';
 import { getOAuthEnvConfig } from '../utils/oauth-config.js';
 import type {
@@ -17,55 +15,21 @@ import type {
   AuthResponse,
   AuthLoginInput,
   AuthCallbackInput,
+  AuthSetupFeatureInput,
 } from '../schemas/auth.js';
-import { initiateOAuthFlow } from '../mcp/elicitation.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
-import { startCallbackServer, extractPortFromRedirectUri } from '../utils/oauth-callback-server.js';
-import { TokenManager } from '../services/token-manager.js';
 import { logger } from '../utils/logger.js';
-import open from 'open';
 import { unwrapRequest } from './base.js';
-import { executeWithRetry } from '../utils/retry.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
-import { randomBytes } from 'crypto';
-import { getSessionContext } from '../services/session-context.js';
 import { ErrorCodes } from './error-codes.js';
-
-/** Module-level CSRF state store with 10-minute TTL */
-const pendingStates = new Map<string, number>();
-
-/** Temporary session state storage keyed by OAuth state token */
-const pendingSessionStates = new Map<string, { exportedState: string; expiresAt: number }>();
-
-/** Clean up expired session state entries */
-function cleanupExpiredSessionStates(): void {
-  const now = Date.now();
-  for (const [key, value] of pendingSessionStates) {
-    if (value.expiresAt < now) {
-      pendingSessionStates.delete(key);
-    }
-  }
-}
-
-function generateOAuthState(): string {
-  const state = randomBytes(32).toString('hex');
-  pendingStates.set(state, Date.now() + 10 * 60 * 1000);
-  // Prune expired entries
-  const now = Date.now();
-  for (const [key, expiry] of pendingStates) {
-    if (expiry < now) pendingStates.delete(key);
-  }
-  return state;
-}
-
-function verifyOAuthState(state: string | undefined): boolean {
-  if (!state) return false;
-  const expiry = pendingStates.get(state);
-  if (!expiry) return false;
-  pendingStates.delete(state);
-  return Date.now() < expiry;
-}
+import { markOnboardingComplete } from '../mcp/registration/tool-response.js';
+import { handleStatus } from './auth-actions/status.js';
+import { handleLogin, handleCallback, handleLogout } from './auth-actions/auth-flow.js';
+import { handleSetupFeature } from './auth-actions/feature-setup.js';
+import { createOAuthClient, createFreshAuthUrl } from './auth-actions/internal.js';
+import { TokenManager } from '../services/token-manager.js';
+import { EncryptedFileTokenStore } from '../services/token-store.js';
 
 export interface AuthHandlerOptions {
   googleClient?: GoogleApiClient | null;
@@ -85,6 +49,7 @@ export class AuthHandler {
   private tokenStorePath?: string;
   private tokenStoreKey?: string;
   private elicitationServer?: ElicitationServer;
+  private pendingOAuthElicitationId: { value?: string } = {};
   private tokenManager?: TokenManager;
   private pendingReauthState?: {
     authUrl: string;
@@ -107,561 +72,18 @@ export class AuthHandler {
     this.elicitationServer = options.elicitationServer;
   }
 
-  async handle(input: SheetsAuthInput): Promise<SheetsAuthOutput> {
-    const req = unwrapRequest<SheetsAuthInput['request']>(input) as SheetsAuthInput['request'] & {
-      verbosity?: 'minimal' | 'standard' | 'detailed';
-    };
-    const verbosity = req.verbosity ?? 'standard';
-
-    try {
-      let response: AuthResponse;
-      switch (req.action) {
-        case 'status':
-          response = await this.handleStatus();
-          break;
-        case 'login':
-          response = await this.handleLogin(req as AuthLoginInput);
-          break;
-        case 'callback':
-          response = await this.handleCallback(req as AuthCallbackInput);
-          break;
-        case 'logout':
-          response = await this.handleLogout();
-          break;
-        default: {
-          // TypeScript exhaustiveness check - this should never be reached
-          const exhaustiveCheck: never = input as never;
-          response = {
-            success: false,
-            error: {
-              code: ErrorCodes.INVALID_PARAMS,
-              message: `Unsupported auth action: ${(exhaustiveCheck as { action: string }).action}`,
-              retryable: false,
-              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
-            },
-          };
-        }
-      }
-
-      // Apply verbosity filtering (LLM optimization)
-      return { response: applyVerbosityFilter(response, verbosity) };
-    } catch (error) {
-      logger.error('Auth handler error', {
-        action: req.action,
-        error,
-      });
-      return {
-        response: {
-          success: false,
-          error: mapStandaloneError(error),
-        },
-      };
-    }
-  }
-
-  private async handleStatus(): Promise<AuthResponse> {
-    if (this.pendingReauthState) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.INVALID_CREDENTIALS,
-          message:
-            'OAuth refresh failed repeatedly. Re-authentication is required before using sheets_* tools.',
-          retryable: false,
-          resolution: 'Open the re-authentication URL and complete a fresh OAuth login.',
-          resolutionSteps: [
-            '1. Open the re-authentication URL from error.details.re_auth_url',
-            '2. Complete the Google OAuth prompt and grant the requested permissions',
-            '3. Retry your original request after authentication succeeds',
-          ],
-          details: {
-            consecutiveFailures: this.pendingReauthState.failureCount,
-            lastRefreshError: this.pendingReauthState.lastError,
-            re_auth_url: this.pendingReauthState.authUrl,
-          },
-        },
-      };
-    }
-
-    if (this.googleClient) {
-      const authType = this.googleClient.authType;
-      const tokenStatus = this.googleClient.getTokenStatus();
-      const hasTokens = tokenStatus.hasAccessToken || tokenStatus.hasRefreshToken;
-
-      if (authType === 'service_account' || authType === 'application_default') {
-        return {
-          success: true,
-          action: 'status',
-          authenticated: true,
-          authType,
-          message: `Authenticated via ${authType.replace('_', ' ')} credentials.`,
-        };
-      }
-
-      // Validate token if present (check that it actually works)
-      let tokenValid = false;
-      let validationError: string | undefined;
-      if (hasTokens) {
-        const validation = await this.googleClient.validateToken();
-        tokenValid = validation.valid;
-        validationError = validation.error;
-      }
-
-      return {
-        success: true,
-        action: 'status',
-        authenticated: hasTokens && tokenValid, // Must exist AND be valid
-        authType,
-        hasAccessToken: tokenStatus.hasAccessToken,
-        hasRefreshToken: tokenStatus.hasRefreshToken,
-        tokenValid, // NEW: Indicates if token is actually valid
-        scopes: this.googleClient.scopes,
-        message: tokenValid
-          ? 'OAuth credentials present and valid. Ready to use sheets_* tools.'
-          : hasTokens
-            ? `OAuth credentials present but invalid: ${validationError}. Call sheets_auth action "login" to re-authenticate.`
-            : 'Not authenticated. Call sheets_auth action "login" to start OAuth.',
-      };
-    }
-
-    const configured = Boolean(this.oauthClientId && this.oauthClientSecret);
-    return {
-      success: true,
-      action: 'status',
-      authenticated: false,
-      authType: configured ? 'oauth' : 'unconfigured',
-      message: configured
-        ? 'OAuth credentials configured but no session. Call sheets_auth action "login".'
-        : 'OAuth credentials not configured. Install the latest version of ServalSheets which includes embedded credentials, or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET manually.',
-    };
-  }
-
-  private async handleLogin(request: AuthLoginInput): Promise<AuthResponse> {
-    const oauthClient = this.createOAuthClient();
-    if (!oauthClient) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.CONFIG_ERROR,
-          message: 'OAuth client credentials are not configured.',
-          retryable: false,
-          resolution:
-            'Update to the latest ServalSheets version (embedded credentials), or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (or GOOGLE_CLIENT_ID/SECRET) in your environment.',
-          resolutionSteps: [
-            '1. Update ServalSheets to the latest version (includes embedded OAuth credentials)',
-            '2. Or manually set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in your environment or .env',
-            '3. Restart the server',
-          ],
-        },
-      };
-    }
-
-    const baseScopes = this.googleClient?.scopes ?? Array.from(getRecommendedScopes());
-    const requestedScopes = request.scopes?.length
-      ? Array.from(new Set([...baseScopes, ...request.scopes]))
-      : baseScopes;
-    const authUrl = this.createFreshAuthUrl(oauthClient, requestedScopes);
-
-    // Check if we should use automatic callback server
-    const useCallbackServer = process.env['OAUTH_USE_CALLBACK_SERVER'] !== 'false';
-    const autoOpenBrowser = process.env['OAUTH_AUTO_OPEN_BROWSER'] !== 'false';
-
-    if (useCallbackServer && this.redirectUri && this.redirectUri.includes('localhost')) {
-      // Automatic callback flow with local server
-      try {
-        const port = extractPortFromRedirectUri(this.redirectUri);
-
-        // Gap 1 Fix: Increase callback server timeout to 120s (was 60s) for slow connections
-        // Reduces timeout failures from 60s window → 120s window
-        logger.info(`Starting OAuth callback server on port ${port}...`);
-        const callbackPromise = startCallbackServer({ port, timeout: 120000 });
-
-        // Use elicitation API if available
-        if (this.elicitationServer) {
-          try {
-            await initiateOAuthFlow(this.elicitationServer, {
-              authUrl,
-              provider: 'Google',
-              scopes: requestedScopes,
-            });
-          } catch {
-            // Elicitation is optional; continue
-          }
-        }
-
-        // Open browser
-        // IMPORTANT: In STDIO mode, stdout is the MCP JSON-RPC channel.
-        // The `open` package can write status text to stdout, corrupting the protocol.
-        // Use wait:false and suppress child process output to prevent stdout contamination.
-        if (autoOpenBrowser) {
-          try {
-            logger.info('Opening browser for OAuth...', { url: authUrl.substring(0, 100) + '...' });
-            const subprocess = await open(authUrl, { wait: false });
-            // Prevent any subprocess output from leaking into STDIO transport
-            subprocess.stdout?.destroy();
-            subprocess.stderr?.destroy();
-            subprocess.unref();
-            logger.info('Browser opened successfully');
-          } catch (error) {
-            logger.error('Failed to open browser - user must open URL manually', {
-              error: error instanceof Error ? error.message : String(error),
-              url: authUrl,
-            });
-          }
-        }
-
-        // Wait for callback
-        logger.info('Waiting for OAuth callback...');
-        const result = await callbackPromise;
-
-        // Verify CSRF state parameter
-        if (!verifyOAuthState(result.state)) {
-          return {
-            success: false,
-            error: {
-              code: ErrorCodes.AUTH_ERROR,
-              message: 'OAuth state verification failed. Possible CSRF attack or expired session.',
-              retryable: true,
-              suggestedFix: 'Restart the login flow with sheets_auth action "login".',
-            },
-          };
-        }
-
-        if (result.error) {
-          return {
-            success: false,
-            error: {
-              code: ErrorCodes.AUTH_ERROR,
-              message: `OAuth authentication failed: ${result.error}`,
-              retryable: true,
-            },
-          };
-        }
-
-        if (!result.code) {
-          return {
-            success: false,
-            error: {
-              code: ErrorCodes.AUTH_ERROR,
-              message: 'No authorization code received',
-              retryable: true,
-            },
-          };
-        }
-
-        // Exchange code for tokens automatically with retry protection
-        // Gap 1 Fix: Wrap OAuth token exchange with retry logic (3 attempts, exponential backoff)
-        // Prevents cascade failures from network timeouts (67% of all timeouts in audit)
-        logger.info('Received authorization code, exchanging for tokens...');
-        const tokenResponse = await executeWithRetry(
-          async (_signal) => {
-            return await oauthClient.getToken(result.code!);
-          },
-          {
-            maxRetries: 2, // Total of 3 attempts (initial + 2 retries)
-            baseDelayMs: 1000, // Start with 1s delay (longer than default for OAuth)
-            maxDelayMs: 30000, // Cap at 30s
-            timeoutMs: 30000, // 30s timeout per attempt
-          }
-        );
-        const { tokens } = tokenResponse;
-        oauthClient.setCredentials(tokens);
-
-        // Only trust scopes explicitly returned by Google for this callback.
-        const grantedScope = tokens.scope;
-        if (!grantedScope) {
-          logger.warn('OAuth callback did not return granted scopes', {
-            component: 'auth-handler',
-            flow: 'automatic_callback',
-          });
-        }
-        if (this.tokenStoreKey) {
-          const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);
-          await tokenStore.save({
-            access_token: tokens.access_token ?? undefined,
-            refresh_token: tokens.refresh_token ?? undefined,
-            expiry_date: tokens.expiry_date ?? undefined,
-            token_type: tokens.token_type ?? undefined,
-            scope: grantedScope,
-            id_token: tokens.id_token ?? undefined,
-          });
-        }
-
-        // Update Google client
-        if (this.googleClient && tokens.access_token) {
-          this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
-          // Update client scopes only when Google explicitly returned them.
-          if (grantedScope) {
-            this.googleClient.setScopes(grantedScope.split(' '));
-          }
-        }
-
-        // Start token manager for proactive refresh (Phase 1, Task 1.1)
-        if (tokens.refresh_token) {
-          this.startTokenManager(oauthClient);
-        }
-
-        this.pendingReauthState = undefined;
-
-        // Restore session state from before the OAuth redirect
-        const pendingEntry = result.state ? pendingSessionStates.get(result.state) : undefined;
-        if (pendingEntry) {
-          try {
-            getSessionContext().importState(pendingEntry.exportedState);
-            if (result.state) pendingSessionStates.delete(result.state);
-            logger.info('Restored session state after re-auth', { component: 'auth' });
-          } catch (err) {
-            logger.warn('Failed to restore session state after re-auth', {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-
-        const hasRefreshToken = Boolean(tokens.refresh_token);
-        const warning = this.tokenStoreKey
-          ? undefined
-          : 'ENCRYPTION_KEY not set; tokens will not persist across restarts.';
-
-        return {
-          success: true,
-          action: 'login',
-          authenticated: true,
-          hasRefreshToken,
-          message: warning
-            ? `Authentication successful! ${warning}`
-            : 'Authentication successful! You can now use sheets_* tools.',
-        };
-      } catch (error) {
-        logger.error('Callback server error', {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        });
-        // Fall back to manual flow
-      }
-    }
-
-    // Manual flow (fallback or if callback server disabled)
-    if (this.elicitationServer) {
-      try {
-        await initiateOAuthFlow(this.elicitationServer, {
-          authUrl,
-          provider: 'Google',
-          scopes: requestedScopes,
-        });
-      } catch {
-        // Elicitation is optional; continue
-      }
-    }
-
-    let browserOpened = false;
-    if (autoOpenBrowser) {
-      try {
-        await open(authUrl);
-        browserOpened = true;
-      } catch (error) {
-        logger.error('Failed to open browser', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return {
-      success: true,
-      action: 'login',
-      authenticated: false,
-      authUrl,
-      scopes: requestedScopes,
-      message: browserOpened
-        ? 'Browser opened for authentication. Sign in to Google, then paste the authorization code here.'
-        : 'Visit the authorization URL to sign in, then provide the code.',
-      instructions: browserOpened
-        ? [
-            '1. Complete the authentication in the browser window that just opened',
-            '2. Approve the requested permissions',
-            '3. Copy the authorization code and state from the redirect URL',
-            '4. Paste them here (Claude will call sheets_auth with action "callback")',
-          ]
-        : [
-            '1. Open the authorization URL and sign in to Google',
-            '2. Approve the requested permissions',
-            '3. Copy the authorization code and state from the redirect URL',
-            '4. Call sheets_auth with action "callback", the code, and state when available',
-          ],
-    };
-  }
-
-  private async handleCallback(request: AuthCallbackInput): Promise<AuthResponse> {
-    const oauthClient = this.createOAuthClient();
-    if (!oauthClient) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.CONFIG_ERROR,
-          message: 'OAuth client credentials are not configured.',
-          retryable: false,
-          resolution:
-            'Update to the latest ServalSheets version (embedded credentials), or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (or GOOGLE_CLIENT_ID/SECRET) in your environment.',
-        },
-      };
-    }
-
-    cleanupExpiredSessionStates();
-
-    if (!request.state || !verifyOAuthState(request.state)) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.AUTH_ERROR,
-          message: 'OAuth state verification failed. Possible CSRF attack or expired session.',
-          retryable: true,
-          suggestedFix: 'Restart the login flow with sheets_auth action "login".',
-        },
-      };
-    }
-
-    // Gap 1 Fix: Wrap OAuth token exchange with retry logic
-    const tokenResponse = await executeWithRetry(
-      async (_signal) => {
-        return await oauthClient.getToken(request.code);
-      },
-      {
-        maxRetries: 2, // Total of 3 attempts (initial + 2 retries)
-        baseDelayMs: 1000, // Start with 1s delay
-        maxDelayMs: 30000, // Cap at 30s
-        timeoutMs: 30000, // 30s timeout per attempt
-      }
-    );
-    const { tokens } = tokenResponse;
-    oauthClient.setCredentials(tokens);
-
-    // Only trust scopes returned by Google for this callback.
-    const callbackScope = tokens.scope;
-
-    // Validate that the critical Sheets scope was granted
-    if (callbackScope) {
-      const grantedScopes = callbackScope.split(' ');
-      const hasSheetsScope =
-        grantedScopes.includes('https://www.googleapis.com/auth/spreadsheets') ||
-        grantedScopes.includes('https://www.googleapis.com/auth/spreadsheets.readonly');
-      if (!hasSheetsScope) {
-        logger.warn('OAuth callback: Google Sheets scope not granted — some operations will fail', {
-          component: 'auth-handler',
-          grantedScopes,
-        });
-      }
-    } else {
-      logger.warn('OAuth callback did not return granted scopes', {
-        component: 'auth-handler',
-      });
-    }
-
-    if (this.tokenStoreKey) {
-      const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);
-      await tokenStore.save({
-        access_token: tokens.access_token ?? undefined,
-        refresh_token: tokens.refresh_token ?? undefined,
-        expiry_date: tokens.expiry_date ?? undefined,
-        token_type: tokens.token_type ?? undefined,
-        scope: callbackScope,
-        id_token: tokens.id_token ?? undefined,
-      });
-    }
-
-    if (this.googleClient && tokens.access_token) {
-      this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
-      // Only update scopes when Google explicitly returned them for this callback.
-      if (callbackScope) {
-        this.googleClient.setScopes(callbackScope.split(' '));
-      }
-    }
-
-    // Start token manager for proactive refresh (Phase 1, Task 1.1)
-    if (tokens.refresh_token) {
-      this.startTokenManager(oauthClient);
-    }
-
-    this.pendingReauthState = undefined;
-
-    // Only restore session state when the manual callback includes the exact OAuth state token.
-    if (request.state) {
-      const pendingEntry = pendingSessionStates.get(request.state);
-      if (pendingEntry) {
-        try {
-          getSessionContext().importState(pendingEntry.exportedState);
-          pendingSessionStates.delete(request.state);
-          logger.info('Restored session state after re-auth (manual callback)', {
-            component: 'auth',
-          });
-        } catch (err) {
-          logger.warn('Failed to restore session state after re-auth', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    }
-
-    const hasRefreshToken = Boolean(tokens.refresh_token);
-    const warning = this.tokenStoreKey
-      ? undefined
-      : 'ENCRYPTION_KEY not set; tokens will not persist across restarts.';
-
-    return {
-      success: true,
-      action: 'callback',
-      authenticated: true,
-      hasRefreshToken,
-      message: warning
-        ? `Authenticated. ${warning}`
-        : 'Authenticated successfully. You can now use sheets_* tools.',
-    };
-  }
-
-  private async handleLogout(): Promise<AuthResponse> {
-    // Stop token manager (Phase 1, Task 1.1)
-    if (this.tokenManager) {
-      this.tokenManager.stop();
-      this.tokenManager = undefined;
-    }
-
-    if (this.googleClient) {
-      try {
-        await this.googleClient.revokeAccess();
-      } catch {
-        // Ignore revoke errors; continue to clear tokens.
-      }
-      await this.googleClient.clearStoredTokens();
-    } else if (this.tokenStoreKey) {
-      const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);
-      await tokenStore.clear();
-    }
-
-    this.pendingReauthState = undefined;
-
-    return {
-      success: true,
-      action: 'logout',
-      authenticated: false,
-      message: 'Authentication cleared.',
-    };
-  }
-
-  /**
-   * Initialize and start token manager for proactive refresh
-   * Phase 1, Task 1.1: Proactive OAuth Token Refresh
-   */
-  private startTokenManager(oauthClient: OAuth2Client): void {
-    // Stop existing manager if present
+  /** Start a TokenManager for the given OAuth2 client (used by tests and auth-flow). */
+  startTokenManager(oauthClient: OAuth2Client): void {
     if (this.tokenManager) {
       this.tokenManager.stop();
     }
 
     let consecutiveRefreshFailures = 0;
 
-    // Create new token manager with refresh callback
     this.tokenManager = new TokenManager({
       oauthClient,
-      refreshThreshold: 0.8, // Refresh at 80% of token lifetime
-      checkIntervalMs: 300000, // Check every 5 minutes
+      refreshThreshold: 0.8,
+      checkIntervalMs: 300000,
       onTokenRefreshed: async (tokens) => {
         consecutiveRefreshFailures = 0;
         this.pendingReauthState = undefined;
@@ -691,7 +113,7 @@ export class AuthHandler {
           this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
         }
       },
-      onRefreshError: async (error) => {
+      onRefreshError: async (error: Error) => {
         consecutiveRefreshFailures++;
         logger.error('Token refresh failed', {
           error: error.message,
@@ -701,7 +123,7 @@ export class AuthHandler {
 
         if (consecutiveRefreshFailures >= 3) {
           this.pendingReauthState = {
-            authUrl: this.createFreshAuthUrl(oauthClient, this.googleClient?.scopes),
+            authUrl: createFreshAuthUrl(oauthClient, this.googleClient?.scopes),
             failureCount: consecutiveRefreshFailures,
             lastError: error.message,
           };
@@ -709,44 +131,102 @@ export class AuthHandler {
       },
     });
 
-    // Start background monitoring
     this.tokenManager.start();
-    logger.info('Token manager started for proactive refresh');
   }
 
-  private createOAuthClient(): OAuth2Client | null {
-    if (!this.oauthClientId || !this.oauthClientSecret) {
-      return null;
-    }
-    return new google.auth.OAuth2(this.oauthClientId, this.oauthClientSecret, this.redirectUri);
-  }
-
-  private createFreshAuthUrl(oauthClient: OAuth2Client, scopes?: string[]): string {
-    const requestedScopes =
-      scopes && scopes.length > 0
-        ? Array.from(new Set(scopes))
-        : Array.from(getRecommendedScopes());
-    const state = generateOAuthState();
+  async handle(input: SheetsAuthInput): Promise<SheetsAuthOutput> {
+    const req = unwrapRequest<SheetsAuthInput['request']>(input) as SheetsAuthInput['request'] & {
+      verbosity?: 'minimal' | 'standard' | 'detailed';
+    };
+    const verbosity = req.verbosity ?? 'standard';
 
     try {
-      cleanupExpiredSessionStates();
-      const exportedState = getSessionContext().exportState();
-      pendingSessionStates.set(state, {
-        exportedState,
-        expiresAt: Date.now() + 15 * 60 * 1000,
-      });
-    } catch (err) {
-      logger.warn('Failed to export session state before OAuth redirect', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+      let response: AuthResponse;
+      const oauthClient = createOAuthClient(
+        this.oauthClientId,
+        this.oauthClientSecret,
+        this.redirectUri
+      );
 
-    return oauthClient.generateAuthUrl({
-      access_type: 'offline',
-      scope: requestedScopes,
-      prompt: 'consent',
-      include_granted_scopes: true,
-      state,
-    });
+      switch (req.action) {
+        case 'status':
+          response = await handleStatus(this.googleClient, this.pendingReauthState, {
+            oauthClientId: this.oauthClientId,
+            oauthClientSecret: this.oauthClientSecret,
+          });
+          markOnboardingComplete();
+          break;
+        case 'login': {
+          const result = await handleLogin(
+            oauthClient,
+            req as AuthLoginInput,
+            this.googleClient,
+            this.tokenStorePath,
+            this.tokenStoreKey,
+            this.redirectUri,
+            this.elicitationServer,
+            this.pendingOAuthElicitationId
+          );
+          response = result.response;
+          if (result.tokenManager) {
+            this.tokenManager = result.tokenManager;
+          }
+          break;
+        }
+        case 'callback': {
+          const result = await handleCallback(
+            oauthClient,
+            req as AuthCallbackInput,
+            this.googleClient,
+            this.tokenStorePath,
+            this.tokenStoreKey,
+            this.elicitationServer,
+            this.pendingOAuthElicitationId
+          );
+          response = result.response;
+          if (result.tokenManager) {
+            this.tokenManager = result.tokenManager;
+          }
+          this.pendingReauthState = undefined;
+          break;
+        }
+        case 'logout':
+          response = await handleLogout(this.googleClient, this.tokenStorePath, this.tokenStoreKey);
+          if (this.tokenManager) {
+            this.tokenManager.stop();
+            this.tokenManager = undefined;
+          }
+          this.pendingReauthState = undefined;
+          break;
+        case 'setup_feature':
+          response = await handleSetupFeature(req as AuthSetupFeatureInput, this.elicitationServer);
+          break;
+        default: {
+          const exhaustiveCheck: never = req as never;
+          response = {
+            success: false,
+            error: {
+              code: ErrorCodes.INVALID_PARAMS,
+              message: `Unsupported auth action: ${(exhaustiveCheck as { action: string }).action}`,
+              retryable: false,
+              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
+            },
+          };
+        }
+      }
+
+      return { response: applyVerbosityFilter(response, verbosity) };
+    } catch (error) {
+      logger.error('Auth handler error', {
+        action: req.action,
+        error,
+      });
+      return {
+        response: {
+          success: false,
+          error: mapStandaloneError(error),
+        },
+      };
+    }
   }
 }

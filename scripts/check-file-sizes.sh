@@ -44,46 +44,63 @@ get_budget_override() {
   local default_threshold="$2"
   case "$file" in
     # ── Servers ──────────────────────────────────────────────────────────────
+    # server.ts: 1570 lines — MCP server entrypoint; auth, routing, tool dispatch
+    "src/server.ts")           echo 1750 ;;
     # ── Abstract Base (not a handler, not decomposable the same way) ─────────
     # base.ts: 1569 lines — BaseHandler abstract class; inherently large
     "src/handlers/base.ts")    echo 1750 ;;
 
     # ── Handlers — large due to action count (TASKS.md P18-D) ────────────────
     # Action counts are the primary driver of handler size.
-    # bigquery.ts: 1878 lines, 17 actions
-    "src/handlers/bigquery.ts")      echo 2100 ;;
-    # dimensions.ts: 2070 lines, 30 actions
-    "src/handlers/dimensions.ts")    echo 2300 ;;
-    # appsscript.ts: 1447 lines, 18 actions
-    "src/handlers/appsscript.ts")    echo 1600 ;;
-    # analyze.ts: 970 lines, 21 actions
-    "src/handlers/analyze.ts")       echo 1100 ;;
-    # compute.ts: 1341 lines, 10 actions
-    "src/handlers/compute.ts")       echo 1500 ;;
-    # fix.ts: 1178 lines, 6 actions
-    "src/handlers/fix.ts")           echo 1300 ;;
-    # dependencies.ts: 985 lines, 10 actions
-    "src/handlers/dependencies.ts")  echo 1100 ;;
+    # bigquery.ts: ~540 lines after decomposition (17 actions delegated to bigquery-actions/)
+    "src/handlers/bigquery.ts")      echo 650 ;;
+    # dimensions.ts: ~430 lines after decomposition (30 actions delegated to dimensions-actions/)
+    "src/handlers/dimensions.ts")    echo 550 ;;
+    # appsscript.ts: ~679 lines after decomposition (19 actions delegated to appsscript-actions/)
+    "src/handlers/appsscript.ts")    echo 800 ;;
+    # collaborate.ts: ~786 lines after decomposition (41 actions — high dispatch overhead)
+    "src/handlers/collaborate.ts")   echo 850 ;;
+    # analyze.ts: 1196 lines, 23 actions
+    "src/handlers/analyze.ts")       echo 1350 ;;
+    # auth.ts: ~235 lines after decomposition (5 actions delegated to auth-actions/)
+    "src/handlers/auth.ts")          echo 350 ;;
+    # composite.ts: ~407 lines after decomposition (21 actions delegated to composite-actions/)
+    "src/handlers/composite.ts")     echo 500 ;;
+    # compute.ts: ~127 lines after decomposition (16 actions delegated to compute-actions/)
+    "src/handlers/compute.ts")       echo 250 ;;
+    # connectors.ts: 870 lines, 10 actions
+    "src/handlers/connectors.ts")    echo 1000 ;;
+    # dependencies.ts: ~210 lines after decomposition (10 actions delegated to dependencies-actions/)
+    "src/handlers/dependencies.ts")  echo 350 ;;
+    # fix.ts: ~226 lines after decomposition (6 actions delegated to fix-actions/)
+    "src/handlers/fix.ts")           echo 350 ;;
+    # format.ts: 893 lines, 25 actions
+    "src/handlers/format.ts")        echo 1000 ;;
     # session.ts: 909 lines, 27 actions
     "src/handlers/session.ts")       echo 1000 ;;
     # history.ts: 806 lines, 10 actions
     "src/handlers/history.ts")       echo 900  ;;
+    # templates.ts: 802 lines, 8 actions
+    "src/handlers/templates.ts")     echo 900  ;;
 
     # ── Services — complex stateful services (not decomposed yet) ────────────
     # google-api.ts: 1827 lines — core API client with retry/circuit breaker
     "src/services/google-api.ts")           echo 2050 ;;
-    # transaction-manager.ts: 1577 lines — transaction state machine
-    "src/services/transaction-manager.ts")  echo 1750 ;;
-    # session-context.ts: 1428 lines — session state manager
-    "src/services/session-context.ts")      echo 1600 ;;
+    # transaction-manager.ts: ~2261 lines — transaction state machine (WAL extracted to transaction-wal.ts)
+    "src/services/transaction-manager.ts")  echo 2300 ;;
+    # session-context.ts: 1676 lines — session state manager
+    "src/services/session-context.ts")      echo 1850 ;;
     # impact-analyzer.ts: 1287 lines — dependency impact analysis
     "src/services/impact-analyzer.ts")      echo 1450 ;;
-    # agent-engine.ts: 1165 lines — agent plan/execute engine
-    "src/services/agent-engine.ts")         echo 1300 ;;
+    # cache-invalidation-graph.ts: 805 lines — full action → dep mapping for all 25 tools
+    "src/services/cache-invalidation-graph.ts") echo 900 ;;
+    # composite-operations.ts: 835 lines — CSV/XLSX import, dedup, smart-append
+    "src/services/composite-operations.ts")     echo 950 ;;
+    # agent-engine.ts: now a thin re-export facade (~75 lines) — no budget override needed
     # batching-system.ts: 1028 lines — intent → batchUpdate compiler
     "src/services/batching-system.ts")      echo 1150 ;;
-    # webhook-manager.ts: 894 lines — webhook delivery
-    "src/services/webhook-manager.ts")      echo 1000 ;;
+    # webhook-manager.ts: 976 lines — webhook delivery
+    "src/services/webhook-manager.ts")      echo 1100 ;;
 
     # All other files: use the standard threshold passed in
     *) echo "$default_threshold" ;;

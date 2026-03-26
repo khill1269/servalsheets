@@ -109,7 +109,6 @@ export async function handleCreateFilterView(
 
   const response = await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -163,7 +162,6 @@ export async function handleDuplicateFilterView(
 
   const response = await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -204,7 +202,6 @@ export async function handleUpdateFilterView(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {
@@ -266,7 +263,6 @@ export async function handleDeleteFilterView(
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
-    fields: 'replies',
     requestBody: {
       requests: [
         {

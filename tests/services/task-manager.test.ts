@@ -27,7 +27,7 @@ describe('TaskManager', () => {
   describe('Task Registration', () => {
     it('should register new task with pending status', () => {
       const taskId = 'task-123';
-      const now = Date.now();
+      const now = 1704067200000;
 
       taskManager.registerTask(taskId, {
         operation: 'spreadsheets.update',
@@ -47,11 +47,11 @@ describe('TaskManager', () => {
     it('should enforce max tasks limit', () => {
       const tm = new TaskManager({ maxTasks: 2 });
 
-      tm.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      tm.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
+      tm.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      tm.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
 
       expect(() => {
-        tm.registerTask('task-3', { operation: 'op3', startTime: Date.now() });
+        tm.registerTask('task-3', { operation: 'op3', startTime: 1704067200000 });
       }).toThrow('Maximum concurrent tasks reached');
 
       tm.destroy();
@@ -60,13 +60,13 @@ describe('TaskManager', () => {
     it('should not count completed tasks toward max limit', () => {
       const tm = new TaskManager({ maxTasks: 2 });
 
-      tm.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      tm.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
+      tm.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      tm.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
       tm.completeTask('task-1');
 
       // Should succeed because task-1 is completed
       expect(() => {
-        tm.registerTask('task-3', { operation: 'op3', startTime: Date.now() });
+        tm.registerTask('task-3', { operation: 'op3', startTime: 1704067200000 });
       }).not.toThrow();
 
       tm.destroy();
@@ -74,7 +74,7 @@ describe('TaskManager', () => {
 
     it('should overwrite existing task with warning', () => {
       const taskId = 'task-123';
-      const now = Date.now();
+      const now = 1704067200000;
 
       taskManager.registerTask(taskId, {
         operation: 'operation1',
@@ -96,7 +96,7 @@ describe('TaskManager', () => {
 
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
         customField: 'custom-value',
         userId: 'user-123',
       });
@@ -112,7 +112,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.updateTaskProgress(taskId, 50, 'Processing...');
@@ -126,7 +126,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       expect(taskManager.getTaskStatus(taskId)?.status).toBe('pending');
@@ -140,7 +140,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.updateTaskProgress(taskId, -10);
@@ -153,14 +153,14 @@ describe('TaskManager', () => {
     it('should throw error for non-existent task', () => {
       expect(() => {
         taskManager.updateTaskProgress('non-existent', 50);
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
 
     it('should update progress multiple times', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.updateTaskProgress(taskId, 25, 'Step 1');
@@ -177,7 +177,7 @@ describe('TaskManager', () => {
   describe('Task Completion', () => {
     it('should mark task as complete', () => {
       const taskId = 'task-123';
-      const startTime = Date.now();
+      const startTime = 1704067200000;
       taskManager.registerTask(taskId, {
         operation: 'test',
         startTime,
@@ -198,7 +198,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       const error = new Error('Task failed');
@@ -214,7 +214,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.failTask(taskId, 'Simple error message');
@@ -227,20 +227,20 @@ describe('TaskManager', () => {
     it('should throw error when completing non-existent task', () => {
       expect(() => {
         taskManager.completeTask('non-existent');
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
 
     it('should throw error when failing non-existent task', () => {
       expect(() => {
         taskManager.failTask('non-existent', new Error('test'));
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
 
     it('should store result data on completion', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       const result = {
@@ -261,7 +261,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       const cancelled = taskManager.cancelTask(taskId);
@@ -276,7 +276,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.updateTaskProgress(taskId, 50);
@@ -292,7 +292,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
       taskManager.completeTask(taskId);
 
@@ -306,7 +306,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
       taskManager.failTask(taskId, 'error');
 
@@ -320,7 +320,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.cancelTask(taskId);
@@ -332,15 +332,15 @@ describe('TaskManager', () => {
     it('should throw error when cancelling non-existent task', () => {
       expect(() => {
         taskManager.cancelTask('non-existent');
-      }).toThrow('Task not found');
+      }).toThrow('task not found');
     });
   });
 
   describe('Task Listing', () => {
     it('should list all active tasks', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      taskManager.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
-      taskManager.registerTask('task-3', { operation: 'op3', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      taskManager.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
+      taskManager.registerTask('task-3', { operation: 'op3', startTime: 1704067200000 });
       taskManager.completeTask('task-3');
 
       const activeTasks = taskManager.listActiveTasks();
@@ -352,8 +352,8 @@ describe('TaskManager', () => {
     });
 
     it('should not include failed tasks in active list', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      taskManager.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      taskManager.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
       taskManager.failTask('task-2', 'error');
 
       const activeTasks = taskManager.listActiveTasks();
@@ -363,8 +363,8 @@ describe('TaskManager', () => {
     });
 
     it('should not include cancelled tasks in active list', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      taskManager.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      taskManager.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
       taskManager.cancelTask('task-2');
 
       const activeTasks = taskManager.listActiveTasks();
@@ -379,9 +379,9 @@ describe('TaskManager', () => {
     });
 
     it('should list all tasks including completed', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      taskManager.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
-      taskManager.registerTask('task-3', { operation: 'op3', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      taskManager.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
+      taskManager.registerTask('task-3', { operation: 'op3', startTime: 1704067200000 });
       taskManager.completeTask('task-3');
 
       const allTasks = taskManager.getAllTasks();
@@ -399,7 +399,7 @@ describe('TaskManager', () => {
       taskManager.registerTask(taskId, {
         operation: 'test',
         spreadsheetId: 'sheet-1',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       const status = taskManager.getTaskStatus(taskId);
@@ -420,7 +420,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       const status1 = taskManager.getTaskStatus(taskId);
@@ -433,7 +433,7 @@ describe('TaskManager', () => {
 
   describe('Cleanup', () => {
     it('should cleanup old completed tasks', () => {
-      const now = Date.now();
+      const now = 1704067200000;
       vi.setSystemTime(now);
 
       const tm = new TaskManager({ taskTTL: 1000 }); // 1 second TTL
@@ -454,7 +454,7 @@ describe('TaskManager', () => {
     });
 
     it('should not cleanup active tasks', () => {
-      const now = Date.now();
+      const now = 1704067200000;
       vi.setSystemTime(now);
 
       const tm = new TaskManager({ taskTTL: 1000 });
@@ -471,7 +471,7 @@ describe('TaskManager', () => {
     });
 
     it('should cleanup multiple old tasks', () => {
-      const now = Date.now();
+      const now = 1704067200000;
       vi.setSystemTime(now);
 
       const tm = new TaskManager({ taskTTL: 1000 });
@@ -506,7 +506,7 @@ describe('TaskManager', () => {
     });
 
     it('should run cleanup automatically on interval', () => {
-      const now = Date.now();
+      const now = 1704067200000;
       vi.setSystemTime(now);
 
       const tm = new TaskManager({ taskTTL: 1000, cleanupIntervalMs: 5000 });
@@ -545,11 +545,11 @@ describe('TaskManager', () => {
 
   describe('Statistics', () => {
     it('should return task statistics', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      taskManager.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
-      taskManager.registerTask('task-3', { operation: 'op3', startTime: Date.now() });
-      taskManager.registerTask('task-4', { operation: 'op4', startTime: Date.now() });
-      taskManager.registerTask('task-5', { operation: 'op5', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      taskManager.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
+      taskManager.registerTask('task-3', { operation: 'op3', startTime: 1704067200000 });
+      taskManager.registerTask('task-4', { operation: 'op4', startTime: 1704067200000 });
+      taskManager.registerTask('task-5', { operation: 'op5', startTime: 1704067200000 });
 
       taskManager.updateTaskProgress('task-2', 50); // pending -> running
       taskManager.completeTask('task-3');
@@ -580,8 +580,8 @@ describe('TaskManager', () => {
 
   describe('Destroy', () => {
     it('should stop cleanup and clear all tasks', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
-      taskManager.registerTask('task-2', { operation: 'op2', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
+      taskManager.registerTask('task-2', { operation: 'op2', startTime: 1704067200000 });
 
       taskManager.startCleanup();
 
@@ -595,7 +595,7 @@ describe('TaskManager', () => {
     });
 
     it('should be idempotent', () => {
-      taskManager.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
+      taskManager.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
       taskManager.startCleanup();
 
       taskManager.destroy();
@@ -605,7 +605,7 @@ describe('TaskManager', () => {
 
   describe('Edge Cases', () => {
     it('should handle zero TTL', () => {
-      const now = Date.now();
+      const now = 1704067200000;
       vi.setSystemTime(now);
 
       const tm = new TaskManager({ taskTTL: 0 });
@@ -624,7 +624,7 @@ describe('TaskManager', () => {
     it('should handle very large TTL', () => {
       const tm = new TaskManager({ taskTTL: Number.MAX_SAFE_INTEGER });
 
-      tm.registerTask('task-1', { operation: 'op1', startTime: Date.now() });
+      tm.registerTask('task-1', { operation: 'op1', startTime: 1704067200000 });
       tm.completeTask('task-1');
 
       vi.advanceTimersByTime(1000000);
@@ -640,7 +640,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.updateTaskProgress(taskId, 50);
@@ -654,7 +654,7 @@ describe('TaskManager', () => {
       const taskId = 'task-123';
       taskManager.registerTask(taskId, {
         operation: 'test',
-        startTime: Date.now(),
+        startTime: 1704067200000,
       });
 
       taskManager.completeTask(taskId);

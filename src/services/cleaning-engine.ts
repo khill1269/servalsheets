@@ -72,6 +72,7 @@ export interface ColumnProfile {
 }
 
 export interface DataProfile {
+  [x: string]: unknown;
   totalRows: number;
   totalColumns: number;
   nullRate: number;
@@ -125,6 +126,51 @@ function resolveColumnIndex(ref: string, headers: CellValue[]): number {
     (h) => typeof h === 'string' && h.toLowerCase() === ref.toLowerCase()
   );
   return idx >= 0 ? idx : -1;
+}
+
+function normalizeHeaderName(header: CellValue | undefined, fallbackColumn: number): string {
+  return typeof header === 'string' && header.trim().length > 0
+    ? header.trim()
+    : colToLetter(fallbackColumn);
+}
+
+function headerHasSemanticMatch(header: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(header));
+}
+
+function shouldSuppressSuggestionForHeader(ruleId: string, header: string): boolean {
+  const normalized = header.toLowerCase();
+
+  if (
+    ['fix_numbers', 'fix_phones', 'fix_emails'].includes(ruleId) &&
+    headerHasSemanticMatch(normalized, [
+      /date/,
+      /time/,
+      /created/,
+      /updated/,
+      /modified/,
+      /timestamp/,
+    ])
+  ) {
+    return true;
+  }
+
+  if (
+    ruleId === 'fix_numbers' &&
+    headerHasSemanticMatch(normalized, [/id/, /code/, /sku/, /zip/, /postal/, /ref/])
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function samplesMeaningfullyChange(before: CellValue[], after: CellValue[]): boolean {
+  if (before.length !== after.length) {
+    return true;
+  }
+
+  return before.some((value, index) => value !== after[index]);
 }
 
 // ─── Cleaning Engine ───
@@ -439,7 +485,14 @@ export class CleaningEngine {
 
     // Default thresholds per method
     const effectiveThreshold =
-      threshold ?? (method === 'iqr' ? 1.5 : method === 'zscore' ? 3.0 : 3.5);
+      threshold ??
+      (method === 'iqr'
+        ? 1.5
+        : method === 'zscore'
+          ? 3.0
+          : method === 'isolation_forest'
+            ? 0.6
+            : 3.5);
 
     // Determine which columns to analyze
     const targetCols = columns
@@ -522,24 +575,39 @@ export class CleaningEngine {
       let affectedColumn: string | undefined;
 
       for (let c = 0; c < (data[0]?.length ?? 0); c++) {
+        const headerName = normalizeHeaderName(headers[c], c);
+        if (shouldSuppressSuggestionForHeader(ruleId, headerName)) {
+          continue;
+        }
+
         let colHits = 0;
+        const columnSampleBefore: CellValue[] = [];
+        const columnSampleAfter: CellValue[] = [];
         for (let r = 1; r < data.length; r++) {
           const v = data[r]?.[c] ?? null;
           if (rule.detect(v)) {
+            const fixed = rule.fix(v);
+            if (fixed === v) {
+              continue;
+            }
             colHits++;
-            if (sampleBefore.length < 3) {
-              sampleBefore.push(v);
-              sampleAfter.push(rule.fix(v));
+            if (columnSampleBefore.length < 3) {
+              columnSampleBefore.push(v);
+              columnSampleAfter.push(fixed);
             }
           }
         }
         if (colHits > hitCount) {
           hitCount = colHits;
-          affectedColumn = typeof headers[c] === 'string' ? (headers[c] as string) : colToLetter(c);
+          affectedColumn = headerName;
+          sampleBefore.length = 0;
+          sampleAfter.length = 0;
+          sampleBefore.push(...columnSampleBefore);
+          sampleAfter.push(...columnSampleAfter);
         }
       }
 
-      if (hitCount > 0) {
+      if (hitCount > 0 && samplesMeaningfullyChange(sampleBefore, sampleAfter)) {
         recommendations.push({
           id: `suggest_${ruleId}`,
           title: rule.description,

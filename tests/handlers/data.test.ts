@@ -142,7 +142,7 @@ const createMockSheetsApi = () => ({
 const createMockContext = (): HandlerContext =>
   ({
     requestId: 'test-request',
-    timestamp: new Date(),
+    timestamp: new Date('2024-01-15T00:00:00Z'),
     session: {
       get: vi.fn(),
       set: vi.fn(),
@@ -180,7 +180,7 @@ const createMockContext = (): HandlerContext =>
     snapshotService: {
       createSnapshot: vi.fn().mockResolvedValue({
         snapshotId: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       }),
     } as any,
     impactAnalyzer: {
@@ -387,7 +387,6 @@ describe('SheetsDataHandler', () => {
         expect(response.success).toBe(true);
         expect(response.hasMore).toBe(true);
         expect(response.totalRows).toBe(1000);
-        expect(response.nextCursor).toBeDefined();
         const decodedCursor = Buffer.from(response.nextCursor, 'base64').toString('utf-8');
         expect(decodedCursor).toBe('384');
       });
@@ -441,6 +440,36 @@ describe('SheetsDataHandler', () => {
         expect(mockApi.spreadsheets.values.update).toHaveBeenCalledWith(
           expect.objectContaining({
             valueInputOption: 'USER_ENTERED',
+          })
+        );
+      });
+
+      it('auto-expands bounded ranges to fit the payload before writing', async () => {
+        mockApi.spreadsheets.values.update.mockResolvedValueOnce({
+          data: {
+            updatedRange: 'Sheet1!A1:B3',
+            updatedRows: 3,
+            updatedColumns: 2,
+            updatedCells: 6,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          values: [
+            ['Name', 'Age'],
+            ['Alice', '30'],
+            ['Bob', '25'],
+          ],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).updatedRange).toBe('Sheet1!A1:B3');
+        expect(mockApi.spreadsheets.values.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            range: 'Sheet1!A1:B3',
           })
         );
       });
@@ -636,7 +665,7 @@ describe('SheetsDataHandler', () => {
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear');
         // Elicitation disabled for reliability - direct API call
-        expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
@@ -647,7 +676,7 @@ describe('SheetsDataHandler', () => {
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
             id: 'snapshot-123',
-            timestamp: new Date(),
+            timestamp: new Date('2024-01-15T00:00:00Z'),
           }),
         };
         const contextWithSnapshot = {
@@ -715,7 +744,7 @@ describe('SheetsDataHandler', () => {
         // With destructive confirmation wired, cancellation should be respected
         expect(result.response.success).toBe(true);
         expect((result.response as any)._cancelled).toBe(true);
-        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
 
       it('should support dryRun mode', async () => {
@@ -730,7 +759,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).dryRun).toBe(true);
-        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });
 
@@ -758,7 +787,6 @@ describe('SheetsDataHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'find_replace');
-        expect((result.response as any).matches).toBeDefined();
         expect((result.response as any).matches.length).toBeGreaterThan(0);
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -783,6 +811,117 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         // Only exact case matches should be found
+      });
+
+      it('should default find-only searches to the current active sheet when range is omitted', async () => {
+        mockContext.sessionContext = {
+          getActiveSpreadsheet: vi.fn().mockReturnValue({
+            spreadsheetId: 'test-id',
+            title: 'Test Spreadsheet',
+            activatedAt: Date.now(),
+            sheetNames: ['Sales Raw Data', 'Sheet1'],
+            lastRange: "'Sales Raw Data'!D1:D20",
+          }),
+        } as any;
+        handler = new SheetsDataHandler(mockContext, mockApi as any as sheets_v4.Sheets);
+
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: "'Sales Raw Data'!A1:ZZ10000",
+            values: [['Item'], ['Widget A']],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          find: 'Widget A',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            range: "'Sales Raw Data'!A1:ZZ10000",
+          })
+        );
+        expect((result.response as any).matches).toEqual([
+          expect.objectContaining({
+            cell: 'A2',
+            row: 2,
+            column: 1,
+            value: 'Widget A',
+          }),
+        ]);
+      });
+
+      it('should search across all sheets in find-only mode when allSheets=true', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-id',
+            sheets: [
+              { properties: { sheetId: 10, title: 'Sales Raw Data', index: 0 } },
+              { properties: { sheetId: 11, title: 'Archive', index: 1 } },
+            ],
+          },
+        });
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              {
+                range: "'Sales Raw Data'!A1:ZZ10000",
+                values: [['Item'], ['Widget A']],
+              },
+              {
+                range: "'Archive'!A1:ZZ10000",
+                values: [['Item'], ['Widget A']],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          find: 'Widget A',
+          allSheets: true,
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.batchGet).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ranges: ["'Sales Raw Data'!A1:ZZ10000", "'Archive'!A1:ZZ10000"],
+          })
+        );
+        expect((result.response as any).matches).toEqual([
+          expect.objectContaining({ cell: "'Sales Raw Data'!A2", value: 'Widget A' }),
+          expect.objectContaining({ cell: "'Archive'!A2", value: 'Widget A' }),
+        ]);
+      });
+
+      it('should report absolute cell coordinates for offset search ranges', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!C5:C6',
+            values: [['Header'], ['Alice']],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!C5:C6',
+          find: 'Alice',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).matches).toEqual([
+          expect.objectContaining({
+            cell: 'C6',
+            row: 6,
+            column: 3,
+            value: 'Alice',
+          }),
+        ]);
       });
     });
 
@@ -817,6 +956,34 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).replacementsCount).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should default replace mode to the current sheet instead of all sheets when range is omitted', async () => {
+        mockContext.sessionContext = {
+          getActiveSpreadsheet: vi.fn().mockReturnValue({
+            spreadsheetId: 'test-id',
+            title: 'Test Spreadsheet',
+            activatedAt: Date.now(),
+            sheetNames: ['Sheet1'],
+            lastRange: 'Sheet1!B2:B10',
+          }),
+        } as any;
+        handler = new SheetsDataHandler(mockContext, mockApi as any as sheets_v4.Sheets);
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          find: 'pending',
+          replacement: 'completed',
+        });
+
+        expect(result.response.success).toBe(true);
+        const findReplaceRequest = (mockApi.spreadsheets.batchUpdate as any).mock.calls[0][0]
+          .requestBody.requests[0].findReplace;
+        expect(findReplaceRequest.allSheets).toBeUndefined();
+        expect(findReplaceRequest.range).toMatchObject({
+          sheetId: 0,
+        });
       });
     });
   });
@@ -984,7 +1151,7 @@ describe('SheetsDataHandler', () => {
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
             id: 'snapshot-123',
-            timestamp: new Date(),
+            timestamp: new Date('2024-01-15T00:00:00Z'),
           }),
         };
         const contextWithSnapshot = {
@@ -1119,7 +1286,7 @@ describe('SheetsDataHandler', () => {
 
     it('should handle batch operation failures', async () => {
       // Test API-level failures (replaced batchCompiler pattern with direct API calls)
-      mockApi.spreadsheets.values.clear.mockRejectedValueOnce(new Error('Clear operation failed'));
+      mockApi.spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('Clear operation failed'));
 
       const result = await handler.handle({
         action: 'clear',

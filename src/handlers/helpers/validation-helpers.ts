@@ -5,6 +5,8 @@
  * These functions have no instance dependencies and can be tested independently.
  */
 
+import { getEnv } from '../../config/env.js';
+
 /**
  * Get appropriate field mask for Google API calls (Priority 8)
  *
@@ -14,12 +16,13 @@
  * @param operation - Type of operation being performed
  * @returns Field mask string or undefined (full response when feature disabled)
  */
+
 export function getFieldMask(operation: 'metadata' | 'sheets_list' | 'full'): string | undefined {
   // Feature flag check
-  const aggressiveMasking = process.env['ENABLE_AGGRESSIVE_FIELD_MASKS'] !== 'false';
+  const aggressiveMasking = getEnv().ENABLE_AGGRESSIVE_FIELD_MASKS;
 
   if (!aggressiveMasking) {
-    return undefined; // Full response
+    return undefined; // OK: Explicit empty — Full response
   }
 
   // Return optimized masks based on operation type
@@ -34,7 +37,7 @@ export function getFieldMask(operation: 'metadata' | 'sheets_list' | 'full'): st
 
     case 'full':
     default:
-      return undefined; // Full response
+      return undefined; // OK: Explicit empty — Full response
   }
 }
 

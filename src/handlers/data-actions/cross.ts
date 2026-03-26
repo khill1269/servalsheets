@@ -5,12 +5,14 @@
 import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import type { ValuesArray } from '../../schemas/index.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
+import { recordCrossSpreadsheetOp } from '../../observability/metrics.js';
 import type { DataHandlerAccess, ResponseFormat } from './internal.js';
 import {
   shapeValuesByResponseFormat,
   shapeListByResponseFormat,
   buildResponseFormatMeta,
 } from './helpers.js';
+import { extractRangeA1 } from '../../utils/range-helpers.js';
 
 type DataRequest = SheetsDataInput['request'];
 
@@ -23,9 +25,17 @@ export async function handleCrossRead(
   const responseFormat = (req.response_format ?? 'full') as ResponseFormat;
   await ha.sendProgress(0, req.sources.length, `Reading from ${req.sources.length} spreadsheet(s)`);
   const { crossRead } = await import('../../services/cross-spreadsheet.js');
+
+  // Extract A1 notation from RangeInput for each source
+  const normalizedSources = req.sources.map((source) => ({
+    spreadsheetId: source.spreadsheetId,
+    range: extractRangeA1(source.range, 'sources[].range'),
+    label: source.label,
+  }));
+
   const result = await crossRead(
     ha.api,
-    req.sources,
+    normalizedSources,
     req.joinKey,
     req.joinType ?? 'left',
     ha.context.cachedSheetsApi
@@ -33,7 +43,7 @@ export async function handleCrossRead(
 
   try {
     if (ha.context.sessionContext) {
-      for (const source of req.sources) {
+      for (const source of normalizedSources) {
         ha.context.sessionContext.trackReadOperation(source.spreadsheetId, source.range);
       }
       ha.context.sessionContext.recordOperation({
@@ -72,6 +82,7 @@ export async function handleCrossRead(
       `of ${shapedRows.originalRowCount}x${shapedRows.originalColumnCount}. Use response_format:"full" for complete rows.`;
   }
 
+  recordCrossSpreadsheetOp('cross_read', 'success');
   return ha.makeSuccess(
     'cross_read',
     responseData,
@@ -89,9 +100,17 @@ export async function handleCrossQuery(
 ): Promise<DataResponse> {
   const responseFormat = (req.response_format ?? 'full') as ResponseFormat;
   const { crossQuery } = await import('../../services/cross-spreadsheet.js');
+
+  // Extract A1 notation from RangeInput for each source
+  const normalizedSources = req.sources.map((source) => ({
+    spreadsheetId: source.spreadsheetId,
+    range: extractRangeA1(source.range, 'sources[].range'),
+    label: source.label,
+  }));
+
   const result = await crossQuery(
     ha.api,
-    req.sources,
+    normalizedSources,
     req.query,
     req.maxResults ?? 100,
     ha.context.cachedSheetsApi
@@ -135,6 +154,8 @@ export async function handleCrossQuery(
     responseData['interpretation'] = interpretation;
   }
 
+  recordCrossSpreadsheetOp('cross_query', 'success');
+
   return ha.makeSuccess(
     'cross_query',
     responseData,
@@ -152,10 +173,22 @@ export async function handleCrossWrite(
 ): Promise<DataResponse> {
   await ha.sendProgress(0, 1, `Copying data between spreadsheets`);
   const { crossWrite } = await import('../../services/cross-spreadsheet.js');
+
+  // Extract A1 notation from RangeInput for source and destination
+  const normalizedSource = {
+    spreadsheetId: req.source.spreadsheetId,
+    range: extractRangeA1(req.source.range, 'source.range'),
+    label: req.source.label,
+  };
+  const normalizedDestination = {
+    spreadsheetId: req.destination.spreadsheetId,
+    range: req.destination.range, // Already a plain string in cross_write schema
+  };
+
   const result = await crossWrite(
     ha.api,
-    req.source,
-    req.destination,
+    normalizedSource,
+    normalizedDestination,
     req.valueInputOption ?? 'USER_ENTERED',
     ha.context.cachedSheetsApi
   );
@@ -173,6 +206,7 @@ export async function handleCrossWrite(
     /* non-blocking */
   }
 
+  recordCrossSpreadsheetOp('cross_write', 'success');
   return ha.makeSuccess('cross_write', {
     cellsCopied: result.cellsCopied,
     updatedRange: result.updatedRange,
@@ -189,10 +223,23 @@ export async function handleCrossCompare(
   const compareColumns = req.compareColumns;
   await ha.sendProgress(0, 1, `Comparing data between spreadsheets`);
   const { crossCompare } = await import('../../services/cross-spreadsheet.js');
+
+  // Extract A1 notation from RangeInput for both sources
+  const normalizedSource1 = {
+    spreadsheetId: req.source1.spreadsheetId,
+    range: extractRangeA1(req.source1.range, 'source1.range'),
+    label: req.source1.label,
+  };
+  const normalizedSource2 = {
+    spreadsheetId: req.source2.spreadsheetId,
+    range: extractRangeA1(req.source2.range, 'source2.range'),
+    label: req.source2.label,
+  };
+
   const result = await crossCompare(
     ha.api,
-    req.source1,
-    req.source2,
+    normalizedSource1,
+    normalizedSource2,
     compareColumns,
     req.keyColumn,
     ha.context.cachedSheetsApi
@@ -247,6 +294,8 @@ export async function handleCrossCompare(
   if (narrative) {
     responseData['narrative'] = narrative;
   }
+
+  recordCrossSpreadsheetOp('cross_compare', 'success');
 
   return ha.makeSuccess(
     'cross_compare',

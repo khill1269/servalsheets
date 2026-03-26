@@ -6,12 +6,13 @@ on:
       - 'src/**/*.ts'
       - 'scripts/check-file-sizes.sh'
   push:
-    branches:
-      - main
-      - feat/**
+    branches: [main]
     paths:
       - 'src/**/*.ts'
       - 'scripts/check-file-sizes.sh'
+
+permissions:
+  contents: read
 
 jobs:
   check-file-sizes:
@@ -21,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Make script executable
         run: chmod +x scripts/check-file-sizes.sh

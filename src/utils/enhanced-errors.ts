@@ -438,7 +438,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
-      return undefined; // no suggestion for this error
+      return undefined; // OK: Explicit empty — no suggestion for this error
 
     case 'NO_DATA':
       // No data → read range to verify it exists
@@ -449,7 +449,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId, range },
         };
       }
-      return undefined; // no suggestion for this error
+      return undefined; // OK: Explicit empty — no suggestion for this error
 
     case 'NOT_FOUND':
       // Generic not found → list accessible spreadsheets
@@ -459,14 +459,35 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
       };
 
     case 'VALIDATION_FAILED':
-    case 'ACTION_REQUIRED':
-    case 'INTERNAL_ERROR':
     case 'INVALID_ARGUMENT':
-      // Validation/generic errors → check auth status as basic diagnostic
+      // Validation errors → re-read spreadsheet structure to understand schema
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined; // OK: no context to suggest a fix
+
+    case 'ACTION_REQUIRED':
+      // Action required → use wizard to complete missing params
       return {
-        tool: 'sheets_auth',
-        action: 'status',
+        tool: 'sheets_confirm',
+        action: 'wizard_start',
+        params: { title: 'Complete required action' },
       };
+
+    case 'INTERNAL_ERROR':
+      // Internal errors → context-aware: read spreadsheet if available, otherwise no suggestion
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined; // OK: no automated fix for generic internal errors
 
     case 'AMBIGUOUS_RANGE':
       // Ambiguous range → analyze sheet to see column structure
@@ -477,7 +498,7 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
-      return undefined; // no suggestion for this error
+      return undefined; // OK: Explicit empty — no suggestion for this error
 
     case 'PARSE_ERROR':
       // Parse error → analyze data to understand structure
@@ -488,27 +509,65 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId, range },
         };
       }
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'TRANSACTION_TIMEOUT':
       // Transaction timeout → retry the operation
       // Note: Client should implement retry logic
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'QUOTA_EXCEEDED':
     case 'RATE_LIMIT_EXCEEDED':
       // Quota/rate limit → wait and retry (not automatically fixable)
       // Note: Client should implement backoff strategy
-      return undefined;
+      return undefined; // OK: Explicit empty
 
     case 'ELICITATION_UNAVAILABLE':
+      // Elicitation unavailable → use wizard alternative via sheets_confirm
+      return {
+        tool: 'sheets_confirm',
+        action: 'wizard_start',
+        params: {
+          title: 'Confirm operation',
+        },
+      };
+
     case 'SAMPLING_UNAVAILABLE':
-      // Missing MCP capability → cannot be fixed automatically
-      return undefined;
+      // Missing MCP Sampling → cannot be fixed automatically
+      return undefined; // OK: Explicit empty
+
+    case 'OPERATION_FAILED':
+      // Operation failed → retry with minimal verbosity to reduce payload
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined; // OK: Explicit empty — no fix action available without spreadsheetId
+
+    case 'SERVICE_NOT_INITIALIZED':
+      // Service not initialized → check auth status and re-login
+      return {
+        tool: 'sheets_auth',
+        action: 'login',
+      };
+
+    case 'COMPUTE_ERROR':
+      // Compute error → re-read source data to verify inputs
+      if (spreadsheetId && range) {
+        return {
+          tool: 'sheets_data',
+          action: 'read',
+          params: { spreadsheetId, range },
+        };
+      }
+      return undefined; // OK: Explicit empty
 
     default:
       // No automated fix available
-      return undefined;
+      return undefined; // OK: Explicit empty
   }
 }
 

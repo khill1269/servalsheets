@@ -3,7 +3,7 @@ title: Table Management Guide
 category: guide
 last_updated: 2026-01-31
 description: 'Tool: sheetsadvanced (table actions)'
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate
@@ -13,7 +13,7 @@ difficulty: intermediate
 
 **Tool**: `sheets_advanced` (table actions)
 **API**: Google Sheets Tables API
-**Version**: 1.6.0
+**Version**: 2.0.0
 **Last Updated**: 2026-01-30
 
 ---

@@ -53,6 +53,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import { UserProfileManager, type UserProfile } from './user-profile-manager.js';
 import { UnderstandingStore } from './understanding-store.js';
 
@@ -195,6 +196,12 @@ export interface UserPreferences {
     dateFormat: string;
     currencyFormat: string;
   };
+  /**
+   * When true, the tool-call response layer will auto-record operations
+   * after successful mutation tool calls. Eliminates the need for explicit
+   * record_operation calls after each write/format/structural change.
+   */
+  autoRecord: boolean;
 }
 
 export interface SessionState {
@@ -224,6 +231,16 @@ export interface SessionState {
     timestamp: number;
     operationIndex: number;
   }>;
+  /** Per-tool success/failure tracking for adaptive description verbosity */
+  toolFamiliarity: Record<string, { successes: number; failures: number; lastUsed: number }>;
+}
+
+interface SessionStateMutationOptions {
+  persist?: boolean;
+}
+
+interface SessionContextManagerOptions {
+  onStateChanged?: (serializedState: string) => Promise<void> | void;
 }
 
 // ============================================================================
@@ -241,6 +258,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
     dateFormat: 'YYYY-MM-DD',
     currencyFormat: '$#,##0.00',
   },
+  autoRecord: false,
 };
 
 function createDefaultState(): SessionState {
@@ -253,6 +271,7 @@ function createDefaultState(): SessionState {
     startedAt: Date.now(),
     lastActivityAt: Date.now(),
     recentReads: [],
+    toolFamiliarity: {},
   };
 }
 
@@ -265,6 +284,7 @@ function createDefaultState(): SessionState {
  */
 export class SessionContextManager {
   private state: SessionState;
+  private readonly onStateChanged?: SessionContextManagerOptions['onStateChanged'];
   private readonly maxRecentSpreadsheets = 5;
   private readonly maxOperationHistory = 20;
   private readonly maxSheetNames = 100; // Limit sheet names to prevent memory issues
@@ -301,11 +321,58 @@ export class SessionContextManager {
   private profileManager = new UserProfileManager();
   private currentUserId?: string;
 
-  constructor(initialState?: Partial<SessionState>) {
+  // B3: Elicitation rejection tracking (bounded at 50)
+  private elicitationRejections: Array<{
+    type: string;
+    tool?: string;
+    action?: string;
+    spreadsheetId?: string;
+    timestamp: number;
+  }> = [];
+
+  constructor(initialState?: Partial<SessionState>, options: SessionContextManagerOptions = {}) {
+    const defaultState = createDefaultState();
     this.state = {
-      ...createDefaultState(),
+      ...defaultState,
       ...initialState,
+      recentReads: initialState?.recentReads ?? defaultState.recentReads,
+      toolFamiliarity: initialState?.toolFamiliarity ?? defaultState.toolFamiliarity,
     };
+    this.onStateChanged = options.onStateChanged;
+  }
+
+  private persistState(): void {
+    if (!this.onStateChanged) {
+      return;
+    }
+
+    let serialized: string;
+    try {
+      serialized = this.exportState();
+    } catch (error) {
+      logger.warn('Failed to serialize session state for persistence', {
+        component: 'session-context',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+
+    try {
+      const pending = this.onStateChanged(serialized);
+      if (pending && typeof (pending as PromiseLike<unknown>).then === 'function') {
+        void Promise.resolve(pending).catch((error: unknown) => {
+          logger.warn('Failed to persist session state', {
+            component: 'session-context',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to persist session state', {
+        component: 'session-context',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   // ===========================================================================
@@ -333,6 +400,7 @@ export class SessionContextManager {
       activatedAt: Date.now(),
     };
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   /**
@@ -350,9 +418,11 @@ export class SessionContextManager {
    */
   requireActiveSpreadsheet(): SpreadsheetContext {
     if (!this.state.activeSpreadsheet) {
-      throw new Error(
+      throw new ServiceError(
         'No active spreadsheet. Please specify which spreadsheet to work with, ' +
-          "or say 'open [spreadsheet name]' to set one as active."
+          "or say 'open [spreadsheet name]' to set one as active.",
+        'INTERNAL_ERROR',
+        'SessionContext'
       );
     }
     return this.state.activeSpreadsheet;
@@ -497,6 +567,7 @@ export class SessionContextManager {
       this.state.activeSpreadsheet.lastRange = range;
     }
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   // ===========================================================================
@@ -530,7 +601,63 @@ export class SessionContextManager {
     }
 
     this.state.lastActivityAt = Date.now();
+    this.persistState();
     return id;
+  }
+
+  /**
+   * Get a lightweight summary of session state for embedding in LLM prompts.
+   * Used by sampling.ts to enrich prompt context with the user's current work.
+   */
+  getSummary(): {
+    activeSpreadsheet: { title: string; sheetNames: string[] } | undefined;
+    recentOperations: Array<{ tool?: string; action?: string; range?: string }>;
+  } {
+    const active = this.state.activeSpreadsheet;
+    return {
+      activeSpreadsheet: active
+        ? { title: active.title, sheetNames: active.sheetNames }
+        : undefined,
+      recentOperations: this.state.operationHistory
+        .slice(0, 20)
+        .map((op) => ({ tool: op.tool, action: op.action, range: op.range })),
+    };
+  }
+
+  /**
+   * Record whether a tool call succeeded or failed.
+   * Used for adaptive tool descriptions — familiar tools get shorter descriptions.
+   */
+  recordToolOutcome(toolName: string, success: boolean): void {
+    const existing = this.state.toolFamiliarity[toolName] ?? {
+      successes: 0,
+      failures: 0,
+      lastUsed: 0,
+    };
+    if (success) {
+      existing.successes++;
+    } else {
+      existing.failures++;
+    }
+    existing.lastUsed = Date.now();
+    this.state.toolFamiliarity[toolName] = existing;
+    // No persist — this is ephemeral session data
+  }
+
+  /**
+   * Get familiarity score for a tool (0-1).
+   * High score = LLM has used this tool successfully multiple times.
+   * Used by tools/list to decide description verbosity.
+   */
+  getToolFamiliarityScore(toolName: string): number {
+    const record = this.state.toolFamiliarity[toolName];
+    if (!record) return 0;
+    const total = record.successes + record.failures;
+    if (total === 0) return 0;
+    // Success rate weighted by usage count (more usage = more confident)
+    const successRate = record.successes / total;
+    const usageConfidence = Math.min(total / 5, 1); // Full confidence after 5 uses
+    return successRate * usageConfidence;
   }
 
   /**
@@ -565,6 +692,7 @@ export class SessionContextManager {
     if (this.state.recentReads.length > 20) {
       this.state.recentReads.shift();
     }
+    this.persistState();
   }
 
   /**
@@ -714,6 +842,7 @@ export class SessionContextManager {
       ...updates,
     };
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   /**
@@ -748,6 +877,7 @@ export class SessionContextManager {
         break;
     }
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   // ===========================================================================
@@ -762,6 +892,7 @@ export class SessionContextManager {
   setPendingOperation(operation: SessionState['pendingOperation']): void {
     this.state.pendingOperation = operation;
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   /**
@@ -777,6 +908,7 @@ export class SessionContextManager {
   clearPendingOperation(): void {
     this.state.pendingOperation = null;
     this.state.lastActivityAt = Date.now();
+    this.persistState();
   }
 
   // ===========================================================================
@@ -793,8 +925,11 @@ export class SessionContextManager {
   /**
    * Reset session state
    */
-  reset(): void {
+  reset(options: SessionStateMutationOptions = {}): void {
     this.state = createDefaultState();
+    if (options.persist !== false) {
+      this.persistState();
+    }
   }
 
   /**
@@ -855,13 +990,16 @@ export class SessionContextManager {
   /**
    * Import state from persistence
    */
-  importState(json: string): void {
+  importState(json: string, options: SessionStateMutationOptions = {}): void {
     try {
       const imported = JSON.parse(json) as SessionState;
       this.state = {
         ...createDefaultState(),
         ...imported,
       };
+      if (options.persist !== false) {
+        this.persistState();
+      }
     } catch (error) {
       logger.error('Failed to import session state', {
         component: 'session-context',
@@ -1156,11 +1294,11 @@ export class SessionContextManager {
       }
     | undefined {
     const result = this.recentAnalyses.get(spreadsheetId);
-    if (!result) return undefined;
+    if (!result) return undefined; // OK: Explicit empty
     // Expire after 5 minutes
     if (Date.now() - result.timestamp > 5 * 60 * 1000) {
       this.recentAnalyses.delete(spreadsheetId);
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
     return result;
   }
@@ -1201,6 +1339,7 @@ export class SessionContextManager {
       component: 'session-context',
       userId,
     });
+    this.persistState();
   }
 
   /**
@@ -1236,6 +1375,7 @@ export class SessionContextManager {
       userId: this.currentUserId,
       preferences,
     });
+    this.persistState();
   }
 
   /**
@@ -1289,6 +1429,45 @@ export class SessionContextManager {
     }
     return await this.profileManager.shouldAvoidSuggestion(this.currentUserId, suggestion);
   }
+
+  // ===========================================================================
+  // B3: ELICITATION REJECTION TRACKING
+  // ===========================================================================
+
+  /**
+   * Record that the user rejected an elicitation prompt.
+   * Bounded at 50 entries (evicts oldest when full).
+   */
+  recordElicitationRejection(rejection: {
+    type: string;
+    tool?: string;
+    action?: string;
+    spreadsheetId?: string;
+  }): void {
+    this.elicitationRejections.push({
+      ...rejection,
+      timestamp: Date.now(),
+    });
+    // FIFO eviction: remove oldest entry when over 50 (avoids array copy via slice)
+    while (this.elicitationRejections.length > 50) {
+      this.elicitationRejections.shift();
+    }
+  }
+
+  /**
+   * Check if an elicitation type was recently rejected (within 30 minutes).
+   * Optionally filters by tool and/or action.
+   */
+  wasRecentlyRejected(type: string, context?: { tool?: string; action?: string }): boolean {
+    const cutoff = Date.now() - 30 * 60 * 1000; // 30 minutes
+    return this.elicitationRejections.some(
+      (r) =>
+        r.type === type &&
+        r.timestamp > cutoff &&
+        (!context?.tool || r.tool === context.tool) &&
+        (!context?.action || r.action === context.action)
+    );
+  }
 }
 
 // ============================================================================
@@ -1303,16 +1482,139 @@ function getSessionRedisKey(): string {
   return `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
 }
 
+function getHttpSessionRedisKey(sessionId: string): string {
+  return `servalsheets:http-session:${sessionId}:state`;
+}
+
 let sessionContext: SessionContextManager | null = null;
 const sessionContexts = new Map<string, SessionContextManager>();
+const hydratedSessionContexts = new Set<string>();
+const sessionContextHydrations = new Map<string, Promise<SessionContextManager>>();
+
+// Session GC: background sweep of expired sessions + size cap
+const MAX_CONCURRENT_SESSIONS = 10_000;
+const SESSION_GC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+let sessionGcInterval: NodeJS.Timeout | null = null;
+
+function startSessionGc(): void {
+  if (sessionGcInterval) return;
+  sessionGcInterval = setInterval(() => {
+    const now = Date.now();
+    const ttlMs = getSessionTtlMs();
+    let evicted = 0;
+    for (const [id, mgr] of sessionContexts.entries()) {
+      if (now - mgr.getState().lastActivityAt > ttlMs) {
+        sessionContexts.delete(id);
+        hydratedSessionContexts.delete(id);
+        sessionContextHydrations.delete(id);
+        evicted++;
+      }
+    }
+    if (evicted > 0) {
+      logger.info('Session GC sweep completed', {
+        component: 'session-context',
+        evicted,
+        remaining: sessionContexts.size,
+      });
+    }
+  }, SESSION_GC_INTERVAL_MS);
+  sessionGcInterval.unref(); // Don't prevent process exit
+}
+
+function evictOldestSessionIfAtCapacity(): void {
+  if (sessionContexts.size < MAX_CONCURRENT_SESSIONS) return;
+
+  let oldestId: string | undefined;
+  let oldestActivity = Date.now();
+  for (const [id, mgr] of sessionContexts.entries()) {
+    const activity = mgr.getState().lastActivityAt;
+    if (activity < oldestActivity) {
+      oldestActivity = activity;
+      oldestId = id;
+    }
+  }
+  if (oldestId) {
+    sessionContexts.delete(oldestId);
+    hydratedSessionContexts.delete(oldestId);
+    sessionContextHydrations.delete(oldestId);
+    logger.warn('Evicted oldest session to stay under cap', {
+      component: 'session-context',
+      evictedId: oldestId,
+      mapSize: sessionContexts.size,
+      cap: MAX_CONCURRENT_SESSIONS,
+    });
+  }
+}
+
+// Start GC on module load
+startSessionGc();
 
 // SCALE-01: Duck-typed Redis client interface (compatible with 'redis' npm package)
 interface RedisSessionClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, options: { EX: number }): Promise<unknown>;
+  del?(key: string): Promise<unknown>;
 }
 
 let sessionRedisClient: RedisSessionClient | null = null;
+
+function isSessionStateExpired(lastActivityAt: number): boolean {
+  return Date.now() - lastActivityAt > getSessionTtlMs();
+}
+
+async function persistSerializedSessionState(
+  sessionRedisKey: string,
+  serializedState: string
+): Promise<void> {
+  if (!sessionRedisClient) {
+    return;
+  }
+
+  const ttlSeconds = Math.ceil(getSessionTtlMs() / 1000);
+  await sessionRedisClient.set(sessionRedisKey, serializedState, { EX: ttlSeconds });
+}
+
+function createSessionContextManager(sessionRedisKey?: string): SessionContextManager {
+  return new SessionContextManager(undefined, {
+    onStateChanged: sessionRedisKey
+      ? async (serializedState: string) => {
+          await persistSerializedSessionState(sessionRedisKey, serializedState);
+        }
+      : undefined,
+  });
+}
+
+async function hydrateSessionContextFromRedis(
+  manager: SessionContextManager,
+  sessionRedisKey: string,
+  logContext: Record<string, unknown>
+): Promise<SessionContextManager> {
+  if (!sessionRedisClient) {
+    return manager;
+  }
+
+  const stored = await sessionRedisClient.get(sessionRedisKey);
+  if (!stored) {
+    return manager;
+  }
+
+  manager.importState(stored, { persist: false });
+
+  if (isSessionStateExpired(manager.getState().lastActivityAt)) {
+    logger.info('Discarding expired session state restored from Redis', {
+      component: 'session-context',
+      ...logContext,
+    });
+    manager.reset({ persist: false });
+    return manager;
+  }
+
+  logger.info('Session state restored from Redis', {
+    component: 'session-context',
+    ...logContext,
+  });
+  return manager;
+}
 
 /**
  * SCALE-01: Wire a Redis client for session persistence.
@@ -1329,24 +1631,18 @@ export function initSessionRedis(client: RedisSessionClient): void {
  */
 export function getSessionContext(): SessionContextManager {
   if (!sessionContext) {
-    sessionContext = new SessionContextManager();
+    sessionContext = createSessionContextManager(getSessionRedisKey());
     const sessionRedisKey = getSessionRedisKey();
     // SCALE-01: Restore from Redis asynchronously (fire-and-forget; state is valid in-memory)
     if (sessionRedisClient) {
-      void sessionRedisClient
-        .get(sessionRedisKey)
-        .then((stored) => {
-          if (stored && sessionContext) {
-            sessionContext.importState(stored);
-            logger.info('Session state restored from Redis', { component: 'session-context' });
-          }
-        })
-        .catch((err: unknown) => {
-          logger.warn('Failed to restore session from Redis', {
-            component: 'session-context',
-            error: err instanceof Error ? err.message : String(err),
-          });
+      void hydrateSessionContextFromRedis(sessionContext, sessionRedisKey, {
+        scope: 'singleton',
+      }).catch((err: unknown) => {
+        logger.warn('Failed to restore session from Redis', {
+          component: 'session-context',
+          error: err instanceof Error ? err.message : String(err),
         });
+      });
     }
   } else if (Date.now() - sessionContext.getState().lastActivityAt > getSessionTtlMs()) {
     logger.info('Session expired — creating new SessionContextManager', {
@@ -1357,17 +1653,14 @@ export function getSessionContext(): SessionContextManager {
     // SCALE-01: Persist expired session to Redis before evicting
     if (sessionRedisClient) {
       const serialized = sessionContext.exportState();
-      const ttlSeconds = Math.ceil(getSessionTtlMs() / 1000);
-      void sessionRedisClient
-        .set(getSessionRedisKey(), serialized, { EX: ttlSeconds })
-        .catch((err: unknown) => {
-          logger.warn('Failed to persist session to Redis on expiry', {
-            component: 'session-context',
-            error: err instanceof Error ? err.message : String(err),
-          });
+      void persistSerializedSessionState(getSessionRedisKey(), serialized).catch((err: unknown) => {
+        logger.warn('Failed to persist session to Redis on expiry', {
+          component: 'session-context',
+          error: err instanceof Error ? err.message : String(err),
         });
+      });
     }
-    sessionContext = new SessionContextManager();
+    sessionContext = createSessionContextManager(getSessionRedisKey());
   }
   return sessionContext;
 }
@@ -1391,9 +1684,62 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
     });
   }
 
-  const created = new SessionContextManager();
+  evictOldestSessionIfAtCapacity();
+  const created = createSessionContextManager(getHttpSessionRedisKey(sessionId));
   sessionContexts.set(sessionId, created);
+  hydratedSessionContexts.delete(sessionId);
   return created;
+}
+
+export async function getOrCreateSessionContextAsync(
+  sessionId: string
+): Promise<SessionContextManager> {
+  const existing = sessionContexts.get(sessionId);
+  if (existing) {
+    const idleMs = Date.now() - existing.getState().lastActivityAt;
+    if (idleMs <= getSessionTtlMs() && hydratedSessionContexts.has(sessionId)) {
+      return existing;
+    }
+    if (idleMs > getSessionTtlMs()) {
+      logger.info('Session expired — creating new SessionContextManager', {
+        component: 'session-context',
+        sessionId,
+        idleMs,
+        ttlMs: getSessionTtlMs(),
+      });
+      sessionContexts.delete(sessionId);
+      hydratedSessionContexts.delete(sessionId);
+    }
+  }
+
+  const inFlight = sessionContextHydrations.get(sessionId);
+  if (inFlight) {
+    return await inFlight;
+  }
+
+  const manager = sessionContexts.get(sessionId) ?? getOrCreateSessionContext(sessionId);
+  const hydration = hydrateSessionContextFromRedis(manager, getHttpSessionRedisKey(sessionId), {
+    sessionId,
+    scope: 'http',
+  })
+    .catch((err: unknown) => {
+      logger.warn('Failed to restore HTTP session from Redis', {
+        component: 'session-context',
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return manager;
+    })
+    .then((hydrated) => {
+      hydratedSessionContexts.add(sessionId);
+      return hydrated;
+    })
+    .finally(() => {
+      sessionContextHydrations.delete(sessionId);
+    });
+
+  sessionContextHydrations.set(sessionId, hydration);
+  return await hydration;
 }
 
 /**
@@ -1402,6 +1748,8 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
  */
 export function removeSessionContext(sessionId: string): void {
   sessionContexts.delete(sessionId);
+  hydratedSessionContexts.delete(sessionId);
+  sessionContextHydrations.delete(sessionId);
 }
 
 /**
@@ -1410,6 +1758,12 @@ export function removeSessionContext(sessionId: string): void {
 export function resetSessionContext(): void {
   sessionContext = null;
   sessionContexts.clear();
+  hydratedSessionContexts.clear();
+  sessionContextHydrations.clear();
+  if (sessionGcInterval) {
+    clearInterval(sessionGcInterval);
+    sessionGcInterval = null;
+  }
 }
 
 /**
@@ -1428,6 +1782,7 @@ export const SessionContext = {
   SessionContextManager,
   getSessionContext,
   getOrCreateSessionContext,
+  getOrCreateSessionContextAsync,
   removeSessionContext,
   resetSessionContext,
 };

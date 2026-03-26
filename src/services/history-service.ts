@@ -20,8 +20,10 @@ import type {
   OperationHistoryStats,
   OperationHistoryFilter,
 } from '../types/history.js';
+import { resourceNotifications } from '../resources/notifications.js';
 import { logger } from '../utils/logger.js';
 import { BoundedCache } from '../utils/bounded-cache.js';
+import { ServiceError } from '../core/errors.js';
 
 /** Wrapper for operation ID arrays (required for BoundedCache object constraint) */
 interface OperationStack {
@@ -119,6 +121,8 @@ export class HistoryService {
         hasSnapshot: !!operation.snapshotId,
       });
     }
+
+    resourceNotifications.notifyHistoryUpdated(this.operations.length, operation.spreadsheetId);
   }
 
   /**
@@ -265,6 +269,7 @@ export class HistoryService {
     this.redoStacks.clear();
 
     logger.info('Operation history cleared');
+    resourceNotifications.notifyHistoryUpdated(0);
   }
 
   /**
@@ -288,7 +293,7 @@ export class HistoryService {
     const stack = this.undoStacks.get(spreadsheetId);
     if (!stack || stack.operationIds.length === 0) {
       // OK: Explicit empty - typed as optional, no undoable operations available
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const operationId = stack.operationIds.at(-1);
@@ -302,7 +307,7 @@ export class HistoryService {
     const stack = this.redoStacks.get(spreadsheetId);
     if (!stack || stack.operationIds.length === 0) {
       // OK: Explicit empty - typed as optional, no redoable operations available
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     const operationId = stack.operationIds.at(-1);
@@ -325,6 +330,7 @@ export class HistoryService {
       // Add to redo stack
       redoStack.operationIds.push(operationId);
       this.redoStacks.set(spreadsheetId, redoStack);
+      resourceNotifications.notifyHistoryUpdated(this.operations.length, spreadsheetId);
     }
   }
 
@@ -344,6 +350,7 @@ export class HistoryService {
       // Add to undo stack
       undoStack.operationIds.push(operationId);
       this.undoStacks.set(spreadsheetId, undoStack);
+      resourceNotifications.notifyHistoryUpdated(this.operations.length, spreadsheetId);
     }
   }
 
@@ -371,6 +378,7 @@ export class HistoryService {
     }
 
     logger.info(`Cleared ${removed} operations for spreadsheet ${spreadsheetId}`);
+    resourceNotifications.notifyHistoryUpdated(this.operations.length, spreadsheetId);
     return removed;
   }
 
@@ -475,7 +483,7 @@ export class HistoryService {
       return operation;
     }
     // OK: Explicit empty - typed as optional, operation not found
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   /**
@@ -541,6 +549,7 @@ export class HistoryService {
     this.redoStacks.delete(spreadsheetId);
 
     logger.info('Cleared history for spreadsheet', { spreadsheetId });
+    resourceNotifications.notifyHistoryUpdated(this.operations.length, spreadsheetId);
   }
 }
 
@@ -570,7 +579,11 @@ export function setHistoryService(service: HistoryService): void {
  */
 export function resetHistoryService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetHistoryService() can only be called in test environment');
+    throw new ServiceError(
+      'resetHistoryService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'HistoryService'
+    );
   }
   historyService = null;
 }

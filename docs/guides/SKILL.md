@@ -1,9 +1,9 @@
 ---
 title: ServalSheets Skill Guide for Claude
 category: guide
-last_updated: 2026-01-31
+last_updated: 2026-03-11
 description: This guide helps Claude (and other AI assistants) use ServalSheets MCP server effectively.
-version: 1.7.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate
@@ -15,7 +15,7 @@ This guide helps Claude (and other AI assistants) use ServalSheets MCP server ef
 
 ## Overview
 
-ServalSheets provides 25 tools with 397 actions for comprehensive Google Sheets operations. It's production-grade with safety rails, semantic range resolution, and intelligent batching.
+ServalSheets provides 25 tools with 407 actions for comprehensive Google Sheets operations. It's production-grade with safety rails, semantic range resolution, and intelligent batching.
 
 ## MCP Protocol Notes (2025-11-25)
 
@@ -30,7 +30,7 @@ ServalSheets follows MCP 2025-11-25. Use protocol-level features when available.
   - `knowledge:///formulas/financial.json`, `knowledge:///formulas/lookup.json`, `knowledge:///formulas/key-formulas.json`
   - `knowledge:///templates/common-templates.json`
     Use resources/list and resources/read to discover and load.
-- Prompts: `welcome`, `test_connection`, `first_operation`, `analyze_spreadsheet`, `transform_data`, `create_report`, `clean_data`.
+- Prompts: use `prompts/list` to discover the full current set. Common starter workflows include `welcome`, `test_connection`, `first_operation`, `analyze_spreadsheet`, `transform_data`, `create_report`, and `clean_data`.
 - Long operations may emit MCP progress notifications. Treat them as status only.
 - Large reads may return `truncated: true` and `resourceUri`. You can read the URI with the range resource; if you cannot fetch it, request a narrower range or use batch reads.
 

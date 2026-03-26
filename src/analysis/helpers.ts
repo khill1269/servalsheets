@@ -36,6 +36,39 @@ export function pearson(x: number[], y: number[]): number {
 }
 
 /**
+ * Compute ranks for an array of numbers (handles ties using average rank).
+ */
+function rankValues(values: number[]): number[] {
+  const indexed = values.map((v, i) => ({ value: v, index: i }));
+  indexed.sort((a, b) => a.value - b.value);
+
+  const ranks = new Array<number>(values.length);
+  let i = 0;
+  while (i < indexed.length) {
+    let j = i;
+    while (j < indexed.length && indexed[j]!.value === indexed[i]!.value) {
+      j++;
+    }
+    const avgRank = (i + 1 + j) / 2;
+    for (let k = i; k < j; k++) {
+      ranks[indexed[k]!.index] = avgRank;
+    }
+    i = j;
+  }
+  return ranks;
+}
+
+/**
+ * Calculate Spearman rank correlation coefficient between two numeric arrays.
+ * Captures monotonic (non-linear) relationships that Pearson misses.
+ * Returns value between -1 and 1. Returns 0 for incompatible arrays.
+ */
+export function spearman(x: number[], y: number[]): number {
+  if (x.length === 0 || y.length === 0 || x.length !== y.length || x.length < 3) return 0;
+  return pearson(rankValues(x), rankValues(y));
+}
+
+/**
  * Determine the type of a single value
  * Returns: 'empty' | 'number' | 'boolean' | 'string' | 'other'
  */
@@ -177,50 +210,108 @@ export function detectAnomalies(values: unknown[][]): Array<{
 }
 
 /**
- * Analyze seasonality patterns in time series data
- * Simplified detection - looks for repeating patterns
- * Note: Production implementation should use FFT or autocorrelation
+ * Compute autocorrelation at a given lag for a numeric series.
+ * Returns a value between -1 and 1.
+ */
+function autocorrelation(values: number[], lag: number): number {
+  const n = values.length;
+  if (lag >= n || lag < 1) return 0;
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+
+  let numerator = 0;
+  let denominator = 0;
+  for (let i = 0; i < n; i++) {
+    denominator += (values[i]! - mean) ** 2;
+    if (i + lag < n) {
+      numerator += (values[i]! - mean) * (values[i + lag]! - mean);
+    }
+  }
+
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
+/**
+ * Analyze seasonality patterns in time series data using autocorrelation.
+ * Scans candidate periods (2-maxPeriod) and identifies the lag with the
+ * strongest positive autocorrelation peak, indicating a repeating cycle.
  */
 export function analyzeSeasonality(values: unknown[][]): {
   detected: boolean;
   period?: string;
+  periodLength?: number;
   pattern?: string;
   strength?: number;
   message?: string;
   note?: string;
 } {
-  if (values.length < 12) {
+  if (values.length < 6) {
     return {
       detected: false,
-      message: 'Insufficient data for seasonality analysis (need 12+ periods)',
+      message: 'Insufficient data for seasonality analysis (need 6+ periods)',
     };
   }
 
-  // Look for repeating patterns in first numeric column
-  const firstColumn = values.reduce<number[]>((acc, row) => {
+  // Extract first numeric column
+  const series = values.reduce<number[]>((acc, row) => {
     const val = row[0];
-    if (typeof val === 'number') {
+    if (typeof val === 'number' && !Number.isNaN(val)) {
       acc.push(val);
     }
     return acc;
   }, []);
-  if (firstColumn.length < 12) {
+
+  if (series.length < 6) {
     return { detected: false, message: 'Insufficient numeric data' };
   }
 
-  // Simple heuristic: check for monthly patterns (12-period cycle)
-  const period = 12;
-  if (firstColumn.length >= period * 2) {
-    return {
-      detected: true,
-      period: 'monthly',
-      pattern: 'Potential seasonal pattern detected',
-      strength: 0.65, // Placeholder
-      note: 'Full seasonality analysis requires more sophisticated algorithms',
-    };
+  // Scan candidate periods from 2 up to half the series length (need ≥2 full cycles)
+  const maxLag = Math.min(Math.floor(series.length / 2), 365);
+  let bestLag = 0;
+  let bestAcf = 0;
+
+  // Compute autocorrelation for each candidate lag
+  for (let lag = 2; lag <= maxLag; lag++) {
+    const acf = autocorrelation(series, lag);
+    if (acf > bestAcf) {
+      bestAcf = acf;
+      bestLag = lag;
+    }
   }
 
-  return { detected: false };
+  // Threshold: autocorrelation must be meaningfully positive to indicate seasonality
+  const DETECTION_THRESHOLD = 0.3;
+  if (bestAcf < DETECTION_THRESHOLD || bestLag === 0) {
+    return { detected: false, message: 'No significant seasonal pattern detected' };
+  }
+
+  // Map common periods to human-readable labels
+  const periodLabels: Record<number, string> = {
+    4: 'quarterly',
+    6: 'semi-annual',
+    7: 'weekly',
+    12: 'monthly (annual cycle)',
+    24: 'bi-monthly (2-year cycle)',
+    52: 'weekly (annual cycle)',
+    365: 'daily (annual cycle)',
+  };
+
+  // Find closest named period (within 15% tolerance)
+  let periodName = `${bestLag}-period cycle`;
+  for (const [knownPeriod, label] of Object.entries(periodLabels)) {
+    const p = Number(knownPeriod);
+    if (Math.abs(bestLag - p) / p <= 0.15) {
+      periodName = label;
+      break;
+    }
+  }
+
+  return {
+    detected: true,
+    period: periodName,
+    periodLength: bestLag,
+    pattern: `Repeating cycle every ${bestLag} periods (autocorrelation: ${bestAcf.toFixed(3)})`,
+    strength: Math.round(bestAcf * 100) / 100,
+  };
 }
 
 /**

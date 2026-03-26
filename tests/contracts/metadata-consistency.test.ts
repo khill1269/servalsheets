@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { TOOL_COUNT, ACTION_COUNT } from '../../src/schemas/action-counts.js';
+import { TOOL_COUNT, ACTION_COUNT, ACTION_COUNTS } from '../../src/schemas/action-counts.js';
 
 describe('Metadata Consistency Contract', () => {
   // No hardcoded expected values — TOOL_COUNT and ACTION_COUNT ARE the source of truth.
@@ -54,9 +54,51 @@ describe('Metadata Consistency Contract', () => {
     expect(serverJson.metadata.actionCount).toBe(ACTION_COUNT);
   });
 
+  it('server.json embeds icons as inline SVG data URIs', () => {
+    const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
+
+    expect(serverJson.icons).toBeDefined();
+    expect(serverJson.icons.length).toBeGreaterThan(0);
+
+    for (const icon of serverJson.icons as Array<{
+      src: string;
+      mimeType: string;
+      sizes?: string[];
+    }>) {
+      expect(icon.src).toMatch(/^data:image\/svg\+xml;base64,/);
+      expect(icon.mimeType).toBe('image/svg+xml');
+      expect(icon.sizes).toContain('24x24');
+    }
+  });
+
+  it('manifest.json has correct counts', () => {
+    const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
+
+    const expectedPattern = new RegExp(`${TOOL_COUNT}\\s+tools\\s+and\\s+${ACTION_COUNT}\\s+actions`, 'i');
+
+    expect(manifest.description).toMatch(expectedPattern);
+    expect(manifest.long_description).toMatch(expectedPattern);
+  });
+
+  it('manifest.json tool descriptions have correct action counts', () => {
+    const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
+
+    expect(manifest.tools).toHaveLength(TOOL_COUNT);
+
+    for (const tool of manifest.tools as Array<{ name: string; description: string }>) {
+      expect(tool.description).toMatch(/\(\d+\s+actions\)/i);
+      expect(tool.description).toContain(
+        `(${ACTION_COUNTS[tool.name as keyof typeof ACTION_COUNTS]} actions)`
+      );
+    }
+  });
+
   it('server.json instructions prioritize auth and direct routing over blanket analysis', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 
+    expect(serverJson.instructions).toContain('{"request":{"action":"..."');
+    expect(serverJson.instructions).toContain('LEGACY compatibility format');
+    expect(serverJson.instructions).not.toContain('Use flat format for all new tool calls');
     expect(serverJson.instructions).toContain('sheets_auth action "status"');
     expect(serverJson.instructions).toContain('route directly to the matching tool');
     expect(serverJson.instructions).toContain('sheets_analyze action "scout"');
@@ -129,11 +171,13 @@ describe('Metadata Consistency Contract', () => {
   it('all metadata sources are synchronized', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
+    const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
     const readme = readFileSync('README.md', 'utf-8');
 
     // Extract counts from each source
     const pkgMatch = pkg.description.match(/(\d+)\s+tools,?\s+(\d+)\s+actions/i);
     const serverDescMatch = serverJson.description.match(/(\d+)\s+tools\s+and\s+(\d+)\s+actions/i);
+    const manifestDescMatch = manifest.description.match(/(\d+)\s+tools\s+and\s+(\d+)\s+actions/i);
     const readmeMatch = readme.match(/(\d+)\s+tools[,\s]+(with\s+)?(\d+)\s+actions/i);
 
     // Verify all sources report same counts as source of truth
@@ -145,6 +189,10 @@ describe('Metadata Consistency Contract', () => {
     expect(serverDescMatch?.[1]).toBe(TOOL_COUNT.toString());
     expect(serverDescMatch?.[2]).toBe(ACTION_COUNT.toString());
 
+    expect(manifestDescMatch).toBeDefined();
+    expect(manifestDescMatch?.[1]).toBe(TOOL_COUNT.toString());
+    expect(manifestDescMatch?.[2]).toBe(ACTION_COUNT.toString());
+
     expect(readmeMatch).toBeDefined();
     expect(readmeMatch?.[1]).toBe(TOOL_COUNT.toString());
     expect(readmeMatch?.[3]).toBe(ACTION_COUNT.toString());
@@ -152,5 +200,7 @@ describe('Metadata Consistency Contract', () => {
     // Verify server.json metadata object
     expect(serverJson.metadata.toolCount).toBe(TOOL_COUNT);
     expect(serverJson.metadata.actionCount).toBe(ACTION_COUNT);
+    expect(manifest.version).toBe(pkg.version);
+    expect(serverJson.version).toBe(pkg.version);
   });
 });

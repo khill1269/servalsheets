@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FormatHandler } from '../../src/handlers/format.js';
 import { SheetsFormatOutputSchema } from '../../src/schemas/format.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import { parseNLConditionalFormat } from '../../src/handlers/format-actions/helpers.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -404,6 +405,55 @@ describe('FormatHandler', () => {
       expect(call.requestBody.requests[0]).toHaveProperty('addBanding');
     });
 
+    it('should remove overlapping banding before applying alternating_rows', async () => {
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                bandedRanges: [
+                  {
+                    bandedRangeId: 42,
+                    range: {
+                      sheetId: 0,
+                      startRowIndex: 0,
+                      endRowIndex: 2,
+                      startColumnIndex: 0,
+                      endColumnIndex: 2,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+
+      const result = await handler.handle({
+        action: 'apply_preset',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A2:Z100' },
+        preset: 'alternating_rows',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response._idempotent).toBe(true);
+      }
+
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      expect(call.requestBody.requests[0]).toEqual({
+        deleteBanding: { bandedRangeId: 42 },
+      });
+      expect(call.requestBody.requests[1]).toHaveProperty('addBanding');
+    });
+
     it('should apply currency preset', async () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
 
@@ -645,6 +695,84 @@ describe('FormatHandler', () => {
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
     });
+
+    it('should accept sheetName without an explicit range for suggest_format', async () => {
+      mockApi.spreadsheets.get
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Revenue Data',
+                  gridProperties: { rowCount: 120, columnCount: 4 },
+                },
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Revenue Data' },
+                data: [
+                  {
+                    rowData: [
+                      {
+                        values: [
+                          { formattedValue: 'Month' },
+                          { formattedValue: 'Revenue' },
+                          { formattedValue: 'Cost' },
+                          { formattedValue: 'Profit' },
+                        ],
+                      },
+                      {
+                        values: [
+                          { formattedValue: 'Jan' },
+                          { effectiveValue: { numberValue: 1000 } },
+                          { effectiveValue: { numberValue: 600 } },
+                          { effectiveValue: { numberValue: 400 } },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        });
+
+      const result = await handler.handle({
+        action: 'suggest_format',
+        spreadsheetId: 'test-id',
+        sheetName: 'Revenue Data',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.get).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          ranges: ["'Revenue Data'!A1:D50"],
+        })
+      );
+    });
+  });
+
+  describe('generate_conditional_format parsing', () => {
+    it('should generate a custom formula for cross-column comparisons', () => {
+      const parsed = parseNLConditionalFormat('highlight rows where column D less than column E');
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.rule).toMatchObject({
+        type: 'boolean',
+        condition: {
+          type: 'CUSTOM_FORMULA',
+          values: [{ userEnteredValue: '=$D2<$E2' }],
+        },
+      });
+    });
   });
 
   // ============================================================
@@ -880,7 +1008,7 @@ describe('FormatHandler', () => {
 
   describe('sparkline_clear action', () => {
     it('should clear sparkline from a cell', async () => {
-      mockApi.spreadsheets.values.clear.mockResolvedValue({ data: {} });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
         action: 'sparkline_clear',
@@ -893,10 +1021,27 @@ describe('FormatHandler', () => {
       if (result.response.success) {
         expect(result.response.cell).toBe('Sheet1!E1');
       }
-      expect(mockApi.spreadsheets.values.clear).toHaveBeenCalledWith({
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!E1',
-      });
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-id',
+          requestBody: {
+            requests: [
+              {
+                updateCells: {
+                  range: {
+                    sheetId: 0,
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 4,
+                    endColumnIndex: 5,
+                  },
+                  fields: 'userEnteredValue',
+                },
+              },
+            ],
+          },
+        })
+      );
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -911,7 +1056,7 @@ describe('FormatHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -955,6 +1100,46 @@ describe('FormatHandler', () => {
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
+    });
+
+    it('should accept condition values already shaped as Google API objects', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'rule_add_conditional_format',
+        spreadsheetId: 'test-id',
+        sheetId: 0,
+        range: { a1: 'Sheet1!A1:A100' },
+        rule: {
+          type: 'boolean',
+          condition: {
+            type: 'NUMBER_GREATER',
+            values: [{ userEnteredValue: '100' }] as unknown as string[],
+          },
+          format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            requests: [
+              expect.objectContaining({
+                addConditionalFormatRule: expect.objectContaining({
+                  rule: expect.objectContaining({
+                    booleanRule: expect.objectContaining({
+                      condition: expect.objectContaining({
+                        values: [{ userEnteredValue: '100' }],
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            ],
+          }),
+        })
+      );
     });
 
     it('should respect dryRun for rule_add_conditional_format', async () => {

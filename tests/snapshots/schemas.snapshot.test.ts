@@ -9,7 +9,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import * as schemas from '../../src/schemas/index.js';
 
@@ -36,10 +35,7 @@ describe('Schema Snapshots', () => {
       .filter(([name]) => name.endsWith('InputSchema'))
       .forEach(([name, schema]) => {
         it(`${name} should match snapshot`, () => {
-          const jsonSchema = zodToJsonSchema(schema, {
-            name,
-            $refStrategy: 'none', // Inline all refs for stability
-          });
+          const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
           expect(jsonSchema).toMatchSnapshot();
         });
       });
@@ -50,10 +46,7 @@ describe('Schema Snapshots', () => {
       .filter(([name]) => name.endsWith('OutputSchema'))
       .forEach(([name, schema]) => {
         it(`${name} should match snapshot`, () => {
-          const jsonSchema = zodToJsonSchema(schema, {
-            name,
-            $refStrategy: 'none',
-          });
+          const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
           expect(jsonSchema).toMatchSnapshot();
         });
       });
@@ -73,10 +66,7 @@ describe('Schema Snapshots', () => {
       const schema = (schemas as Record<string, unknown>)[schemaName];
       if (schema) {
         it(`${schemaName} should match snapshot`, () => {
-          const jsonSchema = zodToJsonSchema(schema, {
-            name: schemaName,
-            $refStrategy: 'none',
-          });
+          const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
           expect(jsonSchema).toMatchSnapshot();
         });
       }
@@ -92,7 +82,7 @@ describe('Schema Contract Guarantees', () => {
     );
 
     toolInputSchemas.forEach(([name, schema]) => {
-      const jsonSchema = zodToJsonSchema(schema, { $refStrategy: 'none' });
+      const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
       const properties = (jsonSchema as { properties?: Record<string, unknown> }).properties;
 
       // Tool input schemas should have action or request fields
@@ -111,7 +101,7 @@ describe('Schema Contract Guarantees', () => {
     );
 
     toolOutputSchemas.forEach(([name, schema]) => {
-      const jsonSchema = zodToJsonSchema(schema, { $refStrategy: 'none' });
+      const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
       const properties = (jsonSchema as { properties?: Record<string, unknown> }).properties;
 
       // Output schemas should have response field
@@ -123,13 +113,13 @@ describe('Schema Contract Guarantees', () => {
 
   it('all schemas should serialize to valid JSON', () => {
     schemaExports.forEach(([name, schema]) => {
-      const jsonSchema = zodToJsonSchema(schema, { $refStrategy: 'none' });
+      const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
 
       // Ensure schema can be serialized and is well-formed
       expect(jsonSchema).toBeDefined();
       expect(() => JSON.stringify(jsonSchema)).not.toThrow();
 
-      // Should have $schema property from zodToJsonSchema
+      // Should have $schema property from z.toJSONSchema (draft/2020-12)
       expect(jsonSchema).toHaveProperty('$schema');
     });
   });

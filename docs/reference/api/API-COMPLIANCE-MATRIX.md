@@ -3,7 +3,7 @@ title: Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix
 category: general
 last_updated: 2026-01-31
 description: Comprehensive mapping between Google Sheets API v4 and ServalSheets MCP tools
-version: 1.6.0
+version: 2.0.0
 tags: [api, sheets, compliance]
 ---
 
@@ -272,7 +272,7 @@ Required for: Sharing, Comments, Version History, File Operations
 
 | Feature                | Spec Version | Status | Implementation          |
 | ---------------------- | ------------ | ------ | ----------------------- |
-| Tool Registration      | 2025-11-25   | ✅     | 25 tools, 391 actions   |
+| Tool Registration      | 2025-11-25   | ✅     | 25 tools, 407 actions   |
 | Tool Annotations       | 2025-11-25   | ✅     | All 4 hints             |
 | Structured Errors      | 2025-11-25   | ✅     | 40+ error codes         |
 | Progress Notifications | 2025-11-25   | ✅     | Streaming support       |
@@ -473,5 +473,5 @@ RequestBuilder.autoFill();
 ---
 
 _Updated: 2026-02-04_
-_ServalSheets Version: 1.6.0_
+_ServalSheets Version: 2.0.0_
 _MCP Protocol: 2025-11-25_

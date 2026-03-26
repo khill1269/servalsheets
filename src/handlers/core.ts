@@ -763,7 +763,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     // Prefer tabColorStyle.rgbColor (non-deprecated) over tabColor (deprecated)
     const color = tabColorStyle?.rgbColor ?? tabColor;
     // OK: Explicit empty - tab color is optional, undefined means no color set
-    if (!color) return undefined;
+    if (!color) return undefined; // OK: Explicit empty
     return {
       red: color.red ?? 0,
       green: color.green ?? 0,

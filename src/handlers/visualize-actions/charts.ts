@@ -16,6 +16,7 @@ import type {
 } from '../../schemas/visualize.js';
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import {
+  indexToColumnLetter,
   parseCellReference,
   toGridRange as toApiGridRange,
   type GridRangeInput,
@@ -25,17 +26,20 @@ import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 import { logger } from '../../utils/logger.js';
 import { recordChartId } from '../../mcp/completions.js';
 
-const ELICITABLE_CHART_TYPES = [
+const BASIC_CHART_TYPES = [
   'BAR',
   'LINE',
-  'PIE',
-  'COLUMN',
-  'SCATTER',
   'AREA',
   'COMBO',
   'STEPPED_AREA',
+  'COLUMN',
+  'SCATTER',
+] as const;
+
+const ELICITABLE_CHART_TYPES = [
+  ...BASIC_CHART_TYPES,
+  'PIE',
   'DOUGHNUT',
-  'RADAR',
   'BUBBLE',
   'CANDLESTICK',
   'HISTOGRAM',
@@ -48,6 +52,10 @@ type ElicitableChartType = (typeof ELICITABLE_CHART_TYPES)[number];
 
 function isElicitableChartType(value: unknown): value is ElicitableChartType {
   return typeof value === 'string' && (ELICITABLE_CHART_TYPES as readonly string[]).includes(value);
+}
+
+function isBasicChartType(value: unknown): value is (typeof BASIC_CHART_TYPES)[number] {
+  return typeof value === 'string' && (BASIC_CHART_TYPES as readonly string[]).includes(value);
 }
 
 /**
@@ -85,6 +93,91 @@ interface ChartsDeps {
   notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
 }
 
+interface OverlayPositionInput {
+  sheetId?: number;
+  offsetX?: number;
+  offsetY?: number;
+  width?: number;
+  height?: number;
+}
+
+type ResolvedOverlayAnchor = {
+  parsed: ReturnType<typeof parseCellReference>;
+  sheetId: number;
+};
+
+function buildSingleColumnChartData(
+  dataRange: GridRangeInput,
+  columnIndex: number
+): sheets_v4.Schema$ChartData {
+  return {
+    sourceRange: {
+      sources: [
+        {
+          ...toApiGridRange(dataRange),
+          startColumnIndex: (dataRange.startColumnIndex ?? 0) + columnIndex,
+          endColumnIndex: (dataRange.startColumnIndex ?? 0) + columnIndex + 1,
+        },
+      ],
+    },
+  };
+}
+
+function inferChartType(spec?: sheets_v4.Schema$ChartSpec): ElicitableChartType {
+  if (spec?.basicChart?.chartType && isElicitableChartType(spec.basicChart.chartType)) {
+    return spec.basicChart.chartType;
+  }
+
+  if (spec?.bubbleChart) {
+    return 'BUBBLE';
+  }
+  if (spec?.candlestickChart) {
+    return 'CANDLESTICK';
+  }
+  if (spec?.histogramChart) {
+    return 'HISTOGRAM';
+  }
+  if (spec?.orgChart) {
+    return 'ORG';
+  }
+  if (spec?.pieChart) {
+    return spec.pieChart.pieHole && spec.pieChart.pieHole > 0 ? 'DOUGHNUT' : 'PIE';
+  }
+  if (spec?.scorecardChart) {
+    return 'SCORECARD';
+  }
+  if (spec?.treemapChart) {
+    return 'TREEMAP';
+  }
+  if (spec?.waterfallChart) {
+    return 'WATERFALL';
+  }
+
+  return 'BAR';
+}
+
+function buildChartBackground(
+  options?: ChartCreateInput['options']
+): Pick<sheets_v4.Schema$ChartSpec, 'backgroundColor' | 'backgroundColorStyle'> {
+  const backgroundColorStyle =
+    options?.backgroundColorStyle ??
+    (options?.backgroundColor ? { rgbColor: options.backgroundColor } : undefined);
+  const backgroundColor =
+    options?.backgroundColor ??
+    (backgroundColorStyle && 'rgbColor' in backgroundColorStyle
+      ? backgroundColorStyle.rgbColor
+      : undefined);
+
+  if (!backgroundColorStyle && !backgroundColor) {
+    return {}; // OK: no background color defined
+  }
+
+  return {
+    backgroundColor,
+    backgroundColorStyle,
+  };
+}
+
 export async function handleChartCreateAction(
   input: ChartCreateInput,
   deps: ChartsDeps
@@ -103,7 +196,7 @@ export async function handleChartCreateAction(
               type: 'string',
               title: 'Chart type',
               description:
-                'Choose the type of chart to create. Basic: BAR (horizontal bars), LINE (trend over time), PIE (proportions), COLUMN (vertical bars), SCATTER (correlation), AREA (cumulative trend). Advanced: COMBO (mixed bar+line), STEPPED_AREA (staircase area), DOUGHNUT (pie with hole), RADAR (multi-axis web), BUBBLE (3-variable scatter), CANDLESTICK (stock price OHLC), HISTOGRAM (frequency distribution), ORG (hierarchy/org chart), TREEMAP (hierarchical rectangles), WATERFALL (running total with positive/negative), SCORECARD (single KPI metric display)',
+                'Choose the type of chart to create. Basic: BAR (horizontal bars), LINE (trend over time), PIE (proportions), COLUMN (vertical bars), SCATTER (correlation), AREA (cumulative trend). Advanced: COMBO (mixed bar+line), STEPPED_AREA (staircase area), DOUGHNUT (pie with hole), BUBBLE (3-variable scatter), CANDLESTICK (stock price OHLC), HISTOGRAM (frequency distribution), ORG (hierarchy/org chart), TREEMAP (hierarchical rectangles), WATERFALL (running total with positive/negative), SCORECARD (single KPI metric display)',
               enum: [
                 'BAR',
                 'LINE',
@@ -114,7 +207,6 @@ export async function handleChartCreateAction(
                 'COMBO',
                 'STEPPED_AREA',
                 'DOUGHNUT',
-                'RADAR',
                 'BUBBLE',
                 'CANDLESTICK',
                 'HISTOGRAM',
@@ -170,14 +262,59 @@ export async function handleChartCreateAction(
     }
   }
 
+  if (!resolvedInput.data?.sourceRange) {
+    return deps.error({
+      code: 'INVALID_PARAMS',
+      message:
+        'chart_create requires data.sourceRange. Example: { "data": { "sourceRange": "Sheet1!A1:B10" } }. Top-level "sourceRange" or "dataRange" fields are not supported — wrap in a "data" object.',
+      retryable: false,
+    });
+  }
+
+  // Idempotency guard: check if a chart with the same title already exists on the target sheet
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: resolvedInput.spreadsheetId,
+      fields: 'sheets.charts,sheets.properties.sheetId',
+    });
+
+    const targetSheetId = resolvedInput.position.sheetId;
+    const chartTitle = resolvedInput.options?.title;
+
+    if (chartTitle) {
+      for (const sheet of existing.data.sheets ?? []) {
+        if (sheet.properties?.sheetId === targetSheetId) {
+          const duplicate = sheet.charts?.find((c) => c.spec?.title === chartTitle);
+          if (duplicate && duplicate.chartId !== undefined) {
+            return deps.success('chart_create', {
+              chartId: duplicate.chartId,
+              _idempotent: true,
+              _hint: `Chart "${chartTitle}" already exists on this sheet. Returning existing chart instead of creating a duplicate.`,
+            });
+          }
+          break;
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
+
   const dataRange = await deps.toGridRange(
     resolvedInput.spreadsheetId,
     resolvedInput.data.sourceRange
   );
-  const position = await toOverlayPosition(
+  const resolvedAnchor = await resolveOverlayAnchor(
     deps,
     resolvedInput.spreadsheetId,
     resolvedInput.position.anchorCell,
+    resolvedInput.position
+  );
+  if ('code' in resolvedAnchor) {
+    return deps.error(resolvedAnchor);
+  }
+  const position = await toOverlayPosition(
+    resolvedAnchor,
     resolvedInput.position
   );
 
@@ -263,6 +400,23 @@ export async function handleChartUpdateAction(
     if (input.options?.title) {
       updatedSpec.title = input.options.title;
     }
+    if (input.chartType && !isBasicChartType(input.chartType)) {
+      return deps.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: `chart_update only supports switching among basic chart types. Recreate the chart to change to ${input.chartType}.`,
+        retryable: false,
+        suggestedFix:
+          'Use chart_create with the target chart type, then delete the old chart if needed',
+      });
+    }
+    if (input.chartType && !updatedSpec.basicChart) {
+      return deps.error({
+        code: ErrorCodes.INVALID_PARAMS,
+        message: 'chart_update can only change chartType for existing basic charts',
+        retryable: false,
+        suggestedFix: 'Recreate the chart when switching between chart families',
+      });
+    }
     if (input.chartType && updatedSpec.basicChart) {
       updatedSpec.basicChart = { ...updatedSpec.basicChart, chartType: input.chartType };
     }
@@ -276,10 +430,17 @@ export async function handleChartUpdateAction(
   }
 
   if (input.position) {
-    const position = await toOverlayPosition(
+    const resolvedAnchor = await resolveOverlayAnchor(
       deps,
       input.spreadsheetId,
       input.position.anchorCell,
+      input.position
+    );
+    if ('code' in resolvedAnchor) {
+      return deps.error(resolvedAnchor);
+    }
+    const position = await toOverlayPosition(
+      resolvedAnchor,
       input.position
     );
     requests.push({
@@ -384,24 +545,7 @@ export async function handleChartListAction(
 
   const charts: Array<{
     chartId: number;
-    chartType:
-      | 'BAR'
-      | 'LINE'
-      | 'AREA'
-      | 'COLUMN'
-      | 'SCATTER'
-      | 'COMBO'
-      | 'STEPPED_AREA'
-      | 'PIE'
-      | 'DOUGHNUT'
-      | 'TREEMAP'
-      | 'WATERFALL'
-      | 'HISTOGRAM'
-      | 'CANDLESTICK'
-      | 'ORG'
-      | 'RADAR'
-      | 'SCORECARD'
-      | 'BUBBLE';
+    chartType: ElicitableChartType;
     sheetId: number;
     title?: string;
     position: {
@@ -421,24 +565,7 @@ export async function handleChartListAction(
       const overlay = chart.position?.overlayPosition;
       charts.push({
         chartId: chart.chartId ?? 0,
-        chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as
-          | 'BAR'
-          | 'LINE'
-          | 'AREA'
-          | 'COLUMN'
-          | 'SCATTER'
-          | 'COMBO'
-          | 'STEPPED_AREA'
-          | 'PIE'
-          | 'DOUGHNUT'
-          | 'TREEMAP'
-          | 'WATERFALL'
-          | 'HISTOGRAM'
-          | 'CANDLESTICK'
-          | 'ORG'
-          | 'RADAR'
-          | 'SCORECARD'
-          | 'BUBBLE',
+        chartType: inferChartType(chart.spec),
         sheetId,
         title: chart.spec?.title ?? undefined,
         position: {
@@ -479,24 +606,7 @@ export async function handleChartGetAction(
           charts: [
             {
               chartId: chart.chartId ?? 0,
-              chartType: (chart.spec?.basicChart?.chartType ?? 'BAR') as
-                | 'BAR'
-                | 'LINE'
-                | 'AREA'
-                | 'COLUMN'
-                | 'SCATTER'
-                | 'COMBO'
-                | 'STEPPED_AREA'
-                | 'PIE'
-                | 'DOUGHNUT'
-                | 'TREEMAP'
-                | 'WATERFALL'
-                | 'HISTOGRAM'
-                | 'CANDLESTICK'
-                | 'ORG'
-                | 'RADAR'
-                | 'SCORECARD'
-                | 'BUBBLE',
+              chartType: inferChartType(chart.spec),
               sheetId: overlay?.anchorCell?.sheetId ?? 0,
               title: chart.spec?.title ?? undefined,
               position: {
@@ -522,10 +632,17 @@ export async function handleChartMoveAction(
   input: ChartMoveInput,
   deps: ChartsDeps
 ): Promise<VisualizeResponse> {
-  const position = await toOverlayPosition(
+  const resolvedAnchor = await resolveOverlayAnchor(
     deps,
     input.spreadsheetId,
     input.position.anchorCell,
+    input.position
+  );
+  if ('code' in resolvedAnchor) {
+    return deps.error(resolvedAnchor);
+  }
+  const position = await toOverlayPosition(
+    resolvedAnchor,
     input.position
   );
 
@@ -551,6 +668,8 @@ export async function handleChartResizeAction(
   input: ChartResizeInput,
   deps: ChartsDeps
 ): Promise<VisualizeResponse> {
+  // BUG-4 fix: Only update width/height fields to avoid resetting position.
+  // Use specific field mask to tell Google API which sub-fields to update.
   const currentPosition = await fetchChartPosition(deps, input.spreadsheetId, input.chartId);
 
   await deps.sheetsApi.spreadsheets.batchUpdate({
@@ -569,7 +688,8 @@ export async function handleChartResizeAction(
                 heightPixels: input.height,
               },
             },
-            fields: 'overlayPosition',
+            fields:
+              'overlayPosition(anchorCell,offsetXPixels,offsetYPixels,widthPixels,heightPixels)',
           },
         },
       ],
@@ -940,6 +1060,7 @@ function buildBasicChartSpec(
 
   return {
     title: options?.title,
+    ...buildChartBackground(options),
     basicChart: {
       chartType: chartType ?? 'BAR',
       headerCount: 1,
@@ -957,7 +1078,14 @@ function buildBasicChartSpec(
           series: { sourceRange: { sources: [range] } },
           // BAR charts require BOTTOM_AXIS, all others use LEFT_AXIS
           targetAxis: chartType === 'BAR' ? 'BOTTOM_AXIS' : 'LEFT_AXIS',
-          color: seriesData?.color,
+          color:
+            seriesData?.color ??
+            (seriesData?.colorStyle && 'rgbColor' in seriesData.colorStyle
+              ? seriesData.colorStyle.rgbColor
+              : undefined),
+          colorStyle:
+            seriesData?.colorStyle ??
+            (seriesData?.color ? { rgbColor: seriesData.color } : undefined),
         };
 
         // Add trendline if configured (only for compatible chart types)
@@ -1065,6 +1193,7 @@ function buildChartSpec(
     case 'DOUGHNUT':
       return {
         title,
+        ...buildChartBackground(options),
         pieChart: {
           domain: {
             sourceRange: {
@@ -1099,6 +1228,7 @@ function buildChartSpec(
     case 'HISTOGRAM':
       return {
         title,
+        ...buildChartBackground(options),
         histogramChart: {
           series: [
             {
@@ -1112,6 +1242,7 @@ function buildChartSpec(
     case 'SCORECARD':
       return {
         title,
+        ...buildChartBackground(options),
         scorecardChart: {
           keyValueData: {
             sourceRange: { sources: [gridRange] },
@@ -1123,6 +1254,7 @@ function buildChartSpec(
     case 'WATERFALL':
       return {
         title,
+        ...buildChartBackground(options),
         waterfallChart: {
           domain: { data: { sourceRange: { sources: [gridRange] } } },
           series: [{ data: { sourceRange: { sources: [gridRange] } } }],
@@ -1133,6 +1265,7 @@ function buildChartSpec(
     case 'CANDLESTICK':
       return {
         title,
+        ...buildChartBackground(options),
         candlestickChart: {
           domain: { data: { sourceRange: { sources: [gridRange] } } },
           data: [
@@ -1149,6 +1282,7 @@ function buildChartSpec(
     case 'TREEMAP':
       return {
         title,
+        ...buildChartBackground(options),
         treemapChart: {
           labels: { sourceRange: { sources: [gridRange] } },
           parentLabels: { sourceRange: { sources: [gridRange] } },
@@ -1157,7 +1291,64 @@ function buildChartSpec(
         },
       };
 
-    // BAR, LINE, AREA, COLUMN, SCATTER, COMBO, STEPPED_AREA, and others use BasicChartSpec
+    case 'BUBBLE': {
+      const xColumn = data.categories ?? data.series?.[0]?.column ?? 0;
+      const yColumn =
+        data.categories !== undefined
+          ? (data.series?.[0]?.column ?? data.categories + 1)
+          : (data.series?.[1]?.column ?? (data.series?.[0]?.column ?? 0) + 1);
+      const bubbleSizeColumn =
+        data.categories !== undefined ? data.series?.[1]?.column : data.series?.[2]?.column;
+      const bubbleLabelColumn =
+        data.categories !== undefined ? data.series?.[2]?.column : data.series?.[3]?.column;
+      const groupIdColumn =
+        data.categories !== undefined ? data.series?.[3]?.column : data.series?.[4]?.column;
+
+      return {
+        title,
+        ...buildChartBackground(options),
+        bubbleChart: {
+          legendPosition: options?.legendPosition,
+          domain: buildSingleColumnChartData(dataRange, xColumn),
+          series: buildSingleColumnChartData(dataRange, yColumn),
+          bubbleSizes:
+            bubbleSizeColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, bubbleSizeColumn)
+              : undefined,
+          bubbleLabels:
+            bubbleLabelColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, bubbleLabelColumn)
+              : undefined,
+          groupIds:
+            groupIdColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, groupIdColumn)
+              : undefined,
+        },
+      };
+    }
+
+    case 'ORG': {
+      const labelColumn = data.categories ?? 0;
+      const parentLabelColumn = data.series?.[0]?.column;
+      const tooltipColumn = data.series?.[1]?.column;
+
+      return {
+        title,
+        orgChart: {
+          labels: buildSingleColumnChartData(dataRange, labelColumn),
+          parentLabels:
+            parentLabelColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, parentLabelColumn)
+              : undefined,
+          tooltips:
+            tooltipColumn !== undefined
+              ? buildSingleColumnChartData(dataRange, tooltipColumn)
+              : undefined,
+        },
+      };
+    }
+
+    // BAR, LINE, AREA, COLUMN, SCATTER, COMBO, STEPPED_AREA use BasicChartSpec
     default:
       return buildBasicChartSpec(
         dataRange,
@@ -1168,19 +1359,63 @@ function buildChartSpec(
   }
 }
 
-async function toOverlayPosition(
+async function resolveOverlayAnchor(
   deps: ChartsDeps,
   spreadsheetId: string,
   anchorCell: string,
-  position: {
-    offsetX?: number;
-    offsetY?: number;
-    width?: number;
-    height?: number;
-  }
-): Promise<sheets_v4.Schema$EmbeddedObjectPosition> {
+  position: OverlayPositionInput
+): Promise<ResolvedOverlayAnchor | ErrorDetail> {
   const parsed = parseCellReference(anchorCell);
-  const sheetId = await deps.resolveSheetId(spreadsheetId, parsed.sheetName);
+  const sheetId = position.sheetId ?? (await deps.resolveSheetId(spreadsheetId, parsed.sheetName));
+  const response = await deps.sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields:
+      'sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount',
+  });
+  const sheet = response.data.sheets?.find((entry) => entry.properties?.sheetId === sheetId);
+
+  if (!sheet?.properties) {
+    return {
+      code: ErrorCodes.NOT_FOUND,
+      message: `Sheet ${parsed.sheetName ?? sheetId} not found`,
+      retryable: false,
+      suggestedFix: 'Use an existing sheet name or an explicit position.sheetId for the chart anchor.',
+    };
+  }
+
+  const rowCount = sheet.properties.gridProperties?.rowCount ?? 0;
+  const columnCount = sheet.properties.gridProperties?.columnCount ?? 0;
+  if (parsed.row >= rowCount || parsed.col >= columnCount) {
+    const suggestedAnchor = 'A1';
+    return {
+      code: ErrorCodes.INVALID_PARAMS,
+      message: `anchorCell ${anchorCell} is outside the grid bounds for sheet "${sheet.properties.title ?? 'unknown'}"`,
+      category: 'client',
+      severity: 'medium',
+      retryable: false,
+      suggestedFix: `Choose an anchorCell within rows 1-${rowCount} and columns A-${indexToColumnLetter(Math.max(columnCount - 1, 0))}. Suggested anchor: ${suggestedAnchor}.`,
+      details: {
+        reasonCode: 'ANCHOR_OUT_OF_BOUNDS',
+        anchorCell,
+        requestedRow: parsed.row + 1,
+        requestedColumn: indexToColumnLetter(parsed.col),
+        sheetId,
+        sheetTitle: sheet.properties.title ?? 'unknown',
+        sheetRowCount: rowCount,
+        sheetColumnCount: columnCount,
+        suggestedAnchor,
+      },
+    };
+  }
+
+  return { parsed, sheetId };
+}
+
+async function toOverlayPosition(
+  resolvedAnchor: ResolvedOverlayAnchor,
+  position: OverlayPositionInput
+): Promise<sheets_v4.Schema$EmbeddedObjectPosition> {
+  const { parsed, sheetId } = resolvedAnchor;
 
   return {
     overlayPosition: {

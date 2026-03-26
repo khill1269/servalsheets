@@ -3,7 +3,7 @@ title: HTTP Transport Authentication
 category: general
 last_updated: 2026-01-31
 description: 'ServalSheets HTTP transport supports two authentication modes:'
-version: 1.6.0
+version: 2.0.0
 tags: [security, sheets]
 ---
 

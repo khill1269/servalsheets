@@ -7,6 +7,7 @@
 
 import cron from 'node-cron';
 import { logger } from '../utils/logger.js';
+import { ConfigError, NotFoundError, ServiceError, ValidationError } from '../core/errors.js';
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -28,7 +29,13 @@ import { FredConnector } from './fred.js';
 import { AlphaVantageConnector } from './alpha-vantage.js';
 import { FmpConnector } from './fmp.js';
 import { PolygonConnector } from './polygon.js';
+import { GmailConnector } from './gmail-connector.js';
+import { DriveConnector } from './drive-connector.js';
+import { DocsConnector } from './docs-connector.js';
 import { GenericRestConnector } from './rest-generic.js';
+import { SecEdgarConnector } from './sec-edgar-connector.js';
+import { WorldBankConnector } from './world-bank-connector.js';
+import { OpenFigiConnector } from './openfigi-connector.js';
 
 // ============================================================================
 // Persistent Configuration Store
@@ -68,22 +75,36 @@ function getOrCreateSalt(configDir: string = CONNECTOR_CONFIG_DIR): Buffer {
   }
 }
 
+// Memoize derived key per password+salt to avoid 800ms scryptSync on every call.
+// Key is derived once per process lifetime; invalidated if env var or salt changes.
+let _cachedDerivedKey: { password: string; salt: string; key: Buffer } | null = null;
+
 function deriveKey(configDir: string = CONNECTOR_CONFIG_DIR): Buffer | null {
   const password = process.env['CONNECTOR_ENCRYPTION_KEY'];
   if (!password) return null;
   const salt = getOrCreateSalt(configDir);
+  const saltHex = salt.toString('hex');
+
+  // Return cached key if password and salt are unchanged
+  if (_cachedDerivedKey && _cachedDerivedKey.password === password && _cachedDerivedKey.salt === saltHex) {
+    return _cachedDerivedKey.key;
+  }
+
   // OWASP-recommended scrypt parameters: N=131072 (2^17), r=8, p=1
   // Node.js defaults (N=16384) are insufficient for credential encryption.
   // Explicit maxmem is required for these stronger parameters; Node's default limit is too low.
-  return scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
+  const key = scryptSync(password, salt, 32, { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
+  _cachedDerivedKey = { password, salt: saltHex, key };
+  return key;
 }
 
 function encryptConfig(plaintext: string, configDir: string = CONNECTOR_CONFIG_DIR): string {
   const key = deriveKey(configDir);
   if (!key) {
-    throw new Error(
+    throw new ConfigError(
       'Cannot save connector credentials: CONNECTOR_ENCRYPTION_KEY is not set. ' +
-        'Set this environment variable to enable encrypted credential storage.'
+        'Set this environment variable to enable encrypted credential storage.',
+      'CONNECTOR_ENCRYPTION_KEY'
     );
   }
 
@@ -439,9 +460,11 @@ class SubscriptionEngine {
     let timer: ReturnType<typeof setInterval> | ReturnType<typeof cron.schedule>;
     if (schedule.interval === 'custom' && schedule.customCronExpression) {
       if (!cron.validate(schedule.customCronExpression)) {
-        throw new Error(
+        throw new ValidationError(
           `Invalid cron expression: "${schedule.customCronExpression}". ` +
-            'Use standard 5-field cron format (e.g., "0 */6 * * *" for every 6 hours).'
+            'Use standard 5-field cron format (e.g., "0 */6 * * *" for every 6 hours).',
+          'customCronExpression',
+          '0 */6 * * *'
         );
       }
       timer = cron.schedule(schedule.customCronExpression, runRefresh, {
@@ -613,6 +636,7 @@ function safeEvaluateExpression(expr: string): number | null {
   if (!/^[\d+\-*/.()]+$/.test(cleaned)) return null;
   try {
     // Use Function constructor for arithmetic only (safer than eval, no variable access)
+
     const result = new Function(`return (${cleaned})`)();
     return typeof result === 'number' && isFinite(result) ? result : null;
   } catch {
@@ -955,10 +979,13 @@ export class ConnectorManager {
   ): Promise<DataResult> {
     const entry = this.registry.get(connectorId);
     if (!entry) {
-      throw new Error(`Connector '${connectorId}' not found`);
+      throw new NotFoundError('connector', connectorId);
     }
     if (!entry.configured) {
-      throw new Error(`Connector '${connectorId}' is not configured. Use configure action first.`);
+      throw new ConfigError(
+        `Connector '${connectorId}' is not configured. Use configure action first.`,
+        connectorId
+      );
     }
 
     // Check cache
@@ -974,7 +1001,12 @@ export class ConnectorManager {
 
     // Check quota
     if (!this.quotaManager.tryConsume(connectorId)) {
-      throw new Error(`Rate limit exceeded for '${connectorId}'. Try again later.`);
+      throw new ServiceError(
+        `Rate limit exceeded for '${connectorId}'. Try again later.`,
+        'QUOTA_EXCEEDED',
+        connectorId,
+        true
+      );
     }
 
     // Execute query
@@ -1014,8 +1046,9 @@ export class ConnectorManager {
     destination: { spreadsheetId: string; range: string }
   ): Subscription {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
-    if (!entry.configured) throw new Error(`Connector '${connectorId}' is not configured`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
+    if (!entry.configured)
+      throw new ConfigError(`Connector '${connectorId}' is not configured`, connectorId);
 
     return this.subscriptionEngine.add(
       connectorId,
@@ -1059,7 +1092,7 @@ export class ConnectorManager {
     quota: { used: number; limit: number };
   }> {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
 
     let health: HealthStatus | null = null;
     if (entry.configured) {
@@ -1087,8 +1120,9 @@ export class ConnectorManager {
 
   async discover(connectorId: string): Promise<{ endpoints: DataEndpoint[] }> {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
-    if (!entry.configured) throw new Error(`Connector '${connectorId}' is not configured`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
+    if (!entry.configured)
+      throw new ConfigError(`Connector '${connectorId}' is not configured`, connectorId);
 
     const endpoints = await entry.connector.listEndpoints();
     return { endpoints };
@@ -1096,7 +1130,7 @@ export class ConnectorManager {
 
   async getEndpointSchema(connectorId: string, endpoint: string): Promise<DataSchema> {
     const entry = this.registry.get(connectorId);
-    if (!entry) throw new Error(`Connector '${connectorId}' not found`);
+    if (!entry) throw new NotFoundError('connector', connectorId);
     return entry.connector.getSchema(endpoint);
   }
 
@@ -1242,6 +1276,12 @@ export function registerBuiltinConnectors(manager: ConnectorManager = connectorM
     new AlphaVantageConnector(),
     new FmpConnector(),
     new PolygonConnector(),
+    new GmailConnector(),
+    new DriveConnector(),
+    new DocsConnector(),
+    new SecEdgarConnector(),
+    new WorldBankConnector(),
+    new OpenFigiConnector(),
     createDefaultRestConnector(),
   ];
 

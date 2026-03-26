@@ -3,7 +3,7 @@ title: Debugging and Testing ServalSheets
 category: development
 last_updated: 2026-01-31
 description: This document describes tools and techniques for debugging and testing the ServalSheets MCP server.
-version: 1.6.0
+version: 2.0.0
 tags: [testing, sheets]
 ---
 

@@ -8,6 +8,7 @@ set -e
 export PATH="$HOME/google-cloud-sdk/bin:$PATH"
 
 PROJECT_ID="serval-sheets"
+DISPLAY_OAUTH_CLIENT_ID="${OAUTH_CLIENT_ID:-<set OAUTH_CLIENT_ID in your shell or .env>}"
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -66,8 +67,8 @@ echo ""
 
 # Verify OAuth credentials
 echo -e "${YELLOW}Step 4: Verifying OAuth2 Client ID${NC}"
-echo "Your OAuth credentials from .env:"
-echo "  Client ID: REDACTED_OAUTH_CLIENT_ID"
+echo "Your OAuth credentials should match the values in your .env or shell:"
+echo "  Client ID: $DISPLAY_OAUTH_CLIENT_ID"
 echo ""
 echo "Verify this client exists in Google Cloud Console:"
 open "https://console.cloud.google.com/apis/credentials?project=$PROJECT_ID"
@@ -136,8 +137,8 @@ echo '     {
            "command": "node",
            "args": ["'$(pwd)'/dist/cli.js"],
            "env": {
-             "OAUTH_CLIENT_ID": "REDACTED_OAUTH_CLIENT_ID",
-             "OAUTH_CLIENT_SECRET": "REDACTED_OAUTH_CLIENT_SECRET",
+             "OAUTH_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+             "OAUTH_CLIENT_SECRET": "your-client-secret",
              "OAUTH_REDIRECT_URI": "http://localhost:3000/callback"
            }
          }

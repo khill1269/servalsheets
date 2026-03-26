@@ -5,10 +5,11 @@ import type { OperationHistory } from '../../src/types/history.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+let _opCounter = 0;
 function makeOp(overrides: Partial<OperationHistory> = {}): OperationHistory {
   return {
-    id: `op-${Math.random().toString(36).substring(2, 9)}`,
-    timestamp: new Date().toISOString(),
+    id: `op-fixed-${String(++_opCounter).padStart(3, '0')}`,
+    timestamp: new Date('2024-01-15T00:00:00Z').toISOString(),
     tool: 'sheets_data',
     action: 'write_range',
     params: { range: 'Sheet1!A1:B10' },
@@ -136,7 +137,7 @@ describe('TimeTravelDebugger', () => {
     });
 
     it('blameOperation finds dependent operations', () => {
-      const now = Date.now();
+      const now = 1704067200000;
       const op1 = makeOp({
         id: 'op-target',
         timestamp: new Date(now).toISOString(),

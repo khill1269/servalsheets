@@ -11,10 +11,12 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
-import { getValidationEngine } from '../services/validation-engine.js';
+import { ValidationEngine, getValidationEngine } from '../services/validation-engine.js';
 import { getConflictDetector } from '../services/conflict-detector.js';
 import { getImpactAnalyzer } from '../services/impact-analyzer.js';
 import type {
+  BuiltinValidationRuleInput,
+  CustomValidationRuleInput,
   SheetsQualityInput,
   SheetsQualityOutput,
   QualityResponse,
@@ -22,6 +24,7 @@ import type {
   QualityDetectConflictsInput,
   QualityResolveConflictInput,
   QualityAnalyzeImpactInput,
+  ValidationRuleInput,
 } from '../schemas/quality.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
@@ -31,9 +34,234 @@ import { sendProgress } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 import { generateAIInsight } from '../mcp/sampling.js';
 import type { SamplingServer } from '../mcp/sampling.js';
+import type { ValidationContext, ValidationRule } from '../types/validation.js';
+import type { Conflict as ConflictRecord } from '../types/conflict.js';
 
 export interface QualityHandlerOptions {
   samplingServer?: SamplingServer;
+}
+
+function isBuiltinRuleInput(rule: ValidationRuleInput): rule is BuiltinValidationRuleInput {
+  return typeof rule === 'string';
+}
+
+function isCustomRuleInput(rule: ValidationRuleInput): rule is CustomValidationRuleInput {
+  return typeof rule === 'object' && rule !== null;
+}
+
+function normalizeComparableValue(value: unknown): string | number | boolean | null | undefined {
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return '';
+    }
+    const numericValue = Number(trimmed);
+    return Number.isFinite(numericValue) ? numericValue : trimmed;
+  }
+
+  return undefined; // OK: Explicit empty - unsupported comparison values are ignored
+}
+
+function buildCustomRuleId(rule: CustomValidationRuleInput, index: number): string {
+  return rule.id ?? `custom_${rule.type}_${index + 1}`;
+}
+
+function resolveContextLookupValue(
+  context: ValidationContext | undefined,
+  contextKey: string
+): unknown {
+  const metadata =
+    context?.metadata && typeof context.metadata === 'object'
+      ? (context.metadata as Record<string, unknown>)
+      : undefined;
+  const root = context as Record<string, unknown> | undefined;
+  return metadata?.[contextKey] ?? root?.[contextKey];
+}
+
+function buildValidationContext(
+  inputContext: QualityValidateInput['context'],
+  requestedRuleIds?: string[]
+): ValidationContext {
+  const metadataSource =
+    inputContext && typeof inputContext === 'object' && inputContext['metadata']
+      ? inputContext['metadata']
+      : undefined;
+  const metadata =
+    metadataSource && typeof metadataSource === 'object'
+      ? { ...(metadataSource as Record<string, unknown>), ...(inputContext ?? {}) }
+      : inputContext
+        ? { ...inputContext }
+        : undefined;
+
+  return {
+    ...(inputContext ?? {}),
+    ...(metadata ? { metadata } : {}),
+    ...(requestedRuleIds && requestedRuleIds.length > 0 ? { rules: requestedRuleIds } : {}),
+  };
+}
+
+function compileCustomValidationRule(
+  rule: CustomValidationRuleInput,
+  index: number
+): ValidationRule {
+  const id = buildCustomRuleId(rule, index);
+  const severity = rule.severity ?? 'error';
+
+  switch (rule.type) {
+    case 'comparison':
+      return {
+        id,
+        name: rule.name ?? `Comparison ${rule.operator.toUpperCase()}`,
+        type: 'business_rule',
+        description: `Validate value ${rule.operator} comparison target`,
+        validator: (value, context) => {
+          const actual = normalizeComparableValue(value);
+          const rawTarget =
+            'value' in rule.compareTo
+              ? rule.compareTo.value
+              : resolveContextLookupValue(context, rule.compareTo.contextKey);
+
+          if (!('value' in rule.compareTo) && rawTarget === undefined) {
+            return {
+              valid: false,
+              message:
+                rule.message ??
+                `Missing comparison target in context: ${rule.compareTo.contextKey}`,
+            };
+          }
+
+          const target = normalizeComparableValue(rawTarget);
+          if (actual === undefined || target === undefined) {
+            return {
+              valid: false,
+              message:
+                rule.message ?? 'Comparison rules require string, number, boolean, or null values',
+            };
+          }
+
+          let valid = false;
+          switch (rule.operator) {
+            case 'gt':
+              valid = typeof actual === 'number' && typeof target === 'number' && actual > target;
+              break;
+            case 'gte':
+              valid = typeof actual === 'number' && typeof target === 'number' && actual >= target;
+              break;
+            case 'lt':
+              valid = typeof actual === 'number' && typeof target === 'number' && actual < target;
+              break;
+            case 'lte':
+              valid = typeof actual === 'number' && typeof target === 'number' && actual <= target;
+              break;
+            case 'eq':
+              valid = actual === target;
+              break;
+            case 'neq':
+              valid = actual !== target;
+              break;
+          }
+
+          return {
+            valid,
+            message: valid
+              ? undefined
+              : (rule.message ?? `Value must satisfy comparison operator ${rule.operator}`),
+          };
+        },
+        severity,
+        errorMessage: rule.message ?? `Value must satisfy comparison operator ${rule.operator}`,
+        enabled: true,
+      };
+    case 'pattern': {
+      let regex: RegExp;
+      try {
+        regex = new RegExp(rule.pattern, rule.flags);
+      } catch (error) {
+        throw new ValidationError(
+          `Invalid custom pattern rule: ${error instanceof Error ? error.message : String(error)}`,
+          'rules'
+        );
+      }
+
+      return {
+        id,
+        name: rule.name ?? 'Pattern Match',
+        type: 'pattern',
+        description: `Validate value against regex ${rule.pattern}`,
+        validator: (value) => ({
+          valid: typeof value === 'string' && regex.test(value),
+          message: rule.message ?? `Value must match pattern ${rule.pattern}`,
+        }),
+        severity,
+        errorMessage: rule.message ?? `Value must match pattern ${rule.pattern}`,
+        enabled: true,
+      };
+    }
+    case 'length':
+      return {
+        id,
+        name: rule.name ?? 'Length Check',
+        type: 'custom',
+        description: 'Validate string or array length',
+        validator: (value) => {
+          const length =
+            typeof value === 'string' || Array.isArray(value) ? value.length : undefined;
+          if (length === undefined) {
+            return {
+              valid: false,
+              message: rule.message ?? 'Length rules require a string or array value',
+            };
+          }
+          const minValid = rule.min === undefined || length >= rule.min;
+          const maxValid = rule.max === undefined || length <= rule.max;
+          return {
+            valid: minValid && maxValid,
+            message:
+              rule.message ??
+              `Value length must be${rule.min !== undefined ? ` >= ${rule.min}` : ''}${
+                rule.min !== undefined && rule.max !== undefined ? ' and' : ''
+              }${rule.max !== undefined ? ` <= ${rule.max}` : ''}`.trim(),
+          };
+        },
+        severity,
+        errorMessage: rule.message ?? 'Value length is outside the allowed range',
+        enabled: true,
+      };
+    case 'one_of':
+      return {
+        id,
+        name: rule.name ?? 'Allowed Values',
+        type: 'custom',
+        description: 'Validate value against an allowed set',
+        validator: (value) => {
+          const candidate = normalizeComparableValue(value);
+          const normalizedAllowed = rule.values.map((allowed) => normalizeComparableValue(allowed));
+          const valid = normalizedAllowed.some((allowed) => {
+            if (
+              !rule.caseSensitive &&
+              typeof candidate === 'string' &&
+              typeof allowed === 'string'
+            ) {
+              return candidate.toLowerCase() === allowed.toLowerCase();
+            }
+            return candidate === allowed;
+          });
+          return {
+            valid,
+            message:
+              rule.message ??
+              `Value must be one of: ${rule.values.map((value) => String(value)).join(', ')}`,
+          };
+        },
+        severity,
+        errorMessage: rule.message ?? 'Value is not in the allowed set',
+        enabled: true,
+      };
+  }
 }
 
 export class QualityHandler {
@@ -95,14 +323,47 @@ export class QualityHandler {
    * VALIDATE: Data validation with built-in validators
    */
   private async handleValidate(input: QualityValidateInput): Promise<QualityResponse> {
-    const validationEngine = getValidationEngine();
-    const totalRules = input.rules?.length ?? 0;
+    // value is now optional in schema for LLM discoverability — guard at runtime
+    if (input.value === undefined) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message:
+            'The "value" field is required for single-value validation. ' +
+            'For range-based data validation, use sheets_fix.detect_anomalies, ' +
+            'sheets_fix.clean, or sheets_analyze.scout instead.',
+          retryable: false,
+        },
+      };
+    }
+
+    const requestedRules = input.rules ?? [];
+    const builtinRuleIds = requestedRules.filter(isBuiltinRuleInput);
+    const customRules = requestedRules.filter(isCustomRuleInput);
+    const requestedRuleIds: string[] = [...builtinRuleIds];
+    const validationEngine =
+      customRules.length > 0
+        ? new ValidationEngine({
+            enabled: true,
+            stopOnFirstError: input.stopOnFirstError ?? false,
+            enableCaching: false,
+            maxErrors: 100,
+          })
+        : getValidationEngine();
+
+    customRules.forEach((rule, index) => {
+      const compiledRule = compileCustomValidationRule(rule, index);
+      validationEngine.registerRule(compiledRule);
+      requestedRuleIds.push(compiledRule.id);
+    });
+
+    const totalRules = requestedRules.length;
     await sendProgress(0, 100, `Validating...${totalRules > 0 ? ` (${totalRules} rules)` : ''}`);
-    // Pass rules filter to validation engine - only run specified rules if provided
-    const contextWithRules = {
-      ...input.context,
-      rules: input.rules, // Filter to only these rule IDs if specified
-    };
+    const contextWithRules = buildValidationContext(
+      input.context,
+      requestedRuleIds.length > 0 ? requestedRuleIds : undefined
+    );
     const report = await validationEngine.validate(input.value, contextWithRules);
     await sendProgress(100, 100, 'Validation complete');
 
@@ -210,45 +471,83 @@ export class QualityHandler {
 
   /**
    * DETECT_CONFLICTS: Detect concurrent modification conflicts
-   *
-   * Note: Conflict detection currently works automatically during write operations.
-   * Explicit detection queries are not yet implemented.
    */
   private async handleDetectConflicts(
-    _input: QualityDetectConflictsInput
+    input: QualityDetectConflictsInput
   ): Promise<QualityResponse> {
-    // Phase 1 Fix: Add explicit warning that this is a limited implementation
-    // Future: Query active conflicts from detector's internal state
-    // For now, return empty list with warning
+    // Map ResolutionStrategy → schema suggestedStrategy enum
+    const mapStrategy = (s: string): 'keep_local' | 'keep_remote' | 'merge' | 'manual' => {
+      if (s === 'overwrite' || s === 'first_write_wins') return 'keep_local';
+      if (s === 'cancel' || s === 'last_write_wins') return 'keep_remote';
+      if (s === 'merge') return 'merge';
+      return 'manual';
+    };
 
-    // Generate AI insight for conflict resolution strategy (even with no active conflicts)
+    // Map ConflictSeverity → schema severity enum
+    const mapSeverity = (s: string): 'low' | 'medium' | 'high' | 'critical' => {
+      if (s === 'info') return 'low';
+      if (s === 'warning') return 'medium';
+      if (s === 'error') return 'high';
+      if (s === 'critical') return 'critical';
+      return 'low';
+    };
+
+    // Map ConflictType → schema conflictType enum
+    const mapConflictType = (t: string): 'concurrent_write' | 'version_mismatch' | 'data_race' => {
+      if (t === 'concurrent_modification' || t === 'overlapping_range') return 'concurrent_write';
+      if (t === 'stale_data') return 'version_mismatch';
+      return 'data_race';
+    };
+
+    let activeConflicts: ConflictRecord[] = [];
+    try {
+      const detector = getConflictDetector();
+      activeConflicts = detector.getActiveConflicts();
+    } catch {
+      // Detector not initialized — return empty list gracefully
+    }
+
+    // Filter by spreadsheetId if provided
+    if (input.spreadsheetId) {
+      activeConflicts = activeConflicts.filter((c) => c.spreadsheetId === input.spreadsheetId);
+    }
+
+    const mappedConflicts = activeConflicts.map((c) => ({
+      id: c.id,
+      spreadsheetId: c.spreadsheetId,
+      range: c.range,
+      localVersion: c.yourVersion.version,
+      remoteVersion: c.currentVersion.version,
+      localValue: c.yourVersion.checksum as string,
+      remoteValue: c.currentVersion.checksum as string,
+      conflictType: mapConflictType(c.type),
+      severity: mapSeverity(c.severity),
+      detectedAt: c.timestamp,
+      suggestedStrategy: mapStrategy(c.suggestedResolution),
+    }));
+
+    // Generate AI insight when conflicts are present
     let aiInsight: string | undefined;
-    if (this.samplingServer) {
+    if (this.samplingServer && mappedConflicts.length > 0) {
       aiInsight = await generateAIInsight(
         this.samplingServer,
         'dataAnalysis',
         'Analyze these conflicts and recommend the best resolution strategy for each',
-        'No active conflicts detected. Conflict detection is limited to automatic checks during write operations.',
+        JSON.stringify(mappedConflicts),
         { maxTokens: 300 }
       );
     }
 
+    const message =
+      mappedConflicts.length === 0
+        ? 'No active conflicts detected.'
+        : `${mappedConflicts.length} active conflict(s) detected.`;
+
     return {
       success: true,
       action: 'detect_conflicts',
-      conflicts: [],
-      warningCount: 1,
-      warnings: [
-        {
-          ruleId: 'FEATURE_LIMITED',
-          ruleName: 'Limited Implementation',
-          message:
-            'Conflict detection is currently limited to automatic checks during write operations. ' +
-            'Explicit conflict queries across spreadsheet history are not yet implemented. ' +
-            'Use analyze_impact action for pre-execution dependency analysis.',
-        },
-      ],
-      message: 'Conflict detection service available. No active conflicts found.',
+      conflicts: mappedConflicts,
+      message,
       ...(aiInsight !== undefined ? { aiInsight } : {}),
     };
   }

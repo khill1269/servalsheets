@@ -20,6 +20,7 @@
 import { logger } from '../utils/logger.js';
 import { VERSION } from '../version.js';
 import { getOtlpExportConfig } from '../config/env.js';
+import { ServiceError } from '../core/errors.js';
 import {
   otlpSpansExportedTotal,
   otlpExportErrorsTotal,
@@ -234,7 +235,11 @@ export class OtlpExporter {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OTLP export failed: ${response.status} - ${errorText}`);
+        throw new ServiceError(
+          `OTLP export failed: ${response.status} - ${errorText}`,
+          'INTERNAL_ERROR',
+          'otel-export'
+        );
       }
 
       this.stats.spansExported += spans.length;

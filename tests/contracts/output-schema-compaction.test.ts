@@ -57,8 +57,7 @@ type ResponseWrapper = { response: Record<string, unknown> };
 
 /**
  * Build a response with a large object field (>500 bytes) to test compaction.
- * The compactor truncates objects >500 bytes to '[object truncated]' unless
- * the field is in PRESERVED_FIELDS.
+ * The compactor must keep object types intact even when it trims nested data.
  */
 function buildLargeObjectResponse(fieldName: string): ResponseWrapper {
   return {
@@ -92,7 +91,7 @@ function buildLargeObjectResponse(fieldName: string): ResponseWrapper {
 // ============================================================================
 
 describe('Output Schema Compaction Contracts', () => {
-  describe('PRESERVED_FIELDS - objects must never be stringified', () => {
+  describe('Object Fields - objects must never be stringified', () => {
     const preservedFields = [
       'spreadsheet', // sheets_core: get, create, copy
       'spreadsheets', // sheets_core: batch_get
@@ -121,14 +120,14 @@ describe('Output Schema Compaction Contracts', () => {
       });
     }
 
-    it('non-preserved field >500 bytes gets truncated to string', () => {
+    it('non-preserved field >500 bytes stays an object after compaction', () => {
       const response = buildLargeObjectResponse('someRandomField');
       expect(JSON.stringify(response.response.someRandomField).length).toBeGreaterThan(500);
 
       const compacted = compactResponse(response) as ResponseWrapper;
 
-      // Should be truncated to string sentinel
-      expect(compacted.response.someRandomField).toBe('[object truncated]');
+      expect(typeof compacted.response.someRandomField).toBe('object');
+      expect(compacted.response.someRandomField).not.toBe('[object truncated]');
     });
   });
 
@@ -178,7 +177,7 @@ describe('Output Schema Compaction Contracts', () => {
       });
     }
 
-    it('truncates large 2D values array but keeps structure', () => {
+    it('truncates large 2D values array but keeps array structure', () => {
       const largeValues = Array.from({ length: 200 }, (_, i) => [`row${i}`, `data${i}`, `col${i}`]);
       const response: ResponseWrapper = {
         response: {
@@ -189,11 +188,8 @@ describe('Output Schema Compaction Contracts', () => {
       };
 
       const compacted = compactResponse(response) as ResponseWrapper;
-      // Should be truncated (200 rows × 3 cols = 600 cells > MAX_INLINE_ITEMS)
-      const values = compacted.response.values as Record<string, unknown>;
-      expect(values._truncated).toBe(true);
-      expect(values.totalRows).toBe(200);
-      expect(Array.isArray(values.preview)).toBe(true);
+      expect(Array.isArray(compacted.response.values)).toBe(true);
+      expect((compacted.response.values as unknown[]).length).toBeLessThan(largeValues.length);
     });
   });
 
@@ -295,6 +291,156 @@ describe('Output Schema Compaction Contracts', () => {
         expect(result.success).toBe(true);
       });
     }
+  });
+
+  describe('Success responses validate after compaction', () => {
+    it('sheets_data read response remains schema-valid after values truncation', () => {
+      const sample = {
+        response: {
+          success: true as const,
+          action: 'read',
+          values: Array.from({ length: 200 }, (_, i) => [`row${i}`, `data${i}`, `col${i}`]),
+          range: 'Sheet1!A1:C200',
+          majorDimension: 'ROWS' as const,
+        },
+      };
+
+      const compacted = compactResponse(sample);
+      expect(SheetsDataOutputSchema.safeParse(compacted).success).toBe(true);
+    });
+
+    it('sheets_analyze analyze_quality keeps dataQuality as an object', () => {
+      const sample = {
+        response: {
+          success: true as const,
+          action: 'analyze_quality',
+          dataQuality: {
+            score: 91,
+            completeness: 95,
+            consistency: 90,
+            accuracy: 89,
+            issues: Array.from({ length: 12 }, (_, i) => ({
+              type: 'MIXED_DATA_TYPES' as const,
+              severity: 'medium' as const,
+              location: `C${i + 2}`,
+              description: 'Issue detected',
+              autoFixable: false,
+            })),
+            summary: 'Quality score: 91%',
+          },
+        },
+      };
+
+      const compacted = compactResponse(sample);
+      expect(SheetsAnalyzeOutputSchema.safeParse(compacted).success).toBe(true);
+    });
+
+    it('sheets_dependencies model_scenario keeps nested arrays inside response.data', () => {
+      const sample = {
+        response: {
+          success: true as const,
+          data: {
+            action: 'model_scenario' as const,
+            inputChanges: [{ cell: 'Sheet1!B2', from: 95, to: 100 }],
+            cascadeEffects: [
+              {
+                cell: 'Sheet1!C2',
+                formula: '=B2*1.1',
+                currentValue: 110,
+                affectedBy: ['Sheet1!B2'],
+              },
+            ],
+            summary: {
+              cellsAffected: 1,
+              message: 'Scenario affected 1 downstream cell',
+            },
+          },
+        },
+      };
+
+      const compacted = compactResponse(sample);
+      expect(SheetsDependenciesOutputSchema.safeParse(compacted).success).toBe(true);
+    });
+
+    it('sheets_templates create keeps template as an object', () => {
+      const sample = {
+        response: {
+          success: true as const,
+          action: 'create',
+          template: {
+            id: 'tpl-1',
+            name: 'Budget Template',
+            description: 'x'.repeat(250),
+            category: 'finance',
+            version: '1.0.0',
+            created: '2026-03-17T10:00:00.000Z',
+            updated: '2026-03-17T10:00:00.000Z',
+            sheets: [
+              {
+                name: 'Summary',
+                headers: ['Month', 'Budget', 'Actual'],
+                rowCount: 12,
+                columnCount: 3,
+                frozenRowCount: 1,
+              },
+            ],
+            metadata: { notes: 'x'.repeat(250) },
+          },
+        },
+      };
+
+      const compacted = compactResponse(sample);
+      expect(SheetsTemplatesOutputSchema.safeParse(compacted).success).toBe(true);
+    });
+
+    it('sheets_collaborate comment_add keeps comment as an object', () => {
+      const sample = {
+        response: {
+          success: true as const,
+          action: 'comment_add',
+          comment: {
+            id: 'c1',
+            content: 'x'.repeat(400),
+            author: {
+              displayName: 'Me',
+              emailAddress: 'me@example.com',
+            },
+            createdTime: '2026-03-17T10:00:00Z',
+            modifiedTime: '2026-03-17T10:00:00Z',
+            resolved: false,
+            replies: [
+              {
+                id: 'r1',
+                content: 'Reply',
+                author: { displayName: 'You' },
+                createdTime: '2026-03-17T10:00:01Z',
+              },
+            ],
+          },
+        },
+      };
+
+      const compacted = compactResponse(sample);
+      expect(SheetsCollaborateOutputSchema.safeParse(compacted).success).toBe(true);
+    });
+
+    it('sheets_appsscript get_content keeps files as an array', () => {
+      const sample = {
+        response: {
+          success: true as const,
+          action: 'get_content',
+          scriptId: 'script-1',
+          files: Array.from({ length: 20 }, (_, i) => ({
+            name: `File${i}`,
+            type: 'SERVER_JS' as const,
+            source: `function test${i}() { return ${i}; }`,
+          })),
+        },
+      };
+
+      const compacted = compactResponse(sample);
+      expect(SheetsAppsScriptOutputSchema.safeParse(compacted).success).toBe(true);
+    });
   });
 
   describe('verbosity:detailed bypasses compaction', () => {

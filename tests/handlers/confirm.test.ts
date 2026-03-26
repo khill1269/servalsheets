@@ -422,6 +422,13 @@ describe('ConfirmHandler', () => {
       if (!result.response.success) {
         expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
         expect(result.response.error.message).toContain('Server instance not available');
+        expect(result.response.error.fixableVia).toEqual({
+          tool: 'sheets_confirm',
+          action: 'wizard_start',
+          params: {
+            title: 'Confirm operation',
+          },
+        });
       }
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
@@ -456,6 +463,13 @@ describe('ConfirmHandler', () => {
         expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
         expect(result.response.error.message).toContain('MCP Elicitation not available');
         expect(result.response.error.retryable).toBe(false);
+        expect(result.response.error.fixableVia).toEqual({
+          tool: 'sheets_confirm',
+          action: 'wizard_start',
+          params: {
+            title: 'Confirm operation',
+          },
+        });
       }
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
@@ -713,6 +727,44 @@ describe('ConfirmHandler', () => {
         expect(result.response.stats?.approvalRate).toBe(60);
       }
     });
+
+    it('counts completed wizards as approved confirmations', async () => {
+      const startResult = await handler.handle({
+        action: 'wizard_start',
+        title: 'Bulk update wizard',
+        steps: [
+          {
+            stepId: 'step-1',
+            title: 'Confirm',
+            description: 'Provide final confirmation',
+            fields: [{ key: 'approved', label: 'Approved', type: 'boolean' }],
+          },
+        ],
+      });
+
+      expect(startResult.response.success).toBe(true);
+      const wizardId =
+        startResult.response.success ? startResult.response.wizard?.wizardId : undefined;
+      expect(wizardId).toBeDefined();
+
+      const completeResult = await handler.handle({
+        action: 'wizard_complete',
+        wizardId: wizardId!,
+      });
+
+      expect(completeResult.response.success).toBe(true);
+
+      const statsResult = await handler.handle({
+        action: 'get_stats',
+      });
+
+      expect(statsResult.response.success).toBe(true);
+      if (statsResult.response.success) {
+        expect(statsResult.response.stats?.totalConfirmations).toBe(1);
+        expect(statsResult.response.stats?.approved).toBe(1);
+        expect(statsResult.response.stats?.approvalRate).toBe(100);
+      }
+    });
   });
 
   describe('schema validation', () => {
@@ -794,6 +846,39 @@ describe('ConfirmHandler', () => {
           ],
         },
       });
+
+      const parseResult = SheetsConfirmOutputSchema.safeParse(result);
+      expect(parseResult.success).toBe(true);
+    });
+  });
+
+  describe('wizard compatibility aliases', () => {
+    it('normalizes wizard_start field type "string" to "text"', async () => {
+      const result = await handler.handle({
+        action: 'wizard_start',
+        title: 'Import Wizard',
+        description: 'Collect settings',
+        steps: [
+          {
+            stepId: 'step-1',
+            title: 'Sheet',
+            description: 'Choose a sheet',
+            fields: [
+              {
+                name: 'sheetName',
+                label: 'Sheet name',
+                type: 'string',
+              },
+            ],
+          },
+        ],
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.nextStep?.fields[0]?.type).toBe('text');
+        expect(result.response.wizard?.currentStepId).toBe('step-1');
+      }
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);

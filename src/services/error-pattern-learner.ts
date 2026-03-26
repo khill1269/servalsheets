@@ -37,6 +37,14 @@ interface PreventionSuggestion {
   confidence: number;
 }
 
+export interface PatternResult {
+  topResolution: {
+    fix: string;
+    successRate: number;
+    occurrenceCount: number;
+  } | null;
+}
+
 export class ErrorPatternLearner {
   // Use unified LRU cache (max 10K patterns, auto-evicts oldest)
   private patterns: LRUCache<string, ErrorPattern>;
@@ -140,6 +148,38 @@ export class ErrorPatternLearner {
 
     // Generate suggestions for top 5
     return frequentErrors.slice(0, 5).map((pattern) => this.generatePreventionSuggestion(pattern));
+  }
+
+  /**
+   * Get pattern result for an error code in a given context.
+   * Returns null if fewer than 3 occurrences exist (insufficient data).
+   */
+  getPatterns(
+    errorCode: string,
+    context: { tool?: string; action?: string }
+  ): PatternResult | null {
+    const key = this.generateKey(errorCode, context);
+    const pattern = this.patterns.get(key);
+
+    if (!pattern || pattern.count < 3) {
+      return null;
+    }
+
+    if (pattern.resolutions.length === 0) {
+      return { topResolution: null };
+    }
+
+    const best = pattern.resolutions.reduce((prev, curr) =>
+      curr.successRate > prev.successRate ? curr : prev
+    );
+
+    return {
+      topResolution: {
+        fix: best.fix,
+        successRate: best.successRate,
+        occurrenceCount: pattern.count,
+      },
+    };
   }
 
   /**

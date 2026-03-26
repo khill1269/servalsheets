@@ -45,7 +45,6 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import type { MetadataCache } from '../services/metadata-cache.js';
 import { baseLogger } from './base-logger.js';
 
 export interface RelatedMcpRequest {
@@ -72,6 +71,34 @@ export type RelatedRequestSender = (
   resultSchema: unknown,
   options?: RelatedRequestOptions
 ) => Promise<unknown>;
+
+interface RequestScopedSpreadsheetMetadata {
+  sheets: Array<{
+    sheetId: number;
+    title: string;
+  }>;
+}
+
+/**
+ * Keep request-context decoupled from service implementations.
+ * Concrete metadata/session services are injected, but the protocol layer
+ * only depends on the small surface it actually carries between requests.
+ */
+export interface RequestScopedMetadataCache {
+  getOrFetch(spreadsheetId: string): Promise<RequestScopedSpreadsheetMetadata>;
+  getSheetId(spreadsheetId: string, sheetName: string): Promise<number | undefined>;
+  clear(): void;
+}
+
+export interface RequestScopedSessionContext {
+  trackRequest(): void;
+}
+
+export interface RequestLlmProvenance {
+  aiMode: 'sampling' | 'fallback';
+  aiProvider?: string;
+  aiModelUsed?: string;
+}
 
 export interface RequestContext {
   requestId: string;
@@ -119,7 +146,35 @@ export interface RequestContext {
    * Can be client-provided or auto-generated for non-idempotent operations
    */
   idempotencyKey?: string;
-  metadataCache?: MetadataCache;
+  metadataCache?: RequestScopedMetadataCache;
+  sessionContext?: RequestScopedSessionContext;
+  /**
+   * Last emitted progress value — used to enforce monotonic progress notifications.
+   * Progress that does not exceed this value is silently dropped per MCP spec.
+   */
+  lastProgress?: number;
+  /**
+   * Number of Google API calls made during this request.
+   * Incremented by wrapGoogleApi on each API call (success or failure).
+   * Exposed in _meta.apiCallsMade for LLM cost awareness.
+   */
+  apiCallsMade: number;
+  /**
+   * Epoch ms when this request context was created.
+   * Used to compute _meta.executionTimeMs at response build time.
+   */
+  requestStartTime: number;
+  /**
+   * Last AI provenance recorded during this request.
+   * Used to surface whether a response came from MCP sampling or fallback.
+   */
+  llmProvenance?: RequestLlmProvenance;
+  /**
+   * Verbosity level extracted from tool input args.
+   * Used by the response pipeline to apply global verbosity filtering
+   * for handlers that don't apply it themselves.
+   */
+  verbosity?: 'minimal' | 'standard' | 'detailed';
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -149,7 +204,8 @@ export function createRequestContext(options?: {
   spanId?: string;
   parentSpanId?: string;
   idempotencyKey?: string;
-  metadataCache?: MetadataCache;
+  metadataCache?: RequestScopedMetadataCache;
+  sessionContext?: RequestScopedSessionContext;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
   const timeoutMs =
@@ -173,11 +229,17 @@ export function createRequestContext(options?: {
 
   const logger = (options?.logger ?? baseLogger).child(loggerMeta);
 
+  // Auto-generate W3C trace context when not provided by caller.
+  // Ensures every request (including STDIO) has tracing IDs for debugging.
+  const traceId = options?.traceId ?? requestId.replace(/-/g, '');
+  const spanId = options?.spanId ?? requestId.replace(/-/g, '').slice(0, 16);
+
+  const now = Date.now();
   return {
     requestId,
     logger,
     timeoutMs,
-    deadline: Date.now() + timeoutMs,
+    deadline: now + timeoutMs,
     abortSignal: options?.abortSignal,
     principalId: options?.principalId,
     sendNotification: options?.sendNotification,
@@ -185,11 +247,14 @@ export function createRequestContext(options?: {
     taskId: options?.taskId,
     taskStore: options?.taskStore,
     progressToken: options?.progressToken,
-    traceId: options?.traceId,
-    spanId: options?.spanId,
+    traceId,
+    spanId,
     parentSpanId: options?.parentSpanId,
     idempotencyKey: options?.idempotencyKey,
     metadataCache: options?.metadataCache,
+    sessionContext: options?.sessionContext,
+    apiCallsMade: 0,
+    requestStartTime: now,
   };
 }
 
@@ -202,6 +267,30 @@ export function runWithRequestContext<T>(
 
 export function getRequestContext(): RequestContext | undefined {
   return storage.getStore();
+}
+
+export function recordRequestVerbosity(verbosity: 'minimal' | 'standard' | 'detailed'): void {
+  const context = storage.getStore();
+  if (!context) {
+    return;
+  }
+  context.verbosity = verbosity;
+}
+
+export function getRequestVerbosity(): 'minimal' | 'standard' | 'detailed' | undefined {
+  return storage.getStore()?.verbosity;
+}
+
+export function recordRequestLlmProvenance(provenance: RequestLlmProvenance): void {
+  const context = storage.getStore();
+  if (!context) {
+    return;
+  }
+  context.llmProvenance = provenance;
+}
+
+export function getRequestLlmProvenance(): RequestLlmProvenance | undefined {
+  return storage.getStore()?.llmProvenance;
 }
 
 export function getRequestAbortSignal(): AbortSignal | undefined {
@@ -256,6 +345,16 @@ export async function sendProgress(
     // Progress notifications not requested by client or not in request context
     return;
   }
+
+  // Enforce monotonically increasing progress per MCP spec
+  if (context.lastProgress !== undefined && progress <= context.lastProgress) {
+    context.logger.warn('Dropping non-monotonic progress notification', {
+      last: context.lastProgress,
+      current: progress,
+    });
+    return;
+  }
+  context.lastProgress = progress;
 
   try {
     await context.sendNotification({

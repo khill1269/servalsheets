@@ -13,6 +13,7 @@ import { TransactionHandler } from '../../src/handlers/transaction.js';
 import { SheetsTransactionOutputSchema } from '../../src/schemas/transaction.js';
 import type { TransactionManager } from '../../src/services/transaction-manager.js';
 import type { Transaction, CommitResult } from '../../src/types/transaction.js';
+import { ApiTimeoutError } from '../../src/core/errors.js';
 
 // Mock getTransactionManager
 vi.mock('../../src/services/transaction-manager.js', () => ({
@@ -360,6 +361,38 @@ describe('TransactionHandler', () => {
         expect(result.response.error.details).toBeUndefined();
       }
     });
+
+    it('should surface DEADLINE_EXCEEDED when commit times out', async () => {
+      const mockTxId = 'txn-commit-timeout';
+      const mockCommitResult: CommitResult = {
+        transactionId: mockTxId,
+        success: false,
+        operationResults: [],
+        duration: 25,
+        apiCallsMade: 0,
+        apiCallsSaved: 0,
+        error: new ApiTimeoutError(
+          'Transaction commit timed out after 25ms',
+          25,
+          'sheets_transaction.commit.batchUpdate'
+        ),
+        rolledBack: false,
+      };
+
+      mockTransactionManager.commit = vi.fn().mockResolvedValue(mockCommitResult);
+
+      const result = await handler.handle({
+        action: 'commit',
+        transactionId: mockTxId,
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('DEADLINE_EXCEEDED');
+        expect(result.response.error.message).toContain('timed out after 25ms');
+        expect(result.response.error.retryable).toBe(true);
+      }
+    });
   });
 
   describe('rollback action', () => {
@@ -428,7 +461,7 @@ describe('TransactionHandler', () => {
           { id: 'op_3', type: 'sheet_create' },
         ],
         snapshot: { id: 'snapshot-001' },
-        startTime: Date.now() - 5000,
+        startTime: 1704067200000 - 5000,
       } as Transaction);
 
       const result = await handler.handle({
@@ -459,7 +492,7 @@ describe('TransactionHandler', () => {
         spreadsheetId: 'sheet-456',
         status: 'pending',
         operations: [],
-        startTime: Date.now(),
+        startTime: 1704067200000,
       } as Transaction);
 
       const result = await handler.handle({
@@ -502,7 +535,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [{ id: 'op_1', type: 'custom' }],
-          startTime: Date.now() - 5000,
+          startTime: 1704067200000 - 5000,
           isolationLevel: 'read_committed',
           snapshot: { id: 'snap-001' },
         } as Transaction,
@@ -514,7 +547,7 @@ describe('TransactionHandler', () => {
             { id: 'op_2', type: 'custom' },
             { id: 'op_3', type: 'custom' },
           ],
-          startTime: Date.now() - 3000,
+          startTime: 1704067200000 - 3000,
           isolationLevel: 'serializable',
           snapshot: { id: 'snap-002' },
         } as Transaction,
@@ -595,7 +628,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [],
-          startTime: Date.now() - 5000,
+          startTime: 1704067200000 - 5000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -603,7 +636,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-2',
           status: 'queued',
           operations: [],
-          startTime: Date.now() - 3000,
+          startTime: 1704067200000 - 3000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -611,7 +644,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'executing',
           operations: [],
-          startTime: Date.now() - 1000,
+          startTime: 1704067200000 - 1000,
           isolationLevel: 'read_committed',
         } as Transaction,
       ];
@@ -646,8 +679,8 @@ describe('TransactionHandler', () => {
     });
 
     it('should include duration for active and completed transactions', async () => {
-      const startTime = Date.now() - 10000;
-      const endTime = Date.now() - 5000;
+      const startTime = 1704067200000 - 10000;
+      const endTime = 1704067200000 - 5000;
 
       const mockTransactions = [
         {
@@ -700,7 +733,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [],
-          startTime: Date.now(),
+          startTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -708,7 +741,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'pending',
           operations: [],
-          startTime: Date.now(),
+          startTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -716,7 +749,7 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'queued',
           operations: [],
-          startTime: Date.now(),
+          startTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
         {
@@ -724,8 +757,8 @@ describe('TransactionHandler', () => {
           spreadsheetId: 'sheet-1',
           status: 'committed',
           operations: [],
-          startTime: Date.now(),
-          endTime: Date.now(),
+          startTime: 1704067200000,
+          endTime: 1704067200000,
           isolationLevel: 'read_committed',
         } as Transaction,
       ];

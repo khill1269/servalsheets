@@ -75,21 +75,6 @@ export function assertNonEmpty(value: string, name: string): asserts value is st
 }
 
 /**
- * Assert that a number is within a valid range
- *
- * @param value - Number to check
- * @param min - Minimum value (inclusive)
- * @param max - Maximum value (inclusive)
- * @param name - Name of the value for error message
- * @throws {ValidationError} if value is out of range
- */
-export function assertInRange(value: number, min: number, max: number, name: string): void {
-  if (value < min || value > max) {
-    throw new ValidationError(`${name} must be between ${min} and ${max}, got ${value}`, name);
-  }
-}
-
-/**
  * Safe parse of A1 notation range (e.g., "A1:B10")
  *
  * Returns parsed components or throws ValidationError if invalid
@@ -169,57 +154,4 @@ export function parseA1Cell(cell: string): {
     row,
     sheetPrefix,
   };
-}
-
-/**
- * Type guard: Check if value is a non-empty array
- *
- * @param value - Value to check
- * @returns true if value is array with length > 0
- */
-export function isNonEmptyArray<T>(value: unknown): value is T[] {
-  return Array.isArray(value) && value.length > 0;
-}
-
-/**
- * Type guard: Check if value is a valid spreadsheet ID
- *
- * @param value - Value to check
- * @returns true if value looks like a valid spreadsheet ID
- */
-export function isValidSpreadsheetId(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0 && /^[a-zA-Z0-9_-]+$/.test(value);
-}
-
-/**
- * Type guard: Check if value is a valid sheet ID (integer >= 0)
- *
- * @param value - Value to check
- * @returns true if value is valid sheet ID
- */
-export function isValidSheetId(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
-}
-
-/**
- * Safe array access with bounds checking
- *
- * @param array - Array to access
- * @param index - Index to access
- * @param name - Name for error message
- * @returns Element at index
- * @throws {ValidationError} if index is out of bounds
- */
-export function safeArrayAccess<T>(array: T[], index: number, name: string): T {
-  if (index < 0 || index >= array.length) {
-    throw new ValidationError(
-      `${name}: Index ${index} out of bounds (array length: ${array.length})`,
-      name
-    );
-  }
-  const element = array[index];
-  if (element === undefined) {
-    throw new ValidationError(`${name}: Element at index ${index} is undefined`, name);
-  }
-  return element;
 }

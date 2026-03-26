@@ -109,24 +109,63 @@ export interface ConfidenceAssessment {
 // THRESHOLDS
 // ============================================================================
 
-const CONFIDENCE_THRESHOLDS: Record<ConfidenceLevel, [number, number]> = {
-  none: [0, 10],
-  low: [10, 35],
-  moderate: [35, 65],
-  high: [65, 85],
-  very_high: [85, 100],
-};
+/**
+ * Configurable confidence thresholds.
+ * Override via environment variables:
+ *   CONFIDENCE_THRESHOLD_LOW (default 10)
+ *   CONFIDENCE_THRESHOLD_MODERATE (default 35)
+ *   CONFIDENCE_THRESHOLD_HIGH (default 65)
+ *   CONFIDENCE_THRESHOLD_VERY_HIGH (default 85)
+ */
+function getConfidenceThresholds(): Record<ConfidenceLevel, [number, number]> {
+  const low = parseInt(process.env['CONFIDENCE_THRESHOLD_LOW'] ?? '10', 10) || 10;
+  const moderate = parseInt(process.env['CONFIDENCE_THRESHOLD_MODERATE'] ?? '35', 10) || 35;
+  const high = parseInt(process.env['CONFIDENCE_THRESHOLD_HIGH'] ?? '65', 10) || 65;
+  const veryHigh = parseInt(process.env['CONFIDENCE_THRESHOLD_VERY_HIGH'] ?? '85', 10) || 85;
+  return {
+    none: [0, low],
+    low: [low, moderate],
+    moderate: [moderate, high],
+    high: [high, veryHigh],
+    very_high: [veryHigh, 100],
+  };
+}
 
-/** Dimension weights for overall score */
-const DIMENSION_WEIGHTS: Record<ConfidenceDimension, number> = {
-  structure: 0.3,
-  content: 0.3,
-  relationships: 0.2,
-  purpose: 0.2,
-};
+/**
+ * Configurable dimension weights for overall score.
+ * Override via environment variables:
+ *   DIMENSION_WEIGHT_STRUCTURE (default 0.3)
+ *   DIMENSION_WEIGHT_CONTENT (default 0.3)
+ *   DIMENSION_WEIGHT_RELATIONSHIPS (default 0.2)
+ *   DIMENSION_WEIGHT_PURPOSE (default 0.2)
+ */
+function getDimensionWeights(): Record<ConfidenceDimension, number> {
+  return {
+    structure: parseFloat(process.env['DIMENSION_WEIGHT_STRUCTURE'] ?? '0.3'),
+    content: parseFloat(process.env['DIMENSION_WEIGHT_CONTENT'] ?? '0.3'),
+    relationships: parseFloat(process.env['DIMENSION_WEIGHT_RELATIONSHIPS'] ?? '0.2'),
+    purpose: parseFloat(process.env['DIMENSION_WEIGHT_PURPOSE'] ?? '0.2'),
+  };
+}
 
-/** Threshold below which we should ask questions */
-const ELICITATION_THRESHOLD = 55;
+/**
+ * Threshold below which we should ask questions.
+ * Override via ELICITATION_THRESHOLD env var (default 55).
+ */
+function getElicitationThreshold(): number {
+  return parseInt(process.env['ELICITATION_THRESHOLD'] ?? '55', 10);
+}
+
+// Cached references (evaluated once at first use)
+let _confidenceThresholds: Record<ConfidenceLevel, [number, number]> | null = null;
+let _dimensionWeights: Record<ConfidenceDimension, number> | null = null;
+let _elicitationThreshold: number | null = null;
+
+const CONFIDENCE_THRESHOLDS = (): Record<ConfidenceLevel, [number, number]> =>
+  (_confidenceThresholds ??= getConfidenceThresholds());
+const DIMENSION_WEIGHTS = (): Record<ConfidenceDimension, number> =>
+  (_dimensionWeights ??= getDimensionWeights());
+const ELICITATION_THRESHOLD = (): number => (_elicitationThreshold ??= getElicitationThreshold());
 
 // ============================================================================
 // SCORER
@@ -788,10 +827,10 @@ export class ConfidenceScorer {
   }
 
   private scoreToLevel(score: number): ConfidenceLevel {
-    for (const [level, [min, max]] of Object.entries(CONFIDENCE_THRESHOLDS)) {
+    for (const [level, [min, max]] of Object.entries(CONFIDENCE_THRESHOLDS())) {
       if (score >= min && score < max) return level as ConfidenceLevel;
     }
-    return score >= 85 ? 'very_high' : 'none';
+    return score >= CONFIDENCE_THRESHOLDS().very_high[0] ? 'very_high' : 'none';
   }
 
   private buildAssessment(
@@ -803,7 +842,7 @@ export class ConfidenceScorer {
   ): ConfidenceAssessment {
     // Calculate overall score
     const overallScore = Math.round(
-      dimensions.reduce((sum, dim) => sum + dim.score * DIMENSION_WEIGHTS[dim.dimension], 0)
+      dimensions.reduce((sum, dim) => sum + dim.score * DIMENSION_WEIGHTS()[dim.dimension], 0)
     );
 
     // Collect top gaps across all dimensions, sorted by impact
@@ -825,7 +864,7 @@ export class ConfidenceScorer {
       overallLevel: this.scoreToLevel(overallScore),
       dimensions,
       columns,
-      shouldElicit: overallScore < ELICITATION_THRESHOLD,
+      shouldElicit: overallScore < ELICITATION_THRESHOLD(),
       topGaps,
       dataTier,
       assessedAt: Date.now(),

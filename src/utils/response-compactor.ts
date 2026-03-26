@@ -13,6 +13,8 @@
  * @module utils/response-compactor
  */
 
+import { getEnv } from '../config/env.js';
+
 export type SamplingStrategy = 'first-last' | 'evenly-spaced' | 'first-only';
 
 export interface TruncationMetadata {
@@ -151,7 +153,7 @@ const MAX_STRING_LENGTH = 200;
  * (disabled only if explicitly set to 'false')
  */
 export function isCompactModeEnabled(): boolean {
-  return process.env['COMPACT_RESPONSES'] !== 'false';
+  return getEnv().COMPACT_RESPONSES;
 }
 
 /**
@@ -160,7 +162,7 @@ export function isCompactModeEnabled(): boolean {
  * @returns True if truncation should be skipped
  */
 export function shouldSkipTruncation(verbosity?: string): boolean {
-  return verbosity === 'detailed' || process.env['COMPACT_RESPONSES'] === 'false';
+  return verbosity === 'detailed' || !getEnv().COMPACT_RESPONSES;
 }
 
 /**
@@ -205,6 +207,8 @@ function compactInner(
 ): Record<string, unknown> {
   const compact: Record<string, unknown> = {};
   const truncatedFields: string[] = [];
+  // A6: Explicit truncation hints — field name → human-readable message
+  const truncationHints: Record<string, string> = {};
 
   // Always include essential fields
   for (const field of ESSENTIAL_FIELDS) {
@@ -222,23 +226,34 @@ function compactInner(
 
       // Track if this field was truncated
       if (compacted !== original && typeof compacted === 'object' && compacted !== null) {
-        const meta = (compacted as Record<string, unknown>)['_truncated'];
-        if (meta === true) {
-          const total =
-            (compacted as Record<string, unknown>)['totalRows'] ??
-            ((compacted as Record<string, unknown>)['_meta']
-              ? ((compacted as Record<string, unknown>)['_meta'] as Record<string, unknown>)?.[
-                  'totalCount'
-                ]
-              : undefined);
-          truncatedFields.push(total ? `${field}(${total} total)` : field);
+        if (
+          Array.isArray(original) &&
+          Array.isArray(compacted) &&
+          compacted.length < original.length
+        ) {
+          // List field was truncated to an array slice (LIST_ACTION_FIELDS path)
+          truncatedFields.push(`${field}(${original.length} total, showing ${compacted.length})`);
+          // A6: Add explicit truncation hint for list fields
+          const hidden = original.length - compacted.length;
+          truncationHints[field] =
+            `${hidden} more ${field} not shown — use verbosity:"detailed" to see all`;
+        } else {
+          // 2D array or 1D array wrapped into an object with _truncated:true
+          const meta = (compacted as Record<string, unknown>)['_truncated'];
+          if (meta === true) {
+            const total =
+              (compacted as Record<string, unknown>)['totalRows'] ??
+              ((compacted as Record<string, unknown>)['_meta']
+                ? ((compacted as Record<string, unknown>)['_meta'] as Record<string, unknown>)?.[
+                    'totalCount'
+                  ]
+                : undefined);
+            truncatedFields.push(total ? `${field}(${total} total)` : field);
+            // A6: Add explicit truncation hint for this field
+            truncationHints[field] =
+              `${total ?? '?'} rows truncated — use verbosity:"detailed" to see all`;
+          }
         }
-      } else if (
-        Array.isArray(original) &&
-        Array.isArray(compacted) &&
-        compacted.length < original.length
-      ) {
-        truncatedFields.push(`${field}(${original.length} total, showing ${compacted.length})`);
       }
     }
   }
@@ -255,18 +270,18 @@ function compactInner(
       continue;
     }
 
+    if (Array.isArray(value)) {
+      compact[key] = truncateArray(value, key, options);
+      continue;
+    }
+
     // Include if it's a simple value
     if (isSimpleValue(value)) {
       compact[key] = truncateString(value);
     }
-    // Include small objects
+    // Keep object fields schema-compatible instead of collapsing them into strings.
     else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      const size = JSON.stringify(value).length;
-      if (size < 500) {
-        compact[key] = value;
-      } else {
-        compact[key] = '[object truncated]';
-      }
+      compact[key] = truncateObject(value as Record<string, unknown>, options);
     }
   }
 
@@ -278,6 +293,11 @@ function compactInner(
       : '';
     compact['_hint'] =
       `Data truncated: ${truncatedFields.join(', ')}. Use verbosity:"detailed" for full data.${cursorHint}`;
+  }
+
+  // A6: Inject _truncated key when any field was truncated (explicit hints for LLM)
+  if (Object.keys(truncationHints).length > 0) {
+    compact['_truncated'] = truncationHints;
   }
 
   // Add pagination hint even when no truncation occurred
@@ -301,6 +321,14 @@ function truncateValue(
   fieldName: string,
   options?: { verbosity?: string }
 ): unknown {
+  if (
+    fieldName === 'data' &&
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  ) {
+    return compactInner(value as Record<string, unknown>, options);
+  }
   if (Array.isArray(value)) {
     return truncateArray(value, fieldName, options);
   }
@@ -308,7 +336,7 @@ function truncateValue(
     return truncateString(value);
   }
   if (typeof value === 'object' && value !== null) {
-    return truncateObject(value as Record<string, unknown>);
+    return truncateObject(value as Record<string, unknown>, options);
   }
   return value;
 }
@@ -349,7 +377,8 @@ function truncateArray(
 }
 
 /**
- * Truncate 2D arrays (spreadsheet data) with row sampling
+ * Truncate 2D arrays (spreadsheet data) with row sampling while preserving
+ * the array type for output-schema compatibility.
  */
 function truncate2DArray(values: unknown[][], fieldName: string): unknown {
   const totalRows = values.length;
@@ -366,25 +395,13 @@ function truncate2DArray(values: unknown[][], fieldName: string): unknown {
   const lastRows = previewRows - firstRows; // 40% from end
 
   const sampled: unknown[][] = [...values.slice(0, firstRows), ...values.slice(-lastRows)];
-
-  const samplingStrategy: SamplingStrategy = 'first-last';
-
-  return {
-    _truncated: true,
-    totalRows,
-    totalCells,
-    preview: sampled,
-    _meta: {
-      samplingStrategy,
-      totalCount: totalRows,
-      truncatedCount: totalRows - sampled.length,
-      hint: `Set verbosity:"detailed" in ${fieldName} request to see all ${totalRows} rows`,
-    },
-  };
+  void fieldName;
+  return sampled;
 }
 
 /**
- * Truncate 1D arrays with intelligent sampling
+ * Truncate 1D arrays with intelligent sampling while preserving the array type
+ * for output-schema compatibility.
  */
 function truncate1DArray(arr: unknown[], fieldName: string): unknown {
   if (arr.length <= MAX_INLINE_ITEMS) {
@@ -399,19 +416,8 @@ function truncate1DArray(arr: unknown[], fieldName: string): unknown {
   const lastCount = maxSampleSize - firstCount;
 
   const sampled = [...arr.slice(0, firstCount), ...arr.slice(-lastCount)];
-
-  const samplingStrategy: SamplingStrategy = 'first-last';
-
-  return {
-    _truncated: true,
-    items: sampled,
-    _meta: {
-      samplingStrategy,
-      totalCount: arr.length,
-      truncatedCount: arr.length - sampled.length,
-      hint: `Set verbosity:"detailed" in ${fieldName} request to see all ${arr.length} items`,
-    },
-  };
+  void fieldName;
+  return sampled;
 }
 
 /**
@@ -427,27 +433,25 @@ function truncateString(value: unknown): unknown {
 }
 
 /**
- * Truncate an object, removing nested complexity
+ * Truncate an object while preserving JSON types recursively so compacted
+ * responses still validate against output schemas.
  */
-function truncateObject(obj: Record<string, unknown>): Record<string, unknown> {
+function truncateObject(
+  obj: Record<string, unknown>,
+  options?: { verbosity?: string }
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  let fieldCount = 0;
 
   for (const [key, value] of Object.entries(obj)) {
     if (STRIPPED_FIELDS.has(key)) continue;
-    if (fieldCount >= 10) {
-      result['_moreFields'] = Object.keys(obj).length - fieldCount;
-      break;
-    }
 
     if (isSimpleValue(value)) {
       result[key] = truncateString(value);
     } else if (Array.isArray(value)) {
-      result[key] = `[${value.length} items]`;
+      result[key] = truncateArray(value, key, options);
     } else if (typeof value === 'object' && value !== null) {
-      result[key] = `{${Object.keys(value).length} fields}`;
+      result[key] = truncateObject(value as Record<string, unknown>, options);
     }
-    fieldCount++;
   }
 
   return result;

@@ -3,7 +3,7 @@ title: ServalSheets Testing Guide
 category: development
 last_updated: 2026-01-31
 description: '> Version: 1.0.0'
-version: 1.6.0
+version: 2.0.0
 tags: [testing, sheets]
 ---
 
@@ -522,7 +522,6 @@ import {
   columnToIndex,
   indexToColumn,
   isValidA1Notation,
-  expandRange,
 } from '../../../src/utils/a1-notation';
 
 describe('A1 Notation Utilities', () => {

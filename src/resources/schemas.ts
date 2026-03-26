@@ -12,6 +12,7 @@
 
 import { type McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
+import { filterAvailableActions } from '../mcp/tool-availability.js';
 import { ACTION_ANNOTATIONS } from '../schemas/annotations.js';
 import { zodSchemaToJsonSchema } from '../utils/schema-compat.js';
 import { logger } from '../utils/logger.js';
@@ -52,8 +53,11 @@ const actionGuidanceCache = new BoundedCache<string, { content: string }>({
  * @returns JSON string of the full schema, or null if not found
  */
 export function getToolSchema(toolName: string): string | null {
+  const allowedActions = getAllowedActions(toolName);
+  const cacheKey = `tool:${toolName}:${allowedActions.join(',')}`;
+
   // Check cache first
-  const cached = schemaCache.get(toolName as string);
+  const cached = schemaCache.get(cacheKey);
   if (cached) {
     return cached.content;
   }
@@ -66,13 +70,17 @@ export function getToolSchema(toolName: string): string | null {
 
   // Convert Zod schema to JSON Schema
   const jsonSchema = zodSchemaToJsonSchema(tool.inputSchema);
+  const filteredSchema = filterRootSchemaActions(
+    jsonSchema as Record<string, unknown>,
+    allowedActions
+  );
 
   // Build complete schema document with metadata
   const schemaDoc = {
     $id: `schema://tools/${toolName}`,
     title: toolName,
     description: tool.description,
-    inputSchema: jsonSchema,
+    inputSchema: filteredSchema,
     outputSchema: tool.outputSchema ? zodSchemaToJsonSchema(tool.outputSchema) : undefined,
     annotations: tool.annotations,
   };
@@ -80,7 +88,7 @@ export function getToolSchema(toolName: string): string | null {
   const content = JSON.stringify(schemaDoc);
 
   // Cache for future requests
-  schemaCache.set(toolName as string, { content });
+  schemaCache.set(cacheKey, { content });
 
   return content;
 }
@@ -120,7 +128,8 @@ export function getSchemaIndex(): string {
  * URI pattern: schema://actions/{toolName}
  */
 export function getActionGuidance(toolName: string): string | null {
-  const cacheKey = `actions:${toolName}`;
+  const allowedActions = new Set(getAllowedActions(toolName));
+  const cacheKey = `actions:${toolName}:${[...allowedActions].join(',')}`;
   const cached = actionGuidanceCache.get(cacheKey);
   if (cached) {
     return cached.content;
@@ -134,10 +143,12 @@ export function getActionGuidance(toolName: string): string | null {
   const entries = Object.entries(ACTION_ANNOTATIONS).filter(([key]) =>
     key.startsWith(`${toolName}.`)
   );
-  const actions = entries.map(([key, annotation]) => ({
-    action: key.replace(`${toolName}.`, ''),
-    annotation,
-  }));
+  const actions = entries
+    .map(([key, annotation]) => ({
+      action: key.replace(`${toolName}.`, ''),
+      annotation,
+    }))
+    .filter((entry) => allowedActions.has(entry.action));
 
   const content = JSON.stringify({
     $id: `schema://actions/${toolName}`,
@@ -150,6 +161,83 @@ export function getActionGuidance(toolName: string): string | null {
 
   actionGuidanceCache.set(cacheKey, { content });
   return content;
+}
+
+function getAllowedActions(toolName: string): string[] {
+  const actions = Object.keys(ACTION_ANNOTATIONS)
+    .filter((key) => key.startsWith(`${toolName}.`))
+    .map((key) => key.replace(`${toolName}.`, ''));
+  return [...filterAvailableActions(toolName, actions)];
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function filterRootSchemaActions(
+  rootSchema: Record<string, unknown>,
+  allowedActions: readonly string[]
+): Record<string, unknown> {
+  const properties = asRecord(rootSchema['properties']);
+  const requestSchema = asRecord(properties?.['request']);
+  if (!properties || !requestSchema) {
+    return rootSchema;
+  }
+
+  return {
+    ...rootSchema,
+    properties: {
+      ...properties,
+      request: filterRequestSchemaActions(requestSchema, new Set(allowedActions)),
+    },
+  };
+}
+
+function filterRequestSchemaActions(
+  requestSchema: Record<string, unknown>,
+  allowedActions: ReadonlySet<string>
+): Record<string, unknown> {
+  let filtered: Record<string, unknown> = { ...requestSchema };
+
+  for (const key of ['oneOf', 'anyOf'] as const) {
+    const variants = Array.isArray(filtered[key]) ? filtered[key] : null;
+    if (!variants) {
+      continue;
+    }
+
+    filtered = {
+      ...filtered,
+      [key]: variants.filter((variant) => {
+        const actionSchema = asRecord(asRecord(variant)?.['properties'])?.['action'];
+        const actionRecord = asRecord(actionSchema);
+        const actionName = actionRecord?.['const'] ?? (actionRecord?.['enum'] as unknown[])?.[0];
+        return typeof actionName === 'string' ? allowedActions.has(actionName) : true;
+      }),
+    };
+  }
+
+  const properties = asRecord(filtered['properties']);
+  const actionSchema = asRecord(properties?.['action']);
+  if (!properties || !actionSchema) {
+    return filtered;
+  }
+
+  const nextActionSchema: Record<string, unknown> = { ...actionSchema };
+  if (Array.isArray(actionSchema['enum'])) {
+    nextActionSchema['enum'] = (actionSchema['enum'] as unknown[]).filter(
+      (value) => typeof value !== 'string' || allowedActions.has(value)
+    );
+  }
+
+  return {
+    ...filtered,
+    properties: {
+      ...properties,
+      action: nextActionSchema,
+    },
+  };
 }
 
 export function getActionGuidanceIndex(): string {

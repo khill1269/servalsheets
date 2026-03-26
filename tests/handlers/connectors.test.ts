@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../src/utils/api-key-server.js', () => ({
+  startApiKeyServer: vi.fn(),
+}));
+
 import { ConnectorsHandler } from '../../src/handlers/connectors.js';
 import { connectorManager } from '../../src/connectors/connector-manager.js';
+import { startApiKeyServer } from '../../src/utils/api-key-server.js';
 
 const baseResult = {
   headers: ['symbol', 'price'],
@@ -15,11 +21,14 @@ const baseResult = {
   },
 };
 
+const mockedStartApiKeyServer = vi.mocked(startApiKeyServer);
+
 describe('ConnectorsHandler', () => {
   let handler: ConnectorsHandler;
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockedStartApiKeyServer.mockReset();
     handler = new ConnectorsHandler();
   });
 
@@ -34,6 +43,7 @@ describe('ConnectorsHandler', () => {
     expect(result.response.success).toBe(true);
     expect(result.response.action).toBe('list_connectors');
     expect(result.response.connectors).toHaveLength(1);
+    expect(result.response.connectors?.[0]).toHaveProperty('nextStep');
   });
 
   it('routes configure, query, and batch_query', async () => {
@@ -84,8 +94,99 @@ describe('ConnectorsHandler', () => {
     );
     expect(batchSpy).toHaveBeenCalledTimes(1);
     expect(configureResult.response.action).toBe('configure');
+    expect(configureResult.response).toHaveProperty('verified', true);
+    expect(configureResult.response).toHaveProperty('nextStep');
     expect(queryResult.response.action).toBe('query');
     expect(batchResult.response.action).toBe('batch_query');
+  });
+
+  it('elicits missing connector selection and opens an MCP URL flow for API key setup', async () => {
+    const completionNotifier = vi.fn().mockResolvedValue(undefined);
+    const elicitationServer = {
+      elicitInput: vi
+        .fn()
+        .mockResolvedValueOnce({ action: 'accept', content: { connectorId: 'finnhub' } })
+        .mockResolvedValueOnce({ action: 'accept', content: {} }),
+      getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true, url: true } }),
+      createElicitationCompletionNotifier: vi.fn().mockReturnValue(completionNotifier),
+    };
+
+    handler = new ConnectorsHandler({ elicitationServer });
+
+    vi.spyOn(connectorManager, 'listConnectors').mockReturnValue({
+      connectors: [
+        {
+          id: 'finnhub',
+          name: 'Finnhub',
+          description: 'Market data',
+          authType: 'api_key',
+          configured: false,
+        },
+      ],
+    });
+    const configureSpy = vi
+      .spyOn(connectorManager, 'configure')
+      .mockResolvedValue({ success: true, message: 'configured' });
+    const shutdown = vi.fn();
+    mockedStartApiKeyServer.mockResolvedValue({
+      keyPromise: Promise.resolve('prompted-key'),
+      url: 'http://localhost:4321/setup-key',
+      shutdown,
+    });
+
+    const result = await handler.handle({
+      request: {
+        action: 'configure',
+      },
+    } as any);
+
+    expect(result.response.success).toBe(true);
+    expect(configureSpy).toHaveBeenCalledWith('finnhub', {
+      type: 'api_key',
+      apiKey: 'prompted-key',
+    });
+    expect(elicitationServer.elicitInput).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ mode: 'form' })
+    );
+    expect(elicitationServer.elicitInput).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        mode: 'url',
+        url: 'http://localhost:4321/setup-key',
+      })
+    );
+    expect(completionNotifier).toHaveBeenCalledTimes(1);
+    expect(shutdown).not.toHaveBeenCalled();
+  });
+
+  it('returns ELICITATION_UNAVAILABLE when configuring an API-key connector without credentials or elicitation', async () => {
+    vi.spyOn(connectorManager, 'listConnectors').mockReturnValue({
+      connectors: [
+        {
+          id: 'finnhub',
+          name: 'Finnhub',
+          description: 'Market data',
+          authType: 'api_key',
+          configured: false,
+        },
+      ],
+    });
+    const configureSpy = vi.spyOn(connectorManager, 'configure');
+
+    const result = await handler.handle({
+      request: {
+        action: 'configure',
+        connectorId: 'finnhub',
+      },
+    } as any);
+
+    expect(result.response.success).toBe(false);
+    expect(configureSpy).not.toHaveBeenCalled();
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
+      expect(result.response.error.message).toContain('requires credentials.apiKey');
+    }
   });
 
   it('routes subscribe, unsubscribe, and list_subscriptions', async () => {
@@ -119,7 +220,7 @@ describe('ConnectorsHandler', () => {
         endpoint: 'stock/quote',
         params: { symbol: 'AAPL' },
         schedule: { interval: 'hourly' },
-        destination: { spreadsheetId: 'spreadsheet-id', range: 'Sheet1!A1' },
+        destination: { spreadsheetId: 'spreadsheet-id', range: { a1: 'Sheet1!A1' } },
       },
     });
     const unsubscribeResult = await handler.handle({
@@ -181,6 +282,7 @@ describe('ConnectorsHandler', () => {
     expect(schemaSpy).toHaveBeenCalledWith('finnhub', 'stock/quote');
     expect(transformResult.response.action).toBe('transform');
     expect(statusResult.response.action).toBe('status');
+    expect(statusResult.response).toHaveProperty('nextStep');
     expect(discoverResult.response.action).toBe('discover');
     expect(discoverSchemaResult.response.action).toBe('discover');
   });

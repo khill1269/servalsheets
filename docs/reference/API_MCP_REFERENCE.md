@@ -3,13 +3,13 @@ title: 'ServalSheets: Google Sheets API v4 & MCP Protocol Reference'
 category: general
 last_updated: 2026-01-31
 description: Comprehensive reference for Google Sheets API v4 and MCP protocol integration
-version: 1.6.0
+version: 2.0.0
 tags: [api, mcp, sheets]
 ---
 
 # ServalSheets: Google Sheets API v4 & MCP Protocol Reference
 
-**Version**: 1.6.0
+**Version**: 2.0.0
 **MCP Protocol**: 2025-11-25
 **Last Updated**: 2026-01-31
 
@@ -814,7 +814,7 @@ Use `npm run validate:compliance` to check all 25 tools for:
 npm run validate:compliance
 ```
 
-Checks all 25 tools and 391 actions for:
+Checks all 25 tools and 407 actions for:
 
 - Schema structure compliance
 - Google API pattern adherence
@@ -895,13 +895,13 @@ Runs all checks:
 | `src/schemas/composite.ts`   | `src/handlers/composite.ts`   | 4       |
 | `src/schemas/session.ts`     | `src/handlers/session.ts`     | 13      |
 
-**Total**: 25 tools, 391 actions
+**Total**: 25 tools, 407 actions
 
 ---
 
 ## Summary
 
-This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 391 actions.
+This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 407 actions.
 
 **Next Steps**:
 

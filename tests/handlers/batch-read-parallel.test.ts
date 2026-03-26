@@ -63,7 +63,7 @@ describe('ParallelExecutor - Batch Read Integration', () => {
       id: `range-${i}`,
       fn: async () => {
         // Random delay to simulate variable API response times
-        await new Promise((resolve) => setTimeout(resolve, Math.random() * 20));
+        await new Promise((resolve) => setTimeout(resolve, (i % 5) * 4));
         return i * 10;
       },
     }));

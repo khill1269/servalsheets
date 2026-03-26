@@ -1,3 +1,12 @@
+---
+title: Request Replay System
+category: runbook
+last_updated: 2026-03-10
+description: 'Purpose: Debug and analyze failed MCP operations by replaying recorded requests with timing preservation and response comparison.'
+version: 2.0.0
+estimated_time: 15-30 minutes
+---
+
 # Request Replay System
 
 **Purpose**: Debug and analyze failed MCP operations by replaying recorded requests with timing preservation and response comparison.

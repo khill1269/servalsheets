@@ -36,6 +36,7 @@ const KNOWLEDGE_DIR = join(__dirname, '../knowledge');
 // Cache for loaded knowledge files (in-memory, expires after 5 minutes)
 const knowledgeCache = new Map<string, { content: string; loadedAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const deferredKnowledgeRegistration = new WeakSet<McpServer>();
 
 /**
  * Get MIME type from file extension
@@ -164,6 +165,11 @@ startCacheCleanupInterval();
  * loading all of them into context at startup.
  */
 export function registerDeferredKnowledgeResources(server: McpServer): void {
+  if (deferredKnowledgeRegistration.has(server)) {
+    logger.debug('Deferred knowledge resources already registered for this server instance');
+    return;
+  }
+
   // Check if knowledge directory exists
   if (!existsSync(KNOWLEDGE_DIR)) {
     logger.warn('Knowledge directory not found, skipping deferred registration', {
@@ -231,6 +237,7 @@ export function registerDeferredKnowledgeResources(server: McpServer): void {
       };
     }
   );
+  deferredKnowledgeRegistration.add(server);
 
   logger.info('Deferred knowledge resources registered', {
     knowledgeDir: KNOWLEDGE_DIR,

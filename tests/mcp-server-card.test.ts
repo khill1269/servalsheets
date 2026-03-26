@@ -3,10 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  getMcpServerCard,
-  getMcpServerCardWithRuntimeConfig,
-} from '../src/server/well-known.js';
+import { getMcpServerCard, getMcpServerCardWithRuntimeConfig } from '../src/server/well-known.js';
 import { validateEnv } from '../src/config/env.js';
 import { getPromptsCatalogCount } from '../src/resources/prompts-catalog.js';
 

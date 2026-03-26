@@ -34,8 +34,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/collaborate.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Collaborate has 40 actions (35 original + 2 access_proposal + 3 label_*)
-      expect(actions.length).toBe(40);
+      // Collaborate has 41 actions (40 previous + version_snapshot_status)
+      expect(actions.length).toBe(41);
       expect(actions).toContain('share_add');
       expect(actions).toContain('comment_add');
       expect(actions).toContain('version_list_revisions');
@@ -57,8 +57,8 @@ describe('AST Schema Parser', () => {
       const schemaPath = path.join(PROJECT_ROOT, 'src/schemas/data.ts');
       const actions = extractSchemaActions(schemaPath);
 
-      // Data has 24 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill)
-      expect(actions.length).toBe(24);
+      // Data has 25 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill + auto_fill)
+      expect(actions.length).toBe(25);
       expect(actions).toContain('read');
       expect(actions).toContain('write');
       expect(actions).toContain('append');
@@ -122,8 +122,8 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/data.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      // Data has 24 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill)
-      expect(cases.length).toBe(24);
+      // Data has 25 actions (19 original + 4 F2 cross-spreadsheet actions + smart_fill + auto_fill)
+      expect(cases.length).toBe(25);
       expect(cases).toContain('read');
       expect(cases).toContain('write');
       expect(cases).toContain('append');

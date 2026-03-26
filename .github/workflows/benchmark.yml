@@ -23,6 +23,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+
 # Don't run on every PR to save API quota
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -36,13 +39,14 @@ jobs:
   compliance-tests:
     name: MCP Compliance Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -60,6 +64,7 @@ jobs:
   tool-benchmarks:
     name: Tool-Level Benchmarks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: compliance-tests
     # Only run if secrets are available (main branch or manual trigger)
     if: |
@@ -68,10 +73,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -90,7 +95,7 @@ jobs:
           echo "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
 
       - name: Download baseline benchmarks
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: benchmarks/baseline.json
           key: benchmark-baseline-${{ github.base_ref || github.ref_name }}
@@ -116,7 +121,7 @@ jobs:
           BENCHMARK_THRESHOLD: '10'
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-results-tool-level
           path: |
@@ -148,10 +153,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -177,7 +182,7 @@ jobs:
         timeout-minutes: 30
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-results-action-level
           path: |
@@ -199,10 +204,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -226,7 +231,7 @@ jobs:
         run: npm run bench:optimizations
 
       - name: Upload optimization results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: optimization-test-results
           path: |
@@ -245,10 +250,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -275,13 +280,14 @@ jobs:
   benchmark-summary:
     name: Benchmark Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs:
       [compliance-tests, tool-benchmarks, action-benchmarks, optimization-tests, live-api-tests]
     if: always()
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: all-results
         continue-on-error: true

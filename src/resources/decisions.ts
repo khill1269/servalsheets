@@ -12,6 +12,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Register decision tree resources
@@ -47,7 +48,7 @@ export function registerDecisionResources(server: McpServer): void {
     'servalsheets://decisions/tool-selection',
     {
       description:
-        'Decision tree for selecting the right ServalSheets tool for your task. Covers all 22 tools with use case guidance and examples.',
+        'Decision tree for selecting the right ServalSheets tool for your task. Covers all 25 tools with use case guidance and examples.',
       mimeType: 'application/json',
     },
     async (uri) => readDecisionResource(typeof uri === 'string' ? uri : uri.toString())
@@ -563,7 +564,7 @@ export async function readDecisionResource(uri: string): Promise<{
 
   const decisionTree = decisionTrees[resourceId];
   if (!decisionTree) {
-    throw new Error(`Unknown decision tree: ${resourceId}`);
+    throw new NotFoundError('decision_tree', resourceId);
   }
 
   return {

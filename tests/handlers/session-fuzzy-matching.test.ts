@@ -23,7 +23,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'budget-123',
         title: 'Q1 Budget',
         sheetNames: ['Overview', 'Details'],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(budget);
 
@@ -48,7 +48,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'budget-123',
         title: 'Q1 Financial Budget Tracker',
         sheetNames: ['Monthly', 'Quarterly'],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(budget);
 
@@ -72,7 +72,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'sales-456',
         title: 'Sales Pipeline',
         sheetNames: ['Q1', 'Q2'],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(sales);
 
@@ -96,13 +96,13 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'budget-123',
         title: 'Budget 2025',
         sheetNames: ['Jan', 'Feb'],
-        activatedAt: Date.now() - 10000,
+        activatedAt: 1704067200000 - 10000,
       };
       const sales: SpreadsheetContext = {
         spreadsheetId: 'sales-456',
         title: 'Sales Report',
         sheetNames: ['Q1', 'Q2'],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
 
       session.setActiveSpreadsheet(budget);
@@ -129,7 +129,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'long-123',
         title: 'Comprehensive Quarterly Financial Analysis Report 2025',
         sheetNames: ['Data'],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(veryLongTitle);
 
@@ -152,7 +152,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'tracker-789',
         title: 'Main Tracker',
         sheetNames: ['Budget Details', 'Expenses', 'Summary'],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(tracker);
 
@@ -178,7 +178,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'budget-123',
         title: 'Q1 Budget',
         sheetNames: [],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(budget);
 
@@ -202,7 +202,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'report-123',
         title: 'Annual Report',
         sheetNames: [],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(report);
 
@@ -225,7 +225,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'data-456',
         title: 'Data Analysis',
         sheetNames: [],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(data);
 
@@ -367,7 +367,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         spreadsheetId: 'budget-123',
         title: 'Annual BUDGET Report',
         sheetNames: [],
-        activatedAt: Date.now(),
+        activatedAt: 1704067200000,
       };
       session.setActiveSpreadsheet(budget);
 

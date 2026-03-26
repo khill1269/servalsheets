@@ -4,7 +4,9 @@
  * Validates webhook registration, lifecycle management, and Redis integration.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import dns from 'node:dns';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { resetEnvForTest } from '../../src/config/env.js';
 import {
   initWebhookManager,
   getWebhookManager,
@@ -20,6 +22,8 @@ describe('WebhookManager', () => {
   beforeEach(() => {
     // Reset singleton
     resetWebhookManager();
+    resetEnvForTest();
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
 
     // Mock Redis client
     mockRedis = {
@@ -40,7 +44,7 @@ describe('WebhookManager', () => {
           watch: vi.fn().mockResolvedValue({
             data: {
               resourceId: 'resource_123',
-              expiration: String(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              expiration: String(1704067200000 + 7 * 24 * 60 * 60 * 1000),
             },
           }),
         },
@@ -49,6 +53,11 @@ describe('WebhookManager', () => {
         },
       },
     };
+  });
+
+  afterEach(() => {
+    resetEnvForTest();
+    vi.restoreAllMocks();
   });
 
   describe('Initialization', () => {
@@ -204,8 +213,8 @@ describe('WebhookManager', () => {
             eventTypes: ['sheet.update'],
             resourceId: 'resource_1',
             channelId: 'channel_1',
-            createdAt: Date.now(),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            createdAt: 1704067200000,
+            expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
             active: true,
             deliveryCount: 5,
             failureCount: 0,
@@ -219,8 +228,8 @@ describe('WebhookManager', () => {
             eventTypes: ['all'],
             resourceId: 'resource_2',
             channelId: 'channel_2',
-            createdAt: Date.now(),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            createdAt: 1704067200000,
+            expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
             active: true,
             deliveryCount: 10,
             failureCount: 2,
@@ -245,8 +254,8 @@ describe('WebhookManager', () => {
           eventTypes: ['sheet.update'],
           resourceId: 'resource_1',
           channelId: 'channel_1',
-          createdAt: Date.now(),
-          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          createdAt: 1704067200000,
+          expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
           active: true,
           deliveryCount: 0,
           failureCount: 0,
@@ -275,8 +284,8 @@ describe('WebhookManager', () => {
             eventTypes: ['all'],
             resourceId: 'r1',
             channelId: 'c1',
-            createdAt: Date.now(),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            createdAt: 1704067200000,
+            expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
             deliveryCount: 0,
             failureCount: 0,
           })
@@ -290,8 +299,8 @@ describe('WebhookManager', () => {
             eventTypes: ['all'],
             resourceId: 'r2',
             channelId: 'c2',
-            createdAt: Date.now(),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            createdAt: 1704067200000,
+            expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
             deliveryCount: 0,
             failureCount: 0,
           })
@@ -319,8 +328,8 @@ describe('WebhookManager', () => {
           eventTypes: ['sheet.update'],
           resourceId: 'resource_123',
           channelId: 'channel_123',
-          createdAt: Date.now(),
-          expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          createdAt: 1704067200000,
+          expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
           active: true,
           deliveryCount: 5,
           failureCount: 1,
@@ -359,8 +368,8 @@ describe('WebhookManager', () => {
         eventTypes: ['sheet.update' as const],
         resourceId: 'resource_123',
         channelId: 'channel_123',
-        createdAt: Date.now(),
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        createdAt: 1704067200000,
+        expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
         active: true,
         deliveryCount: 5,
         failureCount: 1,
@@ -387,8 +396,8 @@ describe('WebhookManager', () => {
         eventTypes: ['sheet.update' as const],
         resourceId: 'resource_123',
         channelId: 'channel_123',
-        createdAt: Date.now(),
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        createdAt: 1704067200000,
+        expiresAt: 1704067200000 + 7 * 24 * 60 * 60 * 1000,
         active: true,
         deliveryCount: 5,
         failureCount: 1,
@@ -414,7 +423,7 @@ describe('WebhookManager', () => {
     });
 
     it('should clean up expired webhooks', async () => {
-      const now = Date.now();
+      const now = 1704067200000;
       const expiredWebhook = JSON.stringify({
         webhookId: 'webhook_old',
         spreadsheetId: '1ABC',
@@ -538,9 +547,21 @@ describe('WebhookManager', () => {
     });
 
     it('should allow HTTPS URLs with public hostnames', async () => {
-      // Use a domain that won't DNS-resolve in tests (DNS failure is non-blocking)
-      const result = await registerWith('https://user.example.com/callback');
-      expect(result.webhookUrl).toBe('https://user.example.com/callback');
+      // DNS resolution may fail in CI/test envs. Set WEBHOOK_DNS_STRICT=false to skip DNS check.
+      const orig = process.env['WEBHOOK_DNS_STRICT'];
+      process.env['WEBHOOK_DNS_STRICT'] = 'false';
+      resetEnvForTest();
+      try {
+        const result = await registerWith('https://user.example.com/callback');
+        expect(result.webhookUrl).toBe('https://user.example.com/callback');
+      } finally {
+        if (orig === undefined) {
+          delete process.env['WEBHOOK_DNS_STRICT'];
+        } else {
+          process.env['WEBHOOK_DNS_STRICT'] = orig;
+        }
+        resetEnvForTest();
+      }
     });
   });
 });

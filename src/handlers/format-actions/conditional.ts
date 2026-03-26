@@ -7,13 +7,38 @@
 
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
-import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
+import {
+  buildGridRangeInput,
+  toGridRange,
+  parseA1Notation,
+} from '../../utils/google-sheets-helpers.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
+import { confirmDestructiveAction, elicitConditionalFormatPreset } from '../../mcp/elicitation.js';
 import type { FormatResponse, FormatRequest } from '../../schemas/index.js';
 import type { FormatHandlerAccess } from './internal.js';
 import { isElicitableRulePreset, type ConditionType } from './internal.js';
 import { parseNLConditionalFormat } from './helpers.js';
+
+function toConditionValues(
+  values: unknown[] | undefined
+): sheets_v4.Schema$ConditionValue[] | undefined {
+  return values?.map((value) => {
+    if (typeof value === 'string') {
+      return { userEnteredValue: value };
+    }
+    if (
+      value &&
+      typeof value === 'object' &&
+      'userEnteredValue' in value &&
+      typeof (value as { userEnteredValue?: unknown }).userEnteredValue === 'string'
+    ) {
+      return {
+        userEnteredValue: (value as { userEnteredValue: string }).userEnteredValue,
+      };
+    }
+    return { userEnteredValue: String(value ?? '') };
+  });
+}
 
 // ─── handleRuleAddConditionalFormat ──────────────────────────────────────────
 
@@ -68,9 +93,7 @@ export async function handleRuleAddConditionalFormat(
       booleanRule: {
         condition: {
           type: input.rule!.condition.type,
-          values: input.rule!.condition.values?.map((v) => ({
-            userEnteredValue: v,
-          })),
+          values: toConditionValues(input.rule!.condition.values as unknown[] | undefined),
         },
         format: {
           backgroundColor: input.rule!.format.backgroundColor,
@@ -177,9 +200,7 @@ export async function handleRuleUpdateConditionalFormat(
       currentRule.booleanRule = {
         condition: {
           type: input.rule.condition.type,
-          values: input.rule.condition.values?.map((v) => ({
-            userEnteredValue: v,
-          })),
+          values: toConditionValues(input.rule.condition.values as unknown[] | undefined),
         },
         format: {
           backgroundColor: input.rule.format.backgroundColor,
@@ -366,44 +387,24 @@ export async function handleAddConditionalFormatRule(
 ): Promise<FormatResponse> {
   // Elicitation wizard: ask for rulePreset when absent
   let resolvedInput = input;
-  if (!input.rulePreset && ha.context.server) {
-    try {
-      const elicitResult = await ha.context.server.elicitInput({
-        mode: 'form',
-        message: 'Step 1/2: Choose a conditional formatting rule preset',
-        requestedSchema: {
-          type: 'object',
-          properties: {
-            rulePreset: {
-              type: 'string',
-              title: 'Rule preset',
-              description: 'Select the type of conditional formatting rule',
-              enum: [
-                'highlight_duplicates',
-                'highlight_blanks',
-                'highlight_errors',
-                'color_scale_green_red',
-                'data_bars',
-                'top_10_percent',
-                'bottom_10_percent',
-              ],
-              default: 'highlight_blanks',
-            },
-          },
-          required: ['rulePreset'],
-        },
-      });
-      if (elicitResult.action === 'accept' && elicitResult.content?.['rulePreset']) {
-        const rulePreset = elicitResult.content['rulePreset'];
-        if (isElicitableRulePreset(rulePreset)) {
-          resolvedInput = {
-            ...input,
-            rulePreset,
-          };
-        }
+  if (!input.rulePreset && ha.context.elicitationServer) {
+    // P0-1 defensive guard: elicitConditionalFormatPreset may be unavailable if the
+    // compiled JS is stale. Fall back to default preset instead of crashing the entire
+    // sheets_format tool. See BUG_REPORT_2026-03-16.md §P0-1.
+    if (typeof elicitConditionalFormatPreset === 'function') {
+      const rangeDisplay =
+        typeof input.range === 'string'
+          ? input.range
+          : input.range && 'a1' in input.range
+            ? input.range.a1
+            : '';
+      const elicited = await elicitConditionalFormatPreset(
+        ha.context.elicitationServer,
+        rangeDisplay
+      );
+      if (elicited && isElicitableRulePreset(elicited.preset)) {
+        resolvedInput = { ...input, rulePreset: elicited.preset };
       }
-    } catch {
-      // non-blocking — proceed with default
     }
     if (!resolvedInput.rulePreset) {
       resolvedInput = { ...resolvedInput, rulePreset: 'highlight_blanks' };
@@ -416,6 +417,76 @@ export async function handleAddConditionalFormatRule(
     resolvedInput.range!
   );
   const googleRange = toGridRange(gridRange);
+
+  // Idempotency guard: check if an identical rule already exists
+  try {
+    const existing = await ha.api.spreadsheets.get({
+      spreadsheetId: resolvedInput.spreadsheetId,
+      fields: 'sheets.conditionalFormats,sheets.properties.sheetId',
+    });
+
+    const sheet = existing.data.sheets?.find(
+      (s) => s.properties?.sheetId === resolvedInput.sheetId
+    );
+    const existingRules = sheet?.conditionalFormats ?? [];
+
+    for (const rule of existingRules) {
+      // Check if rule has same range and same preset type
+      const ruleRange = rule.ranges?.[0];
+      if (
+        ruleRange &&
+        ruleRange.sheetId === gridRange.sheetId &&
+        ruleRange.startRowIndex === gridRange.startRowIndex &&
+        ruleRange.endRowIndex === gridRange.endRowIndex &&
+        ruleRange.startColumnIndex === gridRange.startColumnIndex &&
+        ruleRange.endColumnIndex === gridRange.endColumnIndex
+      ) {
+        // Check if rule type matches the preset
+        let presetMatches = false;
+        switch (resolvedInput.rulePreset) {
+          case 'highlight_duplicates':
+            presetMatches = !!(
+              rule.booleanRule?.condition?.type === 'CUSTOM_FORMULA' &&
+              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('COUNTIF')
+            );
+            break;
+          case 'highlight_blanks':
+            presetMatches = rule.booleanRule?.condition?.type === 'BLANK' || false;
+            break;
+          case 'highlight_errors':
+            presetMatches = !!(
+              rule.booleanRule?.condition?.type === 'CUSTOM_FORMULA' &&
+              rule.booleanRule?.condition?.values?.[0]?.userEnteredValue?.includes('ISERROR')
+            );
+            break;
+          case 'color_scale_green_red':
+          case 'color_scale_blue_red':
+          case 'data_bars':
+          case 'traffic_light':
+            presetMatches = !!rule.gradientRule;
+            break;
+          case 'top_10_percent':
+          case 'bottom_10_percent':
+          case 'above_average':
+          case 'below_average':
+          case 'negative_red_positive_green':
+          case 'variance_highlight':
+            presetMatches = !!rule.booleanRule?.condition?.type;
+            break;
+        }
+
+        if (presetMatches) {
+          return ha.makeSuccess('add_conditional_format_rule', {
+            ruleIndex: existingRules.indexOf(rule),
+            _idempotent: true,
+            _hint: `A conditional format rule with preset "${resolvedInput.rulePreset}" already exists for this range. Returning existing rule index.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if check fails
+  }
 
   let request: sheets_v4.Schema$Request;
 
@@ -791,7 +862,6 @@ export async function handleGenerateConditionalFormat(
   const {
     spreadsheetId,
     description,
-    sheetId = 0,
     applyImmediately = true,
   } = input as {
     spreadsheetId: string;
@@ -801,6 +871,27 @@ export async function handleGenerateConditionalFormat(
     applyImmediately?: boolean;
   };
   const range = (input as Record<string, unknown>)['range'] as unknown;
+
+  // BUG-7 fix: Resolve sheetId from range when not explicitly provided.
+  // Previously defaulted to 0, which may not match the target sheet and
+  // could produce NaN when sheet names with spaces fail parseInt.
+  let sheetId = (input as Record<string, unknown>)['sheetId'] as number | undefined;
+  if (sheetId === undefined || sheetId === null || Number.isNaN(sheetId)) {
+    try {
+      const rangeStr = typeof range === 'string' ? range : (range as { a1?: string })?.a1;
+      if (rangeStr) {
+        const parsed = parseA1Notation(rangeStr);
+        if (parsed.sheetName) {
+          sheetId = await ha.getSheetId(spreadsheetId, parsed.sheetName);
+        }
+      }
+    } catch {
+      // Fall through to default
+    }
+    if (sheetId === undefined || sheetId === null || Number.isNaN(sheetId)) {
+      sheetId = 0;
+    }
+  }
 
   const parsed = parseNLConditionalFormat(description);
   if (!parsed.success) {

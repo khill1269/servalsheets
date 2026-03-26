@@ -13,9 +13,6 @@
 // Re-export base types
 export * from './base.js';
 
-// Re-export optimization utilities (Phase 2)
-export * from './optimization.js';
-
 // Re-export handler types for backwards compatibility
 export type { SheetsDataHandler } from './data.js';
 export type { FormatHandler } from './format.js';
@@ -109,6 +106,7 @@ export interface Handlers {
  */
 export function createHandlers(options: HandlerFactoryOptions): Handlers {
   const cache = {} as Partial<Handlers>;
+  const loadingPromises = {} as Partial<Record<keyof Handlers, Promise<unknown>>>;
   let handlersRef: Handlers | undefined;
 
   const loaders = {
@@ -145,6 +143,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         server: options.context.server,
         taskStore: options.context.taskStore,
         googleClient: options.context.googleClient ?? undefined,
+        sessionContext: options.context.sessionContext,
       });
     },
     // New MCP-native handlers
@@ -166,7 +165,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async session() {
       const { SessionHandler } = await import('./session.js');
-      const handler = new SessionHandler();
+      const handler = new SessionHandler(options.context.sessionContext);
       if (options.context.scheduler) {
         handler.setScheduler(options.context.scheduler);
       }
@@ -213,12 +212,16 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // Dependencies handler
     async dependencies() {
       const { createDependenciesHandler } = await import('./dependencies.js');
-      return createDependenciesHandler(options.sheetsApi);
+      return createDependenciesHandler(options.sheetsApi, {
+        sessionContext: options.context.sessionContext,
+      });
     },
     // Federation handler (Feature 3)
     async federation() {
       const { FederationHandler } = await import('./federation.js');
-      return new FederationHandler(options.context.taskStore);
+      return new FederationHandler(options.context.taskStore, {
+        sessionContext: options.context.sessionContext,
+      });
     },
     // Computation engine (Phase 5)
     async compute() {
@@ -226,17 +229,24 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       return new ComputeHandler(options.sheetsApi, {
         samplingServer: options.context.samplingServer,
         duckdbEngine: options.context.duckdbEngine,
+        sessionContext: options.context.sessionContext,
       });
     },
     // Agent loop (Phase 6)
     async agent() {
       const { AgentHandler } = await import('./agent.js');
-      return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry);
+      return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry, {
+        sessionContext: options.context.sessionContext,
+      });
     },
     // Live data connectors (Wave 6)
     async connectors() {
       const { ConnectorsHandler } = await import('./connectors.js');
-      return new ConnectorsHandler({ samplingServer: options.context.samplingServer });
+      return new ConnectorsHandler({
+        samplingServer: options.context.samplingServer,
+        sessionContext: options.context.sessionContext,
+        elicitationServer: options.context.elicitationServer ?? options.context.server,
+      });
     },
   };
 
@@ -261,9 +271,22 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
         {
           get(_, methodProp: string) {
             return async (...args: unknown[]) => {
-              // Lazy load and cache the handler
+              // Lazy load and cache the handler (with Promise dedup for concurrent access)
               if (!cache[prop as keyof Handlers]) {
-                (cache as Record<string, unknown>)[prop as string] = await loader();
+                const key = prop as keyof Handlers;
+                if (!loadingPromises[key]) {
+                  loadingPromises[key] = loader()
+                    .then((result) => {
+                      (cache as Record<string, unknown>)[prop as string] = result;
+                      delete loadingPromises[key];
+                      return result;
+                    })
+                    .catch((err) => {
+                      delete loadingPromises[key];
+                      throw err;
+                    });
+                }
+                await loadingPromises[key];
               }
               const handler = cache[prop as keyof Handlers]!;
               const method = (handler as unknown as Record<string, unknown>)[methodProp];

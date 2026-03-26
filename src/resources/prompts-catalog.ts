@@ -1,36 +1,49 @@
 /**
- * ServalSheets - Prompts Catalog Resource
+ * ServalSheets Prompt Catalog
  *
- * Organizes registered prompts into scenario buckets so LLMs
- * can quickly find the right prompt for a given task.
- *
- * URI: servalsheets://prompts/catalog
- *
- * @module resources/prompts-catalog
+ * Scenario-grouped prompt discovery data used by discovery surfaces such as the
+ * master index and server card. The executable prompt surface remains
+ * prompts/list and prompts/get; this module only provides metadata.
  */
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-
-interface PromptEntry {
+export interface PromptEntry {
   name: string;
   description: string;
 }
 
-interface PromptBucket {
+export interface PromptBucket {
   description: string;
   whenToUse: string;
   prompts: PromptEntry[];
 }
 
+export interface PromptCatalogBucketSummary extends PromptBucket {
+  id: string;
+  promptCount: number;
+}
+
 const PROMPT_CATALOG: Record<string, PromptBucket> = {
   first_time: {
     description: 'Onboarding and initial setup prompts',
-    whenToUse: 'When a user is new to ServalSheets or needs an introduction',
+    whenToUse:
+      'When a user is new to ServalSheets and should be guided from readiness to first success',
     prompts: [
-      { name: 'welcome', description: 'Guided introduction to ServalSheets capabilities' },
-      { name: 'test_connection', description: 'Verify connectivity and authentication' },
-      { name: 'first_operation', description: 'Walk through your very first read or write' },
-      { name: 'full_setup', description: 'End-to-end workspace setup for a new project' },
+      {
+        name: 'welcome',
+        description: 'Guided introduction that starts with readiness and next-step routing',
+      },
+      {
+        name: 'test_connection',
+        description: 'Verify readiness, authentication, and a real public-sheet read',
+      },
+      {
+        name: 'first_operation',
+        description: 'Walk through the first useful task after readiness is verified',
+      },
+      {
+        name: 'full_setup',
+        description: 'End-to-end workspace setup using the canonical readiness-first ladder',
+      },
     ],
   },
   analyze: {
@@ -104,7 +117,10 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         name: 'generate_sheet_from_description',
         description: 'Generate a complete sheet from a natural language description',
       },
-      { name: 'full_setup', description: 'Complete project setup from scratch' },
+      {
+        name: 'full_setup',
+        description: 'Complete project setup from scratch, including readiness verification',
+      },
       { name: 'batch_optimizer', description: 'Optimize batch operations for quota efficiency' },
       {
         name: 'data_pipeline',
@@ -227,6 +243,16 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
   },
 };
 
+export function listPromptCatalogBuckets(): PromptCatalogBucketSummary[] {
+  return Object.entries(PROMPT_CATALOG).map(([id, bucket]) => ({
+    id,
+    description: bucket.description,
+    whenToUse: bucket.whenToUse,
+    prompts: bucket.prompts.map((prompt) => ({ ...prompt })),
+    promptCount: bucket.prompts.length,
+  }));
+}
+
 export function getPromptsCatalogCount(): number {
   const promptNames = new Set<string>();
   for (const bucket of Object.values(PROMPT_CATALOG)) {
@@ -235,38 +261,4 @@ export function getPromptsCatalogCount(): number {
     }
   }
   return promptNames.size;
-}
-
-/**
- * Register the prompts catalog resource.
- */
-export function registerPromptsCatalogResource(server: McpServer): void {
-  const totalPrompts = getPromptsCatalogCount();
-
-  server.registerResource(
-    'ServalSheets Prompts Catalog',
-    'servalsheets://prompts/catalog',
-    {
-      description: `All ${totalPrompts} ServalSheets prompts organized by scenario. Use to find the right prompt for analyze, clean, import, automate, troubleshoot, formulas, collaborate, visualize, and advanced workflows.`,
-      mimeType: 'application/json',
-    },
-    async (uri) => {
-      const catalog = {
-        $schema: 'servalsheets://prompts/catalog',
-        total: totalPrompts,
-        usage: 'Find your scenario in the buckets below. Use the prompt name with MCP prompts/get.',
-        buckets: PROMPT_CATALOG,
-      };
-
-      return {
-        contents: [
-          {
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify(catalog, null, 2),
-          },
-        ],
-      };
-    }
-  );
 }

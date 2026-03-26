@@ -6,13 +6,18 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
+const toolHashMocks = vi.hoisted(() => ({
+  getToolHashManifest: vi.fn(),
+}));
 import {
   handleMcpConfiguration,
   handleOAuthAuthorizationServer,
   handleOAuthProtectedResource,
+  handleToolHashManifest,
   buildMcpConfiguration,
   buildOAuthAuthorizationServerMetadata,
   buildOAuthProtectedResourceMetadata,
+  registerWellKnownHandlers,
 } from '../../src/server/well-known.js';
 
 // Mock version
@@ -61,6 +66,10 @@ vi.mock('../../src/utils/logger.js', () => ({
   },
 }));
 
+vi.mock('../../src/security/tool-hash-registry.js', () => ({
+  getToolHashManifest: toolHashMocks.getToolHashManifest,
+}));
+
 function createMockRequest(url: string = '/'): Request {
   return {
     protocol: 'https',
@@ -86,9 +95,24 @@ function createMockResponse(): Response {
     status: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
     setHeader: vi.fn().mockReturnThis(),
+    end: vi.fn().mockReturnThis(),
   } as unknown as Response;
   return res;
 }
+
+beforeEach(() => {
+  toolHashMocks.getToolHashManifest.mockReset();
+  toolHashMocks.getToolHashManifest.mockResolvedValue({
+    generated: '2026-03-16T00:00:00.000Z',
+    version: '1.6.0',
+    tools: {
+      sheets_auth: {
+        sha256: 'abc123',
+        updatedAt: '2026-03-16T00:00:00.000Z',
+      },
+    },
+  });
+});
 
 describe('buildMcpConfiguration', () => {
   it('should build MCP configuration object', () => {
@@ -236,5 +260,95 @@ describe('handleOAuthProtectedResource', () => {
     const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(jsonArg.resource).toBeDefined();
     expect(jsonArg.authorization_servers).toBeDefined();
+  });
+});
+
+describe('handleToolHashManifest', () => {
+  it('should respond with tool hash manifest JSON', async () => {
+    const req = createMockRequest('/.well-known/mcp/tool-hashes');
+    const res = createMockResponse();
+
+    await handleToolHashManifest(req, res);
+
+    expect(toolHashMocks.getToolHashManifest).toHaveBeenCalledTimes(1);
+    expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/json');
+    expect(res.json).toHaveBeenCalled();
+
+    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(jsonArg.version).toBe('1.6.0');
+    expect(jsonArg.tools.sheets_auth.sha256).toBe('abc123');
+  });
+
+  it('should support conditional requests with ETag', async () => {
+    const req = createMockRequest('/.well-known/mcp/tool-hashes');
+    const res = createMockResponse();
+
+    await handleToolHashManifest(req, res);
+
+    const etagCall = (res.set as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([name]) => name === 'ETag'
+    );
+    expect(etagCall?.[1]).toBeTruthy();
+
+    const conditionalReq = createMockRequest('/.well-known/mcp/tool-hashes');
+    conditionalReq.headers['if-none-match'] = etagCall?.[1] as string;
+    const conditionalRes = createMockResponse();
+
+    await handleToolHashManifest(conditionalReq, conditionalRes);
+
+    expect(conditionalRes.status).toHaveBeenCalledWith(304);
+    expect(conditionalRes.end).toHaveBeenCalled();
+  });
+});
+
+describe('registerWellKnownHandlers', () => {
+  it('registers the server-card alias to the same MCP card handler', () => {
+    const routes = new Map<string, (req: Request, res: Response) => void | Promise<void>>();
+    const app = {
+      get: vi.fn((path: string, handler: (req: Request, res: Response) => void | Promise<void>) => {
+        routes.set(path, handler);
+      }),
+    };
+
+    registerWellKnownHandlers(app);
+
+    expect(routes.has('/.well-known/mcp.json')).toBe(true);
+    expect(routes.has('/.well-known/mcp/server-card.json')).toBe(true);
+
+    const primaryHandler = routes.get('/.well-known/mcp.json');
+    const aliasHandler = routes.get('/.well-known/mcp/server-card.json');
+    expect(primaryHandler).toBe(aliasHandler);
+
+    const primaryReq = createMockRequest('/.well-known/mcp.json');
+    const aliasReq = createMockRequest('/.well-known/mcp/server-card.json');
+    const primaryRes = createMockResponse();
+    const aliasRes = createMockResponse();
+
+    primaryHandler?.(primaryReq, primaryRes);
+    aliasHandler?.(aliasReq, aliasRes);
+
+    const [primaryJson] = (primaryRes.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [aliasJson] = (aliasRes.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(aliasJson).toEqual(primaryJson);
+  });
+
+  it('registers the tool hash manifest endpoint', async () => {
+    const routes = new Map<string, (req: Request, res: Response) => void | Promise<void>>();
+    const app = {
+      get: vi.fn((path: string, handler: (req: Request, res: Response) => void | Promise<void>) => {
+        routes.set(path, handler);
+      }),
+    };
+
+    registerWellKnownHandlers(app);
+
+    expect(routes.has('/.well-known/mcp/tool-hashes')).toBe(true);
+
+    const req = createMockRequest('/.well-known/mcp/tool-hashes');
+    const res = createMockResponse();
+
+    await routes.get('/.well-known/mcp/tool-hashes')?.(req, res);
+
+    expect(res.json).toHaveBeenCalled();
   });
 });

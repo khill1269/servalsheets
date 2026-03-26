@@ -13,6 +13,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Register static reference resources
@@ -446,6 +447,6 @@ Note: Use patterns with sheets_format action: set_number_format
       };
 
     default:
-      throw new Error(`Unknown reference resource: ${resourceId}`);
+      throw new NotFoundError('reference resource', resourceId);
   }
 }

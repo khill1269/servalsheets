@@ -3,21 +3,6 @@ import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
-
-/**
- * Extended SpreadsheetProperties type that includes namedFunctions.
- * This property exists in the Google Sheets API but is missing from googleapis type definitions.
- */
-interface ExtendedSpreadsheetProperties extends sheets_v4.Schema$SpreadsheetProperties {
-  namedFunctions?: Array<{
-    name?: string;
-    functionBody?: string;
-    description?: string;
-    argumentNames?: string[];
-  }>;
-}
 
 type CreateNamedFunctionRequest = Extract<
   SheetsAdvancedInput['request'],
@@ -57,237 +42,59 @@ interface NamedFunctionsDeps {
   error: (error: ErrorDetail) => AdvancedResponse;
 }
 
+function namedFunctionsUnavailable(
+  action:
+    | CreateNamedFunctionRequest['action']
+    | ListNamedFunctionsRequest['action']
+    | GetNamedFunctionRequest['action']
+    | UpdateNamedFunctionRequest['action']
+    | DeleteNamedFunctionRequest['action'],
+  deps: NamedFunctionsDeps
+): AdvancedResponse {
+  return deps.error({
+    code: ErrorCodes.FEATURE_UNAVAILABLE,
+    message: `The ${action} action is kept for compatibility, but Google Sheets named functions are not exposed consistently through the current Sheets API surface.`,
+    category: 'client',
+    severity: 'medium',
+    retryable: false,
+    suggestedFix:
+      'Create or manage named functions directly in the Google Sheets UI, or use Apps Script / named ranges for API-driven reusable logic.',
+    resolution:
+      'ServalSheets will not call unsupported named-function API endpoints. Use a supported workaround instead of retrying this action.',
+  });
+}
+
 export async function handleCreateNamedFunctionAction(
-  req: CreateNamedFunctionRequest,
+  _req: CreateNamedFunctionRequest,
   deps: NamedFunctionsDeps
 ): Promise<AdvancedResponse> {
-  const paramDefs = req.parameterDefinitions?.map((p) => ({
-    name: p.name,
-    description: p.description ?? '',
-  }));
-
-  // Named function requests exist in Google Sheets API but are not in googleapis types.
-  // Cast request items to allow addNamedFunction (valid API field, missing from types).
-  await deps.sheetsApi.spreadsheets.batchUpdate({
-    spreadsheetId: req.spreadsheetId!,
-    requestBody: {
-      requests: [
-        {
-          addNamedFunction: {
-            namedFunction: {
-              name: req.functionName!,
-              description: req.description ?? '',
-              functionBody: req.functionBody!,
-              argumentNames: paramDefs?.map((p) => p.name),
-            },
-          },
-        } as sheets_v4.Schema$Request,
-      ],
-    },
-  });
-
-  return deps.success('create_named_function', {
-    namedFunction: {
-      functionName: req.functionName!,
-      functionBody: req.functionBody!,
-      description: req.description,
-      parameterDefinitions: paramDefs,
-    },
-  });
+  return namedFunctionsUnavailable('create_named_function', deps);
 }
 
 export async function handleListNamedFunctionsAction(
-  req: ListNamedFunctionsRequest,
+  _req: ListNamedFunctionsRequest,
   deps: NamedFunctionsDeps
 ): Promise<AdvancedResponse> {
-  const result = await deps.sheetsApi.spreadsheets.get({
-    spreadsheetId: req.spreadsheetId!,
-    fields: 'properties.namedFunctions',
-  });
-
-  // namedFunctions is a newer API field not yet in googleapis types
-  const rawFunctions: unknown[] =
-    (result.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
-
-  const allItems = rawFunctions.map((fn) => {
-    const f = fn as {
-      name?: string;
-      functionBody?: string;
-      description?: string;
-      argumentNames?: string[];
-    };
-    return {
-      functionName: f.name ?? '',
-      functionBody: f.functionBody ?? '',
-      description: f.description ?? undefined,
-      parameterDefinitions: f.argumentNames?.map((name) => ({ name })),
-    };
-  });
-
-  const { page, nextCursor, hasMore, totalCount } = deps.paginateItems(
-    allItems,
-    req.cursor,
-    req.pageSize ?? 100
-  );
-  return deps.success('list_named_functions', {
-    namedFunctions: page,
-    nextCursor,
-    hasMore,
-    totalCount,
-  });
+  return namedFunctionsUnavailable('list_named_functions', deps);
 }
 
 export async function handleGetNamedFunctionAction(
-  req: GetNamedFunctionRequest,
+  _req: GetNamedFunctionRequest,
   deps: NamedFunctionsDeps
 ): Promise<AdvancedResponse> {
-  const result = await deps.sheetsApi.spreadsheets.get({
-    spreadsheetId: req.spreadsheetId!,
-    fields: 'properties.namedFunctions',
-  });
-
-  const rawFunctions: unknown[] =
-    (result.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
-
-  const fn = rawFunctions.find((f) => (f as { name?: string }).name === req.functionName);
-
-  if (!fn) {
-    return deps.error({
-      code: ErrorCodes.NOT_FOUND,
-      message: `Named function "${req.functionName}" not found`,
-      retryable: false,
-      suggestedFix: 'Use list_named_functions to see all available named functions',
-    });
-  }
-
-  const f = fn as {
-    name?: string;
-    functionBody?: string;
-    description?: string;
-    argumentNames?: string[];
-  };
-  return deps.success('get_named_function', {
-    namedFunction: {
-      functionName: f.name ?? '',
-      functionBody: f.functionBody ?? '',
-      description: f.description ?? undefined,
-      parameterDefinitions: f.argumentNames?.map((name) => ({ name })),
-    },
-  });
+  return namedFunctionsUnavailable('get_named_function', deps);
 }
 
 export async function handleUpdateNamedFunctionAction(
-  req: UpdateNamedFunctionRequest,
+  _req: UpdateNamedFunctionRequest,
   deps: NamedFunctionsDeps
 ): Promise<AdvancedResponse> {
-  // First retrieve the existing function to build the update
-  const getResult = await deps.sheetsApi.spreadsheets.get({
-    spreadsheetId: req.spreadsheetId!,
-    fields: 'properties.namedFunctions',
-  });
-
-  const rawFunctions: unknown[] =
-    (getResult.data.properties as ExtendedSpreadsheetProperties)?.namedFunctions ?? [];
-
-  const existing = rawFunctions.find((f) => (f as { name?: string }).name === req.functionName) as
-    | { name?: string; functionBody?: string; description?: string; argumentNames?: string[] }
-    | undefined;
-
-  if (!existing) {
-    return deps.error({
-      code: ErrorCodes.NOT_FOUND,
-      message: `Named function "${req.functionName}" not found`,
-      retryable: false,
-      suggestedFix: 'Use list_named_functions to see all available named functions',
-    });
-  }
-
-  const updatedName = req.newFunctionName ?? existing.name ?? req.functionName!;
-  const updatedBody = req.functionBody ?? existing.functionBody ?? '';
-  const updatedDesc =
-    req.description !== undefined ? req.description : (existing.description ?? '');
-  const updatedArgs = req.parameterDefinitions
-    ? req.parameterDefinitions.map((p) => p.name)
-    : (existing.argumentNames ?? []);
-
-  // Named function requests exist in Google Sheets API but are not in googleapis types.
-  // Cast request items to allow updateNamedFunction (valid API field, missing from types).
-  await deps.sheetsApi.spreadsheets.batchUpdate({
-    spreadsheetId: req.spreadsheetId!,
-    requestBody: {
-      requests: [
-        {
-          updateNamedFunction: {
-            namedFunction: {
-              name: updatedName,
-              description: updatedDesc,
-              functionBody: updatedBody,
-              argumentNames: updatedArgs,
-            },
-            oldName: req.functionName!,
-            fields: 'name,description,functionBody,argumentNames',
-          },
-        } as sheets_v4.Schema$Request,
-      ],
-    },
-  });
-
-  return deps.success('update_named_function', {
-    namedFunction: {
-      functionName: updatedName,
-      functionBody: updatedBody,
-      description: updatedDesc || undefined,
-      parameterDefinitions: updatedArgs.map((name) => ({ name })),
-    },
-  });
+  return namedFunctionsUnavailable('update_named_function', deps);
 }
 
 export async function handleDeleteNamedFunctionAction(
-  req: DeleteNamedFunctionRequest,
+  _req: DeleteNamedFunctionRequest,
   deps: NamedFunctionsDeps
 ): Promise<AdvancedResponse> {
-  // Snapshot BEFORE confirmation (captures pre-op state; must exist before user approves)
-  const snapshot = await createSnapshotIfNeeded(
-    deps.context.snapshotService,
-    {
-      operationType: 'delete_named_function',
-      isDestructive: true,
-      spreadsheetId: req.spreadsheetId,
-    },
-    req.safety
-  );
-
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'delete_named_function',
-      `Delete named function "${req.functionName}" from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`
-    );
-
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
-  }
-
-  // Named function requests exist in Google Sheets API but are not in googleapis types.
-  // Cast request items to allow deleteNamedFunction (valid API field, missing from types).
-  await deps.sheetsApi.spreadsheets.batchUpdate({
-    spreadsheetId: req.spreadsheetId!,
-    requestBody: {
-      requests: [
-        {
-          deleteNamedFunction: {
-            name: req.functionName!,
-          },
-        } as sheets_v4.Schema$Request,
-      ],
-    },
-  });
-
-  return deps.success('delete_named_function', { snapshotId: snapshot?.snapshotId });
+  return namedFunctionsUnavailable('delete_named_function', deps);
 }

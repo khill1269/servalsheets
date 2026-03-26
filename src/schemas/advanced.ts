@@ -6,6 +6,7 @@
  * Named Ranges (5): add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range
  * Named Functions (5): create_named_function, list_named_functions, get_named_function, update_named_function, delete_named_function
  * Protected Ranges (4): add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges
+ * - Listing preserves true protection scope: range, whole-sheet, or named-range protections
  * Metadata (3): set_metadata, get_metadata, delete_metadata
  * Banding (4): add_banding, update_banding, delete_banding, list_banding
  * Tables (6): create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties
@@ -56,7 +57,21 @@ const NamedRangeSchema = z.object({
 
 const ProtectedRangeSchema = z.object({
   protectedRangeId: z.coerce.number().int(),
-  range: GridRangeSchema,
+  scope: z
+    .enum(['range', 'sheet', 'named_range'])
+    .optional()
+    .describe('Protection scope: a grid range, an entire sheet, or a named range binding'),
+  sheetId: SheetIdSchema.optional().describe('Sheet ID for the protected range or protected sheet'),
+  sheetTitle: z.string().optional().describe('Resolved sheet title when available'),
+  range: GridRangeSchema.optional().describe('Grid range when scope is range-based'),
+  namedRangeId: z
+    .string()
+    .optional()
+    .describe('Named range ID when protection is bound to a named range'),
+  unprotectedRanges: z
+    .array(GridRangeSchema)
+    .optional()
+    .describe('Unprotected sub-ranges carved out of an otherwise protected sheet'),
   description: z.string().optional(),
   warningOnly: z.boolean(),
   requestingUserCanEdit: z.boolean(),
@@ -180,8 +195,10 @@ const DeleteProtectedRangeActionSchema = CommonFieldsSchema.extend({
 });
 
 const ListProtectedRangesActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('list_protected_ranges').describe('List all protected ranges'),
-  sheetId: SheetIdSchema.optional().describe('Filter by sheet ID'),
+  action: z
+    .literal('list_protected_ranges')
+    .describe('List protected ranges, whole-sheet protections, and named-range protections'),
+  sheetId: SheetIdSchema.optional().describe('Filter by sheet ID when narrowing to one sheet'),
   cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
   pageSize: z
     .number()
@@ -410,7 +427,9 @@ const NamedFunctionParamSchema = z.object({
 const CreateNamedFunctionActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('create_named_function')
-    .describe('Create a reusable LAMBDA-based custom function'),
+    .describe(
+      'Compatibility action for reusable LAMBDA-based custom functions. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z
     .string()
     .min(1)
@@ -437,7 +456,11 @@ const CreateNamedFunctionActionSchema = CommonFieldsSchema.extend({
 });
 
 const ListNamedFunctionsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('list_named_functions').describe('List all custom named functions'),
+  action: z
+    .literal('list_named_functions')
+    .describe(
+      'Compatibility action for listing custom named functions. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
   pageSize: z
     .number()
@@ -450,12 +473,20 @@ const ListNamedFunctionsActionSchema = CommonFieldsSchema.extend({
 });
 
 const GetNamedFunctionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('get_named_function').describe('Get a specific named function by name'),
+  action: z
+    .literal('get_named_function')
+    .describe(
+      'Compatibility action for retrieving a named function by name. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z.string().min(1).describe('Name of the function to retrieve'),
 });
 
 const UpdateNamedFunctionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('update_named_function').describe('Update an existing named function'),
+  action: z
+    .literal('update_named_function')
+    .describe(
+      'Compatibility action for updating a named function. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z.string().min(1).describe('Name of the function to update'),
   newFunctionName: z
     .string()
@@ -473,7 +504,11 @@ const UpdateNamedFunctionActionSchema = CommonFieldsSchema.extend({
 });
 
 const DeleteNamedFunctionActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('delete_named_function').describe('Delete a named function'),
+  action: z
+    .literal('delete_named_function')
+    .describe(
+      'Compatibility action for deleting a named function. Currently returns FEATURE_UNAVAILABLE because the live Sheets API surface is inconsistent here.'
+    ),
   functionName: z.string().min(1).describe('Name of the function to delete'),
 });
 

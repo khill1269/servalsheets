@@ -3,6 +3,7 @@ import type { sheets_v4 } from 'googleapis';
 import type { SuggestionCategory } from '../../analysis/suggestion-engine.js';
 import type { AnalyzeResponse } from '../../schemas/analyze.js';
 import { logger } from '../../utils/logger.js';
+import { recordSuggestionOp } from '../../observability/metrics.js';
 
 type SuggestNextActionsRequest = {
   spreadsheetId: string;
@@ -65,6 +66,7 @@ export async function handleSuggestNextActionsAction(
       categories: input.categories,
     });
 
+    recordSuggestionOp('suggest_next_actions', 'success');
     return {
       success: true,
       action: 'suggest_next_actions',
@@ -78,6 +80,7 @@ export async function handleSuggestNextActionsAction(
       spreadsheetId: input.spreadsheetId,
       error: error instanceof Error ? error.message : String(error),
     });
+    recordSuggestionOp('suggest_next_actions', 'error');
     return {
       success: false,
       error: {
@@ -121,6 +124,7 @@ export async function handleAutoEnhanceAction(
       maxEnhancements: input.maxEnhancements ?? 3,
     });
 
+    recordSuggestionOp('auto_enhance', 'success');
     return {
       success: true,
       action: 'auto_enhance',
@@ -133,6 +137,7 @@ export async function handleAutoEnhanceAction(
       spreadsheetId: input.spreadsheetId,
       error: error instanceof Error ? error.message : String(error),
     });
+    recordSuggestionOp('auto_enhance', 'error');
     return {
       success: false,
       error: {

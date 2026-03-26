@@ -24,6 +24,7 @@ import { mapStandaloneError } from './helpers/error-mapping.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { recordServerName } from '../mcp/completions.js';
 
 function sanitizeFederationErrorMessage(message: string): string {
   // Drop multiline stack tail and redact common local filesystem path patterns.
@@ -61,8 +62,15 @@ function buildFederationError(
  */
 export class FederationHandler {
   private circuitBreaker: CircuitBreaker;
+  private sessionContext?: import('../services/session-context.js').SessionContextManager;
 
-  constructor(_taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter) {
+  constructor(
+    _taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter,
+    options?: {
+      sessionContext?: import('../services/session-context.js').SessionContextManager;
+    }
+  ) {
+    this.sessionContext = options?.sessionContext;
     // 16-S3: Initialize circuit breaker for federation operations
     const circuitConfig = getCircuitBreakerConfig();
     this.circuitBreaker = new CircuitBreaker({
@@ -227,6 +235,21 @@ export class FederationHandler {
       toolName,
     });
 
+    // Record operation in session context for LLM follow-up references
+    try {
+      if (this.sessionContext) {
+        this.sessionContext.recordOperation({
+          tool: 'sheets_federation',
+          action: 'call_remote',
+          spreadsheetId: serverName,
+          description: `Called remote MCP tool '${toolName}' on server '${serverName}'`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // Non-blocking: session context recording is best-effort
+    }
+
     return {
       response: {
         success: true,
@@ -250,6 +273,11 @@ export class FederationHandler {
       url: s.url,
       connected: client.isConnected(s.name),
     }));
+
+    // Record server names for MCP completion suggestions
+    for (const s of serverList) {
+      recordServerName(s.name);
+    }
 
     logger.debug('Listing federation servers', {
       component: 'federation-handler',

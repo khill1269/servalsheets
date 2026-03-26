@@ -7,6 +7,7 @@ import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import { recordBandingId } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
@@ -101,6 +102,36 @@ export async function handleAddBandingAction(
   if (colColorError) return colColorError;
 
   const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range!);
+  const targetGrid = toGridRange(gridRange);
+
+  // Idempotency guard: check if banding already exists on the same range
+  try {
+    const existing = await deps.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'sheets.bandedRanges,sheets.properties.sheetId',
+    });
+    for (const sheet of existing.data.sheets ?? []) {
+      for (const br of sheet.bandedRanges ?? []) {
+        const r = br.range;
+        if (
+          r &&
+          r.sheetId === targetGrid.sheetId &&
+          r.startRowIndex === targetGrid.startRowIndex &&
+          r.endRowIndex === targetGrid.endRowIndex &&
+          r.startColumnIndex === targetGrid.startColumnIndex &&
+          r.endColumnIndex === targetGrid.endColumnIndex
+        ) {
+          return deps.success('add_banding', {
+            bandedRangeId: br.bandedRangeId ?? undefined,
+            _idempotent: true,
+            _hint: `Banding already exists on this range. Returning existing banding ID instead of creating a duplicate.`,
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking: proceed with creation if lookup fails
+  }
 
   const response = await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
@@ -109,7 +140,7 @@ export async function handleAddBandingAction(
         {
           addBanding: {
             bandedRange: {
-              range: toGridRange(gridRange),
+              range: targetGrid,
               rowProperties: req.rowProperties,
               columnProperties: req.columnProperties,
             },
@@ -136,6 +167,19 @@ export async function handleUpdateBandingAction(
   const fields: string[] = [];
   if (req.rowProperties !== undefined) fields.push('rowProperties');
   if (req.columnProperties !== undefined) fields.push('columnProperties');
+
+  // BUG-13 fix: Google API requires non-empty fields mask for updateBanding.
+  // Return a clear error instead of sending an invalid request.
+  if (fields.length === 0) {
+    return deps.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message:
+        'At least one of rowProperties or columnProperties must be provided for update_banding.',
+      retryable: false,
+      suggestedFix:
+        'Provide rowProperties and/or columnProperties with color definitions (headerColor, firstBandColor, secondBandColor).',
+    });
+  }
 
   await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
@@ -236,6 +280,10 @@ export async function handleListBandingAction(
     req.cursor,
     req.pageSize ?? 100
   );
+  for (const b of page) {
+    recordBandingId(b.bandedRangeId);
+  }
+
   return deps.success('list_banding', {
     bandedRanges: page,
     nextCursor,

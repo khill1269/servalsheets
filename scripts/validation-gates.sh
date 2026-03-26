@@ -36,6 +36,8 @@ npm run check:silent-fallbacks
 npm run check:debug-prints
 npm run check:drift
 npm run validate:server-json
+npm run check:test-determinism
+npm run check:handler-types
 npm run test:fast
 echo "✅ G0 passed"
 
@@ -48,6 +50,8 @@ npm test -- --run tests/contracts/schema-handler-alignment.test.ts
 bash scripts/check-hardcoded-counts.sh
 node --import tsx scripts/validate-schema-handler-alignment.ts
 npm run validate:action-config
+npm run check:schema-passthrough
+npm run check:sheets-fields
 echo "✅ G1 passed"
 
 # G2: Phase behavior
@@ -57,6 +61,10 @@ echo "────────────────────────�
 npm run test:handlers
 npm run test:integration
 npm run test:compliance
+npm run test:simulation
+npm run audit:memory
+npm run check:tautologies
+npx vitest run tests/benchmarks/performance-regression.test.ts
 echo "✅ G2 passed"
 
 # G3: API/protocol/docs quality
@@ -75,6 +83,8 @@ echo "▶ G4: FINAL TRUTH CHECK"
 echo "───────────────────────────────────────"
 npm run build > /dev/null 2>&1
 node scripts/check-source-truth.mjs
+npm run check:jwt-scope
+npm run check:secrets
 echo "✅ G4 passed"
 
 # G5: Audit validation & score

@@ -19,8 +19,8 @@
 
 import { z } from 'zod';
 import {
-  A1NotationSchema,
   ErrorDetailSchema,
+  RangeInputSchema,
   ResponseMetaSchema,
   SafetyOptionsSchema,
   type ToolAnnotations,
@@ -56,14 +56,14 @@ const EvaluateActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Formula to evaluate. Supports Google Sheets syntax (e.g., "=SUM(A1:A10)", "=IF(B2>100, B2*0.9, B2)"). Cell references are resolved against the spreadsheet.'
     ),
-  range: A1NotationSchema.optional().describe(
-    'Context range for relative cell references (A1 notation). Required if formula uses relative refs.'
+  range: RangeInputSchema.optional().describe(
+    'Context range for relative cell references. Accepts A1 notation string, named range, or grid reference. Required if formula uses relative refs.'
   ),
 }).strict();
 
 const AggregateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('aggregate').describe('Run aggregation functions on a range of data'),
-  range: A1NotationSchema.describe('Range to aggregate (A1 notation, e.g., "Sheet1!A1:A100")'),
+  range: RangeInputSchema.describe('Range to aggregate (e.g., "Sheet1!A1:A100" or named range)'),
   functions: z
     .array(
       z.enum([
@@ -115,7 +115,22 @@ const AggregateActionSchema = CommonFieldsSchema.extend({
 
 const StatisticalActionSchema = CommonFieldsSchema.extend({
   action: z.literal('statistical').describe('Compute descriptive statistics for a data range'),
-  range: A1NotationSchema.describe('Range containing numeric data (A1 notation)'),
+  range: RangeInputSchema.describe('Range containing numeric data'),
+  hasHeaders: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'Whether the first row of the requested range contains headers. Set false to treat all rows as data and refer to columns by letters.'
+    ),
+  headerRow: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Absolute 1-based sheet row to use as headers when the requested range excludes the header row.'
+    ),
   columns: z
     .array(z.string())
     .optional()
@@ -147,7 +162,22 @@ const StatisticalActionSchema = CommonFieldsSchema.extend({
 
 const RegressionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('regression').describe('Perform regression analysis on data series'),
-  range: A1NotationSchema.describe('Range containing X and Y data (A1 notation)'),
+  range: RangeInputSchema.describe('Range containing X and Y data'),
+  hasHeaders: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'Whether the first row of the requested range contains headers. Set false to treat all rows as data and refer to columns by letters.'
+    ),
+  headerRow: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Absolute 1-based sheet row to use as headers when the requested range excludes the header row.'
+    ),
   xColumn: z.string().describe('Column for independent variable (letter or header name)'),
   yColumn: z.string().describe('Column for dependent variable (letter or header name)'),
   type: z
@@ -172,10 +202,22 @@ const RegressionActionSchema = CommonFieldsSchema.extend({
 const ForecastActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('forecast')
-    .describe('Time-series forecasting with trend and seasonality detection'),
-  range: A1NotationSchema.describe('Range containing time series data (A1 notation)'),
-  dateColumn: z.string().describe('Column containing dates/timestamps (letter or header name)'),
-  valueColumn: z.string().describe('Column containing values to forecast (letter or header name)'),
+    .describe(
+      'Time-series forecasting with trend and seasonality detection. Requires one numeric row per distinct period; aggregate repeated dates/timestamps before calling.'
+    ),
+  range: RangeInputSchema.describe(
+    'Range containing time series data with headers. Use a pre-aggregated range with one row per period.'
+  ),
+  dateColumn: z
+    .string()
+    .describe(
+      'Column containing dates/timestamps (letter or header name). Needs at least 3 distinct periods.'
+    ),
+  valueColumn: z
+    .string()
+    .describe(
+      'Column containing numeric values to forecast (letter or header name). One value per period.'
+    ),
   periods: z.number().int().min(1).max(365).describe('Number of future periods to forecast'),
   method: z
     .enum(['linear_trend', 'moving_average', 'exponential_smoothing', 'auto'])
@@ -192,14 +234,14 @@ const ForecastActionSchema = CommonFieldsSchema.extend({
 
 const MatrixOpActionSchema = CommonFieldsSchema.extend({
   action: z.literal('matrix_op').describe('Perform matrix operations on spreadsheet data'),
-  range: A1NotationSchema.describe('Range containing the matrix data (A1 notation)'),
+  range: RangeInputSchema.describe('Range containing the matrix data'),
   operation: z
     .enum(['transpose', 'multiply', 'inverse', 'determinant', 'eigenvalues', 'rank', 'trace'])
     .describe('Matrix operation to perform'),
-  secondRange: A1NotationSchema.optional().describe(
+  secondRange: RangeInputSchema.optional().describe(
     'Second matrix range (required for multiply operation)'
   ),
-  outputRange: A1NotationSchema.optional().describe(
+  outputRange: RangeInputSchema.optional().describe(
     'Range to write the result to (if omitted, result is returned but not written)'
   ),
 }).strict();
@@ -208,7 +250,7 @@ const PivotComputeActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('pivot_compute')
     .describe('Compute an in-memory pivot table from spreadsheet data'),
-  range: A1NotationSchema.describe('Source data range (A1 notation, must include headers)'),
+  range: RangeInputSchema.describe('Source data range (must include headers)'),
   rows: z
     .array(z.string())
     .min(1)
@@ -241,12 +283,12 @@ const PivotComputeActionSchema = CommonFieldsSchema.extend({
 
 const CustomFunctionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('custom_function').describe('Execute a custom computation expression on data'),
-  range: A1NotationSchema.describe('Data range to operate on (A1 notation)'),
+  range: RangeInputSchema.describe('Data range to operate on'),
   expression: z
     .string()
     .min(1)
     .describe(
-      'Computation expression using column references. Supports: arithmetic (+, -, *, /, %), comparison (>, <, ==, !=), logical (AND, OR, NOT), and built-in functions (ABS, ROUND, CEIL, FLOOR, SQRT, POW, LOG, LN, EXP, MOD). Column refs: $A, $B or $ColumnName. Example: "ROUND($Revenue * $TaxRate, 2)"'
+      'Computation expression using column references. Supports: arithmetic (+, -, *, /, %), comparison (>, <, ==, !=), logical (AND, OR, NOT), and built-in functions (ABS, ROUND, CEIL, FLOOR, SQRT, POW, LOG, LN, EXP, MOD). Column refs: $A, $B or $ColumnName. Also supports bare "x" for single-column ranges (e.g. "x * 1.1"). Examples: "ROUND($Revenue * $TaxRate, 2)", "x * 1.1"'
     ),
   outputColumn: z
     .string()
@@ -286,7 +328,7 @@ const ExplainFormulaActionSchema = CommonFieldsSchema.extend({
     .string()
     .min(1)
     .describe('Google Sheets formula to explain (e.g., "=VLOOKUP(A2, Sheet2!A:C, 3, FALSE)")'),
-  range: A1NotationSchema.optional().describe(
+  range: RangeInputSchema.optional().describe(
     'Context range for resolving cell references to actual values'
   ),
 }).strict();
@@ -306,7 +348,7 @@ const SqlQueryActionSchema = CommonFieldsSchema.extend({
           .string()
           .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
           .describe('SQL table alias for this range'),
-        range: A1NotationSchema,
+        range: RangeInputSchema,
         hasHeaders: z.boolean().default(true).describe('Whether first row contains column headers'),
       })
     )
@@ -325,11 +367,11 @@ const SqlQueryActionSchema = CommonFieldsSchema.extend({
 const SqlJoinActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sql_join').describe('Join two ranges using SQL JOIN semantics via DuckDB'),
   left: z.object({
-    range: A1NotationSchema,
+    range: RangeInputSchema,
     alias: z.string().default('left').describe('SQL alias for left table'),
   }),
   right: z.object({
-    range: A1NotationSchema,
+    range: RangeInputSchema,
     alias: z.string().default('right').describe('SQL alias for right table'),
   }),
   on: z.string().describe('JOIN condition (e.g., "left.id = right.id")'),
@@ -344,7 +386,7 @@ const SqlJoinActionSchema = CommonFieldsSchema.extend({
 
 const PythonEvalActionSchema = CommonFieldsSchema.extend({
   action: z.literal('python_eval').describe('Run Python code on spreadsheet data via Pyodide WASM'),
-  range: A1NotationSchema,
+  range: RangeInputSchema,
   code: z
     .string()
     .min(1)
@@ -360,14 +402,18 @@ const PandasProfileActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('pandas_profile')
     .describe('Generate statistical profile of spreadsheet data using pandas'),
-  range: A1NotationSchema,
+  range: RangeInputSchema,
+  columns: z
+    .array(z.string())
+    .optional()
+    .describe('Optional list of column names to profile. If omitted, profiles all columns.'),
   hasHeaders: z.boolean().default(true),
   includeCorrelations: z.boolean().default(true),
 }).strict();
 
 const SklearnModelActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sklearn_model').describe('Train a scikit-learn ML model on spreadsheet data'),
-  range: A1NotationSchema,
+  range: RangeInputSchema,
   targetColumn: z.string().describe('Column name to predict'),
   featureColumns: z
     .array(z.string())
@@ -392,7 +438,7 @@ const MatplotlibChartActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('matplotlib_chart')
     .describe('Generate a matplotlib chart from spreadsheet data, returned as base64 PNG'),
-  range: A1NotationSchema,
+  range: RangeInputSchema,
   chartType: z.enum(['line', 'bar', 'scatter', 'heatmap', 'histogram', 'boxplot']),
   xColumn: z.string().optional(),
   yColumns: z.array(z.string()).optional(),

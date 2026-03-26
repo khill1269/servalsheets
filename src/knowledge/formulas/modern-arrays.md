@@ -132,7 +132,7 @@ Google Sheets supports dynamic array formulas that automatically spill results i
 
 ## Named Functions (LAMBDA-based Custom Functions)
 
-Named Functions let you define reusable formulas with custom names. Use `sheets_advanced.create_named_function`.
+Named Functions let you define reusable formulas with custom names. ServalSheets currently exposes named-function actions for compatibility, but the live Google Sheets API surface does not support creating or listing them reliably through this server path. Create them in the Google Sheets UI instead.
 
 ### Creating a Named Function
 

@@ -15,6 +15,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 
 // Use generic Redis client type to avoid complex type compatibility issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -244,7 +245,11 @@ export function getCapabilityCacheService(): CapabilityCacheService {
  */
 export function resetCapabilityCacheService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetCapabilityCacheService() can only be called in test environment');
+    throw new ServiceError(
+      'resetCapabilityCacheService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'CapabilityCacheService'
+    );
   }
   capabilityCacheService = null;
 }

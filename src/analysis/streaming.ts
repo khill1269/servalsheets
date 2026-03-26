@@ -8,6 +8,7 @@
 import type { sheets_v4 } from 'googleapis';
 import type { TieredRetrieval, SheetMetadata } from './tiered-retrieval.js';
 import { logger } from '../utils/logger.js';
+import { NotFoundError } from '../core/errors.js';
 
 /**
  * Result from a single chunk of analysis
@@ -50,7 +51,7 @@ export interface StreamingAnalysisResult {
 export class StreamingAnalyzer {
   constructor(
     private sheetsApi: sheets_v4.Sheets,
-    private tieredRetrieval: TieredRetrieval,
+    _tieredRetrieval: TieredRetrieval,
     private chunkSize: number = 1000
   ) {}
 
@@ -67,7 +68,7 @@ export class StreamingAnalyzer {
       : metadata.sheets[0];
 
     if (!targetSheet) {
-      throw new Error('Target sheet not found in metadata');
+      throw new NotFoundError('sheet', sheetId !== undefined ? String(sheetId) : 'first');
     }
 
     const totalRows = targetSheet.rowCount;

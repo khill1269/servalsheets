@@ -5,13 +5,14 @@
  * schema preparation caching, and startup optimizations.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   compactResponse,
   isCompactModeEnabled,
   shouldSkipTruncation,
   getCompactionStats,
 } from '../../src/utils/response-compactor.js';
+import { resetEnvForTest } from '../../src/config/env.js';
 import { getPreparedSchemaCacheSize } from '../../src/mcp/registration/schema-helpers.js';
 
 // Save and restore env
@@ -37,18 +38,25 @@ describe('Configuration Modes', () => {
       saveEnv('COMPACT_RESPONSES');
     });
 
+    beforeEach(() => {
+      resetEnvForTest();
+    });
+
     afterAll(() => {
       restoreEnv();
     });
 
     it('should detect compact mode from env', () => {
       delete process.env['COMPACT_RESPONSES'];
+      resetEnvForTest();
       expect(isCompactModeEnabled()).toBe(true); // default enabled
 
       process.env['COMPACT_RESPONSES'] = 'false';
+      resetEnvForTest();
       expect(isCompactModeEnabled()).toBe(false);
 
       process.env['COMPACT_RESPONSES'] = 'true';
+      resetEnvForTest();
       expect(isCompactModeEnabled()).toBe(true);
     });
   });
@@ -56,6 +64,10 @@ describe('Configuration Modes', () => {
   describe('Verbosity override', () => {
     // shouldSkipTruncation also checks COMPACT_RESPONSES env
     // tests/setup.ts sets COMPACT_RESPONSES=false, so we must override
+
+    beforeEach(() => {
+      resetEnvForTest();
+    });
 
     it('should skip truncation for detailed verbosity', () => {
       delete process.env['COMPACT_RESPONSES'];
@@ -90,6 +102,10 @@ describe('Response Compaction Performance', () => {
   beforeAll(() => {
     saveEnv('COMPACT_RESPONSES');
     delete process.env['COMPACT_RESPONSES']; // defaults to enabled
+  });
+
+  beforeEach(() => {
+    resetEnvForTest();
   });
 
   afterAll(() => {

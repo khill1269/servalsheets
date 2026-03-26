@@ -19,7 +19,7 @@ import {
 // PROTOCOL CONSTANTS
 // ============================================================================
 
-export { MCP_PROTOCOL_VERSION } from '../constants/protocol.js';
+export { MCP_PROTOCOL_VERSION } from '../config/protocol.js';
 export const SHEETS_API_VERSION = 'v4';
 export const DRIVE_API_VERSION = 'v3';
 
@@ -271,6 +271,17 @@ export const DimensionSchema = z
     'Dimension type: ROWS (horizontal bands) or COLUMNS (vertical bands). Case-insensitive.'
   );
 
+/**
+ * Output format per MCP best practices: JSON for programmatic processing,
+ * Markdown for human readability. Handlers that support this should respect
+ * the format preference when building responses.
+ */
+export const OutputFormatSchema = z
+  .enum(['json', 'markdown'])
+  .default('json')
+  .describe('Response format: json for structured data, markdown for human-readable text');
+export type OutputFormat = z.infer<typeof OutputFormatSchema>;
+
 export const HorizontalAlignSchema = z
   .enum(['LEFT', 'CENTER', 'RIGHT'])
   .describe('Horizontal text alignment within cell');
@@ -310,7 +321,15 @@ export const PasteTypeSchema = z
 
 export const ChartTypeSchema = z
   .preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    (val) => {
+      if (typeof val !== 'string') return val;
+      const upper = val.toUpperCase();
+      // COMBO is a valid Sheets API enum but requires series-level chartType
+      // overrides to work. Without them, Google API returns "No basic chart
+      // type specified." Fall back to COLUMN which is the closest visual.
+      if (upper === 'COMBO') return 'COLUMN';
+      return upper;
+    },
     z.enum([
       'BAR',
       'LINE',
@@ -331,7 +350,9 @@ export const ChartTypeSchema = z
       'BUBBLE',
     ])
   )
-  .describe('Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive.');
+  .describe(
+    'Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive. Note: COMBO requires series-level type overrides; auto-falls back to COLUMN.'
+  );
 
 export const LegendPositionSchema = z
   .preprocess(
@@ -435,8 +456,10 @@ export const ErrorCodeSchema = z
     'INTERNAL_ERROR',
     // Authentication & Authorization (5 codes)
     'UNAUTHENTICATED',
+    'NOT_AUTHENTICATED',
     'PERMISSION_DENIED',
     'INVALID_CREDENTIALS',
+    'TOKEN_EXPIRED',
     'INSUFFICIENT_PERMISSIONS',
     'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
     // Quota & Rate Limiting (3 codes)
@@ -453,6 +476,7 @@ export const ErrorCodeSchema = z
     'RANGE_NOT_FOUND',
     'PROTECTED_RANGE',
     // Data & Formula Errors (5 codes)
+    'COMPUTE_ERROR', // Computation/expression evaluation failure (sheets_compute)
     'FORMULA_ERROR',
     'CIRCULAR_REFERENCE',
     'INVALID_DATA_VALIDATION',
@@ -494,6 +518,7 @@ export const ErrorCodeSchema = z
     'AUTHENTICATION_REQUIRED',
     'AUTH_ERROR',
     'CONFIG_ERROR',
+    'NOT_CONFIGURED',
     'VALIDATION_ERROR',
     // Resource/handler lifecycle
     'NOT_FOUND',
@@ -535,6 +560,12 @@ export const ErrorCodeSchema = z
     'CONNECTOR_ERROR',
     // Session errors
     'SESSION_ERROR',
+    // DuckDB / SQL query safety
+    'QUERY_REJECTED', // SQL safety rejection (non-SELECT, DDL/DML, file-system access, invalid name)
+    // Write locking
+    'LOCK_TIMEOUT', // Write lock acquisition timed out (concurrent write contention)
+    // Task lifecycle (SEP-1686)
+    'TASK_CANCELLED', // Task was cancelled before completion
   ])
   .describe(
     'Structured error code for tool call failures. ' +
@@ -762,7 +793,7 @@ export const ConditionSchema = z
     values: z
       .preprocess((val) => {
         // Undefined/null - return undefined
-        if (val === undefined || val === null) return undefined;
+        if (val === undefined || val === null) return undefined; // OK: Explicit empty
 
         // Helper to extract string value from various formats
         const extractValue = (v: unknown): string => {
@@ -874,7 +905,14 @@ export const ChartPositionSchema = z
           const rowIndex = Number(anchor['rowIndex']) || 0;
           const colIndex = Number(anchor['columnIndex']) || 0;
           const cellRef = `${indexToColumnLetter(colIndex)}${rowIndex + 1}`;
-          return { ...pos, anchorCell: cellRef };
+          // Extract sheetId from the anchor object if not already at top level
+          const sheetId =
+            pos['sheetId'] !== undefined
+              ? pos['sheetId']
+              : anchor['sheetId'] !== undefined
+                ? anchor['sheetId']
+                : undefined;
+          return { ...pos, anchorCell: cellRef, ...(sheetId !== undefined ? { sheetId } : {}) };
         }
       }
 
@@ -882,13 +920,16 @@ export const ChartPositionSchema = z
     },
     z.object({
       anchorCell: z.string(),
+      sheetId: z.coerce.number().int().optional().describe('Sheet ID for the chart position'),
       offsetX: z.coerce.number().optional().default(0),
       offsetY: z.coerce.number().optional().default(0),
       width: z.coerce.number().optional().default(600),
       height: z.coerce.number().optional().default(400),
     })
   )
-  .describe('Chart position. anchorCell can be "E1" or object { rowIndex, columnIndex }');
+  .describe(
+    'Chart position. Use "Sheet1!E1" when you know the sheet name, or use "E1" together with position.sheetId.'
+  );
 
 /** Sort specification */
 export const SortSpecSchema = z.object({
@@ -1124,6 +1165,29 @@ export const ErrorDetailSchema = z.object({
   retryable: z.boolean().optional().default(false),
   retryAfterMs: z.number().int().positive().optional(),
   suggestedFix: z.string().optional(),
+  // BUG-8 fix: fixableVia is auto-injected by error-fix-suggester in BaseHandler.mapError()
+  // as a structured object. Previously missing from schema, causing output validation failures.
+  fixableVia: z
+    .object({
+      tool: z.string().describe('Tool name to fix the issue'),
+      action: z.string().describe('Action name to fix the issue'),
+      params: z
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+            z.null(),
+          ])
+        )
+        .optional()
+        .describe('Suggested parameters for the fix action'),
+    })
+    .optional()
+    .describe('Structured fix suggestion with tool/action to resolve the error'),
   alternatives: z
     .array(
       z.object({
@@ -1156,28 +1220,6 @@ export const ErrorDetailSchema = z.object({
     .array(z.string())
     .optional()
     .describe('Tools that might help resolve this error'),
-  // Automated error recovery
-  fixableVia: z
-    .object({
-      tool: z.string().describe('Tool name to fix the error'),
-      action: z.string().describe('Action name to execute'),
-      params: z
-        .record(
-          z.string(),
-          z.union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
-          ])
-        )
-        .optional()
-        .describe('Parameters ready to execute the fix action'),
-    })
-    .optional()
-    .describe('Automated fix action with complete parameters'),
   // Quick Win #2: Resource links for error guidance
   resources: z
     .array(
@@ -1206,11 +1248,16 @@ export const MutationSummarySchema = z.object({
 export const SheetInfoSchema = z.object({
   sheetId: z.number().int(),
   title: z.string(),
-  index: z.number().int(),
+  // BUG-1 fix: Google API may not return index for all sheet types.
+  // Made optional with default 0 to prevent output validation failures.
+  index: z.number().int().optional().default(0),
   rowCount: z.number().int(),
   columnCount: z.number().int(),
   hidden: z.boolean().optional().default(false),
   tabColor: ColorSchema.optional(),
+  tabColorStyle: ColorStyleSchema.optional().describe(
+    'Tab color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
 });
 
 /** Spreadsheet info */
@@ -1298,6 +1345,26 @@ export const ResponseMetaSchema = z.object({
     .regex(URL_REGEX, 'Invalid URL format')
     .optional()
     .describe('URL to relevant documentation'),
+  journeyStage: z
+    .enum([
+      'onboarding',
+      'readiness',
+      'authentication',
+      'connector_setup',
+      'first_success',
+      'mutation',
+      'recovery',
+    ])
+    .optional()
+    .describe('User journey stage this response belongs to'),
+  nextBestAction: z
+    .string()
+    .optional()
+    .describe('Single next action that will make the most progress for the user'),
+  verificationSummary: z
+    .string()
+    .optional()
+    .describe('Short verification summary describing what was checked or confirmed'),
   nextSteps: z.array(z.string()).optional().describe('Recommended next steps'),
   warnings: z.array(z.string()).optional().describe('Safety warnings or considerations'),
   snapshot: z

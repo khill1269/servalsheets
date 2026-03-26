@@ -11,6 +11,8 @@
  */
 
 import type { ClientCapabilities, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
+import { ServiceError } from '../core/errors.js';
+import { recordElicitationRequest } from '../observability/metrics.js';
 
 // ============================================================================
 // Types
@@ -66,23 +68,8 @@ export interface EnumSchema {
   oneOf?: Array<{ const: string; title: string }>;
 }
 
-/**
- * Multi-select enum schema — `type: 'array'` with string enum items.
- * Matches the SDK's `MultiSelectEnumSchemaSchema` (MCP 2025-11-25 spec).
- * Allows clients to render a checkbox group or multi-select list.
- */
-export interface MultiSelectEnumSchema {
-  type: 'array';
-  title?: string;
-  description?: string;
-  minItems?: number;
-  maxItems?: number;
-  default?: string[];
-  items: { type: 'string'; enum: string[] } | { anyOf: Array<{ const: string; title: string }> };
-}
-
 export type PrimitiveSchema = StringSchema | NumberSchema | BooleanSchema | EnumSchema;
-// MultiSelectEnumSchema (type:'array') removed — violates MCP 2025-11-25 spec which requires string/number/boolean/enum only
+// MCP 2025-11-25 requires primitive types only: string, number, boolean, and enum (not array/object)
 
 /**
  * Form elicitation request parameters
@@ -113,7 +100,7 @@ export interface URLElicitParams {
 export interface ElicitationServer {
   getClientCapabilities(): ClientCapabilities | undefined;
   elicitInput(params: FormElicitParams | URLElicitParams): Promise<ElicitResult>;
-  sendElicitationCompleteNotification?(elicitationId: string): Promise<void>;
+  createElicitationCompletionNotifier?(elicitationId: string): () => Promise<void>;
 }
 
 // ============================================================================
@@ -141,7 +128,11 @@ export function assertFormElicitationSupport(
   clientCapabilities: ClientCapabilities | undefined
 ): void {
   if (!clientCapabilities?.elicitation?.form) {
-    throw new Error('Client does not support form-based elicitation');
+    throw new ServiceError(
+      'Client does not support form-based elicitation',
+      'INTERNAL_ERROR',
+      'elicitation'
+    );
   }
 }
 
@@ -152,7 +143,11 @@ export function assertURLElicitationSupport(
   clientCapabilities: ClientCapabilities | undefined
 ): void {
   if (!clientCapabilities?.elicitation?.url) {
-    throw new Error('Client does not support URL-based elicitation');
+    throw new ServiceError(
+      'Client does not support URL-based elicitation',
+      'INTERNAL_ERROR',
+      'elicitation'
+    );
   }
 }
 
@@ -441,26 +436,23 @@ export const FILTER_SETTINGS_SCHEMA: FormElicitParams['requestedSchema'] = {
 // ============================================================================
 
 /**
- * Safely elicit with fallback value if not supported
+ * Safely elicit with fallback value if not supported.
+ * Attempts elicitation regardless of declared capabilities — Claude Desktop
+ * handles elicitation/create even when not advertised in initialize capabilities.
+ * Falls back silently on any error (unsupported, declined, timeout).
  */
 export async function safeElicit<T>(
   server: ElicitationServer,
   params: FormElicitParams,
   fallback: T
 ): Promise<T> {
-  const caps = server.getClientCapabilities();
-  if (!caps?.elicitation?.form) {
-    return fallback;
-  }
-
   try {
     const result = await server.elicitInput(params);
     if (result.action === 'accept' && result.content) {
       return result.content as T;
     }
   } catch (_error) {
-    // Note: logger not available in elicitation module, error will be handled by caller
-    // Silently fall back to default value
+    // Client doesn't support elicitation, declined, or timed out — use fallback
   }
 
   return fallback;
@@ -474,20 +466,22 @@ export async function elicitSpreadsheetCreation(server: ElicitationServer): Prom
   locale: string;
   timeZone: string;
 } | null> {
-  assertFormElicitationSupport(server.getClientCapabilities());
+  try {
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: 'Configure your new spreadsheet:',
+      requestedSchema: SPREADSHEET_CREATION_SCHEMA,
+    });
 
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: 'Configure your new spreadsheet:',
-    requestedSchema: SPREADSHEET_CREATION_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content) {
-    return {
-      title: (result.content['title'] as string) || 'Untitled Spreadsheet',
-      locale: (result.content['locale'] as string) || 'en_US',
-      timeZone: (result.content['timeZone'] as string) || 'America/New_York',
-    };
+    if (result.action === 'accept' && result.content) {
+      return {
+        title: (result.content['title'] as string) || 'Untitled Spreadsheet',
+        locale: (result.content['locale'] as string) || 'en_US',
+        timeZone: (result.content['timeZone'] as string) || 'America/New_York',
+      };
+    }
+  } catch (_error) {
+    /* client doesn't support elicitation — fall through to return null */
   }
 
   return null;
@@ -505,21 +499,23 @@ export async function elicitSharingSettings(
   sendNotification: boolean;
   message?: string;
 } | null> {
-  assertFormElicitationSupport(server.getClientCapabilities());
+  try {
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: `Share "${spreadsheetTitle}" with someone:`,
+      requestedSchema: SHARING_SETTINGS_SCHEMA,
+    });
 
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: `Share "${spreadsheetTitle}" with someone:`,
-    requestedSchema: SHARING_SETTINGS_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content) {
-    return {
-      email: result.content['email'] as string,
-      role: result.content['role'] as 'reader' | 'commenter' | 'writer',
-      sendNotification: (result.content['sendNotification'] as boolean) ?? true,
-      message: result.content['message'] as string | undefined,
-    };
+    if (result.action === 'accept' && result.content) {
+      return {
+        email: result.content['email'] as string,
+        role: result.content['role'] as 'reader' | 'commenter' | 'writer',
+        sendNotification: (result.content['sendNotification'] as boolean) ?? true,
+        message: result.content['message'] as string | undefined,
+      };
+    }
+  } catch (_error) {
+    /* client doesn't support elicitation */
   }
 
   return null;
@@ -533,14 +529,7 @@ export async function confirmDestructiveAction(
   action: string,
   details: string
 ): Promise<{ confirmed: boolean; reason?: string }> {
-  const caps = server.getClientCapabilities();
-  if (!caps?.elicitation?.form) {
-    // Elicitation not available - proceed by default since user explicitly requested the action
-    // This is the safe default per MCP spec backward compatibility
-    return { confirmed: true };
-  }
-
-  // Add timeout to prevent hanging when client reports capability but doesn't respond
+  // Add timeout to prevent hanging when client doesn't respond
   const ELICITATION_TIMEOUT_MS = 5000;
 
   try {
@@ -556,18 +545,22 @@ export async function confirmDestructiveAction(
 
     const result = await Promise.race([elicitPromise, timeoutPromise]);
 
+    recordElicitationRequest(action, 'accepted');
     if (result.action === 'accept' && result.content?.['confirm'] === true) {
       return {
         confirmed: true,
         reason: result.content['reason'] as string | undefined,
       };
     }
+    recordElicitationRequest(action, 'declined');
 
     // User declined or cancelled
     return { confirmed: false };
   } catch (_error) {
-    // Timeout or error - fail-safe: deny destructive operations
-    return { confirmed: false };
+    // Client doesn't support elicitation or timed out — proceed by default since
+    // user explicitly requested the action (safe per MCP spec backward compatibility)
+    recordElicitationRequest(action, 'unavailable');
+    return { confirmed: true };
   }
 }
 
@@ -581,22 +574,24 @@ export async function elicitDataImport(server: ElicitationServer): Promise<{
   headerRow: boolean;
   replaceExisting: boolean;
 } | null> {
-  assertFormElicitationSupport(server.getClientCapabilities());
+  try {
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: 'Configure data import:',
+      requestedSchema: DATA_IMPORT_SCHEMA,
+    });
 
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: 'Configure data import:',
-    requestedSchema: DATA_IMPORT_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content) {
-    return {
-      sourceType: result.content['sourceType'] as 'csv_url' | 'google_sheet' | 'json_api',
-      url: result.content['url'] as string,
-      targetSheet: (result.content['targetSheet'] as string) || 'Imported Data',
-      headerRow: (result.content['headerRow'] as boolean) ?? true,
-      replaceExisting: (result.content['replaceExisting'] as boolean) ?? false,
-    };
+    if (result.action === 'accept' && result.content) {
+      return {
+        sourceType: result.content['sourceType'] as 'csv_url' | 'google_sheet' | 'json_api',
+        url: result.content['url'] as string,
+        targetSheet: (result.content['targetSheet'] as string) || 'Imported Data',
+        headerRow: (result.content['headerRow'] as boolean) ?? true,
+        replaceExisting: (result.content['replaceExisting'] as boolean) ?? false,
+      };
+    }
+  } catch (_error) {
+    /* client doesn't support elicitation */
   }
 
   return null;
@@ -1015,6 +1010,50 @@ export async function elicitPipelineConfig(server: ElicitationServer): Promise<{
   return null;
 }
 
+/**
+ * Elicit conditional format rule preset for sheets_format.add_conditional_format_rule
+ */
+export async function elicitConditionalFormatPreset(
+  server: ElicitationServer,
+  range: string
+): Promise<{ preset: string } | null> {
+  const schema: FormElicitParams['requestedSchema'] = {
+    type: 'object',
+    properties: {
+      preset: selectField({
+        title: 'Conditional formatting rule',
+        description: `Select a preset rule to apply to range ${range}`,
+        options: [
+          { value: 'highlight_duplicates', label: 'Highlight duplicate cells in red' },
+          { value: 'color_scale_green_red', label: 'Color gradient: green (low) to red (high)' },
+          { value: 'data_bars', label: 'Show data bars proportional to cell value' },
+          { value: 'top_10_percent', label: 'Bold top 10% of values' },
+          { value: 'highlight_blanks', label: 'Highlight blank cells in yellow' },
+          { value: 'above_average', label: 'Green for above-average values' },
+        ],
+        default: 'highlight_duplicates',
+      }),
+    },
+    required: ['preset'],
+  };
+
+  const result = await safeElicit<{ preset: string } | null>(
+    server,
+    {
+      mode: 'form',
+      message: 'Choose a conditional formatting rule preset:',
+      requestedSchema: schema,
+    },
+    null
+  );
+
+  if (result) {
+    return { preset: result.preset };
+  }
+
+  return null;
+}
+
 // ============================================================================
 // URL Elicitation (OAuth and External Auth)
 // ============================================================================
@@ -1069,46 +1108,15 @@ export async function completeOAuthFlow(
   server: ElicitationServer,
   elicitationId: string
 ): Promise<void> {
-  if (server.sendElicitationCompleteNotification) {
-    await server.sendElicitationCompleteNotification(elicitationId);
+  if (server.createElicitationCompletionNotifier) {
+    const notify = server.createElicitationCompletionNotifier(elicitationId);
+    try {
+      await notify();
+    } catch (_notifyErr) {
+      // Non-fatal: notification channel failure shouldn't block OAuth completion
+      // (OAuth flow already succeeded; notification is best-effort)
+    }
   }
-}
-
-/**
- * Initiate external verification flow
- */
-export async function initiateVerificationFlow(
-  server: ElicitationServer,
-  params: {
-    verificationUrl: string;
-    purpose: string;
-    expiresIn?: number; // seconds
-  }
-): Promise<{
-  accepted: boolean;
-  elicitationId: string;
-}> {
-  assertURLElicitationSupport(server.getClientCapabilities());
-
-  const elicitationId = generateElicitationId('verify');
-
-  let message = params.purpose;
-  if (params.expiresIn) {
-    const minutes = Math.ceil(params.expiresIn / 60);
-    message += `\n\nThis link expires in ${minutes} minute${minutes > 1 ? 's' : ''}.`;
-  }
-
-  const result = await server.elicitInput({
-    mode: 'url',
-    message,
-    elicitationId,
-    url: params.verificationUrl,
-  });
-
-  return {
-    accepted: result.action === 'accept',
-    elicitationId,
-  };
 }
 
 // ============================================================================
@@ -1138,8 +1146,6 @@ export async function runWizard<T>(
     onStepComplete?: (stepIndex: number, data: Partial<T>) => void;
   } = {}
 ): Promise<WizardStepResult<T>> {
-  assertFormElicitationSupport(server.getClientCapabilities());
-
   let accumulated: Partial<T> = {};
 
   for (let i = 0; i < steps.length; i++) {
@@ -1147,11 +1153,17 @@ export async function runWizard<T>(
     const stepNumber = i + 1;
     const totalSteps = steps.length;
 
-    const result = await server.elicitInput({
-      mode: 'form',
-      message: `Step ${stepNumber}/${totalSteps}: ${step.message}`,
-      requestedSchema: step.schema,
-    });
+    let result: Awaited<ReturnType<typeof server.elicitInput>>;
+    try {
+      result = await server.elicitInput({
+        mode: 'form',
+        message: `Step ${stepNumber}/${totalSteps}: ${step.message}`,
+        requestedSchema: step.schema,
+      });
+    } catch (_error) {
+      // Client doesn't support elicitation — abort wizard gracefully
+      return { completed: false };
+    }
 
     if (result.action === 'cancel') {
       return { completed: false, cancelled: true };
@@ -1178,6 +1190,65 @@ export async function runWizard<T>(
   }
 
   return { completed: true, data: accumulated as T };
+}
+
+// ============================================================================
+// B2: Clarification Elicitation
+// ============================================================================
+
+/**
+ * A single clarification question to ask the user mid-analysis.
+ */
+export interface ClarificationQuestion {
+  /** The question to display to the user */
+  question: string;
+  /** Optional set of allowed answers (renders as a dropdown) */
+  options?: string[];
+  /** Field name in the form schema */
+  field?: string;
+}
+
+/**
+ * Elicit user clarification when analysis confidence is low.
+ *
+ * Asks at most one question (the first in the array) to avoid overwhelming
+ * the user. Returns the collected answers, or null if elicitation is
+ * unsupported or the user declined.
+ *
+ * Non-blocking: catches all errors and degrades gracefully.
+ */
+export async function elicitUserClarification(
+  server: ElicitationServer,
+  questions: ClarificationQuestion[],
+  context?: string
+): Promise<Record<string, string> | null> {
+  try {
+    const firstQ = questions[0];
+    if (!firstQ) return null;
+
+    const field = firstQ.field ?? 'clarification';
+    const fieldSchema: PrimitiveSchema =
+      firstQ.options && firstQ.options.length > 0
+        ? { type: 'string', title: firstQ.question, enum: firstQ.options }
+        : { type: 'string', title: firstQ.question };
+
+    const result = await server.elicitInput({
+      mode: 'form',
+      message: context ?? 'I need a quick clarification to give you the best analysis.',
+      requestedSchema: {
+        type: 'object',
+        properties: { [field]: fieldSchema },
+      },
+    });
+
+    if (result.action === 'accept' && result.content) {
+      return result.content as Record<string, string>;
+    }
+  } catch {
+    // Client doesn't support elicitation, declined, or timed out — degrade gracefully
+  }
+
+  return null;
 }
 
 // ============================================================================

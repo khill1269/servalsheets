@@ -18,6 +18,7 @@
 import type { sheets_v4 } from 'googleapis';
 import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
 import {
   buildA1Notation as buildA1NotationImpl,
   calculateSheetNameSimilarity,
@@ -108,8 +109,10 @@ export class SheetResolver {
    */
   private getSheetsApi(): sheets_v4.Sheets {
     if (!this.sheetsApi) {
-      throw new Error(
-        'SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.'
+      throw new SheetResolutionError(
+        'SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.',
+        'NOT_FOUND',
+        {}
       );
     }
     return this.sheetsApi;
@@ -382,7 +385,7 @@ export class SheetResolver {
 
     if (!sheet) {
       // OK: Explicit empty - typed as optional, sheet not found by name
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Return in format expected by tests
@@ -407,7 +410,7 @@ export class SheetResolver {
 
     if (!sheet) {
       // OK: Explicit empty - typed as optional, sheet not found by ID
-      return undefined;
+      return undefined; // OK: Explicit empty
     }
 
     // Return in format expected by tests
@@ -442,7 +445,11 @@ export class SheetResolver {
       const columnIndex = await this.findColumnByHeader(spreadsheetId, sheet, column, _auth);
 
       if (columnIndex === -1) {
-        throw new Error(`Column "${column}" not found in sheet "${sheet}"`);
+        throw new SheetResolutionError(
+          `Column "${column}" not found in sheet "${sheet}"`,
+          'RANGE_NOT_FOUND',
+          { column, sheetName: sheet }
+        );
       }
 
       const columnLetter = this.columnIndexToLetter(columnIndex);
@@ -486,7 +493,9 @@ export class SheetResolver {
     const namedRange = response.data.namedRanges?.find((nr) => nr.name === range);
 
     if (!namedRange || !namedRange.range) {
-      throw new Error(`Named range "${range}" not found`);
+      throw new SheetResolutionError(`Named range "${range}" not found`, 'RANGE_NOT_FOUND', {
+        range: String(range),
+      });
     }
 
     // Convert GridRange to A1 notation
@@ -677,7 +686,11 @@ export function initializeSheetResolver(
  */
 export function resetSheetResolver(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetSheetResolver() can only be called in test environment');
+    throw new ServiceError(
+      'resetSheetResolver() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'SheetResolver'
+    );
   }
   sheetResolverInstance = null;
 }

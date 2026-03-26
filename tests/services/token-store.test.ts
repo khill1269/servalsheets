@@ -32,7 +32,7 @@ describe('EncryptedFileTokenStore', () => {
     const tokens = {
       access_token: 'access',
       refresh_token: 'refresh',
-      expiry_date: Date.now() + 1000,
+      expiry_date: 1704067200000 + 1000,
       scope: 'scope',
     };
 

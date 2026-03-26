@@ -3,7 +3,7 @@ title: Smart Chips Guide
 category: guide
 last_updated: 2026-01-31
 description: 'Tool: sheetsadvanced (chip actions)'
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate
@@ -13,7 +13,7 @@ difficulty: intermediate
 
 **Tool**: `sheets_advanced` (chip actions)
 **API**: Google Sheets chipRuns (June 2025)
-**Version**: 1.6.0
+**Version**: 2.0.0
 **Last Updated**: 2026-01-30
 
 ---

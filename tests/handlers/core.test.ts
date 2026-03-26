@@ -154,7 +154,7 @@ const createMockDriveApi = () => ({
 const createMockContext = (): HandlerContext =>
   ({
     requestId: 'test-request',
-    timestamp: new Date(),
+    timestamp: new Date('2024-01-15T00:00:00Z'),
     auth: {
       scopes: [
         'https://www.googleapis.com/auth/spreadsheets',
@@ -199,11 +199,11 @@ const createMockContext = (): HandlerContext =>
     snapshotService: {
       createSnapshot: vi.fn().mockResolvedValue({
         snapshotId: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       }),
       create: vi.fn().mockResolvedValue({
         id: 'snapshot-123',
-        timestamp: new Date(),
+        timestamp: new Date('2024-01-15T00:00:00Z'),
       }),
     } as any,
     impactAnalyzer: {
@@ -355,7 +355,7 @@ describe('SheetsCoreHandler', () => {
           }),
         });
 
-        expect((result.response as any).error.message).toBeDefined();
+        expect((result.response as any).error.message).not.toBeUndefined();
       });
 
       it('should resolve Drive shortcut IDs before fetching spreadsheet metadata', async () => {
@@ -481,7 +481,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy');
-        expect((result.response as any).spreadsheet).toBeDefined();
         expect((result.response as any).spreadsheet.spreadsheetId).toBe('copied-spreadsheet-id');
         expect((result.response as any).spreadsheet.title).toBe('Copy of Test Spreadsheet');
         expect(mockDriveApi.files.copy).toHaveBeenCalled();
@@ -664,7 +663,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_comprehensive');
-        expect((result.response as any).comprehensiveMetadata).toBeDefined();
         expect((result.response as any).comprehensiveMetadata.spreadsheetId).toBe(
           'test-spreadsheet-id'
         );
@@ -721,7 +719,6 @@ describe('SheetsCoreHandler', () => {
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'describe_workbook');
         const summary = (result.response as any).workbookSummary;
-        expect(summary).toBeDefined();
         expect(summary.title).toBe('My Budget');
         expect(summary.sheetCount).toBe(1);
         expect(summary.sheets).toHaveLength(1);
@@ -773,6 +770,129 @@ describe('SheetsCoreHandler', () => {
         expect(summary.sheets[0].isEmpty).toBe(true);
         expect(summary.sheets[0].formulaCount).toBe(0);
         expect(summary.totalCells).toBe(0);
+      });
+
+      it('should limit formula scanning to maxSheets while keeping full sheet metadata', async () => {
+        const manySheets = Array.from({ length: 12 }, (_, i) => ({
+          properties: {
+            sheetId: i,
+            title: `Sheet${i + 1}`,
+            gridProperties: { rowCount: 1000, columnCount: 26 },
+          },
+        }));
+
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'large-sheet-id',
+            properties: { title: 'Large Workbook' },
+            sheets: manySheets,
+          },
+        });
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            valueRanges: Array.from({ length: 10 }, (_, i) => ({
+              range: `'Sheet${i + 1}'!A1:Z1000`,
+              values: [['=ROW()']],
+            })),
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'describe_workbook',
+          spreadsheetId: 'large-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        const summary = (result.response as any).workbookSummary;
+        expect(summary.sheetCount).toBe(12);
+        expect(summary.analyzedSheetCount).toBe(10);
+        expect(summary.sheets).toHaveLength(12);
+        expect(summary.sheets[10].analysisDeferred).toBe(true);
+        expect((result.response as any)._meta?.truncated).toBe(true);
+        expect((result.response as any)._meta?.continuationHint).toContain(
+          'analyzed 10 of 12 sheets'
+        );
+
+        const batchGetCall = mockApi.spreadsheets.values.batchGet.mock.calls.at(-1)?.[0];
+        expect(batchGetCall.ranges).toHaveLength(10);
+        expect(batchGetCall.ranges[0]).toBe("'Sheet1'!A1:Z1000");
+        expect(batchGetCall.ranges[9]).toBe("'Sheet10'!A1:Z1000");
+      });
+
+      it('should honor custom maxSheets for describe_workbook', async () => {
+        const manySheets = Array.from({ length: 5 }, (_, i) => ({
+          properties: {
+            sheetId: i,
+            title: `Sheet${i + 1}`,
+            gridProperties: { rowCount: 1000, columnCount: 26 },
+          },
+        }));
+
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'custom-limit-sheet-id',
+            properties: { title: 'Custom Limit Workbook' },
+            sheets: manySheets,
+          },
+        });
+        mockApi.spreadsheets.values.batchGet.mockResolvedValueOnce({
+          data: {
+            valueRanges: [
+              { range: "'Sheet1'!A1:Z1000", values: [['=A1']] },
+              { range: "'Sheet2'!A1:Z1000", values: [['=A1']] },
+              { range: "'Sheet3'!A1:Z1000", values: [['=A1']] },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'describe_workbook',
+          spreadsheetId: 'custom-limit-sheet-id',
+          maxSheets: 3,
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).workbookSummary.analyzedSheetCount).toBe(3);
+        const batchGetCall = mockApi.spreadsheets.values.batchGet.mock.calls.at(-1)?.[0];
+        expect(batchGetCall.ranges).toHaveLength(3);
+      });
+    });
+
+    describe('workbook_fingerprint action', () => {
+      it('should compute fingerprint from metadata only without fetching sheet values', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'fp-sheet-id',
+            properties: { title: 'Fingerprint Workbook' },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+              },
+              {
+                properties: {
+                  sheetId: 1,
+                  title: 'Sheet2',
+                  gridProperties: { rowCount: 200, columnCount: 8 },
+                },
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'workbook_fingerprint',
+          spreadsheetId: 'fp-sheet-id',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).fingerprint).toEqual(expect.any(String));
+        expect((result.response as any).fingerprintInput).toContain('sheet:Sheet1|id:0|rows:1000|cols:26');
+        expect((result.response as any).fingerprintInput).toContain('sheet:Sheet2|id:1|rows:200|cols:8');
+        expect(mockApi.spreadsheets.values.batchGet).not.toHaveBeenCalled();
       });
     });
 
@@ -851,8 +971,7 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'add_sheet');
-        expect((result.response as any).sheet).toBeDefined();
-        expect((result.response as any).sheet.sheetId).toBeDefined();
+        expect((result.response as any).sheet).not.toBeNull();
         expect((result.response as any).sheet.title).toBe('New Sheet');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
@@ -1004,9 +1123,164 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'duplicate_sheet');
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(456);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsCoreOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('clear_sheet action', () => {
+      it('should clear a sheet by sheetId', async () => {
+        const result = await handler.handle({
+          action: 'clear_sheet',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetId: 0,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'clear_sheet');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'test-spreadsheet-id',
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  updateCells: expect.objectContaining({
+                    fields: 'userEnteredValue',
+                    range: expect.objectContaining({ sheetId: 0 }),
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+
+        const parseResult = SheetsCoreOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should prefer sheetResolver for sheetName resolution before clearing', async () => {
+        mockContext.sheetResolver = {
+          resolve: vi.fn().mockResolvedValue({
+            sheet: {
+              sheetId: 0,
+              title: 'Sheet1',
+              index: 0,
+              hidden: false,
+              gridProperties: { rowCount: 1000, columnCount: 26 },
+            },
+            method: 'exact_name',
+            confidence: 1,
+          }),
+        } as any;
+
+        const result = await handler.handle({
+          action: 'clear_sheet',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetName: 'Sheet1',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockContext.sheetResolver.resolve).toHaveBeenCalledWith('test-spreadsheet-id', {
+          sheetId: undefined,
+          sheetName: 'Sheet1',
+        });
+        expect(mockApi.spreadsheets.get).toHaveBeenCalledTimes(1);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  updateCells: expect.objectContaining({
+                    range: expect.objectContaining({ sheetId: 0 }),
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+      });
+
+      it('should use metadataCache for sheetName resolution before falling back to direct lookup', async () => {
+        mockContext.metadataCache = {
+          getSheetId: vi.fn().mockResolvedValue(0),
+        } as any;
+
+        const result = await handler.handle({
+          action: 'clear_sheet',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetName: 'Sheet1',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(mockContext.metadataCache.getSheetId).toHaveBeenCalledWith(
+          'test-spreadsheet-id',
+          'Sheet1'
+        );
+        expect(mockApi.spreadsheets.get).toHaveBeenCalledTimes(1);
+      });
+
+      it('should reset sheet-level artifacts when resetSheet=true', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            spreadsheetId: 'test-spreadsheet-id',
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
+                bandedRanges: [{ bandedRangeId: 5 }, { bandedRangeId: 6 }],
+                basicFilter: { range: { sheetId: 0 } },
+                filterViews: [{ filterViewId: 42 }],
+                tables: [{ tableId: 'table-1' }],
+              },
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'clear_sheet',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetId: 0,
+          resetSheet: true,
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        const requests = mockApi.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0]?.requestBody
+          ?.requests;
+        expect(requests).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ deleteTable: { tableId: 'table-1' } }),
+            expect.objectContaining({ deleteFilterView: { filterId: 42 } }),
+            expect.objectContaining({ clearBasicFilter: { sheetId: 0 } }),
+            expect.objectContaining({ deleteBanding: { bandedRangeId: 5 } }),
+            expect.objectContaining({ deleteBanding: { bandedRangeId: 6 } }),
+            expect.objectContaining({
+              updateCells: expect.objectContaining({ fields: 'userEnteredValue' }),
+            }),
+            expect.objectContaining({
+              updateCells: expect.objectContaining({ fields: 'userEnteredFormat' }),
+            }),
+            expect.objectContaining({
+              updateCells: expect.objectContaining({ fields: 'note' }),
+            }),
+          ])
+        );
+        expect((result.response as any).cleared).toMatchObject({
+          values: true,
+          formats: true,
+          notes: true,
+          resetSheet: true,
+          banding: 2,
+          filterViews: 1,
+          tables: 1,
+          basicFilter: true,
+        });
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
@@ -1109,7 +1383,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy_sheet_to');
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(789);
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
@@ -1178,7 +1451,6 @@ describe('SheetsCoreHandler', () => {
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_sheet');
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(0);
         expect((result.response as any).sheet.title).toBe('Sheet1');
 
@@ -1194,7 +1466,6 @@ describe('SheetsCoreHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
-        expect((result.response as any).sheet).toBeDefined();
         expect((result.response as any).sheet.sheetId).toBe(0);
         expect((result.response as any).sheet.title).toBe('Sheet1');
       });

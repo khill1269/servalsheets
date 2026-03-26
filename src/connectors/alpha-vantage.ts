@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { ConfigError, ServiceError } from '../core/errors.js';
 import type {
   SpreadsheetConnector,
   ConnectorCredentials,
@@ -40,8 +41,9 @@ export class AlphaVantageConnector implements SpreadsheetConnector {
 
   async configure(credentials: ConnectorCredentials): Promise<void> {
     if (!credentials.apiKey) {
-      throw new Error(
-        'Alpha Vantage requires an API key. Get one free at https://www.alphavantage.co/support/#api-key'
+      throw new ConfigError(
+        'Alpha Vantage requires an API key. Get one free at https://www.alphavantage.co/support/#api-key',
+        'ALPHA_VANTAGE_API_KEY'
       );
     }
     this.apiKey = credentials.apiKey;
@@ -298,16 +300,31 @@ export class AlphaVantageConnector implements SpreadsheetConnector {
 
     const resp = await fetch(url.toString());
     if (!resp.ok) {
-      throw new Error(`Alpha Vantage API error: HTTP ${resp.status}`);
+      throw new ServiceError(
+        `Alpha Vantage API error: HTTP ${resp.status}`,
+        'INTERNAL_ERROR',
+        'alpha-vantage',
+        true
+      );
     }
     const data = (await resp.json()) as Record<string, unknown>;
 
     // Check for API error messages
     if (data['Error Message']) {
-      throw new Error(`Alpha Vantage: ${data['Error Message']}`);
+      throw new ServiceError(
+        `Alpha Vantage: ${data['Error Message']}`,
+        'INTERNAL_ERROR',
+        'alpha-vantage',
+        false
+      );
     }
     if (data['Note']) {
-      throw new Error(`Alpha Vantage rate limit: ${data['Note']}`);
+      throw new ServiceError(
+        `Alpha Vantage rate limit: ${data['Note']}`,
+        'QUOTA_EXCEEDED',
+        'alpha-vantage',
+        true
+      );
     }
 
     return this.formatResult(endpoint, data);

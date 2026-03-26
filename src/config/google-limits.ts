@@ -161,18 +161,6 @@ export const READ_REQUESTS_PER_MINUTE_PER_USER = 60;
 export const WRITE_REQUESTS_PER_MINUTE_PER_USER = 60;
 
 /**
- * @deprecated Use READ_REQUESTS_PER_MINUTE_PER_PROJECT.
- * @see https://developers.google.com/sheets/api/limits
- */
-export const READ_REQUESTS_PER_MINUTE = READ_REQUESTS_PER_MINUTE_PER_PROJECT;
-
-/**
- * @deprecated Use WRITE_REQUESTS_PER_MINUTE_PER_PROJECT.
- * @see https://developers.google.com/sheets/api/limits
- */
-export const WRITE_REQUESTS_PER_MINUTE = WRITE_REQUESTS_PER_MINUTE_PER_PROJECT;
-
-/**
  * Legacy 100-second quota window constants retained for compatibility.
  *
  * Google publishes per-minute quotas for Sheets API; these aliases map
@@ -297,8 +285,3 @@ export const GOOGLE_SHEETS_LIMITS = {
   spreadsheetIdRegex: SPREADSHEET_ID_REGEX,
   urlRegex: URL_REGEX,
 } as const;
-
-/**
- * Type for Google Sheets API limits
- */
-export type GoogleSheetsLimits = typeof GOOGLE_SHEETS_LIMITS;

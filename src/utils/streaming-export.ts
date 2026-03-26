@@ -10,6 +10,7 @@
 import type { sheets_v4 } from 'googleapis';
 import { logger } from './logger.js';
 import { sendProgress } from './request-context.js';
+import { DataError, ServiceError } from '../core/errors.js';
 
 /**
  * Configuration for streaming exports
@@ -129,7 +130,7 @@ export async function readDataInChunks(
     });
 
     if (!response?.data) {
-      throw new Error('Invalid API response: missing data');
+      throw new DataError('Invalid API response: missing data');
     }
 
     const data = response.data.values ?? [];
@@ -181,7 +182,7 @@ export async function readDataInChunks(
       });
 
       if (!response?.data) {
-        throw new Error('Invalid API response: missing data');
+        throw new DataError('Invalid API response: missing data');
       }
 
       const chunkData = response.data.values ?? [];
@@ -204,9 +205,11 @@ export async function readDataInChunks(
 
       // Check memory limit
       if (bytesProcessed > cfg.maxMemoryBytes) {
-        throw new Error(
+        throw new ServiceError(
           `Export exceeds memory limit: ${(bytesProcessed / 1024 / 1024).toFixed(2)}MB > ${(cfg.maxMemoryBytes / 1024 / 1024).toFixed(2)}MB. ` +
-            `Try reducing the range or exporting in multiple parts.`
+            `Try reducing the range or exporting in multiple parts.`,
+          'INTERNAL_ERROR',
+          'streaming-export'
         );
       }
 

@@ -3,7 +3,7 @@
 ## Key Findings (2026-02-18)
 
 ### Action Count Discrepancy
-- **Actual count:** 22 tools, 315 actions (from `src/schemas/action-counts.ts`)
+- **Actual count:** 25 tools, 407 actions (from `src/schemas/action-counts.ts`)
 - **CLAUDE.md claims:** 305 actions
 - **Capabilities resource says:** 305 actions, version 1.6.0
 - **Package.json says:** version 1.7.0
@@ -11,7 +11,7 @@
 - 9 actions missing from MCP tool enum definitions (invisible to Claude Code)
 
 ### Auth Gate Architecture
-- ALL 21 non-auth tools gated at `src/server.ts:728` via `checkAuth()`
+- ALL 24 non-auth tools gated at `src/server.ts:728` via `checkAuth()`
 - Auth gate happens AFTER schema validation (Zod catches invalid actions first)
 - Auth gate happens BEFORE handler-level parameter validation
 - Local-only tools (session, history, confirm, transaction) are needlessly gated

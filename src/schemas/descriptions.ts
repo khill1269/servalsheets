@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 397 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 407 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -16,7 +16,7 @@
  * - spreadsheetId: Long alphanumeric string from Google Sheets URL.
  * - sheetId: Numeric ID from sheets_core.list_sheets (0, 123456789, etc.), not sheet name.
  * - BATCH RULE: 3+ similar operations → use batch_* or sheets_transaction (1 API call, 80-95% savings).
- * - FIRST TIME? Use sheets_analyze action:"comprehensive" or "scout" before other tools.
+ * - FIRST TIME? Start with sheets_auth action:"status", read the readiness block, then use /test_connection.
  */
 
 import { ACTION_COUNTS } from './action-counts.js';
@@ -26,16 +26,24 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // AUTHENTICATION
   //=============================================================================
 
-  sheets_auth: `🔐 AUTH - Authenticate with Google Sheets via OAuth 2.1 (${ACTION_COUNTS['sheets_auth']} actions). Call status first.
+  sheets_auth: `🔐 AUTH - Authentication, readiness, and optional feature setup (${ACTION_COUNTS['sheets_auth']} actions). Call status first.
 
-**Use when:** Checking auth state, logging in/out, managing OAuth token lifecycle
+**Use when:** Checking auth/readiness state, logging in/out, or configuring connectors, AI fallback, webhooks, and federation
 **NOT this tool - use instead:**
 > All other tools REQUIRE authentication first - this is a PREREQUISITE
-**ACTIONS (4):** status, login, callback, logout
+**ACTIONS (5):** status, login, callback, logout, setup_feature
+**FIRST-RUN FUNNEL:**
+1. status
+2. read readiness + blockingIssues + recommendedNextAction
+3. /test_connection
+4. /first_operation or /full_setup
 **Parameter format examples:**
 - Status check: {"action":"status"}
 - Login: {"action":"login"}
-- Callback: {"action":"callback","code":"4/0AX4XfWh..."}`,
+- Callback: {"action":"callback","code":"4/0AX4XfWh..."}
+- Feature setup: {"action":"setup_feature","feature":"connectors"}
+
+**SETUP FEATURE:** Use setup_feature as the canonical path for optional capabilities. Responses include configured, verified, nextStep, and fallbackInstructions.`,
 
   //=============================================================================
   // CORE DATA OPERATIONS
@@ -167,7 +175,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **DECISION GUIDE - Which action should I use?**
 → **Formatting 3+ ranges?** Use batch_format (1 API call, 80%+ savings vs sequential)
 → **Need professional look?** Use apply_preset or sheets_composite.setup_sheet (2 calls total)
-→ **Conditional formatting?** Use add_conditional_format_rule with presets (simpler than rule_add_)
+→ **Conditional formatting?** Use add_conditional_format_rule with presets (simpler than rule_add_). REQUIRED: sheetId (numeric — get from sheets_core.list_sheets, NOT sheet name). rulePreset enum: highlight_duplicates | highlight_blanks | highlight_errors | color_scale_green_red | color_scale_blue_red | data_bars | top_10_percent | bottom_10_percent | above_average | below_average | negative_red_positive_green | traffic_light | variance_highlight
 → **Data validation dropdowns?** Use set_data_validation
 → **Just 1-2 changes?** Use individual set_format (simple, direct)
 
@@ -200,7 +208,8 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 [Destructive] rule_delete_conditional_format
 
 **TOP 3 ACTIONS:**
-1. batch_format: {"action":"batch_format","spreadsheetId":"1ABC...","requests":[...]} — 2+ ranges, 1 call
+1. batch_format: {"action":"batch_format","spreadsheetId":"1ABC...","operations":[{"type":"background","range":"Sheet1!A1:A10","color":{"red":0.8,"green":0.9,"blue":1}},{"type":"text_format","range":"Sheet1!1:1","bold":true}]} — 2+ ranges, 1 call
+   NOTE: param is "operations" (NOT "requests"). type enum: background | text_format | number_format | alignment | borders | format | preset
 2. apply_preset: {"action":"apply_preset","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10","preset":"header_row"} — Instant professional look
 3. set_data_validation: {"action":"set_data_validation","spreadsheetId":"1ABC...","range":"Sheet1!D2:D100","type":"list","values":["Option 1","Option 2"]} — Dropdowns`,
 
@@ -256,6 +265,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - dimension: "ROWS" or "COLUMNS" (uppercase)
 - sheetId: Numeric ID from sheets_core.list_sheets (0, 123456789, etc.)
 - range: "Sheet1!A1:D100" (required for sort_range, case-sensitive)
+- auto_resize: REQUIRES numeric sheetId (NOT sheetName). dimension enum: "ROWS" | "COLUMNS" (omit for both axes)
 
 **COMMON WORKFLOWS:**
 - New sheet + headers? → sheets_composite.setup_sheet (freeze + format in 2 calls)
@@ -278,7 +288,6 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **Use when:** Creating charts, pivot tables, updating visualizations, moving/resizing, refreshing data sources
 
 **NOT this tool - use instead:**
-> sheets_analyze - Getting chart/pivot RECOMMENDATIONS first (suggest_chart, suggest_pivot)
 > sheets_data - Reading/writing SOURCE DATA
 > sheets_format - Styling the SOURCE data (not the chart itself)
 > sheets_dimensions - Source data structure changes
@@ -286,7 +295,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **ACTIONS BY CATEGORY:**
 [Recommendations] suggest_chart (AI suggests chart type), suggest_pivot (AI suggests aggregation)
 [Charts] chart_create, chart_update, chart_delete, chart_list, chart_get, chart_move, chart_resize, chart_update_data_range
-[Trendlines] chart_add_trendline (DEPRECATED — use Google Sheets UI), chart_remove_trendline
+[Trendlines] chart_add_trendline (REST API support limited — may fail; falls back to helpful error with Sheets UI instructions), chart_remove_trendline
 [Pivots] pivot_create, pivot_update, pivot_delete, pivot_list, pivot_get, pivot_refresh
 
 **SAFETY:**
@@ -300,8 +309,9 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 3. pivot_create: {"action":"pivot_create","spreadsheetId":"1ABC...","sourceRange":"Sheet1!A1:D100","rows":[{"sourceColumnOffset":0}],"values":[{"sourceColumnOffset":3,"summarizeFunction":"SUM"}]} — Create pivot
 
 **PARAMETERS:**
-- chartType: BAR, LINE, PIE, SCATTER, COLUMN, AREA, COMBO (not TREEMAP, SPARKLINE)
-- anchorCell: Must include sheet name: "Sheet1!E2" (not just "E2")
+- chartType enum (17 values): BAR | LINE | AREA | COLUMN | SCATTER | COMBO | STEPPED_AREA | PIE | DOUGHNUT | TREEMAP | WATERFALL | HISTOGRAM | CANDLESTICK | ORG | RADAR | SCORECARD | BUBBLE (case-insensitive)
+- legendPosition enum: BOTTOM_LEGEND | LEFT_LEGEND | RIGHT_LEGEND | TOP_LEGEND | NO_LEGEND (case-insensitive)
+- anchorCell: Prefer "Sheet1!E2"; if you only have "E2", also set position.sheetId
 - sourceRange: "Sheet1!A1:D100" (case-sensitive)
 - sheetId: Numeric from sheets_core.list_sheets (0, 123456789)
 
@@ -317,9 +327,9 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   sheets_collaborate: `👥 COLLABORATE - Sharing, comments, versions, snapshots & approvals (${ACTION_COUNTS['sheets_collaborate']} actions).
 
 **DECISION GUIDE - Which action should I use?**
-→ **Need to share with users or change permissions?** Use share_add/share_update/share_remove (editor/viewer/commenter roles)
+→ **Need to share with users or change permissions?** Use share_add/share_update/share_remove. REQUIRED for share_add: type (user|group|domain|anyone) AND role (writer|reader|commenter) AND emailAddress
 → **Adding comments or building discussion?** Use comment_add/comment_update/comment_resolve (with optional replies)
-→ **Before destructive operation (delete, clear)?** Use version_create_snapshot (backup point, can restore later)
+→ **Before destructive operation (delete, clear)?** Use version_create_snapshot, then poll version_snapshot_status until complete
 → **Find when data changed?** Use version_list_revisions + version_compare (across-session file history, NOT this session)
 → **Need multi-user approval workflow?** Use approval_create/approval_approve/approval_reject (audit trail)
 
@@ -334,7 +344,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **ACTIONS BY CATEGORY:**
 [Sharing] share_add, share_update, share_remove, share_list, share_get, share_transfer_ownership, share_set_link, share_get_link
 [Comments] comment_add, comment_update, comment_delete, comment_list, comment_get, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, comment_delete_reply
-[File Versions] version_list_revisions, version_get_revision, version_restore_revision, version_keep_revision, version_create_snapshot, version_list_snapshots, version_restore_snapshot, version_delete_snapshot, version_compare, version_export
+[File Versions] version_list_revisions, version_get_revision, version_restore_revision, version_keep_revision, version_create_snapshot, version_snapshot_status, version_list_snapshots, version_restore_snapshot, version_delete_snapshot, version_compare, version_export
 [Approvals] approval_create, approval_approve, approval_reject, approval_get_status, approval_list_pending, approval_delegate, approval_cancel
 
 **⚠️ KEY DISTINCTIONS:**
@@ -344,7 +354,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - Restore cells = sheets_history.restore_cells (surgical — restore just specific cells from past revision)
 
 **SAFETY:**
-[Read-only] share_list, share_get, share_get_link, comment_list, comment_get, version_list_revisions, version_get_revision, version_list_snapshots, version_compare, version_export, approval_get_status, approval_list_pending
+[Read-only] share_list, share_get, share_get_link, comment_list, comment_get, version_list_revisions, version_get_revision, version_snapshot_status, version_list_snapshots, version_compare, version_export, approval_get_status, approval_list_pending
 [Destructive] share_remove, comment_delete, comment_delete_reply, version_restore_revision, version_restore_snapshot, version_delete_snapshot, approval_cancel ← irreversible or data-altering
 [Non-idempotent] share_transfer_ownership ← IRREVERSIBLE, cannot undo
 [Safe mutation] share_add, share_update, share_set_link, comment_add, comment_update, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, version_create_snapshot, version_keep_revision, approval_create, approval_approve, approval_reject, approval_delegate
@@ -426,7 +436,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → **Need cells to reference other cells by name?** Use add_named_range (formulas: =SUM(Revenue) instead of =SUM(B2:B100))
 → **Prevent users from editing specific cells?** Use add_protected_range (lock formula cells, unlock data entry cells)
 → **Add alternating row colors for readability?** Use add_banding then list_banding first (check if exists to avoid error)
-→ **Organize data as structured table?** Use create_table (enables filters, structured references, auto-expand)
+→ **Organize data as structured table?** Use create_table for the table object, then add_banding separately if you want alternating colors
 → **Store custom metadata for programmatic access?** Use set_metadata (custom attributes, not visible in UI)
 
 **Use when:** Creating named ranges, protecting ranges, organizing data as tables, adding alternating row colors, storing custom metadata, creating smart chips (person/file links)
@@ -442,9 +452,9 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 [Protection] add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges — Lock formula cells, unlock data cells
 [Metadata] set_metadata, get_metadata, delete_metadata — Custom app attributes (not visible to users)
 [Banding] add_banding, update_banding, delete_banding, list_banding — Alternating row colors
-[Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters
+[Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters (banding is a separate add_banding step)
 [Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips — Linked references. Note: For write operations, only Drive file links are supported via add_rich_link_chip. Reading back smart chips via list_chips can return YouTube, Calendar, and People chip types, but these cannot be created via the API.
-[Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Custom formula functions
+[Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Compatibility stubs; currently return FEATURE_UNAVAILABLE because the live Sheets API does not expose named functions reliably
 
 **⚠️ BANDING PRE-CHECK:** list_banding BEFORE add_banding (adding to range that already has banding fails silently). Protection always requires editor list.
 
@@ -528,7 +538,9 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
    analyze_impact (description form): {"action":"analyze_impact","spreadsheetId":"1ABC...","operation":{"description":"delete rows A1:A100"}}
 3. detect_conflicts: {"action":"detect_conflicts","spreadsheetId":"1ABC..."}
 
-**validate rules examples:** not_empty, valid_email, is_number, is_date, min_length, max_length, matches_pattern
+**validate builtin rule IDs — 11 values (use in \`rules\` array, MUST be exact strings):**
+builtin_string | builtin_number | builtin_boolean | builtin_date | builtin_positive | builtin_non_negative | builtin_email | builtin_url | builtin_phone | builtin_required | builtin_non_empty_string
+⚠️ LIMITATIONS: No custom rule expressions. No natural language rules. Only these 11 builtin IDs are supported. For complex validation, use sheets_format.set_data_validation instead.
 **impact operation object:** at least one of \`type\`, \`tool\`, \`action\`, or \`description\` required.
 - Tool+action form: \`{ "tool": "sheets_data", "action": "write", "params": { "spreadsheetId": "...", "range": "Sheet1!A1:B10" } }\`
 - Description form: \`{ "description": "delete column B" }\` (simpler, uses natural language)
@@ -644,7 +656,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 → **sheets_analyze found issues?** Use fix (resolves volatile formulas, missing freezes)
 → **Messy data (whitespace, duplicates)?** Use suggest_cleaning first, then clean
 → **Different date/currency formats?** Use standardize_formats (normalize to one format)
-→ **Empty cells?** Use fill_missing (forward fill, mean, median, constant)
+→ **Empty cells?** Use fill_missing (strategy enum: forward | backward | mean | median | mode | constant). IMPORTANT: add mode:"apply" to write values — default mode:"preview" only shows what would change
 → **Statistical outliers?** Use detect_anomalies (IQR or z-score)
 
 **Use when:** Auto-fixing formula/structure issues, cleaning messy data, standardizing formats, filling gaps, detecting anomalies
@@ -676,7 +688,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 3. clean mode:"apply" → Execute (with rollback via snapshot)
 
 **BUILT-IN RULES:** trim_whitespace, fix_dates, fix_numbers, fix_booleans, remove_duplicates, fix_emails, fix_phones
-**FORMAT TARGETS:** iso_date, currency_usd, phone_e164, email_lowercase, title_case, percentage
+**FORMAT TARGETS (all 16):** iso_date | us_date | eu_date | currency_usd | currency_eur | currency_gbp | number_plain | percentage | phone_e164 | phone_national | email_lowercase | url_https | title_case | upper_case | lower_case | boolean
 **FILL STRATEGIES:** forward, backward, mean, median, mode, constant`,
 
   //=============================================================================
@@ -709,7 +721,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 [Import/Export] import_csv, import_xlsx, import_and_format, export_xlsx, export_large_dataset, get_form_responses
 [Smart Operations] smart_append (auto-match columns), bulk_update (atomic), deduplicate (with preview), clone_structure
 [AI Generation] generate_sheet (description → spreadsheet), generate_template (reusable), preview_generation (dry-run)
-[Audit & Report] audit_sheet (formula/type/blank analysis), publish_report (PDF/XLSX export with formatting)
+[Audit & Report] audit_sheet (formula/type/blank analysis), publish_report (PDF/XLSX/CSV export with formatting)
 [Pipeline & Migrate] data_pipeline (ETL: filter→sort→dedup→transform), instantiate_template (template + {{placeholder}}), migrate_spreadsheet (column mapping)
 
 **⚡ TOP 3 ACTIONS:**
@@ -720,7 +732,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 **Savings:** 60-80% fewer API calls. Example: setup_sheet = sheets_core.add_sheet + sheets_data.write + sheets_format (3 ops) = 1 call in composite.
 
 **SAFETY:**
-[Read-only] export_xlsx, export_large_dataset, get_form_responses, audit_sheet, publish_report (PDF only), preview_generation
+[Read-only] export_xlsx, export_large_dataset, get_form_responses, audit_sheet, publish_report (PDF/XLSX/CSV), preview_generation
 [Safe mutation] setup_sheet, smart_append, import_csv, import_xlsx, import_and_format, clone_structure, generate_sheet, generate_template, instantiate_template
 [Requires confirmation] bulk_update (>50 rows), deduplicate, migrate_spreadsheet
 [Requires snapshot] bulk_update, deduplicate (if mode:"apply")
@@ -755,7 +767,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 
 **ACTIONS BY CATEGORY:**
 [Context] set_active, get_active, get_context
-[History] record_operation, get_last_operation, get_history
+[History] record_operation (manual/external steps), get_last_operation, get_history
 [References] find_by_reference
 [Preferences] update_preferences, get_preferences
 [Pending] set_pending, get_pending, clear_pending
@@ -858,8 +870,8 @@ Example workflow:
 
 **ROUTING - Pick this tool when:**
 > Creating, updating, or managing Apps Script projects
-> Deploying scripts as web apps, API executables, or scheduled triggers
-> Running Apps Script functions remotely
+> Deploying scripts as web apps or Execution API deployments
+> Running Apps Script functions remotely after deployment
 > Monitoring script execution, logs, and performance
 > Creating automation workflows extending Sheets functionality
 
@@ -874,20 +886,29 @@ Example workflow:
 [Version] create_version, list_versions, get_version
 [Deploy] deploy, list_deployments, get_deployment, undeploy
 [Execute] run (execute function), list_processes (logs), get_metrics
-[Trigger] create_trigger, list_triggers, delete_trigger, update_trigger
+[ScriptApp scheduling] Implement time-driven/event triggers inside the project with update_content + deploy. Trigger compatibility actions are hidden by default and remain NOT_IMPLEMENTED if re-enabled for legacy compatibility.
 
 **TOP 3 ACTIONS:**
-1. run: {"action":"run","scriptId":"1ABC...","functionName":"myFunction","parameters":["arg1"]}
-2. get_content: {"action":"get_content","scriptId":"1ABC..."}
-3. deploy: {"action":"deploy","scriptId":"1ABC...","deploymentType":"WEB_APP","access":"ANYONE"}
+1. update_content: {"action":"update_content","scriptId":"1ABC...","files":[{"name":"Code","type":"SERVER_JS","source":"function myFunction() {}"}]}
+2. deploy: {"action":"deploy","scriptId":"1ABC...","deploymentType":"EXECUTION_API","versionNumber":1}
+3. run: {"action":"run","scriptId":"1ABC...","deploymentId":"AKfycb...","functionName":"myFunction","parameters":["arg1"]}
 
 **⚠️ SAFETY:** run executes code with SIDE EFFECTS. deploy creates PUBLIC endpoints.
-**scriptId:** From Apps Script editor. **deploymentType:** WEB_APP, EXECUTION_API
-**TIP:** Use devMode:true to test latest code (owner only) before deploying.`,
+**IDENTIFIER GUIDE:**
+- create, get, get_content, update_content, run → accept spreadsheetId (auto-resolves to bound script) OR scriptId
+- Trigger compatibility actions are hidden by default. If legacy compatibility is enabled, prefer scriptId over spreadsheetId and expect NOT_IMPLEMENTED.
+**scriptId:** From Apps Script editor. **deploymentId:** From Deploy > Manage deployments. **deploymentType:** WEB_APP, EXECUTION_API
+**SUPPORTED WORKFLOW:** create → update_content → create_version → deploy → run with deploymentId
+**TIP:** Use devMode:true to test latest saved code (owner only). Implement scheduling with ScriptApp in the script itself, then push via update_content and deploy.`,
 
   sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 
-**Requires:** Redis backend (set \`REDIS_URL\` env var) + HTTPS endpoint that returns 200 OK within 10s. Without \`REDIS_URL\`, all actions return \`CONFIG_ERROR\`.
+⚠️ **REDIS REQUIRED for most actions:** Set \`REDIS_URL\` env var. Without it:
+- ❌ UNAVAILABLE (CONFIG_ERROR): register, unregister, list, get, test, get_stats
+- ✅ AVAILABLE without Redis: watch_changes, subscribe_workspace, unsubscribe_workspace, list_workspace_subscriptions
+Check server availability in the \`x-servalsheets.availability\` field of tools/list before calling.
+
+**Requires (when Redis configured):** HTTPS endpoint returning 200 OK within 10s.
 
 **ROUTING - Pick this tool when:**
 > Setting up REAL-TIME notifications for spreadsheet changes
@@ -961,6 +982,7 @@ Example workflow:
 - Materialize: {"action":"create_scenario_sheet","spreadsheetId":"1ABC...","scenario":{"name":"Q2 Conservative","changes":[{"cell":"B2","newValue":90000}]}}
 
 **cell format:** "Sheet1!A1" or "Sheet1!A1:C10"
+**changes[] field name:** Use "newValue" (NOT "value") — e.g., {"cell":"Sheet1!B2","newValue":80000}
 
 **SCENARIO WORKFLOW:**
 1. build → Create dependency graph
@@ -1050,6 +1072,8 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 • statistical: {"action":"statistical","range":"Sheet1!B2:B100","includeCorrelations":true,"includePercentiles":true} → Stats with P25/P75
 • regression: {"action":"regression","range":"Sheet1!A1:B50","type":"linear","confidenceLevel":0.95} → Linear trend with R²
 • forecast: {"action":"forecast","range":"Sheet1!A1:B50","periods":12,"method":"exponential_smoothing"} → 12-month forecast
+  REQUIRES: 3+ distinct aggregated time periods in the data. Aggregate repeated dates before calling.
+  method enum: linear | exponential_smoothing | moving_average | holt_winters
 • matrix_op: {"action":"matrix_op","range":"Sheet1!A1:D4","operation":"transpose"} → Swap rows/columns
 • pivot_compute: {"action":"pivot_compute","dataRange":"Sheet1!A1:D100","rowFields":["Category"],"valueFields":[{"field":"Amount","function":"sum"}]} → Pivot by category
 • batch_compute: {"action":"batch_compute","operations":[{"operation":"sum","range":"B2:B100"},{"operation":"avg","range":"C2:C100"}]} → Multiple computations
@@ -1097,7 +1121,7 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 **SAFETY:** [Destructive] execute and execute_step modify data. Automatic checkpoints before each step enable rollback.
 **PATTERN:** plan → execute → (if error) rollback. Always plan first, then execute.`,
 
-  sheets_connectors: `🔌 CONNECTORS - Pull live external data into Google Sheets (${ACTION_COUNTS['sheets_connectors']} actions). Finnhub, FRED, Alpha Vantage, Polygon, generic REST.
+  sheets_connectors: `🔌 CONNECTORS - Productized external data setup and live queries (${ACTION_COUNTS['sheets_connectors']} actions). Finnhub, FRED, Alpha Vantage, Polygon, FMP, generic REST.
 
 **ROUTING - Pick this tool when:**
 - User wants to import live stock prices, economic data, or weather into a sheet
@@ -1105,19 +1129,20 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 - User wants auto-refreshing data from external sources
 
 **NOT this tool:**
+- First-time connector onboarding → sheets_auth.setup_feature
 - Data already in Sheets → sheets_data.read
 - Cross-spreadsheet operations → sheets_data.cross_read
-- Apps Script triggers → sheets_appsscript
+- ScriptApp-based scheduling/triggers → sheets_appsscript
 
 **ACTIONS BY CATEGORY:**
 
 📋 Discovery:
-- list_connectors: List all available connectors and their configuration status
+- list_connectors: List all available connectors plus signupUrl, recommendedUseCases, configured status, and nextStep
 - discover: Get available endpoints and data schemas from a connector
-- status: Check connector health, quota usage, and configuration
+- status: Check connector health, quota usage, and whether it is unconfigured vs failing
 
 🔑 Configuration:
-- configure: Provide API credentials for a connector (API key / OAuth2)
+- configure: Provide API credentials for a connector (API key / OAuth2), verify health, and return an example query
 
 📊 Querying:
 - query: Fetch data from a connector endpoint
@@ -1130,16 +1155,22 @@ Set MCP_FEDERATION_SERVERS environment variable with JSON array:
 - list_subscriptions: List all active subscriptions
 
 **TOP 3 ACTIONS:**
-1. query: {"action":"query","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"}} -> Live stock price
-2. batch_query: {"action":"batch_query","queries":[{"connectorId":"fred","endpoint":"series/observations","params":{"seriesId":"UNRATE"}},{"connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"MSFT"}}]} -> Multi-source data
-3. subscribe: {"action":"subscribe","connectorId":"finnhub","endpoint":"stock/quote","params":{"symbol":"AAPL"},"schedule":{"interval":"hourly"},"destination":{"spreadsheetId":"abc","range":"Sheet1!A1"}} -> Auto-refresh
+1. list_connectors: {"action":"list_connectors"} -> pick a provider and see nextStep guidance
+2. configure: {"action":"configure","connectorId":"finnhub","credentials":{"type":"api_key","apiKey":"..."}} -> save credentials and verify health
+3. status: {"action":"status","connectorId":"finnhub"} -> confirm healthy before first query
 
 **SAFETY:** query/batch_query/transform are read operations against external APIs. subscribe/unsubscribe only manage connector subscriptions.
-**PATTERN:** list_connectors → configure (if needed) → discover or status → query/batch_query/transform.`,
+**PATTERN:** list_connectors → configure → status → query → subscribe (only after a successful first pull).`,
 };
 
 // Type export for other modules
 export type ToolName = keyof typeof TOOL_DESCRIPTIONS;
+
+/**
+ * Template literal type for tool action keys (e.g. `sheets_data.write`).
+ * Catches invalid tool name prefixes at compile time.
+ */
+export type ActionKey = `${ToolName}.${string}`;
 
 // Helper to get description with fallback
 export function getToolDescription(name: string): string {

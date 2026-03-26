@@ -10,6 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { logger } from '../utils/logger.js';
+import { ValidationError } from '../core/errors.js';
 
 // ============================================================================
 // Types & Interfaces
@@ -378,7 +379,7 @@ export class CostTracker extends EventEmitter {
    */
   setTier(tenantId: string, tierName: keyof typeof PRICING_TIERS): void {
     if (!PRICING_TIERS[tierName]) {
-      throw new Error(`Invalid tier: ${tierName}`);
+      throw new ValidationError(`Invalid tier: ${tierName}`, 'tierName');
     }
     this.tenantTiers.set(tenantId, tierName);
   }
@@ -390,7 +391,7 @@ export class CostTracker extends EventEmitter {
     const tierName = this.tenantTiers.get(tenantId) || 'free';
     const tier = PRICING_TIERS[tierName];
     if (!tier) {
-      throw new Error(`Invalid tier: ${tierName}`);
+      throw new ValidationError(`Invalid tier: ${tierName}`, 'tierName');
     }
     return tier;
   }
@@ -560,7 +561,7 @@ export class CostTracker extends EventEmitter {
   private startPeriodicReset(): void {
     const checkInterval = 60 * 60 * 1000; // Check every hour
 
-    setInterval(() => {
+    const timer = setInterval(() => {
       const now = new Date();
       if (now.getDate() === 1 && now.getHours() === 0) {
         // Reset all usage at start of month
@@ -568,6 +569,7 @@ export class CostTracker extends EventEmitter {
         this.usage.clear();
       }
     }, checkInterval);
+    timer.unref();
   }
 
   /**

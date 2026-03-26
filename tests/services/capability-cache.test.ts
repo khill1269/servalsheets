@@ -81,10 +81,11 @@ describe('CapabilityCacheService', () => {
         elicitation: { form: { applyDefaults: true } },
       };
 
+      const now = Date.now();
       const cached = {
         capabilities,
-        cachedAt: Date.now(),
-        expiresAt: Date.now() + 3600000,
+        cachedAt: now,
+        expiresAt: now + 3600000,
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(cached));
@@ -100,8 +101,8 @@ describe('CapabilityCacheService', () => {
 
       const expiredCached = {
         capabilities,
-        cachedAt: Date.now() - 7200000, // 2 hours ago
-        expiresAt: Date.now() - 3600000, // Expired 1 hour ago
+        cachedAt: 1704067200000 - 7200000, // 2 hours ago
+        expiresAt: 1704067200000 - 3600000, // Expired 1 hour ago
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(expiredCached));
@@ -130,10 +131,11 @@ describe('CapabilityCacheService', () => {
     it('should update memory cache from Redis hit', async () => {
       const capabilities: ClientCapabilities = { sampling: true };
 
+      const now2 = Date.now();
       const cached = {
         capabilities,
-        cachedAt: Date.now(),
-        expiresAt: Date.now() + 3600000,
+        cachedAt: now2,
+        expiresAt: now2 + 3600000,
       };
 
       mockRedis.get.mockResolvedValue(JSON.stringify(cached));

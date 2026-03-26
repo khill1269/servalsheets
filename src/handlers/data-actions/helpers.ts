@@ -112,7 +112,7 @@ export function buildPayloadWarnings(
   }
 ): string[] | undefined {
   if (validation.level === 'none') {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   if (validation.level !== 'exceeded') {
@@ -492,7 +492,7 @@ export function buildPaginationPlan(
         }),
       };
     }
-    return undefined; // spill detection fallback
+    return undefined; // OK: Explicit empty — spill detection fallback
   }
 
   const totalRows = Math.max(parsed.endRow - parsed.startRow, 0);
@@ -500,7 +500,7 @@ export function buildPaginationPlan(
   const totalCells = totalRows * totalColumns;
   const autoPaginate = totalCells > MAX_CELLS_PER_REQUEST;
   if (!wantsPagination && !autoPaginate) {
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 
   const maxRowsPerPage = Math.max(1, Math.floor(MAX_CELLS_PER_REQUEST / totalColumns));

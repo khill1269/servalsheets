@@ -10,6 +10,7 @@ export default [
       'node_modules/',
       '**/node_modules/',
       'coverage/',
+      'tests/**',
       'docs/.vitepress/',
       'scripts/demo/',
       'scripts/measure-*.ts',
@@ -44,7 +45,7 @@ export default [
         // language service API which is dramatically more memory-efficient.
         // Falls back to tsconfig.eslint.json for project references.
         projectService: {
-          allowDefaultProject: ['scripts/*.ts', 'vitest.config.ts'],
+          allowDefaultProject: ['scripts/*.ts', 'scripts/*/*.ts', 'scripts/*/*/*.ts', 'vitest.config.ts'],
           defaultProject: './tsconfig.eslint.json',
         },
       },

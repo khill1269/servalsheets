@@ -19,9 +19,12 @@
 
 import type { drive_v3 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { NotFoundError, ServiceError } from '../core/errors.js';
 import type { TemplateDefinition, TemplateSummary, TemplateSheet } from '../schemas/templates.js';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { resolveBuiltinTemplatesPath } from '../utils/runtime-paths.js';
+import { executeWithRetry } from '../utils/retry.js';
 
 /**
  * Template storage configuration
@@ -29,6 +32,33 @@ import * as path from 'path';
 const TEMPLATES_FOLDER = 'servalsheets-templates';
 const TEMPLATE_MIME_TYPE = 'application/json';
 const APP_DATA_SPACE = 'appDataFolder';
+
+function deriveBuiltinTemplateId(
+  template: Record<string, unknown>,
+  file: string,
+  index: number
+): string {
+  if (typeof template['id'] === 'string' && template['id'].trim().length > 0) {
+    return template['id'];
+  }
+
+  const fileStem = path.basename(file, '.json');
+  if (fileStem !== 'common-templates') {
+    return fileStem;
+  }
+
+  const nameSource =
+    typeof template['name'] === 'string' && template['name'].trim().length > 0
+      ? template['name']
+      : `${fileStem}-${index + 1}`;
+
+  const slug = nameSource
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || `${fileStem}-${index + 1}`;
+}
 
 /**
  * Builtin template from knowledge base
@@ -65,15 +95,17 @@ export class TemplateStore {
 
       // Paginate through all template files
       do {
-        const response = await this.driveApi.files.list({
-          spaces: APP_DATA_SPACE,
-          q: `'${this.folderId}' in parents and mimeType='${TEMPLATE_MIME_TYPE}' and trashed=false`,
-          fields:
-            'nextPageToken, files(id, name, description, createdTime, modifiedTime, appProperties)',
-          pageSize: 100,
-          pageToken,
-          supportsAllDrives: true,
-        });
+        const response = await executeWithRetry(() =>
+          this.driveApi.files.list({
+            spaces: APP_DATA_SPACE,
+            q: `'${this.folderId}' in parents and mimeType='${TEMPLATE_MIME_TYPE}' and trashed=false`,
+            fields:
+              'nextPageToken, files(id, name, description, createdTime, modifiedTime, appProperties)',
+            pageSize: 100,
+            pageToken,
+            supportsAllDrives: true,
+          })
+        );
 
         const files = response.data.files || [];
 
@@ -105,8 +137,11 @@ export class TemplateStore {
       return templates;
     } catch (error) {
       logger.error('Failed to list templates', { error });
-      throw new Error(
-        `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true
       );
     }
   }
@@ -117,18 +152,22 @@ export class TemplateStore {
   async get(templateId: string): Promise<TemplateDefinition | null> {
     try {
       // Get file metadata
-      const metaResponse = await this.driveApi.files.get({
-        fileId: templateId,
-        supportsAllDrives: true,
-        fields: 'id, name, description, appProperties, createdTime, modifiedTime',
-      });
+      const metaResponse = await executeWithRetry(() =>
+        this.driveApi.files.get({
+          fileId: templateId,
+          supportsAllDrives: true,
+          fields: 'id, name, description, appProperties, createdTime, modifiedTime',
+        })
+      );
 
       // Get file content
-      const contentResponse = await this.driveApi.files.get({
-        fileId: templateId,
-        supportsAllDrives: true,
-        alt: 'media',
-      });
+      const contentResponse = await executeWithRetry(() =>
+        this.driveApi.files.get({
+          fileId: templateId,
+          supportsAllDrives: true,
+          alt: 'media',
+        })
+      );
 
       const content = contentResponse.data as unknown as TemplateDefinition;
       const meta = metaResponse.data;
@@ -152,7 +191,13 @@ export class TemplateStore {
         return null;
       }
       logger.error('Failed to get template', { templateId, error });
-      throw new Error(`Failed to get template: ${err.message}`);
+      throw new ServiceError(
+        `Failed to get template: ${err.message ?? String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true,
+        { templateId }
+      );
     }
   }
 
@@ -176,26 +221,28 @@ export class TemplateStore {
     };
 
     try {
-      const response = await this.driveApi.files.create({
-        supportsAllDrives: true,
-        requestBody: {
-          name: `${template.name.replace(/[^a-zA-Z0-9-_]/g, '_')}.json`,
-          description: template.description,
-          mimeType: TEMPLATE_MIME_TYPE,
-          parents: [this.folderId!],
-          appProperties: {
-            templateName: template.name,
-            category: template.category || '',
-            version: template.version || '1.0.0',
-            sheetCount: String(template.sheets.length),
+      const response = await executeWithRetry(() =>
+        this.driveApi.files.create({
+          supportsAllDrives: true,
+          requestBody: {
+            name: `${template.name.replace(/[^a-zA-Z0-9-_]/g, '_')}.json`,
+            description: template.description,
+            mimeType: TEMPLATE_MIME_TYPE,
+            parents: [this.folderId!],
+            appProperties: {
+              templateName: template.name,
+              category: template.category || '',
+              version: template.version || '1.0.0',
+              sheetCount: String(template.sheets.length),
+            },
           },
-        },
-        media: {
-          mimeType: TEMPLATE_MIME_TYPE,
-          body: JSON.stringify(fileContent, null, 2),
-        },
-        fields: 'id, name, createdTime',
-      });
+          media: {
+            mimeType: TEMPLATE_MIME_TYPE,
+            body: JSON.stringify(fileContent, null, 2),
+          },
+          fields: 'id, name, createdTime',
+        })
+      );
 
       logger.info('Created template', {
         templateId: response.data.id,
@@ -210,8 +257,11 @@ export class TemplateStore {
       };
     } catch (error) {
       logger.error('Failed to create template', { error });
-      throw new Error(
-        `Failed to create template: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to create template: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true
       );
     }
   }
@@ -226,7 +276,7 @@ export class TemplateStore {
     // Get existing template
     const existing = await this.get(templateId);
     if (!existing) {
-      throw new Error(`Template not found: ${templateId}`);
+      throw new NotFoundError('template', templateId);
     }
 
     // Merge updates
@@ -253,30 +303,36 @@ export class TemplateStore {
     };
 
     try {
-      await this.driveApi.files.update({
-        fileId: templateId,
-        supportsAllDrives: true,
-        requestBody: {
-          description: updated.description,
-          appProperties: {
-            templateName: updated.name,
-            category: updated.category || '',
-            version: updated.version || '1.0.0',
-            sheetCount: String(updated.sheets.length),
+      await executeWithRetry(() =>
+        this.driveApi.files.update({
+          fileId: templateId,
+          supportsAllDrives: true,
+          requestBody: {
+            description: updated.description,
+            appProperties: {
+              templateName: updated.name,
+              category: updated.category || '',
+              version: updated.version || '1.0.0',
+              sheetCount: String(updated.sheets.length),
+            },
           },
-        },
-        media: {
-          mimeType: TEMPLATE_MIME_TYPE,
-          body: JSON.stringify(fileContent, null, 2),
-        },
-      });
+          media: {
+            mimeType: TEMPLATE_MIME_TYPE,
+            body: JSON.stringify(fileContent, null, 2),
+          },
+        })
+      );
 
       logger.info('Updated template', { templateId, name: updated.name });
       return updated;
     } catch (error) {
       logger.error('Failed to update template', { templateId, error });
-      throw new Error(
-        `Failed to update template: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to update template: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true,
+        { templateId }
       );
     }
   }
@@ -287,10 +343,12 @@ export class TemplateStore {
   async delete(templateId: string): Promise<boolean> {
     try {
       // Note: appDataFolder files cannot be trashed, only permanently deleted
-      await this.driveApi.files.delete({
-        fileId: templateId,
-        supportsAllDrives: true,
-      });
+      await executeWithRetry(() =>
+        this.driveApi.files.delete({
+          fileId: templateId,
+          supportsAllDrives: true,
+        })
+      );
 
       logger.info('Deleted template', { templateId });
       return true;
@@ -300,7 +358,13 @@ export class TemplateStore {
         return false; // Already deleted
       }
       logger.error('Failed to delete template', { templateId, error });
-      throw new Error(`Failed to delete template: ${err.message}`);
+      throw new ServiceError(
+        `Failed to delete template: ${err.message ?? String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        true,
+        { templateId }
+      );
     }
   }
 
@@ -313,7 +377,12 @@ export class TemplateStore {
     }
 
     const templates: BuiltinTemplate[] = [];
-    const knowledgePath = path.join(process.cwd(), 'src', 'knowledge', 'templates');
+    const knowledgePath = resolveBuiltinTemplatesPath();
+
+    if (!knowledgePath) {
+      logger.warn('Builtin template directory not found');
+      return [];
+    }
 
     try {
       const files = await fs.readdir(knowledgePath);
@@ -328,10 +397,10 @@ export class TemplateStore {
           // Handle both single template and array of templates
           const templateArray = Array.isArray(data) ? data : [data];
 
-          for (const template of templateArray) {
-            if (template.id && template.name && template.sheets) {
+          for (const [index, template] of templateArray.entries()) {
+            if (template.name && template.sheets) {
               templates.push({
-                id: template.id,
+                id: deriveBuiltinTemplateId(template as Record<string, unknown>, file, index),
                 name: template.name,
                 description: template.description || '',
                 category: template.category || file.replace('.json', ''),
@@ -373,14 +442,16 @@ export class TemplateStore {
 
     try {
       // Search for existing folder (with pagination support - P1-4)
-      const response = await this.driveApi.files.list({
-        spaces: APP_DATA_SPACE,
-        q: `name='${TEMPLATES_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-        fields: 'files(id)',
-        pageSize: 1,
-        supportsAllDrives: true,
-        // Note: pageSize=1 means pagination unlikely, but included for completeness
-      });
+      const response = await executeWithRetry(() =>
+        this.driveApi.files.list({
+          spaces: APP_DATA_SPACE,
+          q: `name='${TEMPLATES_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+          fields: 'files(id)',
+          pageSize: 1,
+          supportsAllDrives: true,
+          // Note: pageSize=1 means pagination unlikely, but included for completeness
+        })
+      );
 
       const existingFile = response.data.files?.[0];
       if (existingFile?.id) {
@@ -389,22 +460,27 @@ export class TemplateStore {
       }
 
       // Create folder
-      const createResponse = await this.driveApi.files.create({
-        supportsAllDrives: true,
-        requestBody: {
-          name: TEMPLATES_FOLDER,
-          mimeType: 'application/vnd.google-apps.folder',
-          parents: [APP_DATA_SPACE],
-        },
-        fields: 'id',
-      });
+      const createResponse = await executeWithRetry(() =>
+        this.driveApi.files.create({
+          supportsAllDrives: true,
+          requestBody: {
+            name: TEMPLATES_FOLDER,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [APP_DATA_SPACE],
+          },
+          fields: 'id',
+        })
+      );
 
       this.folderId = createResponse.data.id!;
       logger.info('Created templates folder in appDataFolder', { folderId: this.folderId });
     } catch (error) {
       logger.error('Failed to ensure templates folder', { error });
-      throw new Error(
-        `Failed to initialize template storage: ${error instanceof Error ? error.message : String(error)}`
+      throw new ServiceError(
+        `Failed to initialize template storage: ${error instanceof Error ? error.message : String(error)}`,
+        'INTERNAL_ERROR',
+        'TemplateStore',
+        false
       );
     }
   }

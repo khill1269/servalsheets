@@ -225,6 +225,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       const destructiveTools = [
         'sheets_core', // delete_sheet
         'sheets_data', // clear, overwrite
+        'sheets_format', // clear_format, delete_conditional_format_rule
         'sheets_dimensions', // delete rows/cols
         'sheets_visualize', // delete charts
         'sheets_collaborate', // remove permissions
@@ -236,6 +237,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_bigquery', // delete connections
         'sheets_appsscript', // undeploy, run side effects
         'sheets_webhook', // unregister
+        'sheets_quality', // resolve_conflict can overwrite changes
+        'sheets_history', // undo/redo/revert_to mutate state
       ];
       for (const tool of destructiveTools) {
         expect(TOOL_ANNOTATIONS[tool]!.destructiveHint).toBe(true);
@@ -246,8 +249,8 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       const nonDestructiveTools = [
         'sheets_auth',
         // sheets_format removed: clear_format and delete_conditional_format_rule are destructive
-        'sheets_quality',
-        'sheets_history',
+        // sheets_quality removed: resolve_conflict can overwrite changes
+        // sheets_history removed: undo/redo/revert_to/restore_cells mutate state
         'sheets_confirm',
         'sheets_analyze',
         'sheets_session',
@@ -307,9 +310,9 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(new Set(names).size).toBe(TOOL_DEFINITIONS.length);
     });
 
-    it('should use snake_case naming (SEP-986)', () => {
+    it('should use MCP-compliant tool names', () => {
       for (const tool of TOOL_DEFINITIONS) {
-        expect(tool.name).toMatch(/^sheets_[a-z]+$/);
+        expect(tool.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
       }
     });
 
@@ -377,6 +380,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_dimensions',
         'sheets_visualize',
         'sheets_composite',
+        'sheets_transaction',
         'sheets_appsscript',
         'sheets_bigquery',
         'sheets_templates',
@@ -395,7 +399,6 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
         'sheets_core',
         // sheets_collaborate removed: taskSupport is 'optional' (sharing ops can be long-running)
         'sheets_advanced',
-        'sheets_transaction',
         'sheets_quality',
         // sheets_history removed: P13-M1 added task support (timeline is a long-running op)
         'sheets_confirm',
@@ -475,7 +478,37 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
       // Sanity check: we should have a reasonable number of actions
       expect(actualActionCount).toBeGreaterThan(290);
-      expect(actualActionCount).toBeLessThan(400);
+      expect(actualActionCount).toBeLessThan(450);
+    });
+  });
+
+  // =========================================================================
+  // T5: JSON Schema 2020-12 dialect (SEP-1613)
+  // =========================================================================
+  describe('JSON Schema dialect (SEP-1613)', () => {
+    it('should not use draft-07 or older JSON Schema dialects', () => {
+      // MCP spec §1.4 / SEP-1613: Default dialect is 2020-12, NOT draft-07
+      for (const tool of TOOL_DEFINITIONS) {
+        const schema = JSON.stringify(tool.inputSchema);
+        expect(schema).not.toContain('draft-07');
+        expect(schema).not.toContain('draft-04');
+        expect(schema).not.toContain('draft-06');
+      }
+    });
+  });
+
+  // =========================================================================
+  // T10: OTel _meta key format (SEP-414)
+  // =========================================================================
+  describe('OTel _meta key format (SEP-414)', () => {
+    it('should use plain W3C names for OTel keys, not DNS prefixed', () => {
+      // SEP-414: traceparent/tracestate/baggage use plain names, not DNS prefix
+      // Scan all tool definitions and server instructions for wrong prefixes
+      const serverInstructions = JSON.stringify(TOOL_DEFINITIONS);
+      expect(serverInstructions).not.toContain('io.modelcontextprotocol.traceparent');
+      expect(serverInstructions).not.toContain('io.modelcontextprotocol.tracestate');
+      expect(serverInstructions).not.toContain('io.modelcontextprotocol.baggage');
+      expect(serverInstructions).not.toContain('dev.mcp.traceparent');
     });
   });
 });

@@ -2,16 +2,16 @@
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": ["/Users/thomascahill/Documents/servalsheets 2/dist/cli.js"],
+      "args": ["/path/to/servalsheets/dist/cli.js"],
       "env": {
         "NODE_ENV": "production",
         "LOG_LEVEL": "warn",
 
-        "OAUTH_CLIENT_ID": "REDACTED_OAUTH_CLIENT_ID",
-        "OAUTH_CLIENT_SECRET": "REDACTED_OAUTH_CLIENT_SECRET",
+        "OAUTH_CLIENT_ID": "YOUR_GOOGLE_OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET": "YOUR_GOOGLE_OAUTH_CLIENT_SECRET",
         "OAUTH_REDIRECT_URI": "http://localhost:3000/callback",
-        "ENCRYPTION_KEY": "REDACTED_ENCRYPTION_KEY",
-        "GOOGLE_TOKEN_STORE_PATH": "/Users/thomascahill/.servalsheets/tokens.encrypted",
+        "ENCRYPTION_KEY": "YOUR_ENCRYPTION_KEY_HEX_64_CHARS",
+        "GOOGLE_TOKEN_STORE_PATH": "~/.servalsheets/tokens.encrypted",
         "OAUTH_SCOPE_MODE": "full",
 
         "CACHE_ENABLED": "true",
@@ -45,9 +45,6 @@
   },
   "preferences": {
     "coworkScheduledTasksEnabled": false,
-    "sidebarMode": "task",
-    "localAgentModeTrustedFolders": [
-      "/Users/thomascahill/Documents/servalsheets 2"
-    ]
+    "sidebarMode": "task"
   }
 }

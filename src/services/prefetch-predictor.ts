@@ -17,6 +17,7 @@
 
 import { logger } from '../utils/logger.js';
 import { getHistoryService } from './history-service.js';
+import { ServiceError } from '../core/errors.js';
 import type { OperationHistory } from '../types/history.js';
 import { getParallelExecutor } from './parallel-executor.js';
 
@@ -462,7 +463,11 @@ export function setPrefetchPredictor(predictor: PrefetchPredictor): void {
  */
 export function resetPrefetchPredictor(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetPrefetchPredictor() can only be called in test environment');
+    throw new ServiceError(
+      'resetPrefetchPredictor() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'PrefetchPredictor'
+    );
   }
   prefetchPredictor = null;
 }

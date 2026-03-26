@@ -3,7 +3,7 @@ title: 'Runbook: Service Down'
 category: general
 last_updated: 2026-02-04
 description: 'Alert Name: ServiceDown'
-version: 1.6.0
+version: 2.0.0
 tags: [prometheus, docker, kubernetes]
 ---
 

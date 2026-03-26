@@ -31,6 +31,7 @@ import {
   PAYLOAD_LIMITS,
 } from '../utils/payload-validator.js';
 import { updateBatchEfficiency } from '../observability/metrics.js';
+import { ValidationError, ServiceError } from '../core/errors.js';
 
 /**
  * Supported operation types that can be batched
@@ -498,7 +499,7 @@ export class BatchingSystem {
       // Merge operations based on type
       const firstOp = operations[0];
       if (!firstOp) {
-        throw new Error('Empty batch');
+        throw new ValidationError('Empty batch', 'operations', 'non-empty batch');
       }
 
       switch (firstOp.type) {
@@ -521,7 +522,11 @@ export class BatchingSystem {
           break;
 
         default:
-          throw new Error(`Unsupported batch type: ${firstOp.type}`);
+          throw new ValidationError(
+            `Unsupported batch type: ${firstOp.type}`,
+            'type',
+            'values:update | values:append | values:clear | sheet:update'
+          );
       }
 
       this.stats.totalApiCalls++; // Single API call for the batch
@@ -904,7 +909,11 @@ export class BatchingSystem {
         )) as T;
 
       default:
-        throw new Error(`Unsupported operation type: ${operation.type}`);
+        throw new ValidationError(
+          `Unsupported operation type: ${(operation as { type: string }).type}`,
+          'type',
+          'known operation type'
+        );
     }
   }
 
@@ -1019,7 +1028,11 @@ export function getBatchingSystem(): BatchingSystem | null {
  */
 export function resetBatchingSystem(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetBatchingSystem() can only be called in test environment');
+    throw new ServiceError(
+      'resetBatchingSystem() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'BatchingSystem'
+    );
   }
   if (batchingSystem) {
     batchingSystem.destroy();

@@ -21,6 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { DataError } from '../core/errors.js';
 
 /**
  * Graph node representing a cell
@@ -368,7 +369,9 @@ export class DependencyGraph {
       }
 
       if (recursionStack.has(cell)) {
-        throw new Error(`Circular dependency detected at ${cell}`);
+        throw new DataError(`Circular dependency detected at ${cell}`, 'DATA_ERROR', false, {
+          cell,
+        });
       }
 
       recursionStack.add(cell);

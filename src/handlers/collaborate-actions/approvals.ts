@@ -550,7 +550,7 @@ async function getCurrentUserEmail(deps: ApprovalsDeps): Promise<string | undefi
     return response.data.user?.emailAddress ?? undefined;
   } catch (err) {
     logger.debug('Failed to get current user email from Drive API', { error: String(err) });
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 }
 

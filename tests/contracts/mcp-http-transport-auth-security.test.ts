@@ -14,6 +14,19 @@ const TEST_SERVER_OPTIONS: HttpServerOptions = {
   trustProxy: false,
 };
 
+const TEST_OAUTH_CONFIG: NonNullable<HttpServerOptions['oauthConfig']> = {
+  issuer: 'https://registry.example.com',
+  clientId: 'test-client',
+  clientSecret: 'test-secret',
+  jwtSecret: 'jwt-secret-jwt-secret-jwt-secret-jwt-secret',
+  stateSecret: 'state-secret-state-secret-state-secret-state-secret',
+  allowedRedirectUris: ['http://localhost/callback'],
+  googleClientId: 'google-client-id',
+  googleClientSecret: 'google-client-secret',
+  accessTokenTtl: 3600,
+  refreshTokenTtl: 86400,
+};
+
 const INITIALIZE_REQUEST = {
   jsonrpc: '2.0',
   id: 1,
@@ -339,6 +352,56 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       });
       expect(deleteResponse.status).toBe(200);
     });
+
+    it('returns 404 for follow-up requests after session termination', async () => {
+      const ownerUserAgent = 'terminated-owner-agent';
+      const sessionId = await initializeSession(ownerUserAgent, 203);
+
+      const deleteResponse = await httpRequest(app, {
+        method: 'DELETE',
+        path: '/mcp',
+        headers: {
+          'Mcp-Session-Id': sessionId,
+          'User-Agent': ownerUserAgent,
+        },
+      });
+      expect(deleteResponse.status).toBe(200);
+
+      const getResponse = await httpRequest(app, {
+        method: 'GET',
+        path: '/mcp',
+        headers: {
+          'Mcp-Session-Id': sessionId,
+          'MCP-Protocol-Version': '2025-11-25',
+          'User-Agent': ownerUserAgent,
+        },
+      });
+      expect(getResponse.status).toBe(404);
+      expect((getResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
+        code: 'SESSION_NOT_FOUND',
+      });
+
+      const postResponse = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'Mcp-Session-Id': sessionId,
+          'MCP-Protocol-Version': '2025-11-25',
+          'User-Agent': ownerUserAgent,
+        },
+        body: {
+          jsonrpc: '2.0',
+          id: 204,
+          method: 'tools/list',
+          params: {},
+        },
+      });
+      expect(postResponse.status).toBe(404);
+      expect((postResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
+        code: 'SESSION_NOT_FOUND',
+      });
+    });
   });
 
   describe('Well-known auth/security discovery contract', () => {
@@ -374,9 +437,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
 
       const body = response.body as Record<string, any>;
       expect(body.issuer).toBe('https://registry.example.com');
-      expect(body.authorization_endpoint).toBe(
-        'https://registry.example.com/oauth/authorize'
-      );
+      expect(body.authorization_endpoint).toBe('https://registry.example.com/oauth/authorize');
       expect(body.response_types_supported).toContain('code');
       expect(body.grant_types_supported).toContain('authorization_code');
       expect(body.code_challenge_methods_supported).toContain('S256');
@@ -415,8 +476,31 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(body.endpoints.streamable_http).toBe('https://registry.example.com/mcp');
       expect(body.authentication.required).toBe(false);
       expect(body.authentication.methods).toContain('oauth2');
+      expect(body.capabilities.resources).toEqual({
+        templates: true,
+        subscriptions: true,
+      });
       expect(body.security.tls_required).toBe(true);
       expect(body.security.min_tls_version).toBe('1.2');
+    });
+
+    it('publishes tool hash manifest for integrity discovery', async () => {
+      const response = await httpRequest(app, {
+        method: 'GET',
+        path: '/.well-known/mcp/tool-hashes',
+        headers: {
+          Host: 'registry.example.com',
+          'X-Forwarded-Proto': 'https',
+        },
+      });
+      expect(response.status).toBe(200);
+
+      const body = response.body as Record<string, any>;
+      expect(typeof body.generated).toBe('string');
+      expect(typeof body.version).toBe('string');
+      expect(body.tools).toBeDefined();
+      expect(Object.keys(body.tools).length).toBeGreaterThan(0);
+      expect(response.headers['etag']).toBeTruthy();
     });
 
     it('supports conditional requests for server card discovery', async () => {
@@ -438,6 +522,215 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         },
       });
       expect(conditionalResponse.status).toBe(304);
+    });
+  });
+
+  describe('OAuth bearer challenge contract', () => {
+    let server: TestServer;
+    let app: Express;
+
+    beforeAll(async () => {
+      server = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        enableOAuth: true,
+        oauthConfig: TEST_OAUTH_CONFIG,
+      });
+      app = server.app as Express;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(server);
+    });
+
+    it('returns WWW-Authenticate on missing bearer token', async () => {
+      const response = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_request"');
+      expect(response.headers['www-authenticate']).toContain(
+        'error_description="Missing or invalid authorization header"'
+      );
+      expect(response.body).toMatchObject({
+        error: 'unauthorized',
+        error_description: 'Missing or invalid authorization header',
+      });
+    });
+
+    it('returns WWW-Authenticate on missing bearer token for /sse', async () => {
+      const response = await httpRequest(app, {
+        method: 'GET',
+        path: '/sse',
+        headers: {
+          'MCP-Protocol-Version': '2025-11-25',
+        },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_request"');
+      expect(response.headers['www-authenticate']).toContain(
+        'error_description="Missing or invalid authorization header"'
+      );
+    });
+
+    it('returns WWW-Authenticate on invalid bearer token', async () => {
+      const response = await httpRequest(app, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+          Authorization: 'Bearer not-a-real-token',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_token"');
+      expect(response.headers['www-authenticate']).toContain('error_description=');
+    });
+  });
+
+  // ─── T1: Origin header rejection (MCP §2.7) ─────────────────────────
+  describe('Origin header validation (MCP §2.7)', () => {
+    let originApp: Express;
+    let originServer: TestServer;
+    let cleanupOriginEnv: () => void;
+
+    beforeAll(async () => {
+      cleanupOriginEnv = applyEnvOverrides({
+        SERVAL_TRANSPORT: 'http',
+        SERVAL_OAUTH_ENABLED: 'false',
+      });
+      originServer = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        corsOrigins: ['http://allowed-origin.example.com'],
+      });
+      originApp = originServer.app;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(originServer);
+      cleanupOriginEnv();
+    });
+
+    it('rejects requests with disallowed Origin header (MCP §2.7 — MUST 403)', async () => {
+      const response = await httpRequest(originApp, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+          Origin: 'http://evil-origin.example.com',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      // MCP spec §2.7: Server MUST respond with HTTP 403 Forbidden for invalid Origin
+      expect(response.status).toBe(403);
+    });
+  });
+
+  // ─── T4: Access control on tool invocation (MCP §2.2) ───────────────
+  describe('Tool invocation access control (MCP §2.2)', () => {
+    let authServer: TestServer;
+    let authApp: Express;
+
+    beforeAll(async () => {
+      authServer = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        enableOAuth: true,
+        oauthConfig: TEST_OAUTH_CONFIG,
+      });
+      authApp = authServer.app as Express;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(authServer);
+    });
+
+    it('blocks unauthenticated tool calls when OAuth is enabled', async () => {
+      const response = await httpRequest(authApp, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+        },
+        body: {
+          jsonrpc: '2.0',
+          id: 99,
+          method: 'tools/call',
+          params: {
+            name: 'sheets_core',
+            arguments: { request: { action: 'get', spreadsheetId: 'test123' } },
+          },
+        },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+    });
+  });
+
+  // ─── T2: Token audience validation (MCP §2.8) ───────────────────────
+  describe('Token audience validation (MCP §2.8)', () => {
+    let audServer: TestServer;
+    let audApp: Express;
+
+    beforeAll(async () => {
+      audServer = createHttpServer({
+        ...TEST_SERVER_OPTIONS,
+        enableOAuth: true,
+        oauthConfig: TEST_OAUTH_CONFIG,
+      });
+      audApp = audServer.app as Express;
+    });
+
+    afterAll(async () => {
+      await cleanupServer(audServer);
+    });
+
+    it('rejects tokens not issued for this server (wrong audience)', async () => {
+      const response = await httpRequest(audApp, {
+        method: 'POST',
+        path: '/mcp',
+        headers: {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2025-11-25',
+          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL290aGVyLXNlcnZlci5jb20iLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJleHAiOjk5OTk5OTk5OTl9.fake-signature',
+        },
+        body: INITIALIZE_REQUEST,
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toBeDefined();
+    });
+  });
+
+  // ─── T3: Token passthrough prohibition (MCP §2.8) ──────────────────
+  describe('Token passthrough prohibition (MCP §2.8)', () => {
+    it('server uses Google OAuth tokens not client MCP tokens for API calls', () => {
+      // MCP spec §2.8: Server MUST NOT pass through client tokens to downstream services
+      // Verify no handler forwards req.headers.authorization to Google API calls
+      const { spawnSync } = require('child_process');
+      const result = spawnSync('grep', [
+        '-rnE',
+        'req\\.headers\\.authorization.*google|passthrough.*token|forward.*bearer',
+        'src/handlers/',
+      ], { cwd: process.cwd(), encoding: 'utf-8' });
+
+      expect(result.stdout.trim()).toBe('');
     });
   });
 });

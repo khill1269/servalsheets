@@ -14,6 +14,7 @@ import {
   LegendPositionSchema,
   ChartPositionSchema,
   ColorSchema,
+  ColorStyleSchema,
   TextFormatSchema,
   SummarizeFunctionSchema,
   SortOrderSchema,
@@ -35,7 +36,9 @@ const TrendlineTypeSchema = z
     (val) => (typeof val === 'string' ? val.toUpperCase() : val),
     z.enum(['LINEAR', 'EXPONENTIAL', 'POLYNOMIAL', 'POWER', 'LOGARITHMIC', 'MOVING_AVERAGE'])
   )
-  .describe('Trendline type (case-insensitive)');
+  .describe(
+    'Trendline type (case-insensitive). LINEAR: straight line fit (most common). EXPONENTIAL: for growth/decay data. POLYNOMIAL: curved fit (requires polynomialDegree 2-6). LOGARITHMIC: for diminishing returns. POWER: for power-law relationships. MOVING_AVERAGE: smoothing with period parameter.'
+  );
 
 // Trendline configuration for chart series
 const TrendlineSchema = z
@@ -47,7 +50,9 @@ const TrendlineSchema = z
       .min(2)
       .max(6)
       .optional()
-      .describe('Degree for POLYNOMIAL type (2-6, required when type=POLYNOMIAL)'),
+      .describe(
+        'Degree for POLYNOMIAL type. Required when type=POLYNOMIAL. Typical values: 2 (quadratic), 3 (cubic). Higher values (4-6) risk overfitting. Omitting this when type=POLYNOMIAL will cause an error.'
+      ),
     label: z.string().max(255).optional().describe('Custom label for trendline'),
     showEquation: z
       .boolean()
@@ -104,7 +109,8 @@ const DataLabelSchema = z
 // Chart series with optional trendline and data labels
 const ChartSeriesSchema = z.object({
   column: z.coerce.number().int().min(0).describe('Column index (0-based) for series data'),
-  color: ColorSchema.optional().describe('Series color'),
+  color: ColorSchema.optional().describe('Series color (RGB)'),
+  colorStyle: ColorStyleSchema.optional().describe('Series color as RGB or theme color'),
   trendline: TrendlineSchema.optional().describe('Add trendline to this series'),
   dataLabel: DataLabelSchema.optional().describe('Configure data labels for this series'),
 });
@@ -168,6 +174,9 @@ const ChartOptionsSchema = z.object({
   subtitle: z.string().optional(),
   legendPosition: LegendPositionSchema.optional(),
   backgroundColor: ColorSchema.optional(),
+  backgroundColorStyle: ColorStyleSchema.optional().describe(
+    'Background color as RGB or theme color (Google Sheets API v4 ColorStyle)'
+  ),
   is3D: z.boolean().optional(),
   pieHole: z.coerce.number().min(0).max(1).optional(),
   stacked: z.boolean().optional(),
@@ -287,7 +296,7 @@ const ChartCreateActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('chart_create')
     .describe(
-      'Create a new chart. Minimal example: { "action": "chart_create", "spreadsheetId": "abc123", "sheetId": 0, "chartType": "LINE", "data": { "sourceRange": "Sheet1!A1:B10" }, "position": { "anchorCell": "Sheet1!E2" } }'
+      'Create a new chart. Minimal example: { "action": "chart_create", "spreadsheetId": "abc123", "sheetId": 0, "chartType": "LINE", "data": { "sourceRange": "Sheet1!A1:B10" }, "position": { "anchorCell": "E2", "sheetId": 0 } }'
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where chart will be placed'),
@@ -298,7 +307,7 @@ const ChartCreateActionSchema = CommonFieldsSchema.extend({
     'Chart data source. NOTE: BAR charts only support BOTTOM_AXIS (horizontal bars). Use COLUMN for vertical bars.'
   ),
   position: ChartPositionSchema.describe(
-    'Chart position. anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"'
+    'Chart position. Prefer "Sheet1!E2". If anchorCell omits the sheet name, set position.sheetId so the chart lands on the correct sheet.'
   ),
   options: ChartOptionsSchema.optional().describe(
     'Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)'
@@ -352,7 +361,7 @@ const ChartMoveActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   chartId: z.coerce.number().int().describe('Numeric chart ID to move'),
   position: ChartPositionSchema.describe(
-    'New position. anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"'
+    'New position. Prefer "Sheet1!E2". If anchorCell omits the sheet name, set position.sheetId.'
   ),
 });
 
@@ -490,29 +499,101 @@ const PivotRefreshActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
+const normalizeVisualizeRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) return val;
+  const input = { ...(val as Record<string, unknown>) };
+  const action = input['action'];
+
+  if (action === 'chart_create') {
+    // Normalize data.chartType to uppercase and move data.title/legendPosition to options
+    if (input['data'] && typeof input['data'] === 'object') {
+      const data = { ...(input['data'] as Record<string, unknown>) };
+      if (typeof data['chartType'] === 'string') {
+        const upperChartType = data['chartType'].toUpperCase();
+        data['chartType'] = upperChartType;
+        // Also promote to top-level chartType if absent
+        if (input['chartType'] === undefined) {
+          input['chartType'] = upperChartType;
+        }
+        delete data['chartType'];
+      }
+      if (data['title'] !== undefined || data['legendPosition'] !== undefined) {
+        const existingOptions =
+          typeof input['options'] === 'object' && input['options'] !== null
+            ? { ...(input['options'] as Record<string, unknown>) }
+            : {};
+        if (data['title'] !== undefined) {
+          existingOptions['title'] = data['title'];
+          delete data['title'];
+        }
+        if (data['legendPosition'] !== undefined) {
+          existingOptions['legendPosition'] = data['legendPosition'];
+          delete data['legendPosition'];
+        }
+        input['options'] = existingOptions;
+      }
+      input['data'] = data;
+    }
+    // Normalize top-level chartType to uppercase if present
+    if (typeof input['chartType'] === 'string') {
+      input['chartType'] = input['chartType'].toUpperCase();
+    }
+    // Move top-level sourceRange string into data.sourceRange as { a1: ... }
+    if (
+      typeof input['sourceRange'] === 'string' &&
+      input['data'] &&
+      typeof input['data'] === 'object'
+    ) {
+      const data = { ...(input['data'] as Record<string, unknown>) };
+      if (data['sourceRange'] === undefined) {
+        data['sourceRange'] = { a1: input['sourceRange'] };
+        input['data'] = data;
+      }
+      delete input['sourceRange'];
+    }
+  }
+
+  if (action === 'chart_move') {
+    // Handle destinationCell/destinationSheetId aliases → position
+    if (input['destinationCell'] !== undefined && input['position'] === undefined) {
+      input['position'] = {
+        anchorCell: input['destinationCell'],
+        sheetId: input['destinationSheetId'],
+      };
+      delete input['destinationCell'];
+      delete input['destinationSheetId'];
+    }
+  }
+
+  return input;
+};
+
 export const SheetsVisualizeInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    // Chart actions (11)
-    ChartCreateActionSchema,
-    SuggestChartActionSchema,
-    ChartUpdateActionSchema,
-    ChartDeleteActionSchema,
-    ChartListActionSchema,
-    ChartGetActionSchema,
-    ChartMoveActionSchema,
-    ChartResizeActionSchema,
-    ChartUpdateDataRangeActionSchema,
-    ChartAddTrendlineActionSchema,
-    ChartRemoveTrendlineActionSchema,
-    // Pivot actions (7)
-    PivotCreateActionSchema,
-    SuggestPivotActionSchema,
-    PivotUpdateActionSchema,
-    PivotDeleteActionSchema,
-    PivotListActionSchema,
-    PivotGetActionSchema,
-    PivotRefreshActionSchema,
-  ]),
+  request: z.preprocess(
+    normalizeVisualizeRequest,
+    z.discriminatedUnion('action', [
+      // Chart actions (11)
+      ChartCreateActionSchema,
+      SuggestChartActionSchema,
+      ChartUpdateActionSchema,
+      ChartDeleteActionSchema,
+      ChartListActionSchema,
+      ChartGetActionSchema,
+      ChartMoveActionSchema,
+      ChartResizeActionSchema,
+      ChartUpdateDataRangeActionSchema,
+      ChartAddTrendlineActionSchema,
+      ChartRemoveTrendlineActionSchema,
+      // Pivot actions (7)
+      PivotCreateActionSchema,
+      SuggestPivotActionSchema,
+      PivotUpdateActionSchema,
+      PivotDeleteActionSchema,
+      PivotListActionSchema,
+      PivotGetActionSchema,
+      PivotRefreshActionSchema,
+    ])
+  ),
 });
 
 // ============================================================================

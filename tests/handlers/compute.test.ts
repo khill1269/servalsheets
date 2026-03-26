@@ -134,7 +134,7 @@ describe('ComputeHandler', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=A2+B2',
-          range: 'Sheet1!A1:B2',
+          range: { a1: 'Sheet1!A1:B2' },
         },
       });
 
@@ -142,6 +142,24 @@ describe('ComputeHandler', () => {
       if (result.response.success) {
         expect(typeof result.response.resolvedCells).toBe('object');
         expect(result.response.resolvedCells).not.toBeNull();
+      }
+    });
+
+    it('S1-B: should return success:false when expression cannot be evaluated', async () => {
+      const handler = makeHandler();
+      // Use unmatched paren — survives sanitizer and causes SyntaxError in Function constructor
+      const result = await handler.handle({
+        request: {
+          action: 'evaluate',
+          spreadsheetId: SPREADSHEET_ID,
+          formula: '=1 + )',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('OPERATION_FAILED');
+        expect(result.response.error.message).toContain('Cannot evaluate');
       }
     });
 
@@ -154,7 +172,7 @@ describe('ComputeHandler', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=A1',
-          range: 'Sheet1!A1',
+          range: { a1: 'Sheet1!A1' },
         },
       });
 
@@ -182,7 +200,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!B1:B3',
+          range: { a1: 'Sheet1!B1:B3' },
           functions: ['sum', 'average'],
         },
       });
@@ -204,7 +222,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!X1:X10',
+          range: { a1: 'Sheet1!X1:X10' },
           functions: ['sum'],
         },
       });
@@ -243,7 +261,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'statistical',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
         },
       });
 
@@ -251,6 +269,59 @@ describe('ComputeHandler', () => {
       if (result.response.success) {
         expect(result.response.statistics).toHaveProperty('Revenue');
       }
+    });
+
+    it('uses an explicit headerRow when the requested range excludes headers', async () => {
+      fetchRangeData
+        .mockResolvedValueOnce([
+          [100, 60],
+          [200, 120],
+        ])
+        .mockResolvedValueOnce([['Revenue', 'Cost']]);
+      computeStatistics.mockReturnValue({
+        statistics: {
+          Revenue: {
+            count: 2,
+            mean: 150,
+            median: 150,
+            stddev: 50,
+            min: 100,
+            max: 200,
+            variance: 2500,
+            range: 100,
+            nullCount: 0,
+          },
+        },
+      });
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'statistical',
+          spreadsheetId: SPREADSHEET_ID,
+          range: { a1: 'Sheet1!B2:C3' },
+          headerRow: 1,
+          columns: ['Revenue'],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(computeStatistics).toHaveBeenCalledWith(
+        [
+          ['Revenue', 'Cost'],
+          [100, 60],
+          [200, 120],
+        ],
+        expect.objectContaining({
+          columns: ['Revenue'],
+        })
+      );
+      expect(fetchRangeData).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        SPREADSHEET_ID,
+        'Sheet1!B1:C1'
+      );
     });
 
     it('should return error when statistical throws', async () => {
@@ -263,7 +334,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'statistical',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:A1',
+          range: { a1: 'Sheet1!A1:A1' },
         },
       });
 
@@ -289,7 +360,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'regression',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           xColumn: 'A',
           yColumn: 'B',
         },
@@ -312,13 +383,53 @@ describe('ComputeHandler', () => {
         request: {
           action: 'regression',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B2',
+          range: { a1: 'Sheet1!A1:B2' },
           xColumn: 'A',
           yColumn: 'B',
         },
       });
 
       expect(result.response.success).toBe(false);
+    });
+
+    it('supports headerless ranges by synthesizing column letters', async () => {
+      fetchRangeData.mockResolvedValueOnce([
+        [1, 10],
+        [2, 20],
+        [3, 30],
+      ]);
+      computeRegression.mockReturnValue({
+        coefficients: [10, 0],
+        rSquared: 1,
+        equation: 'y = 10x + 0',
+        residuals: { mean: 0, stddev: 0, max: 0 },
+      });
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'regression',
+          spreadsheetId: SPREADSHEET_ID,
+          range: { a1: 'Sheet1!A2:B4' },
+          hasHeaders: false,
+          xColumn: 'A',
+          yColumn: 'B',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(computeRegression).toHaveBeenCalledWith(
+        [
+          ['A', 'B'],
+          [1, 10],
+          [2, 20],
+          [3, 30],
+        ],
+        expect.objectContaining({
+          xColumn: 'A',
+          yColumn: 'B',
+        })
+      );
     });
   });
 
@@ -328,6 +439,12 @@ describe('ComputeHandler', () => {
 
   describe('forecast', () => {
     it('should generate time series forecast', async () => {
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-02-01', 150],
+        ['2024-03-01', 200],
+      ]);
       computeForecast.mockReturnValue({
         forecast: [
           { period: '2024-04', value: 220, lowerBound: 200, upperBound: 240 },
@@ -342,7 +459,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B4',
+          range: { a1: 'Sheet1!A1:B4' },
           dateColumn: 'A',
           valueColumn: 'B',
           periods: 2,
@@ -357,6 +474,12 @@ describe('ComputeHandler', () => {
     });
 
     it('should return error when forecast fails', async () => {
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-02-01', 150],
+        ['2024-03-01', 200],
+      ]);
       computeForecast.mockImplementation(() => {
         throw new Error('Cannot parse date column');
       });
@@ -366,7 +489,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           dateColumn: 'A',
           valueColumn: 'B',
           periods: 3,
@@ -381,6 +504,12 @@ describe('ComputeHandler', () => {
         action: 'accept',
         content: { periods: '4' },
       });
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-02-01', 150],
+        ['2024-03-01', 200],
+      ]);
       computeForecast.mockReturnValue({
         forecast: [{ period: '2024-04', value: 220 }],
         trend: { direction: 'increasing', strength: 0.7, seasonalityDetected: false },
@@ -392,7 +521,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'forecast',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B4',
+          range: { a1: 'Sheet1!A1:B4' },
           dateColumn: 'A',
           valueColumn: 'B',
         },
@@ -404,6 +533,36 @@ describe('ComputeHandler', () => {
         expect.objectContaining({ periods: 4 })
       );
       expect(result.response.success).toBe(true);
+    });
+
+    it('rejects forecast input with repeated periods and skips computeForecast', async () => {
+      fetchRangeData.mockResolvedValue([
+        ['Month', 'Revenue'],
+        ['2024-01-01', 100],
+        ['2024-01-01', 120],
+        ['2024-02-01', 180],
+        ['2024-03-01', 240],
+      ]);
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'forecast',
+          spreadsheetId: SPREADSHEET_ID,
+          range: { a1: 'Sheet1!A1:B5' },
+          dateColumn: 'Month',
+          valueColumn: 'Revenue',
+          periods: 2,
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INVALID_PARAMS');
+        expect(result.response.error.message).toContain('multiple rows');
+        expect(result.response.error.suggestedFix).toContain('Aggregate');
+      }
+      expect(computeForecast).not.toHaveBeenCalled();
     });
   });
 
@@ -430,7 +589,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matrix_op',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C2',
+          range: { a1: 'Sheet1!A1:C2' },
           operation: 'transpose',
         },
       });
@@ -452,7 +611,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matrix_op',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C2',
+          range: { a1: 'Sheet1!A1:C2' },
           operation: 'inverse',
         },
       });
@@ -481,7 +640,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pivot_compute',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
           rows: ['Name'],
           values: [{ column: 'Revenue', function: 'sum' }],
         },
@@ -503,7 +662,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pivot_compute',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
           rows: ['NonExistent'],
           values: [{ column: 'Revenue', function: 'sum' }],
         },
@@ -530,7 +689,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'custom_function',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           expression: '$Revenue - $Cost',
         },
       });
@@ -550,7 +709,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'custom_function',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!Z1:Z10',
+          range: { a1: 'Sheet1!Z1:Z10' },
           expression: '$Z',
         },
       });
@@ -576,7 +735,7 @@ describe('ComputeHandler', () => {
             {
               id: 'comp-1',
               type: 'aggregate',
-              params: { range: 'Sheet1!B1:B3', functions: ['sum'] },
+              params: { range: { a1: 'Sheet1!B1:B3' }, functions: ['sum'] },
             },
           ],
         },
@@ -605,7 +764,7 @@ describe('ComputeHandler', () => {
             {
               id: 'comp-err',
               type: 'aggregate',
-              params: { range: 'Sheet1!A1:A2', functions: ['sum'] },
+              params: { range: { a1: 'Sheet1!A1:A2' }, functions: ['sum'] },
             },
           ],
         },
@@ -616,6 +775,33 @@ describe('ComputeHandler', () => {
         const results = result.response.results ?? [];
         expect(results.length).toBeGreaterThan(0);
         expect(results[0]?.success).toBe(false);
+      }
+    });
+
+    it('should normalize nested string ranges before dispatching', async () => {
+      aggregate.mockReturnValue({ aggregations: { sum: 300 }, rowCount: 2 });
+
+      const handler = makeHandler();
+      const result = await handler.handle({
+        request: {
+          action: 'batch_compute',
+          spreadsheetId: SPREADSHEET_ID,
+          computations: [
+            {
+              id: 'comp-string-range',
+              type: 'aggregate',
+              params: { range: 'Sheet1!B1:B3', functions: ['sum'] },
+            },
+          ],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.results?.[0]).toMatchObject({
+          id: 'comp-string-range',
+          success: true,
+        });
       }
     });
   });
@@ -687,7 +873,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_query',
           spreadsheetId: SPREADSHEET_ID,
-          tables: [{ name: 'sales', range: 'Sheet1!A1:C3', hasHeaders: true }],
+          tables: [{ name: 'sales', range: { a1: 'Sheet1!A1:C3' }, hasHeaders: true }],
           sql: 'SELECT Name, Revenue FROM sales WHERE Revenue > 50',
         },
       });
@@ -711,7 +897,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_query',
           spreadsheetId: SPREADSHEET_ID,
-          tables: [{ name: 'users', range: 'Sheet1!A1:B3', hasHeaders: true }],
+          tables: [{ name: 'users', range: { a1: 'Sheet1!A1:B3' }, hasHeaders: true }],
           sql: 'DROP TABLE users',
         },
       });
@@ -728,7 +914,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_query',
           spreadsheetId: SPREADSHEET_ID,
-          tables: [{ name: 'sales', range: 'Sheet1!A1:B2', hasHeaders: true }],
+          tables: [{ name: 'sales', range: { a1: 'Sheet1!A1:B2' }, hasHeaders: true }],
           sql: 'SELECT * FROM sales',
         },
       });
@@ -759,8 +945,8 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_join',
           spreadsheetId: SPREADSHEET_ID,
-          left: { range: 'Sheet1!A1:B3', alias: 'left' },
-          right: { range: 'Sheet2!A1:B3', alias: 'right' },
+          left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left' },
+          right: { range: { a1: 'Sheet2!A1:B3' }, alias: 'right' },
           on: 'left.id = right.id',
           joinType: 'inner',
         },
@@ -775,8 +961,8 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sql_join',
           spreadsheetId: SPREADSHEET_ID,
-          left: { range: 'Sheet1!A1:B3', alias: 'left' },
-          right: { range: 'Sheet2!A1:B3', alias: 'right' },
+          left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left' },
+          right: { range: { a1: 'Sheet2!A1:B3' }, alias: 'right' },
           on: 'left.id = right.id',
           joinType: 'left',
         },
@@ -806,7 +992,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'result = 2 + 2',
         },
       });
@@ -827,7 +1013,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'import os\nresult = os.listdir("/")',
         },
       });
@@ -846,7 +1032,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'result = open("file.txt").read()',
         },
       });
@@ -865,7 +1051,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'python_eval',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           code: 'while True: pass',
         },
       });
@@ -899,7 +1085,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pandas_profile',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
         },
       });
 
@@ -917,7 +1103,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pandas_profile',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
         },
       });
 
@@ -943,7 +1129,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'pandas_profile',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
         },
       });
 
@@ -976,7 +1162,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sklearn_model',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:C3',
+          range: { a1: 'Sheet1!A1:C3' },
           targetColumn: 'Cost',
           modelType: 'linear_regression',
         },
@@ -997,7 +1183,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'sklearn_model',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B2',
+          range: { a1: 'Sheet1!A1:B2' },
           targetColumn: 'B',
           modelType: 'random_forest',
         },
@@ -1024,7 +1210,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matplotlib_chart',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           chartType: 'bar',
         },
       });
@@ -1043,7 +1229,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'matplotlib_chart',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:B3',
+          range: { a1: 'Sheet1!A1:B3' },
           chartType: 'line',
         },
       });
@@ -1075,7 +1261,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:A1',
+          range: { a1: 'Sheet1!A1:A1' },
           functions: ['sum'],
           type: 'moving_average',
           valueColumn: 'Revenue',
@@ -1099,7 +1285,7 @@ describe('ComputeHandler', () => {
         request: {
           action: 'aggregate',
           spreadsheetId: SPREADSHEET_ID,
-          range: 'Sheet1!A1:A1',
+          range: { a1: 'Sheet1!A1:A1' },
           functions: ['sum'],
           type: 'moving_sum',
           valueColumn: 'Amount',

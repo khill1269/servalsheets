@@ -142,6 +142,52 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
     });
   });
 
+  describe('error path tests', () => {
+    it('should handle set_active with empty sheetNames array (edge case)', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'set_active',
+          spreadsheetId: 'test-id',
+          title: 'Test Spreadsheet',
+          sheetNames: [],
+        },
+      });
+
+      // Empty sheetNames should be accepted gracefully
+      expect(result.response.success).toBe(true);
+    });
+
+    it('should handle get_context when no active spreadsheet is set', async () => {
+      // Don't call set_active - start from clean state
+      const result = await handler.handle({
+        request: {
+          action: 'get_context',
+        },
+      });
+
+      // Should succeed and return null for activeSpreadsheet
+      expect(result.response.success).toBe(true);
+      if (result.response.success && 'activeSpreadsheet' in result.response) {
+        expect(result.response.activeSpreadsheet).toBeNull();
+      }
+    });
+
+    it('should handle set_active with missing spreadsheetId gracefully', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'set_active',
+          spreadsheetId: '',
+          title: 'Test',
+        },
+      });
+
+      // Empty spreadsheetId — either rejected (success: false) or stored as-is
+      // Either outcome is acceptable but must not throw
+      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
+    });
+  });
+
   describe('regression tests', () => {
     it('should handle get_context with no active spreadsheet', async () => {
       // Don't set active

@@ -53,6 +53,7 @@ import {
   handleCrossCompare,
 } from './data-actions/cross.js';
 import { handleSmartFill } from './data-actions/smart-fill.js';
+import { handleAutoFill } from './data-actions/auto-fill.js';
 
 /**
  * Main handler for sheets_data tool — thin dispatch only.
@@ -94,6 +95,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     try {
+      this.checkOperationScopes(`${this.toolName}.${inferredRequest.action}`);
       const response = await this.executeAction(inferredRequest);
 
       if (response.success && 'spreadsheetId' in inferredRequest) {
@@ -249,6 +251,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         this._generateMeta(action, input, result, options),
       getSheetId: (spreadsheetId, sheetName, api) =>
         this._getSheetId(spreadsheetId, sheetName, api),
+      resolveRange: (spreadsheetId, range) =>
+        this.resolveRange(spreadsheetId, range as Parameters<typeof this.resolveRange>[1]),
       deduplicatedApiCall: (key, call) => this._deduplicatedApiCall(key, call),
       recordAccessAndPrefetch: (params) => this._recordAccessAndPrefetch(params),
       sendProgress: (completed, total, message) => this._sendProgress(completed, total, message),
@@ -319,8 +323,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           ha,
           request as unknown as import('../schemas/data.js').DataSmartFillInput
         );
+      case 'auto_fill':
+        return handleAutoFill(
+          ha,
+          request as unknown as import('../schemas/data.js').DataAutoFillInput
+        );
 
       default: {
+        // Legacy alias path — handle old action names for backwards compat
         const action = (request as { action: string }).action;
         if (action === 'set_note' || action === 'notes') {
           return handleAddNote(ha, request as unknown as DataRequest & { action: 'add_note' });
@@ -344,9 +354,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           );
         }
 
+        // Exhaustive check: all branches above handle their action, if we reach here it's unknown
+        const exhaustiveCheck: string = action as string;
         return this.error({
           code: ErrorCodes.INVALID_PARAMS,
-          message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
+          message: `Unknown action: ${exhaustiveCheck}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
           retryable: false,
           suggestedFix:
             'Check the parameter format and ensure all required parameters are provided',

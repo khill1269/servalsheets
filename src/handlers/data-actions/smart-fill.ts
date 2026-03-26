@@ -169,7 +169,9 @@ export async function handleSmartFill(
   req: DataSmartFillInput
 ): Promise<DataResponse> {
   try {
-    const { spreadsheetId, sourceRange, fillRange, useSampling } = req;
+    const { spreadsheetId, useSampling } = req;
+    const sourceRange = await ha.resolveRange(spreadsheetId, req.sourceRange);
+    const fillRange = await ha.resolveRange(spreadsheetId, req.fillRange);
 
     // 1. Read source values
     const sourceRes = await ha.api.spreadsheets.values.get({

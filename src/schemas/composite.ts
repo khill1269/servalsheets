@@ -18,6 +18,7 @@ import {
   SheetNameSchema,
   ErrorDetailSchema,
   MutationSummarySchema,
+  RangeInputSchema,
   ResponseMetaSchema,
   SafetyOptionsSchema,
 } from './shared.js';
@@ -41,6 +42,32 @@ export const VerbositySchema = z
   .enum(['minimal', 'standard', 'detailed'])
   .default('standard')
   .describe('Response verbosity level');
+
+const normalizeCompositeRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) {
+    return val;
+  }
+
+  const input = val as Record<string, unknown>;
+  if (input['action'] !== 'import_csv') {
+    return val;
+  }
+
+  const legacySheetName = input['sheetName'];
+  if (
+    typeof legacySheetName === 'string' &&
+    legacySheetName.trim().length > 0 &&
+    input['sheet'] === undefined &&
+    input['newSheetName'] === undefined
+  ) {
+    return {
+      ...input,
+      newSheetName: legacySheetName,
+    };
+  }
+
+  return val;
+};
 
 // ============================================================================
 // Import CSV Action
@@ -69,7 +96,13 @@ export const ImportCsvInputSchema = z.object({
   mode: ImportCsvModeSchema.default('replace').describe(
     'How to handle existing data (default: replace | alternatives: append, new_sheet)'
   ),
-  newSheetName: z.string().max(255).optional().describe('Name for new sheet if mode is new_sheet'),
+  newSheetName: z
+    .string()
+    .max(255)
+    .optional()
+    .describe(
+      'Name for new sheet. Used when mode is new_sheet OR when no existing sheet is specified. Defaults to Import_YYYY-MM-DD if omitted.'
+    ),
   skipEmptyRows: z
     .boolean()
     .default(true)
@@ -128,7 +161,7 @@ export const SmartAppendInputSchema = z.object({
     )
     .min(1)
     .describe(
-      'Array of objects with column headers as keys (values can be string, number, boolean, null, array, or object)'
+      'MUST be array of objects keyed by header names, e.g. [{"Name": "Alice", "Age": 30}]. Do NOT use arrays of arrays [[val1, val2]] — that format will fail. Values can be string, number, boolean, null, array, or object.'
     ),
   matchHeaders: z
     .boolean()
@@ -598,7 +631,7 @@ export const ExportLargeDatasetInputSchema = z.object({
     .literal('export_large_dataset')
     .describe('Export large dataset with streaming (100K+ rows)'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to export'),
-  range: z.string().min(1).describe('Range to export (e.g., "Sheet1!A:Z" or "Sheet1!A1:Z100000")'),
+  range: RangeInputSchema.describe('Range to export (e.g., "Sheet1!A:Z" or named range)'),
   chunkSize: z.coerce
     .number()
     .int()
@@ -744,12 +777,13 @@ export const DataPipelineInputSchema = z.object({
     .literal('data_pipeline')
     .describe('Execute a sequence of data transformation steps on a range'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID'),
-  sourceRange: z.string().min(1).describe('Source range to read (e.g., "Sheet1!A1:D100")'),
+  sourceRange: RangeInputSchema.describe(
+    'Source range to read (e.g., "Sheet1!A1:D100" or named range)'
+  ),
   steps: z.array(PipelineStepSchema).describe('Ordered list of transformation steps to apply'),
-  outputRange: z
-    .string()
-    .optional()
-    .describe('Write results to this range (writes back if provided and not dryRun)'),
+  outputRange: RangeInputSchema.optional().describe(
+    'Write results to this range (writes back if provided and not dryRun)'
+  ),
   dryRun: z.boolean().optional().default(false).describe('Preview results without writing'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
@@ -844,9 +878,13 @@ export const MigrateSpreadsheetInputSchema = z.object({
     .literal('migrate_spreadsheet')
     .describe('Migrate data from one spreadsheet to another with column mapping'),
   sourceSpreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
-  sourceRange: z.string().min(1).describe('Source range to read (e.g., "Sheet1!A1:D100")'),
+  sourceRange: RangeInputSchema.describe(
+    'Source range to read (e.g., "Sheet1!A1:D100" or named range)'
+  ),
   destinationSpreadsheetId: SpreadsheetIdSchema.describe('Destination spreadsheet ID'),
-  destinationRange: z.string().min(1).describe('Destination range to write to (e.g., "Sheet1!A1")'),
+  destinationRange: RangeInputSchema.describe(
+    'Destination range to write to (e.g., "Sheet1!A1" or named range)'
+  ),
   columnMapping: z
     .array(ColumnMappingSchema)
     .min(1)
@@ -1193,11 +1231,116 @@ export const BatchOperationsOutputSchema = z.object({
 });
 
 // ============================================================================
+// Build Dashboard Action
+// ============================================================================
+
+/**
+ * build_dashboard — Create an analytics dashboard sheet with KPIs, charts, and slicers
+ */
+export const BuildDashboardInputSchema = z
+  .object({
+    action: z.literal('build_dashboard'),
+    spreadsheetId: SpreadsheetIdSchema.describe(
+      'ID of the spreadsheet containing the data source. ' +
+        'Example: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"'
+    ),
+    dataSheet: z
+      .string()
+      .describe(
+        'Name of the sheet tab containing the source data to visualize. ' +
+          'This sheet must already exist with data. Example: "Sales Data"'
+      ),
+    dashboardSheet: z
+      .string()
+      .default('Dashboard')
+      .describe(
+        'Name for the new dashboard sheet tab to create. ' +
+          'Will be created if it does not exist. Default: "Dashboard"'
+      ),
+    layout: z
+      .enum(['kpi_header', 'full_analytics', 'executive_summary'])
+      .default('full_analytics')
+      .describe(
+        'Dashboard layout style. ' +
+          '"kpi_header": KPI metrics row at top only. ' +
+          '"full_analytics": KPIs + charts + slicers (recommended). ' +
+          '"executive_summary": Condensed single-page summary.'
+      ),
+    kpis: z
+      .array(
+        z.object({
+          label: z.string().describe('Display label for the KPI. Example: "Total Revenue"'),
+          formula: z
+            .string()
+            .describe(
+              'Google Sheets formula for the KPI value. Must include = prefix. ' +
+                'Example: "=SUM(\'Sales Data\'!B:B)"'
+            ),
+          format: z
+            .enum(['currency', 'percentage', 'number', 'date'])
+            .default('number')
+            .describe('Number format for the KPI value display.'),
+        })
+      )
+      .optional()
+      .describe(
+        'KPI metrics to display in the header row. Each becomes a labeled metric cell. ' +
+          'Example: [{ label: "Revenue", formula: "=SUM(B:B)", format: "currency" }]'
+      ),
+    charts: z
+      .array(
+        z.object({
+          type: z.string().describe('Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER'),
+          dataRange: z
+            .string()
+            .describe('A1 notation range for chart data. Example: "\'Sales Data\'!A1:B12"'),
+          title: z.string().describe('Chart title. Example: "Monthly Revenue"'),
+        })
+      )
+      .optional()
+      .describe('Charts to embed in the dashboard.'),
+    slicers: z
+      .array(
+        z.object({
+          filterColumn: z
+            .number()
+            .int()
+            .min(0)
+            .describe('0-based column index to filter on. Column A = 0, B = 1, etc.'),
+          title: z.string().describe('Slicer title. Example: "Filter by Region"'),
+        })
+      )
+      .optional()
+      .describe('Interactive filter slicers to add below charts.'),
+    verbosity: z
+      .enum(['minimal', 'standard', 'detailed'])
+      .optional()
+      .default('standard')
+      .describe('Response detail level'),
+  })
+  .describe(
+    'Build a complete analytics dashboard sheet with KPI metrics, charts, and optional slicers. ' +
+      'Creates a new sheet tab with formatted KPI row, embedded charts, and filter controls. ' +
+      'Example: build_dashboard dataSheet:"Sales" layout:"full_analytics" kpis:[{ label:"Revenue", formula:"=SUM(\'Sales\'!B:B)", format:"currency" }]'
+  );
+
+export const BuildDashboardOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('build_dashboard'),
+  dashboardSheet: z.string().describe('Name of the created dashboard sheet'),
+  kpisAdded: z.coerce.number().int().min(0).describe('Number of KPI metrics added'),
+  chartsAdded: z.coerce.number().int().min(0).describe('Number of charts embedded'),
+  slicersAdded: z.coerce.number().int().min(0).describe('Number of slicers added'),
+  message: z.string().describe('Summary of the dashboard creation'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Combined Composite Input/Output
 // ============================================================================
 
 /**
- * All composite operation inputs (20 actions)
+ * All composite operation inputs (21 actions)
  *
  * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
@@ -1212,34 +1355,39 @@ export const BatchOperationsOutputSchema = z.object({
  * - Each action has only its required fields (no optional field pollution)
  */
 export const CompositeInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    // Original composite actions (7)
-    ImportCsvInputSchema,
-    SmartAppendInputSchema,
-    BulkUpdateInputSchema,
-    DeduplicateInputSchema,
-    ExportXlsxInputSchema,
-    ImportXlsxInputSchema,
-    GetFormResponsesInputSchema,
-    // LLM-optimized workflow actions (3)
-    SetupSheetInputSchema,
-    ImportAndFormatInputSchema,
-    CloneStructureInputSchema,
-    // Streaming actions (1)
-    ExportLargeDatasetInputSchema,
-    // NL Sheet Generator actions (3) — F1
-    GenerateSheetInputSchema,
-    GenerateTemplateInputSchema,
-    PreviewGenerationInputSchema,
-    // P14-C1 Composite Workflow actions (5)
-    AuditSheetInputSchema,
-    PublishReportInputSchema,
-    DataPipelineInputSchema,
-    InstantiateTemplateInputSchema,
-    MigrateSpreadsheetInputSchema,
-    // Orchestration actions (1)
-    BatchOperationsInputSchema,
-  ]),
+  request: z.preprocess(
+    normalizeCompositeRequest,
+    z.discriminatedUnion('action', [
+      // Original composite actions (7)
+      ImportCsvInputSchema,
+      SmartAppendInputSchema,
+      BulkUpdateInputSchema,
+      DeduplicateInputSchema,
+      ExportXlsxInputSchema,
+      ImportXlsxInputSchema,
+      GetFormResponsesInputSchema,
+      // LLM-optimized workflow actions (3)
+      SetupSheetInputSchema,
+      ImportAndFormatInputSchema,
+      CloneStructureInputSchema,
+      // Streaming actions (1)
+      ExportLargeDatasetInputSchema,
+      // NL Sheet Generator actions (3) — F1
+      GenerateSheetInputSchema,
+      GenerateTemplateInputSchema,
+      PreviewGenerationInputSchema,
+      // P14-C1 Composite Workflow actions (5)
+      AuditSheetInputSchema,
+      PublishReportInputSchema,
+      DataPipelineInputSchema,
+      InstantiateTemplateInputSchema,
+      MigrateSpreadsheetInputSchema,
+      // Orchestration actions (1)
+      BatchOperationsInputSchema,
+      // Dashboard (1)
+      BuildDashboardInputSchema,
+    ])
+  ),
 });
 
 /**
@@ -1275,6 +1423,8 @@ export const CompositeSuccessOutputSchema = z.union([
   MigrateSpreadsheetOutputSchema,
   // Orchestration outputs
   BatchOperationsOutputSchema,
+  // Dashboard outputs
+  BuildDashboardOutputSchema,
 ]);
 
 /**
@@ -1312,6 +1462,8 @@ export const CompositeResponseSchema = z.discriminatedUnion('success', [
   MigrateSpreadsheetOutputSchema,
   // Orchestration outputs
   BatchOperationsOutputSchema,
+  // Dashboard outputs
+  BuildDashboardOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -1520,6 +1672,16 @@ export type CompositeBatchOperationsInput = CompositeInput['request'] & {
   action: 'batch_operations';
   spreadsheetId: string;
   operations: BatchOperationRequest[];
+};
+
+// Dashboard types
+export type BuildDashboardInput = z.infer<typeof BuildDashboardInputSchema>;
+export type BuildDashboardOutput = z.infer<typeof BuildDashboardOutputSchema>;
+
+export type CompositeBuildDashboardInput = CompositeInput['request'] & {
+  action: 'build_dashboard';
+  spreadsheetId: string;
+  dataSheet: string;
 };
 
 // ============================================================================

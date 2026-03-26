@@ -29,6 +29,7 @@ import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
 import { generateWebhookSecret } from '../security/webhook-signature.js';
 import { resourceNotifications } from '../resources/notifications.js';
 import { validateWebhookUrl } from './webhook-url-validation.js';
+import { ServiceError } from '../core/errors.js';
 import type {
   WebhookEventType,
   WebhookInfo,
@@ -112,6 +113,10 @@ export class WebhookManager {
       webhookEndpoint,
       durabilityMode: WEBHOOK_DURABILITY_MODE,
     });
+  }
+
+  hasRedisBackend(): boolean {
+    return this.redis !== null;
   }
 
   /**
@@ -206,7 +211,7 @@ export class WebhookManager {
   }
 
   private extractSpreadsheetId(resourceName?: string): string | undefined {
-    if (!resourceName) return undefined;
+    if (!resourceName) return undefined; // OK: Explicit empty
     const match = resourceName.match(/\/files\/([a-zA-Z0-9_-]+)/);
     return match?.[1];
   }
@@ -216,7 +221,11 @@ export class WebhookManager {
    */
   async register(input: WebhookRegisterInput): Promise<WebhookRegisterResponse> {
     if (!this.redis) {
-      throw new Error('Redis required for webhook functionality');
+      throw new ServiceError(
+        'Redis required for webhook functionality',
+        'SERVICE_NOT_INITIALIZED',
+        'WebhookManager'
+      );
     }
 
     // SSRF protection: validate webhook URL before registration
@@ -259,7 +268,12 @@ export class WebhookManager {
       });
 
       if (!watchResponse.data.resourceId) {
-        throw new Error('Drive API watch response missing resourceId');
+        throw new ServiceError(
+          'Drive API watch response missing resourceId',
+          'INTERNAL_ERROR',
+          'WebhookManager',
+          true
+        );
       }
 
       const resourceId = watchResponse.data.resourceId;
@@ -339,7 +353,11 @@ export class WebhookManager {
    */
   async unregister(webhookId: string): Promise<{ success: boolean; message: string }> {
     if (!this.redis) {
-      throw new Error('Redis required for webhook functionality');
+      throw new ServiceError(
+        'Redis required for webhook functionality',
+        'SERVICE_NOT_INITIALIZED',
+        'WebhookManager'
+      );
     }
 
     try {
@@ -403,7 +421,11 @@ export class WebhookManager {
    */
   async get(webhookId: string): Promise<WebhookInfo | null> {
     if (!this.redis) {
-      throw new Error('Redis required for webhook functionality');
+      throw new ServiceError(
+        'Redis required for webhook functionality',
+        'SERVICE_NOT_INITIALIZED',
+        'WebhookManager'
+      );
     }
 
     try {
@@ -421,11 +443,47 @@ export class WebhookManager {
   }
 
   /**
+   * Store a Drive files.watch channel as a webhook record for tracking and renewal.
+   */
+  async storeWatchChannel(
+    channelId: string,
+    resourceId: string,
+    spreadsheetId: string,
+    webhookUrl: string,
+    expiresAt: number
+  ): Promise<void> {
+    if (!this.redis) return;
+    const record: WebhookRecord = {
+      webhookId: channelId,
+      channelId,
+      resourceId,
+      spreadsheetId,
+      webhookUrl,
+      eventTypes: ['sheet.update' as WebhookEventType],
+      createdAt: Date.now(),
+      expiresAt,
+      active: true,
+      deliveryCount: 0,
+      failureCount: 0,
+    };
+    await this.redis.set(
+      `webhook:${channelId}`,
+      JSON.stringify(record),
+      'PX',
+      expiresAt - Date.now()
+    );
+  }
+
+  /**
    * List webhooks (optionally filtered by spreadsheet ID)
    */
   async list(spreadsheetId?: string, activeOnly?: boolean): Promise<WebhookInfo[]> {
     if (!this.redis) {
-      throw new Error('Redis required for webhook functionality');
+      throw new ServiceError(
+        'Redis required for webhook functionality',
+        'SERVICE_NOT_INITIALIZED',
+        'WebhookManager'
+      );
     }
 
     try {
@@ -670,7 +728,12 @@ export class WebhookManager {
             });
 
             if (!watchResponse.data.resourceId) {
-              throw new Error('Drive API watch response missing resourceId');
+              throw new ServiceError(
+                'Drive API watch response missing resourceId',
+                'INTERNAL_ERROR',
+                'WebhookManager',
+                true
+              );
             }
 
             // Update record with new channel info
@@ -885,9 +948,21 @@ export function initWebhookManager(
  */
 export function getWebhookManager(): WebhookManager {
   if (!webhookManager) {
-    throw new Error('Webhook manager not initialized');
+    throw new ServiceError(
+      'Webhook manager not initialized',
+      'SERVICE_NOT_INITIALIZED',
+      'WebhookManager'
+    );
   }
   return webhookManager;
+}
+
+export function isWebhookRedisConfigured(): boolean {
+  if (webhookManager) {
+    return webhookManager.hasRedisBackend();
+  }
+
+  return Boolean(process.env['REDIS_URL']);
 }
 
 /**

@@ -19,172 +19,68 @@ import type {
   TextContent,
   ModelPreferences,
 } from '@modelcontextprotocol/sdk/types.js';
-import {
-  CreateMessageResultSchema,
-  CreateMessageResultWithToolsSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
-import { createRequestAbortError, getRequestContext } from '../utils/request-context.js';
-import { getEnv } from '../config/env.js';
+import { getRequestContext } from '../utils/request-context.js';
+import { recordSamplingRequest } from '../observability/metrics.js';
 import {
   getSpreadsheetContext,
   formatContextForPrompt,
 } from '../services/sampling-context-cache.js';
 import { compressContext, formatCompressedContext } from '../services/context-compressor.js';
+import type { SessionContextManager } from '../services/session-context.js';
+import { ServiceError } from '../core/errors.js';
 
 // ============================================================================
-// ISSUE-117: GDPR consent gate for Sampling calls
+// Cell-level citation type (used in sampling responses)
 // ============================================================================
 
+/** A citation linking an AI finding to a specific spreadsheet cell or range. */
+export interface CellCitation {
+  /** A1 notation cell/range reference (e.g., "B14", "Sheet1!C3:C10") */
+  cell: string;
+  /** Why this cell is cited */
+  role: 'source' | 'evidence' | 'anomaly' | 'formula';
+}
+
 /**
- * Optional consent checker registered at server startup.
- * Throws if consent is required but not granted.
- * When null (default), all sampling calls are allowed (backwards-compatible).
+ * Extract citations array from a JSON sampling response.
+ * Returns empty array if no citations found or parse fails.
  */
-let _consentChecker: (() => Promise<void>) | null = null;
-const _consentCache = new Map<string, { expiresAt: number; errorMessage?: string }>();
-
-/**
- * Register a GDPR consent check callback. Called before every createMessage().
- * Throw an Error with message 'GDPR_CONSENT_REQUIRED' to block the sampling call.
- *
- * @example
- * registerSamplingConsentChecker(async () => {
- *   const hasConsent = await profileManager.hasConsent(getCurrentUserId());
- *   if (!hasConsent) throw new Error('GDPR_CONSENT_REQUIRED: ...');
- * });
- */
-export function registerSamplingConsentChecker(checker: () => Promise<void>): void {
-  _consentChecker = checker;
-}
-
-function getConsentCacheKey(): string {
-  const context = getRequestContext();
-  return context?.principalId ?? context?.requestId ?? 'global';
-}
-
-function purgeExpiredConsentEntries(nowMs: number): void {
-  for (const [key, entry] of _consentCache.entries()) {
-    if (entry.expiresAt <= nowMs) {
-      _consentCache.delete(key);
-    }
-  }
-}
-
-export function clearSamplingConsentCache(): void {
-  _consentCache.clear();
-}
-
-export async function assertSamplingConsent(): Promise<void> {
-  if (!_consentChecker) {
-    return;
-  }
-
-  const ttlMs = getEnv().SAMPLING_CONSENT_CACHE_TTL_MS;
-  if (ttlMs <= 0) {
-    await _consentChecker();
-    return;
-  }
-
-  const nowMs = Date.now();
-  purgeExpiredConsentEntries(nowMs);
-
-  const cacheKey = getConsentCacheKey();
-  const cached = _consentCache.get(cacheKey);
-  if (cached && cached.expiresAt > nowMs) {
-    if (cached.errorMessage) {
-      throw new Error(cached.errorMessage);
-    }
-    return;
-  }
-
+export function extractCitationsFromResponse(text: string): CellCitation[] {
   try {
-    await _consentChecker();
-    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs, errorMessage: message });
-    throw error;
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && 'citations' in parsed) {
+      const citations = (parsed as Record<string, unknown>)['citations'];
+      if (Array.isArray(citations)) {
+        return citations.filter(
+          (c): c is CellCitation =>
+            typeof c === 'object' &&
+            c !== null &&
+            typeof (c as Record<string, unknown>)['cell'] === 'string' &&
+            typeof (c as Record<string, unknown>)['role'] === 'string'
+        );
+      }
+    }
+  } catch {
+    // Non-JSON or malformed — citations are best-effort
   }
+  return [];
 }
 
 // ============================================================================
-// Timeout Wrapper (ISSUE-088)
+// ISSUE-117: GDPR consent gate + timeout wrapper
+// Implementations live in src/utils/sampling-consent.ts so service/analysis
+// layers can import them without depending on the MCP application layer.
 // ============================================================================
-
-type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
-
-function getEffectiveSamplingTimeout(deadline: number | undefined): number {
-  // Lazy read — avoids module-level getEnv() call that fails in test environments
-  const timeoutMs = getEnv().SAMPLING_TIMEOUT_MS;
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    return 30000;
-  }
-  if (!Number.isFinite(deadline)) {
-    return timeoutMs;
-  }
-  return Math.min(timeoutMs, Math.max(0, (deadline as number) - Date.now()));
-}
-
-/**
- * Wrap a sampling request with a configurable timeout.
- * Respects the current request deadline so sampling never outlasts its parent request.
- * Rejects with a descriptive error if the request exceeds the effective timeout.
- */
-export function withSamplingTimeout<T>(operation: SamplingOperation<T>): Promise<T> {
-  // Use the remaining request deadline if available, capped at SAMPLING_TIMEOUT_MS
-  const ctx = getRequestContext();
-  const abortSignal = ctx?.abortSignal;
-  const effectiveTimeout = getEffectiveSamplingTimeout(ctx?.deadline);
-  const execute = typeof operation === 'function' ? operation : () => operation;
-
-  if (abortSignal?.aborted) {
-    return Promise.reject(
-      createRequestAbortError(abortSignal.reason, 'Sampling request cancelled by client')
-    );
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    let settled = false;
-    let timer: NodeJS.Timeout | undefined;
-    const cleanup = (): void => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      abortSignal?.removeEventListener('abort', onAbort);
-    };
-    const settle = (callback: () => void): void => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      callback();
-    };
-    const onAbort = (): void => {
-      settle(() =>
-        reject(createRequestAbortError(abortSignal?.reason, 'Sampling request cancelled by client'))
-      );
-    };
-
-    abortSignal?.addEventListener('abort', onAbort, { once: true });
-    timer = setTimeout(() => {
-      settle(() => reject(new Error(`Sampling request timed out after ${effectiveTimeout}ms`)));
-    }, effectiveTimeout);
-
-    Promise.resolve()
-      .then(() => execute())
-      .then(
-        (value) => {
-          settle(() => resolve(value));
-        },
-        (error: unknown) => {
-          settle(() => reject(error));
-        }
-      );
-  });
-}
+export {
+  registerSamplingConsentChecker,
+  clearSamplingConsentCache,
+  assertSamplingConsent,
+  withSamplingTimeout,
+} from '../utils/sampling-consent.js';
+export type { SamplingOperation } from '../utils/sampling-consent.js';
+import { assertSamplingConsent, withSamplingTimeout } from '../utils/sampling-consent.js';
 
 // ============================================================================
 // Types
@@ -222,6 +118,12 @@ export interface AnalyzeDataOptions {
   sheetsApi?: sheets_v4.Sheets;
   /** Spreadsheet ID to enrich prompt with cached schema context (requires sheetsApi) */
   spreadsheetId?: string;
+  /**
+   * Optional session context manager. When provided, recent operations and the
+   * active spreadsheet title are prepended to the user prompt so the LLM has
+   * richer context about what the user is currently working on.
+   */
+  sessionContext?: SessionContextManager;
 }
 
 /**
@@ -234,6 +136,8 @@ export interface GenerateFormulaOptions {
   maxTokens?: number;
   /** Preferred formula style */
   style?: 'concise' | 'readable' | 'optimized';
+  /** Optional session context for richer LLM prompts */
+  sessionContext?: SessionContextManager;
 }
 
 /**
@@ -269,25 +173,20 @@ interface TaskAwareSamplingServer extends SamplingServer {
     params: CreateMessageRequest['params'],
     options?: {
       signal?: AbortSignal;
-      relatedTask?: { taskId: string };
     }
   ): Promise<CreateMessageResult | CreateMessageResultWithTools>;
 }
 
 const taskAwareSamplingServerCache = new WeakMap<SamplingServer, SamplingServer>();
 
-function supportsSamplingTools(
-  params: CreateMessageRequest['params'],
-  clientCapabilities: ClientCapabilities | undefined
-): boolean {
-  return (
-    Array.isArray((params as { tools?: unknown }).tools) || !!clientCapabilities?.sampling?.tools
-  );
-}
-
 /**
- * Wraps an MCP server so nested sampling requests prefer the current request's
- * task-aware sendRequest channel when available.
+ * Wraps an MCP server so nested sampling requests preserve task status updates
+ * without depending on request-bound related-request delivery.
+ *
+ * Streamable HTTP clients can miss request-bound nested sampling messages when
+ * they are emitted before the per-request SSE response stream is fully ready.
+ * Sending sampling via the base server path targets the normal client request
+ * channel instead, which is reliable across stdio and Streamable HTTP.
  */
 export function createTaskAwareSamplingServer(baseServer: SamplingServer): SamplingServer {
   const cached = taskAwareSamplingServerCache.get(baseServer);
@@ -305,30 +204,11 @@ export function createTaskAwareSamplingServer(baseServer: SamplingServer): Sampl
       const requestContext = getRequestContext();
       if (requestContext?.taskId && requestContext.taskStore) {
         await requestContext.taskStore.updateTaskStatus(requestContext.taskId, 'input_required');
-        return await (baseServer as TaskAwareSamplingServer).createMessage(params, {
-          signal: requestContext.abortSignal,
-          relatedTask: { taskId: requestContext.taskId },
-        });
       }
 
-      if (!requestContext?.sendRequest) {
-        return await baseServer.createMessage(params);
-      }
-
-      const resultSchema = supportsSamplingTools(params, baseServer.getClientCapabilities())
-        ? CreateMessageResultWithToolsSchema
-        : CreateMessageResultSchema;
-
-      return (await requestContext.sendRequest(
-        {
-          method: 'sampling/createMessage',
-          params,
-        },
-        resultSchema,
-        {
-          signal: requestContext.abortSignal,
-        }
-      )) as CreateMessageResult | CreateMessageResultWithTools;
+      return await (baseServer as TaskAwareSamplingServer).createMessage(params, {
+        signal: requestContext?.abortSignal,
+      });
     },
   };
 
@@ -409,7 +289,11 @@ export function checkSamplingSupport(
  */
 export function assertSamplingSupport(clientCapabilities: ClientCapabilities | undefined): void {
   if (!clientCapabilities?.sampling) {
-    throw new Error('Client does not support sampling capability');
+    throw new ServiceError(
+      'Client does not support sampling capability',
+      'INTERNAL_ERROR',
+      'sampling'
+    );
   }
 }
 
@@ -421,7 +305,11 @@ export function assertSamplingToolsSupport(
 ): void {
   assertSamplingSupport(clientCapabilities);
   if (!clientCapabilities?.sampling?.tools) {
-    throw new Error('Client does not support tool use in sampling');
+    throw new ServiceError(
+      'Client does not support tool use in sampling',
+      'INTERNAL_ERROR',
+      'sampling'
+    );
   }
 }
 
@@ -667,6 +555,38 @@ Return a JSON array of plan steps: [{ tool, action, params, description }].`,
 };
 
 // ============================================================================
+// Session Context Helper (shared across all sampling functions)
+// ============================================================================
+
+/**
+ * Build a session context prefix string from the SessionContextManager.
+ * Non-blocking: returns empty string on any error or if no context available.
+ */
+function buildSessionContextPrefix(sessionContext?: SessionContextManager): string {
+  if (!sessionContext) return '';
+  try {
+    const ctx = sessionContext.getSummary?.();
+    if (!ctx) return '';
+    let prefix = '';
+    if (ctx.recentOperations && ctx.recentOperations.length > 0) {
+      prefix += `\nRecent operations (last 5):\n${ctx.recentOperations
+        .slice(-5)
+        .map((op) => `- ${op.tool ?? '?'}.${op.action ?? '?'} on ${op.range ?? 'unknown range'}`)
+        .join('\n')}`;
+    }
+    if (ctx.activeSpreadsheet) {
+      prefix += `\nActive spreadsheet: ${ctx.activeSpreadsheet.title} (sheets: ${
+        ctx.activeSpreadsheet.sheetNames?.join(', ') ?? 'none'
+      })`;
+    }
+    return prefix;
+  } catch {
+    // Non-blocking: session context enrichment must not fail sampling
+    return '';
+  }
+}
+
+// ============================================================================
 // High-Level Sampling Functions
 // ============================================================================
 
@@ -694,12 +614,20 @@ export async function analyzeData(
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
   const {
-    systemPrompt = SAMPLING_PROMPTS.dataAnalysis,
+    systemPrompt = `${SAMPLING_PROMPTS.dataAnalysis}
+
+Always respond in this JSON schema:
+{ "summary": string, "findings": [{"type": string, "severity": "critical"|"high"|"medium"|"low", "location": string, "description": string, "recommendation": string}], "confidence": number, "citations": [{"cell": "A1-notation", "role": "source|evidence|anomaly|formula"}] }
+
+Include "citations" listing the specific cells that support each finding. Use A1 notation (e.g., "B14", "Sheet1!C3:C10"). The "role" indicates why the cell is cited: "source" for input data, "evidence" for cells that prove the finding, "anomaly" for problematic cells, "formula" for formula cells referenced.
+
+Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% of 71 rows). These are likely missing transactions. Use sheets_fix.fill_missing with strategy:'mean' to impute."`,
     maxTokens = 1000,
     modelPreferences,
     temperature,
     sheetsApi,
     spreadsheetId,
+    sessionContext,
   } = options;
 
   const formattedData = formatDataForLLM(params.data);
@@ -715,7 +643,13 @@ export async function analyzeData(
     }
   }
 
+  // Build session context prefix (non-blocking)
+  const sessionPrefix = buildSessionContextPrefix(sessionContext);
+
   let prompt = `Analyze this spreadsheet data and answer: ${params.question}\n\n`;
+  if (sessionPrefix) {
+    prompt = sessionPrefix.trimStart() + '\n\n' + prompt;
+  }
   if (schemaContext) {
     prompt += `Context: ${schemaContext}\n\n`;
   }
@@ -731,6 +665,7 @@ export async function analyzeData(
     })
   );
 
+  recordSamplingRequest('analyzeData', 'success');
   return extractTextFromResult(result);
 }
 
@@ -761,7 +696,12 @@ export async function generateFormula(
 
   const { includeExplanation = false, maxTokens = 300, style = 'readable' } = options;
 
-  let prompt = `Generate a Google Sheets formula for: ${params.description}\n\n`;
+  const sessionPrefix = buildSessionContextPrefix(options.sessionContext);
+  let prompt = sessionPrefix
+    ? sessionPrefix.trimStart() +
+      '\n\n' +
+      `Generate a Google Sheets formula for: ${params.description}\n\n`
+    : `Generate a Google Sheets formula for: ${params.description}\n\n`;
 
   if (params.headers) {
     prompt += `Column headers: ${params.headers.join(', ')}\n`;
@@ -781,11 +721,30 @@ export async function generateFormula(
     prompt += '\n\nReturn ONLY the formula, no explanation.';
   }
 
-  const defaults = DEFAULT_MODEL_HINTS['formulaGeneration']!;
+  const formulaSystemPrompt = `${SAMPLING_PROMPTS.formulaGeneration}
+
+EXAMPLES:
+
+Input: "sum revenue by month where status is Closed"
+Output: =SUMIFS(C:C, A:A, "Closed", B:B, ">="&DATE(2026,1,1))
+
+Input: "lookup product name from Products sheet using SKU in column A"
+Output: =XLOOKUP(A2, Products!A:A, Products!B:B, "Not found")
+
+Input: "running total of sales column"
+Output: =SUM($B$2:B2)`;
+
+  // Select model based on complexity: complex descriptions or advanced functions → Sonnet
+  const isComplexFormula =
+    params.description.length > 80 || /QUERY|ARRAYFORMULA|pivot/i.test(params.description);
+  const defaults = isComplexFormula
+    ? { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.1 }
+    : DEFAULT_MODEL_HINTS['formulaGeneration']!;
+
   const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
-      systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
+      systemPrompt: formulaSystemPrompt,
       maxTokens,
       modelPreferences: { hints: defaults.hints },
       temperature: defaults.temperature,
@@ -806,6 +765,7 @@ export async function generateFormula(
     }
   }
 
+  recordSamplingRequest('generateFormula', 'success');
   return formula;
 }
 
@@ -818,6 +778,7 @@ export async function recommendChart(
     data: unknown[][];
     purpose?: string;
     audience?: string;
+    sessionContext?: SessionContextManager;
   }
 ): Promise<{
   chartType: string;
@@ -827,7 +788,10 @@ export async function recommendChart(
   assertSamplingSupport(server.getClientCapabilities());
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
-  let prompt = 'Recommend the best chart type for this data.\n\n';
+  const sessionPrefix = buildSessionContextPrefix(params.sessionContext);
+  let prompt = sessionPrefix
+    ? sessionPrefix.trimStart() + '\n\nRecommend the best chart type for this data.\n\n'
+    : 'Recommend the best chart type for this data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 20 })}\n\n`;
 
   if (params.purpose) {
@@ -837,9 +801,20 @@ export async function recommendChart(
     prompt += `Audience: ${params.audience}\n`;
   }
 
-  prompt += `\nRespond in this exact JSON format:
+  prompt += `\nSupported chart types: BAR, LINE, AREA, COLUMN, SCATTER, COMBO, STEPPED_AREA, PIE, DOUGHNUT, TREEMAP, WATERFALL, HISTOGRAM, CANDLESTICK, ORG, RADAR, SCORECARD, BUBBLE
+
+EXAMPLE:
+Data: dates in column A, revenue in column B, cost in column C (time-series data)
+Recommended output:
 {
-  "chartType": "COLUMN|LINE|PIE|SCATTER|AREA|BAR",
+  "chartType": "LINE",
+  "reason": "Multiple numeric values over time → LINE chart shows trends clearly. Use two series (Revenue, Cost) with dates as X-axis.",
+  "alternatives": ["AREA for cumulative emphasis", "COLUMN for discrete monthly periods"]
+}
+
+Respond in this exact JSON format:
+{
+  "chartType": "BAR|LINE|AREA|COLUMN|SCATTER|COMBO|STEPPED_AREA|PIE|DOUGHNUT|TREEMAP|WATERFALL|HISTOGRAM|CANDLESTICK|ORG|RADAR|SCORECARD|BUBBLE",
   "reason": "Brief explanation",
   "alternatives": ["Alternative1", "Alternative2"]
 }`;
@@ -870,6 +845,7 @@ export async function recommendChart(
     });
   }
 
+  recordSamplingRequest('recommendChart', 'success');
   return {
     chartType: 'COLUMN',
     reason: text,
@@ -883,14 +859,16 @@ export async function recommendChart(
 export async function explainFormula(
   server: SamplingServer,
   formula: string,
-  options: { detailed?: boolean } = {}
+  options: { detailed?: boolean; sessionContext?: SessionContextManager } = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
-  const prompt = options.detailed
+  const sessionPrefix = buildSessionContextPrefix(options.sessionContext);
+  const basePrompt = options.detailed
     ? `Explain this Google Sheets formula in detail, breaking down each part:\n\n${formula}`
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
+  const prompt = sessionPrefix ? sessionPrefix.trimStart() + '\n\n' + basePrompt : basePrompt;
 
   const explainDefaults = DEFAULT_MODEL_HINTS['formulaExplanation']!;
   const result = await withSamplingTimeout(() =>
@@ -914,6 +892,7 @@ export async function identifyDataIssues(
   params: {
     data: unknown[][];
     columnTypes?: Record<string, string>;
+    sessionContext?: SessionContextManager;
   }
 ): Promise<
   Array<{
@@ -927,7 +906,10 @@ export async function identifyDataIssues(
   assertSamplingSupport(server.getClientCapabilities());
   await assertSamplingConsent(); // ISSUE-117: GDPR consent gate
 
-  let prompt = 'Identify data quality issues in this spreadsheet data.\n\n';
+  const sessionPrefix = buildSessionContextPrefix(params.sessionContext);
+  let prompt = sessionPrefix
+    ? sessionPrefix.trimStart() + '\n\nIdentify data quality issues in this spreadsheet data.\n\n'
+    : 'Identify data quality issues in this spreadsheet data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 50 })}\n\n`;
 
   if (params.columnTypes) {
@@ -943,10 +925,37 @@ export async function identifyDataIssues(
   "suggestedFix": "How to fix it"
 }]`;
 
+  const dataIssuesSystemPrompt = `${SAMPLING_PROMPTS.dataCleaning}
+
+EXAMPLE:
+
+Input data:
+| Date | Amount | Status |
+| 01/15/2026 | $1,500.00 | Closed |
+| Jan 15 2026 | 1500 | closed |
+
+Expected output:
+[
+  {
+    "type": "inconsistent_format",
+    "severity": "medium",
+    "location": "A2:A3",
+    "description": "Mixed date formats: MM/DD/YYYY vs Month DD YYYY",
+    "suggestedFix": "Standardize to YYYY-MM-DD ISO format"
+  },
+  {
+    "type": "inconsistent_format",
+    "severity": "low",
+    "location": "C2:C3",
+    "description": "Mixed case in Status column: 'Closed' vs 'closed'",
+    "suggestedFix": "Standardize to title case"
+  }
+]`;
+
   const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
-      systemPrompt: SAMPLING_PROMPTS.dataCleaning,
+      systemPrompt: dataIssuesSystemPrompt,
       maxTokens: 1500,
     })
   );
@@ -1061,6 +1070,203 @@ export const AGENTIC_TOOLS: Tool[] = [
         changesCount: { type: 'number', description: 'Number of changes made' },
       },
       required: ['summary', 'changesCount'],
+    },
+  },
+  {
+    name: 'write_range',
+    description: 'Write values to a spreadsheet range (proxy for sheets_data.write)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range (e.g., "Sheet1!A1:C10")' },
+        values: { type: 'array', description: 'Two-dimensional array of values to write' },
+      },
+      required: ['range', 'values'],
+    },
+  },
+  {
+    name: 'append_rows',
+    description: 'Append rows to a spreadsheet range (proxy for sheets_data.append)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to append after' },
+        rows: { type: 'array', description: 'Array of row arrays to append' },
+      },
+      required: ['range', 'rows'],
+    },
+  },
+  {
+    name: 'format_range',
+    description: 'Apply formatting to a spreadsheet range (proxy for sheets_format.batch_format)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to format' },
+        backgroundColor: {
+          type: 'object',
+          description: 'Background color as {red, green, blue} (0-1)',
+        },
+        bold: { type: 'boolean', description: 'Apply bold text' },
+        fontSize: { type: 'number', description: 'Font size in points' },
+      },
+      required: ['range'],
+    },
+  },
+  {
+    name: 'sort_range',
+    description: 'Sort a spreadsheet range (proxy for sheets_dimensions.sort_range)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to sort' },
+        sortColumn: { type: 'number', description: 'Zero-based column index to sort by' },
+        order: {
+          type: 'string',
+          description: '"ASCENDING" or "DESCENDING"',
+          enum: ['ASCENDING', 'DESCENDING'],
+        },
+      },
+      required: ['range', 'sortColumn', 'order'],
+    },
+  },
+  {
+    name: 'apply_formula',
+    description: 'Write a formula to a specific cell (proxy for sheets_data.write with formula)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cell: { type: 'string', description: 'Cell address in A1 notation (e.g., "Sheet1!C2")' },
+        formula: { type: 'string', description: 'Google Sheets formula starting with =' },
+      },
+      required: ['cell', 'formula'],
+    },
+  },
+  {
+    name: 'create_chart',
+    description: 'Create a chart from spreadsheet data (proxy for sheets_visualize.chart_create)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataRange: { type: 'string', description: 'A1 notation range containing chart data' },
+        chartType: {
+          type: 'string',
+          description: 'Chart type (e.g., LINE, COLUMN, PIE, BAR, SCATTER)',
+        },
+        title: { type: 'string', description: 'Chart title' },
+      },
+      required: ['dataRange', 'chartType'],
+    },
+  },
+  {
+    name: 'add_sheet',
+    description: 'Add a new sheet tab (proxy for sheets_core.add_sheet)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Name for the new sheet' },
+        index: { type: 'number', description: 'Position index for the new sheet (optional)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'clean_data',
+    description: 'Detect and fix data quality issues in a range (proxy for sheets_fix.clean)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to clean' },
+        mode: {
+          type: 'string',
+          description: '"preview" to see changes without applying, "apply" to fix in place',
+          enum: ['preview', 'apply'],
+        },
+      },
+      required: ['range', 'mode'],
+    },
+  },
+  {
+    name: 'run_analysis',
+    description:
+      'Run a quick structural analysis of the spreadsheet (proxy for sheets_analyze.scout)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet ID to analyze' },
+      },
+      required: ['spreadsheetId'],
+    },
+  },
+  {
+    name: 'freeze_rows',
+    description: 'Freeze header rows in the active sheet (proxy for sheets_dimensions.freeze)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        frozenRowCount: { type: 'number', description: 'Number of rows to freeze from the top' },
+      },
+      required: ['frozenRowCount'],
+    },
+  },
+  {
+    name: 'auto_resize',
+    description: 'Auto-resize columns to fit content (proxy for sheets_dimensions.auto_resize)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: {
+          type: 'string',
+          description: 'A1 notation range whose columns should be auto-resized',
+        },
+      },
+      required: ['range'],
+    },
+  },
+  {
+    name: 'add_conditional_format',
+    description:
+      'Add a conditional formatting rule to a range (proxy for sheets_format.add_conditional_format_rule)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to apply the rule to' },
+        rulePreset: {
+          type: 'string',
+          description:
+            'Rule preset name (e.g., highlight_duplicates, color_scale, data_bars, top_10_percent, negative_red)',
+        },
+      },
+      required: ['range', 'rulePreset'],
+    },
+  },
+  {
+    name: 'find_replace',
+    description: 'Find and replace text in a range (proxy for sheets_data.find_replace)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        range: { type: 'string', description: 'A1 notation range to search within' },
+        find: { type: 'string', description: 'Text to find' },
+        replacement: { type: 'string', description: 'Replacement text' },
+      },
+      required: ['range', 'find', 'replacement'],
+    },
+  },
+  {
+    name: 'suggest_next',
+    description:
+      'Get AI-powered suggestions for next actions on the spreadsheet (proxy for sheets_analyze.suggest_next_actions)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet ID to analyze for suggestions' },
+        maxSuggestions: {
+          type: 'number',
+          description: 'Maximum number of suggestions to return (default 5)',
+        },
+      },
+      required: ['spreadsheetId'],
     },
   },
 ];
@@ -1275,11 +1481,68 @@ export async function analyzeDataStreaming(
     message: 'Generating summary from all chunks',
   });
 
+  // P1-G: Cross-chunk deduplication — track findings by location+type across chunks
+  interface CrossChunkFinding {
+    location: string;
+    type: string;
+    occurrenceCount: number;
+    chunkIndices: number[];
+    representative: string;
+  }
+  const findingKey = (location: string, type: string): string =>
+    `${location.toLowerCase().trim()}::${type.toLowerCase().trim()}`;
+  const seenFindings = new Map<string, CrossChunkFinding>();
+
+  for (const chunkResult of chunkResults) {
+    try {
+      // Attempt to extract structured findings from the chunk analysis text
+      const jsonMatch = chunkResult.analysis.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{
+          location?: string;
+          type?: string;
+          description?: string;
+        }>;
+        for (const finding of parsed) {
+          if (finding.location && finding.type) {
+            const key = findingKey(finding.location, finding.type);
+            const existing = seenFindings.get(key);
+            if (existing) {
+              existing.occurrenceCount++;
+              existing.chunkIndices.push(chunkResult.chunkIndex);
+            } else {
+              seenFindings.set(key, {
+                location: finding.location,
+                type: finding.type,
+                occurrenceCount: 1,
+                chunkIndices: [chunkResult.chunkIndex],
+                representative: finding.description ?? '',
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Best-effort deduplication; never block summary generation
+    }
+  }
+
+  const crossChunkFindings = [...seenFindings.values()].filter((f) => f.occurrenceCount >= 2);
+  const crossChunkNote =
+    crossChunkFindings.length > 0
+      ? `\n\nCross-chunk finding frequencies (appear in multiple sections):\n${crossChunkFindings
+          .map(
+            (f) =>
+              `- [${f.type}] at ${f.location}: appears in ${f.occurrenceCount} chunks — "${f.representative}"`
+          )
+          .join('\n')}`
+      : '';
+
   const summaryPrompt = `Based on these ${chunks.length} partial analyses of a ${totalRows}-row dataset, provide a unified summary:
 
 ${chunkResults.map((r) => `--- Rows ${r.startRow}-${r.endRow} ---\n${r.analysis}`).join('\n\n')}
 
-Original question: ${params.question}
+Original question: ${params.question}${crossChunkNote}
 
 Provide a cohesive summary that synthesizes insights from all chunks.`;
 
@@ -1288,7 +1551,7 @@ Provide a cohesive summary that synthesizes insights from all chunks.`;
     server.createMessage({
       messages: [createUserMessage(summaryPrompt)],
       systemPrompt:
-        'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
+        'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive. Do not repeat findings that apply to the same column across chunks — merge frequency counts. If "null values in column B" appears in 3 chunks, report "Column B has nulls across all N sections". Findings that appear in multiple chunks are more significant and should be highlighted.',
       maxTokens: maxTokens * 2, // More tokens for summary
       ...(modelPreferences && { modelPreferences }),
     })
@@ -1448,7 +1711,7 @@ export async function generateAIInsight(
   data?: unknown,
   options?: { maxTokens?: number; context?: string }
 ): Promise<string | undefined> {
-  if (!server) return undefined;
+  if (!server) return undefined; // OK: Explicit empty
 
   try {
     assertSamplingSupport(server.getClientCapabilities());
@@ -1487,7 +1750,7 @@ export async function generateAIInsight(
       promptType,
       reason: err instanceof Error ? err.message : 'unknown',
     });
-    return undefined;
+    return undefined; // OK: Explicit empty
   }
 }
 

@@ -20,7 +20,7 @@
  * 1 = Validation failures detected
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
 import { TOOL_ACTIONS } from '../src/mcp/completions.js';
 import {
@@ -186,14 +186,18 @@ function validateServerJson(expectedTools: number, expectedActions: number): Val
 }
 
 /**
- * Validate src/mcp/completions.ts TOOL_ACTIONS
+ * Validate TOOL_ACTIONS in completions (checks generated file where data lives)
  */
 function validateCompletions(
   expectedToolCount: number,
   expectedActionCount: number
 ): ValidationResult {
   const filePath = './src/mcp/completions.ts';
-  const content = readFileSync(filePath, 'utf-8');
+  // TOOL_ACTIONS is generated into src/generated/completions.ts and re-exported
+  const generatedPath = './src/generated/completions.ts';
+  const content = existsSync(generatedPath)
+    ? readFileSync(generatedPath, 'utf-8')
+    : readFileSync(filePath, 'utf-8');
 
   const issues: string[] = [];
 

@@ -7,7 +7,7 @@
     "test-intelligence-server": "./dist/index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "better-sqlite3": "^12.6.2",
     "fast-glob": "^3.3.3",
     "ml-cart": "^2.1.1",

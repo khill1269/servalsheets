@@ -38,3 +38,7 @@ docs/development/**
 # Agent memory files (auto-generated)
 .claude/agent-memory/**
 .claude/worktrees/**
+
+# Research and planning docs (dense structured format, not public-facing)
+docs/research/**
+docs/testing/**

@@ -115,7 +115,7 @@ const mockScoutResult = {
     recommended: null,
     alternatives: [],
   },
-  retrievedAt: Date.now(),
+  retrievedAt: 1704067200000,
   latencyMs: 150,
 };
 
@@ -226,7 +226,6 @@ describe('F4: Smart Suggestions', () => {
       expect(result.response).toBeDefined();
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('suggest_next_actions');
-      expect(result.response.suggestions).toBeDefined();
       expect(Array.isArray(result.response.suggestions)).toBe(true);
       expect(result.response.suggestions.length).toBeGreaterThan(0);
     });
@@ -269,17 +268,16 @@ describe('F4: Smart Suggestions', () => {
 
       expect(result.response.success).toBe(true);
       for (const suggestion of result.response.suggestions) {
-        expect(suggestion.id).toBeDefined();
-        expect(suggestion.title).toBeDefined();
-        expect(suggestion.description).toBeDefined();
+        expect(typeof suggestion.id).toBe('string');
+        expect(typeof suggestion.title).toBe('string');
+        expect(typeof suggestion.description).toBe('string');
         expect(suggestion.confidence).toBeGreaterThanOrEqual(0);
         expect(suggestion.confidence).toBeLessThanOrEqual(1);
-        expect(suggestion.category).toBeDefined();
-        expect(suggestion.impact).toBeDefined();
-        expect(suggestion.action).toBeDefined();
-        expect(suggestion.action.tool).toBeDefined();
-        expect(suggestion.action.action).toBeDefined();
-        expect(suggestion.action.params).toBeDefined();
+        expect(typeof suggestion.category).toBe('string');
+        expect(typeof suggestion.impact).toBe('string');
+        expect(typeof suggestion.action.tool).toBe('string');
+        expect(typeof suggestion.action.action).toBe('string');
+        expect(suggestion.action.params).not.toBeNull();
       }
     });
 
@@ -292,7 +290,6 @@ describe('F4: Smart Suggestions', () => {
       } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.scoutSummary).toBeDefined();
       expect(result.response.scoutSummary.title).toBe('Test Spreadsheet');
       expect(result.response.scoutSummary.sheetCount).toBe(1);
     });
@@ -411,8 +408,7 @@ describe('F4: Smart Suggestions', () => {
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('auto_enhance');
       expect(result.response.mode).toBe('preview');
-      expect(result.response.enhancements).toBeDefined();
-      expect(result.response.enhanceSummary).toBeDefined();
+      expect(Array.isArray(result.response.enhancements)).toBe(true);
       expect(result.response.enhanceSummary.applied).toBe(0);
     });
 

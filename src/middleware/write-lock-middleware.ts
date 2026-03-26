@@ -8,9 +8,10 @@
  * across multiple Claude sessions or parallel tool calls.
  */
 
-import PQueue from 'p-queue';
-import { MUTATION_ACTIONS } from './audit-middleware.js';
+import PQueue, { TimeoutError } from 'p-queue';
 import { logger } from '../utils/logger.js';
+import { ServiceError } from '../core/errors.js';
+import { ErrorCodes } from '../handlers/error-codes.js';
 
 // Per-spreadsheet write queues. Max 1 concurrent write per spreadsheet.
 const writeLocks = new Map<string, PQueue>();
@@ -18,9 +19,98 @@ const writeLocks = new Map<string, PQueue>();
 // Clean idle locks every 5 minutes to prevent memory leaks
 const LOCK_CLEANUP_MS = 5 * 60 * 1000;
 
+// Write lock acquisition timeout (default: 30s). Configurable via LOCK_TIMEOUT_MS env var.
+const LOCK_TIMEOUT_MS = parseInt(process.env['LOCK_TIMEOUT_MS'] ?? '30000', 10);
+
+// Mutation actions that require write serialization.
+// These are the core data/structure/format mutations across all tools.
+export const MUTATION_ACTIONS = new Set<string>([
+  // sheets_data — direct data writes
+  'write',
+  'append',
+  'clear',
+  'batch_write',
+  'batch_clear',
+  'cross_write',
+  'import_csv',
+  'import_xlsx',
+  'smart_append',
+  'smart_fill',
+  // sheets_fix — mutating fixes
+  'clean',
+  'standardize_formats',
+  'fill_missing',
+  // sheets_composite — bulk write operations
+  'bulk_update',
+  'deduplicate',
+  'setup_sheet',
+  'import_and_format',
+  'clone_structure',
+  'generate_sheet',
+  'generate_template',
+  'batch_operations',
+  'data_pipeline',
+  'instantiate_template',
+  'migrate_spreadsheet',
+  'cut_paste',
+  'copy_paste',
+  'find_replace',
+  'merge_cells',
+  'unmerge_cells',
+  'set_hyperlink',
+  'clear_hyperlink',
+  'add_note',
+  'clear_note',
+  // sheets_dimensions — structural changes
+  'delete_sheet',
+  'batch_delete_sheets',
+  'clear_sheet',
+  'insert',
+  'delete',
+  'move',
+  'resize',
+  'hide',
+  'show',
+  'freeze',
+  'group',
+  'ungroup',
+  'trim_whitespace',
+  'text_to_columns',
+  'randomize_range',
+  'set_basic_filter',
+  'clear_basic_filter',
+  'sort_range',
+  'create_filter_view',
+  'update_filter_view',
+  'delete_filter_view',
+  'create_slicer',
+  'update_slicer',
+  'delete_slicer',
+  'auto_fill',
+  // sheets_format — formatting mutations
+  'set_format',
+  'set_background',
+  'set_text_format',
+  'set_number_format',
+  'set_alignment',
+  'set_borders',
+  'clear_format',
+  'apply_preset',
+  'batch_format',
+  'set_data_validation',
+  'clear_data_validation',
+  'add_conditional_format_rule',
+  'rule_add_conditional_format',
+  'rule_update_conditional_format',
+  'rule_delete_conditional_format',
+  'set_rich_text',
+  'sparkline_add',
+  'sparkline_clear',
+]);
+
 // Additional mutation actions not currently covered by MUTATION_ACTIONS.
 // These actions mutate spreadsheet data/structure and must be serialized.
-const FORCE_WRITE_ACTIONS = new Set<string>([
+export const FORCE_WRITE_ACTIONS = new Set<string>([
   // sheets_core
   'add_sheet',
   'update_sheet',
@@ -83,17 +173,6 @@ const FORCE_WRITE_ACTIONS = new Set<string>([
   'approval_reject',
   'approval_delegate',
   'approval_cancel',
-  // sheets_composite
-  'import_csv',
-  'import_xlsx',
-  'smart_append',
-  'deduplicate',
-  'setup_sheet',
-  'import_and_format',
-  'clone_structure',
-  'generate_sheet',
-  'generate_template',
-  'batch_operations',
   // sheets_dependencies
   'create_scenario_sheet',
 ]);
@@ -159,9 +238,12 @@ function collectSpreadsheetIds(
 export function getWriteLock(spreadsheetId: string): PQueue {
   let queue = writeLocks.get(spreadsheetId);
   if (!queue) {
-    queue = new PQueue({ concurrency: 1 });
+    queue = new PQueue({ concurrency: 1, timeout: LOCK_TIMEOUT_MS });
     writeLocks.set(spreadsheetId, queue);
-    logger.debug('Write lock created for spreadsheet', { spreadsheetId });
+    logger.debug('Write lock created for spreadsheet', {
+      spreadsheetId,
+      timeoutMs: LOCK_TIMEOUT_MS,
+    });
   }
   return queue;
 }
@@ -231,7 +313,20 @@ export async function withWriteLock<T>(
       spreadsheets: spreadsheetIds,
       lockCount: spreadsheetIds.length,
     });
-    return withMultipleWriteLocks(spreadsheetIds, fn);
+    try {
+      return await withMultipleWriteLocks(spreadsheetIds, fn);
+    } catch (err) {
+      if (err instanceof TimeoutError) {
+        throw new ServiceError(
+          `Write lock acquisition timed out after ${LOCK_TIMEOUT_MS}ms for action '${action}'. ` +
+            'Another operation is holding the write lock. Retry after the concurrent write completes.',
+          ErrorCodes.LOCK_TIMEOUT,
+          'WriteLockMiddleware',
+          true // retryable
+        );
+      }
+      throw err;
+    }
   }
 
   // Not a mutation or no spreadsheet target — execute immediately without lock

@@ -21,6 +21,7 @@ import { STAGED_REGISTRATION, getToolStage, type ToolStage } from '../../config/
 import { logger } from '../../utils/logger.js';
 import { resourceNotifications } from '../../resources/notifications.js';
 import type { ToolDefinition } from './tool-definitions.js';
+import { clearDiscoveryHintCache } from './tool-discovery-hints.js';
 
 // ============================================================================
 // Types
@@ -181,6 +182,7 @@ export class ToolStageManager {
 
     // Notify LLM of new tools
     if (newTools.length > 0) {
+      clearDiscoveryHintCache();
       resourceNotifications.syncToolList([...this._registeredTools], {
         emitOnFirstSet: true,
         reason: `stage ${targetStage} tools registered: ${newTools.map((t) => t.name).join(', ')}`,

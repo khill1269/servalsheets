@@ -85,7 +85,7 @@ console.log(
 const actionCountsSum = Object.values(ACTION_COUNTS).reduce((a, b) => a + b, 0);
 if (actionCountsSum !== ACTION_COUNT) {
   errors.push({
-    file: 'src/schemas/annotations.ts',
+    file: 'src/generated/action-counts.ts',
     issue: 'ACTION_COUNTS sum',
     expected: ACTION_COUNT,
     actual: actionCountsSum,
@@ -172,7 +172,7 @@ for (const [toolName, expectedCount] of Object.entries(ACTION_COUNTS)) {
 
   if (!actualActions) {
     errors.push({
-      file: 'src/mcp/completions.ts',
+      file: 'src/generated/completions.ts',
       issue: `Missing tool in TOOL_ACTIONS`,
       expected: toolName,
       actual: 'undefined',
@@ -224,7 +224,7 @@ const zeroActionTools: string[] = [];
 for (const [toolName, count] of Object.entries(ACTION_COUNTS)) {
   if (count === 0) {
     errors.push({
-      file: 'src/schemas/annotations.ts',
+      file: 'src/generated/action-counts.ts',
       issue: `${toolName} has zero actions`,
       expected: '> 0',
       actual: 0,
@@ -248,7 +248,7 @@ for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
   const uniqueActions = new Set(actions);
   if (uniqueActions.size !== actions.length) {
     errors.push({
-      file: 'src/mcp/completions.ts',
+      file: 'src/generated/completions.ts',
       issue: `${toolName} has duplicate actions`,
       expected: `${actions.length} unique actions`,
       actual: `${uniqueActions.size} unique, ${actions.length - uniqueActions.size} duplicates`,
@@ -300,10 +300,10 @@ if (TOOL_COUNT < 20 || TOOL_COUNT > 30) {
   sanityPassed = false;
 }
 
-// Action count should be reasonable (280-350)
-if (ACTION_COUNT < 280 || ACTION_COUNT > 350) {
+// Action count should be reasonable (350-500)
+if (ACTION_COUNT < 350 || ACTION_COUNT > 500) {
   warnings.push(
-    `ACTION_COUNT (${ACTION_COUNT}) outside expected range (280-350). This may indicate a data issue.`
+    `ACTION_COUNT (${ACTION_COUNT}) outside expected range (350-500). This may indicate a data issue.`
   );
   sanityPassed = false;
 }

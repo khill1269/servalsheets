@@ -9,98 +9,69 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodTypeAny } from 'zod';
 
-import {
-  TOOL_MODE,
-  ESSENTIAL_TOOLS,
-  STANDARD_TOOLS,
-  DEFER_DESCRIPTIONS,
-} from '../../config/constants.js';
+import { DEFER_DESCRIPTIONS } from '../../config/constants.js';
 import { getLazyLoadTools } from '../../config/schema-optimization.js';
 import {
   SheetsAuthInputSchema,
   SheetsAuthOutputSchema,
-  SHEETS_AUTH_ANNOTATIONS,
   SheetsCoreInputSchema,
   SheetsCoreOutputSchema,
-  SHEETS_CORE_ANNOTATIONS,
   SheetsDataInputSchema,
   SheetsDataOutputSchema,
-  SHEETS_DATA_ANNOTATIONS,
   SheetsFormatInputSchema,
   SheetsFormatOutputSchema,
-  SHEETS_FORMAT_ANNOTATIONS,
   SheetsDimensionsInputSchema,
   SheetsDimensionsOutputSchema,
-  SHEETS_DIMENSIONS_ANNOTATIONS,
   SheetsVisualizeInputSchema,
   SheetsVisualizeOutputSchema,
-  SHEETS_VISUALIZE_ANNOTATIONS,
   SheetsCollaborateInputSchema,
   SheetsCollaborateOutputSchema,
-  SHEETS_COLLABORATE_ANNOTATIONS,
   SheetsAdvancedInputSchema,
   SheetsAdvancedOutputSchema,
-  SHEETS_ADVANCED_ANNOTATIONS,
   SheetsTransactionInputSchema,
   SheetsTransactionOutputSchema,
-  SHEETS_TRANSACTION_ANNOTATIONS,
   SheetsQualityInputSchema,
   SheetsQualityOutputSchema,
-  SHEETS_QUALITY_ANNOTATIONS,
   SheetsHistoryInputSchema,
   SheetsHistoryOutputSchema,
-  SHEETS_HISTORY_ANNOTATIONS,
   // New MCP-native tools
   SheetsConfirmInputSchema,
   SheetsConfirmOutputSchema,
-  SHEETS_CONFIRM_ANNOTATIONS,
   SheetsAnalyzeInputSchema,
   SheetsAnalyzeOutputSchema,
-  SHEETS_ANALYZE_ANNOTATIONS,
   SheetsFixInputSchema,
   SheetsFixOutputSchema,
-  SHEETS_FIX_ANNOTATIONS,
   // Composite operations
   CompositeInputSchema,
   CompositeOutputSchema,
-  SHEETS_COMPOSITE_ANNOTATIONS,
   // Session context for NL excellence
   SheetsSessionInputSchema,
   SheetsSessionOutputSchema,
-  SHEETS_SESSION_ANNOTATIONS,
   // Tier 7 Enterprise tools
   SheetsTemplatesInputSchema,
   SheetsTemplatesOutputSchema,
-  SHEETS_TEMPLATES_ANNOTATIONS,
   SheetsBigQueryInputSchema,
   SheetsBigQueryOutputSchema,
-  SHEETS_BIGQUERY_ANNOTATIONS,
   SheetsAppsScriptInputSchema,
   SheetsAppsScriptOutputSchema,
-  SHEETS_APPSSCRIPT_ANNOTATIONS,
   // Phase 3 tools
   SheetsWebhookInputSchema,
   SheetsWebhookOutputSchema,
-  SHEETS_WEBHOOK_ANNOTATIONS,
   SheetsDependenciesInputSchema,
   SheetsDependenciesOutputSchema,
-  SHEETS_DEPENDENCIES_ANNOTATIONS,
   // Feature 3: Federation
   SheetsFederationInputSchema,
   SheetsFederationOutputSchema,
-  SHEETS_FEDERATION_ANNOTATIONS,
   // Phase 5: Computation Engine
   SheetsComputeInputSchema,
   SheetsComputeOutputSchema,
-  SHEETS_COMPUTE_ANNOTATIONS,
   // Phase 6: Agent Loop
   SheetsAgentInputSchema,
   SheetsAgentOutputSchema,
-  SHEETS_AGENT_ANNOTATIONS,
   // Wave 6: Live Data Connectors
   SheetsConnectorsInputSchema,
   SheetsConnectorsOutputSchema,
-  SHEETS_CONNECTORS_ANNOTATIONS,
+  TOOL_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
   TOOL_DESCRIPTIONS_MINIMAL,
@@ -117,6 +88,14 @@ function getDescription(toolName: string): string {
     return TOOL_DESCRIPTIONS_MINIMAL[toolName] ?? TOOL_DESCRIPTIONS[toolName] ?? '';
   }
   return TOOL_DESCRIPTIONS[toolName] ?? '';
+}
+
+function getToolAnnotations(toolName: string): ToolAnnotations {
+  const annotations = TOOL_ANNOTATIONS[toolName];
+  if (!annotations) {
+    throw new Error(`Missing TOOL_ANNOTATIONS entry for ${toolName}`);
+  }
+  return annotations;
 }
 
 // ============================================================================
@@ -161,7 +140,7 @@ export interface ToolAuthPolicy {
 /**
  * Complete tool registry for ServalSheets
  *
- * 22 tools after consolidation + enterprise additions:
+ * 25 tools after consolidation + enterprise additions:
  * - Wave 1: sheets_core (replaces sheets_spreadsheet + sheets_sheet)
  * - Wave 1: sheets_visualize (replaces sheets_charts + sheets_pivot)
  * - Wave 1: sheets_collaborate (replaces sheets_sharing + sheets_comments + sheets_versions)
@@ -187,7 +166,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_auth'),
     inputSchema: SheetsAuthInputSchema,
     outputSchema: SheetsAuthOutputSchema,
-    annotations: SHEETS_AUTH_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_auth'),
     authPolicy: { requiresAuth: false },
   },
   {
@@ -196,7 +175,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_core'),
     inputSchema: SheetsCoreInputSchema,
     outputSchema: SheetsCoreOutputSchema,
-    annotations: SHEETS_CORE_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_core'),
   },
   {
     name: 'sheets_data',
@@ -204,7 +183,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_data'),
     inputSchema: SheetsDataInputSchema,
     outputSchema: SheetsDataOutputSchema,
-    annotations: SHEETS_DATA_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_data'),
   },
   {
     name: 'sheets_format',
@@ -212,7 +191,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_format'),
     inputSchema: SheetsFormatInputSchema,
     outputSchema: SheetsFormatOutputSchema,
-    annotations: SHEETS_FORMAT_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_format'),
   },
   {
     name: 'sheets_dimensions',
@@ -220,7 +199,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_dimensions'),
     inputSchema: SheetsDimensionsInputSchema,
     outputSchema: SheetsDimensionsOutputSchema,
-    annotations: SHEETS_DIMENSIONS_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_dimensions'),
   },
   {
     name: 'sheets_visualize',
@@ -228,7 +207,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_visualize'),
     inputSchema: SheetsVisualizeInputSchema,
     outputSchema: SheetsVisualizeOutputSchema,
-    annotations: SHEETS_VISUALIZE_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_visualize'),
   },
   {
     name: 'sheets_collaborate',
@@ -236,7 +215,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_collaborate'),
     inputSchema: SheetsCollaborateInputSchema,
     outputSchema: SheetsCollaborateOutputSchema,
-    annotations: SHEETS_COLLABORATE_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_collaborate'),
   },
   {
     name: 'sheets_advanced',
@@ -244,7 +223,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_advanced'),
     inputSchema: SheetsAdvancedInputSchema,
     outputSchema: SheetsAdvancedOutputSchema,
-    annotations: SHEETS_ADVANCED_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_advanced'),
   },
   {
     name: 'sheets_transaction',
@@ -252,7 +231,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_transaction'),
     inputSchema: SheetsTransactionInputSchema,
     outputSchema: SheetsTransactionOutputSchema,
-    annotations: SHEETS_TRANSACTION_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_transaction'),
   },
   {
     name: 'sheets_quality',
@@ -260,7 +239,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_quality'),
     inputSchema: SheetsQualityInputSchema,
     outputSchema: SheetsQualityOutputSchema,
-    annotations: SHEETS_QUALITY_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_quality'),
   },
   {
     name: 'sheets_history',
@@ -268,7 +247,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_history'),
     inputSchema: SheetsHistoryInputSchema,
     outputSchema: SheetsHistoryOutputSchema,
-    annotations: SHEETS_HISTORY_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_history'),
     authPolicy: { exemptActions: ['list', 'get', 'stats'] },
   },
   // ============================================================================
@@ -280,7 +259,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_confirm'),
     inputSchema: SheetsConfirmInputSchema,
     outputSchema: SheetsConfirmOutputSchema,
-    annotations: SHEETS_CONFIRM_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_confirm'),
     authPolicy: { requiresAuth: false },
   },
   {
@@ -289,7 +268,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_analyze'),
     inputSchema: SheetsAnalyzeInputSchema,
     outputSchema: SheetsAnalyzeOutputSchema,
-    annotations: SHEETS_ANALYZE_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_analyze'),
   },
   {
     name: 'sheets_fix',
@@ -297,7 +276,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_fix'),
     inputSchema: SheetsFixInputSchema,
     outputSchema: SheetsFixOutputSchema,
-    annotations: SHEETS_FIX_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_fix'),
   },
   {
     name: 'sheets_composite',
@@ -305,7 +284,8 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_composite'),
     inputSchema: CompositeInputSchema,
     outputSchema: CompositeOutputSchema,
-    annotations: SHEETS_COMPOSITE_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_composite'),
+    authPolicy: { exemptActions: ['generate_template', 'preview_generation'] },
   },
   {
     name: 'sheets_session',
@@ -313,7 +293,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_session'),
     inputSchema: SheetsSessionInputSchema,
     outputSchema: SheetsSessionOutputSchema,
-    annotations: SHEETS_SESSION_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_session'),
     authPolicy: { requiresAuth: false },
   },
   // ============================================================================
@@ -325,7 +305,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_templates'),
     inputSchema: SheetsTemplatesInputSchema,
     outputSchema: SheetsTemplatesOutputSchema,
-    annotations: SHEETS_TEMPLATES_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_templates'),
   },
   // ============================================================================
   // TIER 7: BIGQUERY INTEGRATION
@@ -336,7 +316,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_bigquery'),
     inputSchema: SheetsBigQueryInputSchema,
     outputSchema: SheetsBigQueryOutputSchema,
-    annotations: SHEETS_BIGQUERY_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_bigquery'),
   },
   // ============================================================================
   // TIER 7: APPS SCRIPT AUTOMATION
@@ -347,7 +327,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_appsscript'),
     inputSchema: SheetsAppsScriptInputSchema,
     outputSchema: SheetsAppsScriptOutputSchema,
-    annotations: SHEETS_APPSSCRIPT_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_appsscript'),
   },
   // ============================================================================
   // PHASE 3: WEBHOOKS & DEPENDENCIES
@@ -358,7 +338,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_webhook'),
     inputSchema: SheetsWebhookInputSchema,
     outputSchema: SheetsWebhookOutputSchema,
-    annotations: SHEETS_WEBHOOK_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_webhook'),
   },
   {
     name: 'sheets_dependencies',
@@ -366,7 +346,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_dependencies'),
     inputSchema: SheetsDependenciesInputSchema,
     outputSchema: SheetsDependenciesOutputSchema,
-    annotations: SHEETS_DEPENDENCIES_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_dependencies'),
   },
   // ============================================================================
   // FEATURE 3: MCP SERVER FEDERATION
@@ -377,7 +357,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_federation'),
     inputSchema: SheetsFederationInputSchema,
     outputSchema: SheetsFederationOutputSchema,
-    annotations: SHEETS_FEDERATION_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_federation'),
   },
   // ============================================================================
   // PHASE 5: COMPUTATION ENGINE
@@ -388,7 +368,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_compute'),
     inputSchema: SheetsComputeInputSchema,
     outputSchema: SheetsComputeOutputSchema,
-    annotations: SHEETS_COMPUTE_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_compute'),
   },
   // ============================================================================
   // PHASE 6: AGENT LOOP
@@ -399,7 +379,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_agent'),
     inputSchema: SheetsAgentInputSchema,
     outputSchema: SheetsAgentOutputSchema,
-    annotations: SHEETS_AGENT_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_agent'),
   },
   // ============================================================================
   // WAVE 6: LIVE DATA CONNECTORS
@@ -410,7 +390,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     description: getDescription('sheets_connectors'),
     inputSchema: SheetsConnectorsInputSchema,
     outputSchema: SheetsConnectorsOutputSchema,
-    annotations: SHEETS_CONNECTORS_ANNOTATIONS,
+    annotations: getToolAnnotations('sheets_connectors'),
   },
 ] as const;
 
@@ -419,43 +399,21 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 // ============================================================================
 
 /**
- * Get the list of allowed tool names for the current mode
- */
-function getAllowedToolNames(): readonly string[] {
-  switch (TOOL_MODE) {
-    case 'lite':
-      return ESSENTIAL_TOOLS;
-    case 'standard':
-      return STANDARD_TOOLS;
-    case 'full':
-    default:
-      return TOOL_DEFINITIONS.map((t) => t.name);
-  }
-}
-
-/**
- * Filtered tool definitions based on SERVAL_TOOL_MODE and lazy loading
+ * All 25 tools — always registered (MCP 2025-11-25 approach)
  *
- * Use this instead of TOOL_DEFINITIONS for registration.
- * - 'full': All 22 tools (~41K tokens)
- * - 'standard': 12 tools (~25K tokens)
- * - 'lite': 8 tools (~15K tokens)
+ * Payload size managed by DEFER_DESCRIPTIONS + DEFER_SCHEMAS (auto-on for
+ * STDIO / Claude Desktop): tools/list stays ~5KB regardless of action count.
+ * Full schemas load on-demand via schema://tools/{name} MCP resources.
  *
- * Additional filtering:
- * - LAZY_LOAD_ENTERPRISE=true: Excludes enterprise tools (saves ~10K tokens)
- * - LAZY_LOAD_TOOLS=tool1,tool2: Excludes specific tools
+ * The server emits notifications/tools/list_changed when runtime state
+ * changes (OAuth, session, federation). Clients re-request tools/list.
+ *
+ * LAZY_LOAD_ENTERPRISE=true or LAZY_LOAD_TOOLS=a,b can still exclude
+ * specific tools for specialized deployments.
  */
 export const ACTIVE_TOOL_DEFINITIONS: readonly ToolDefinition[] = (() => {
-  const allowedNames = getAllowedToolNames();
   const lazyLoadTools = getLazyLoadTools();
-
-  return TOOL_DEFINITIONS.filter((t) => {
-    // Must be in allowed tool mode
-    if (!allowedNames.includes(t.name)) return false;
-    // Must not be lazy-loaded
-    if (lazyLoadTools.includes(t.name)) return false;
-    return true;
-  });
+  return TOOL_DEFINITIONS.filter((t) => !lazyLoadTools.includes(t.name));
 })();
 
 /**
@@ -507,3 +465,11 @@ export function isToolCallAuthExempt(toolName: string, action?: string): boolean
   }
   return Boolean(action && policy.exemptActions.includes(action));
 }
+
+// ---------------------------------------------------------------------------
+// Architecture bridge: provide TOOL_DEFINITIONS input schemas to the services
+// layer without requiring services to import from mcp/registration (G3 fix).
+// ---------------------------------------------------------------------------
+import { registerToolInputSchemas } from '../../services/agent-engine.js';
+
+registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));

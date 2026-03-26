@@ -33,6 +33,9 @@ interface DescribeWorkbookDeps {
   error: (error: ErrorDetail) => CoreResponse;
 }
 
+const DEFAULT_WORKBOOK_ANALYSIS_MAX_SHEETS = 10;
+const MAX_WORKBOOK_ANALYSIS_ROWS = 2000;
+
 /**
  * Handler for `describe_workbook` action.
  *
@@ -49,6 +52,7 @@ export async function handleDescribeWorkbookAction(
 ): Promise<CoreResponse> {
   try {
     const { spreadsheetId } = input;
+    const maxSheets = input.maxSheets ?? DEFAULT_WORKBOOK_ANALYSIS_MAX_SHEETS;
 
     // Pass 1: metadata only — no grid data. Fast and lightweight regardless of spreadsheet size.
     const spreadsheetRes = await deps.sheetsApi.spreadsheets.get({
@@ -61,14 +65,15 @@ export async function handleDescribeWorkbookAction(
     const spreadsheet = spreadsheetRes.data;
     const properties = spreadsheet.properties ?? {};
     const sheets = spreadsheet.sheets ?? [];
+    const analyzedSheets = sheets.slice(0, maxSheets);
+    const truncated = analyzedSheets.length < sheets.length;
 
     // Pass 2: bounded values fetch for formula + cell counts.
     // Cap at MAX_ROWS rows per sheet to prevent full-grid fetches on large workbooks.
-    const MAX_ROWS = 2000;
-    const sheetMeta = sheets.map((sheet) => {
+    const analyzedSheetMeta = analyzedSheets.map((sheet) => {
       const props = sheet.properties ?? {};
       const grid = props.gridProperties ?? {};
-      const rowCount = Math.min((grid.rowCount as number) ?? 0, MAX_ROWS);
+      const rowCount = Math.min((grid.rowCount as number) ?? 0, MAX_WORKBOOK_ANALYSIS_ROWS);
       const columnCount = (grid.columnCount as number) ?? 0;
       const title = props.title ?? '';
       return {
@@ -84,7 +89,9 @@ export async function handleDescribeWorkbookAction(
       };
     });
 
-    const rangeQueries = sheetMeta.filter((s) => s.range !== null).map((s) => s.range as string);
+    const rangeQueries = analyzedSheetMeta
+      .filter((s) => s.range !== null)
+      .map((s) => s.range as string);
 
     let valueRanges: Array<{ range: string; values?: string[][] }> = [];
     if (rangeQueries.length > 0) {
@@ -112,7 +119,8 @@ export async function handleDescribeWorkbookAction(
     let totalFormulaCount = 0;
     let totalNonEmptyCells = 0;
 
-    const sheetSummaries = sheetMeta.map((meta) => {
+    const analyzedSummaryBySheetId = new Map<number, Record<string, unknown>>();
+    for (const meta of analyzedSheetMeta) {
       let formulaCount = 0;
       let nonEmptyCells = 0;
 
@@ -140,7 +148,7 @@ export async function handleDescribeWorkbookAction(
       totalFormulaCount += formulaCount;
       totalNonEmptyCells += nonEmptyCells;
 
-      return {
+      analyzedSummaryBySheetId.set(meta.sheetId, {
         name: meta.name,
         sheetId: meta.sheetId,
         rowCount: meta.rowCount,
@@ -148,6 +156,25 @@ export async function handleDescribeWorkbookAction(
         formulaCount,
         nonEmptyCells,
         isEmpty: nonEmptyCells === 0,
+      });
+    }
+
+    const sheetSummaries = sheets.map((sheet, index) => {
+      const props = sheet.properties ?? {};
+      const grid = props.gridProperties ?? {};
+      const sheetId = (props.sheetId as number) ?? 0;
+      const analyzedSummary = analyzedSummaryBySheetId.get(sheetId);
+      if (analyzedSummary) {
+        return analyzedSummary;
+      }
+
+      return {
+        name: props.title ?? '',
+        sheetId,
+        rowCount: (grid.rowCount as number) ?? 0,
+        columnCount: (grid.columnCount as number) ?? 0,
+        analysisDeferred: true,
+        analysisOrder: index,
       };
     });
 
@@ -169,19 +196,29 @@ export async function handleDescribeWorkbookAction(
       }
     }
 
+    const meta: ResponseMeta | undefined = truncated
+      ? {
+          truncated: true,
+          continuationHint:
+            `describe_workbook analyzed ${analyzedSheets.length} of ${sheets.length} sheets for formula/cell counts. ` +
+            'Pass maxSheets to increase the analysis window when needed.',
+        }
+      : undefined;
+
     return deps.success('describe_workbook', {
       workbookSummary: {
         title: (properties.title as string) ?? '',
         locale: (properties.locale as string) ?? undefined,
         timeZone: (properties.timeZone as string) ?? undefined,
         sheetCount: sheets.length,
+        analyzedSheetCount: analyzedSheets.length,
         totalFormulaCount,
         totalCells: totalNonEmptyCells,
         sheets: sheetSummaries,
         lastModifiedTime,
         ownerEmail,
       },
-    });
+    }, undefined, undefined, meta);
   } catch (err) {
     return deps.mapError(err);
   }
@@ -202,7 +239,7 @@ export async function handleWorkbookFingerprintAction(
     const { spreadsheetId } = input;
 
     // Metadata-only fetch — no grid data. The fingerprint uses sheet structure
-    // (names, dimensions) which doesn't require full cell values.
+    // (names and dimensions) and intentionally does not read cell data.
     const spreadsheetRes = await deps.sheetsApi.spreadsheets.get({
       spreadsheetId,
       fields:
@@ -213,62 +250,13 @@ export async function handleWorkbookFingerprintAction(
     const sheets = spreadsheetRes.data.sheets ?? [];
     const title = spreadsheetRes.data.properties?.title ?? '';
 
-    // Formula counting: bounded per-sheet values fetch (capped at 2000 rows)
-    const MAX_ROWS = 2000;
-    const rangeQueries = sheets
-      .map((sheet) => {
-        const props = sheet.properties ?? {};
-        const grid = props.gridProperties ?? {};
-        const sheetTitle = props.title ?? '';
-        const cols = (grid.columnCount as number) ?? 0;
-        const rows = Math.min((grid.rowCount as number) ?? 0, MAX_ROWS);
-        if (cols === 0 || rows === 0) return null;
-        return `'${sheetTitle}'!A1:${columnIndexToLetter(cols)}${rows}`;
-      })
-      .filter(Boolean) as string[];
-
-    let valueRanges: Array<{ range: string; values?: string[][] }> = [];
-    if (rangeQueries.length > 0) {
-      try {
-        const valuesRes = await deps.sheetsApi.spreadsheets.values.batchGet({
-          spreadsheetId,
-          ranges: rangeQueries,
-          valueRenderOption: 'FORMULA',
-        });
-        valueRanges = (valuesRes.data.valueRanges ?? []) as Array<{
-          range: string;
-          values?: string[][];
-        }>;
-      } catch {
-        // Best-effort: fingerprint still works using only sheet structure
-      }
-    }
-    const valuesByRange = new Map<string, string[][]>();
-    for (const vr of valueRanges) {
-      if (vr.range) valuesByRange.set(vr.range, vr.values ?? []);
-    }
-
     const parts: string[] = [`title:${title}`];
     for (const sheet of sheets) {
       const props = sheet.properties ?? {};
       const grid = props.gridProperties ?? {};
       const sheetTitle = props.title ?? '';
-      let formulaCount = 0;
-      const rows =
-        valuesByRange.get(
-          `'${sheetTitle}'!A1:${columnIndexToLetter((grid.columnCount as number) ?? 1)}${Math.min((grid.rowCount as number) ?? 0, MAX_ROWS)}`
-        ) ??
-        [...valuesByRange.entries()].find(
-          ([k]) => k.startsWith(`'${sheetTitle}'!`) || k.startsWith(`${sheetTitle}!`)
-        )?.[1] ??
-        [];
-      for (const row of rows) {
-        for (const cell of row) {
-          if (typeof cell === 'string' && cell.startsWith('=')) formulaCount++;
-        }
-      }
       parts.push(
-        `sheet:${sheetTitle}|id:${props.sheetId ?? 0}|rows:${grid.rowCount ?? 0}|cols:${grid.columnCount ?? 0}|formulas:${formulaCount}`
+        `sheet:${sheetTitle}|id:${props.sheetId ?? 0}|rows:${grid.rowCount ?? 0}|cols:${grid.columnCount ?? 0}`
       );
     }
 

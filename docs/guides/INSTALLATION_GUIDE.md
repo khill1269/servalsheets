@@ -1,15 +1,15 @@
 ---
-title: ServalSheets v1.6.0 Installation Guide
+title: ServalSheets Installation Guide
 category: guide
-last_updated: 2026-01-31
+last_updated: 2026-03-24
 description: Complete installation guide for all deployment scenarios.
-version: 1.6.0
+version: 2.0.0
 tags: [sheets]
 audience: user
 difficulty: intermediate
 ---
 
-# ServalSheets v1.6.0 Installation Guide
+# ServalSheets Installation Guide
 
 Complete installation guide for all deployment scenarios.
 
@@ -29,7 +29,7 @@ npm run build
 **What it does:**
 
 - ✅ Runs OAuth authentication in your browser
-- ✅ Writes Claude Desktop config for `dist/cli.js`
+- ✅ Writes local Claude Desktop stdio config for `dist/cli.js`
 - ✅ Verifies tokens/config files
 
 [Full Guide →](./CLAUDE_DESKTOP_SETUP.md)
@@ -74,34 +74,38 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ---
 
-### Path 4: HTTP/SSE Server (Remote Access)
+### Path 4: Hosted Streamable HTTP Server
 
-**Best for:** Multi-user deployments, remote access, Claude Web
+**Best for:** Hosted deployments, remote connectors, multi-user access
 
 ```bash
-# Setup OAuth credentials
+# Hosted connector auth (Claude <-> your server)
 export OAUTH_CLIENT_ID=your-client-id
 export OAUTH_CLIENT_SECRET=your-client-secret
+
+# Google Sheets auth used by ServalSheets itself
 export GOOGLE_CLIENT_ID=your-google-client-id
 export GOOGLE_CLIENT_SECRET=your-google-client-secret
+export GOOGLE_REDIRECT_URI=https://your-domain.com/callback
 
 # Production secrets (required)
 export JWT_SECRET=$(openssl rand -hex 32)
 export STATE_SECRET=$(openssl rand -hex 32)
-export ALLOWED_REDIRECT_URIS=https://your-app.com/callback
+export ALLOWED_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback
 
 # Start server
 npm run start:http
 ```
 
 [Deployment Guide →](./DEPLOYMENT.md)
+[Remote OAuth Guide →](./OAUTH_USER_SETUP.md)
 
 ---
 
 ## 🎯 Installation Checklist
 
 - [ ] **Prerequisites Met**
-  - [ ] Node.js 22+ installed (`node --version`)
+  - [ ] Node.js 20+ installed (`node --version`)
   - [ ] Claude Desktop installed (if using STDIO)
   - [ ] Google Cloud project with Sheets API enabled
   - [ ] Service account JSON OR OAuth credentials
@@ -120,7 +124,7 @@ npm run start:http
 - [ ] **Installation Method**
   - [ ] Chose installation path (1-4 above)
   - [ ] Followed setup steps
-  - [ ] Verified configuration file created
+  - [ ] Verified local stdio config or hosted OAuth setup was created correctly
 
 - [ ] **Google Sheets Sharing** (Service Account Only)
   - [ ] Found service account email in JSON
@@ -135,7 +139,7 @@ npm run start:http
 
 ---
 
-## 🆕 v1.6.0 Features (Automatic)
+## 🆕 Current Automatic Features
 
 These features are **always active** and require no configuration:
 
@@ -148,7 +152,7 @@ These features are **always active** and require no configuration:
 
 ---
 
-## ⚙️ Optional Configuration (v1.6.0)
+## ⚙️ Optional Configuration
 
 Enable these features via environment variables:
 
@@ -250,10 +254,10 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log
 
 - ✅ `ServalSheets MCP Server initialized`
 - ✅ `Background tasks started`
-- ✅ `HTTP compression enabled automatically` (v1.6.0)
-- ✅ `Connection health monitoring started` (v1.6.0)
+- ✅ `HTTP compression enabled automatically`
+- ✅ `Connection health monitoring started`
 
-### 4. Verify Features (v1.6.0)
+### 4. Verify Features
 
 ```bash
 # In logs, look for:
@@ -355,9 +359,9 @@ import {
 
 ---
 
-## 🔄 Upgrading from v1.6.0
+## 🔄 Upgrading
 
-**No Breaking Changes** - v1.6.0 is fully backwards compatible.
+Review the changelog and release notes for any release-specific migration notes before upgrading.
 
 ### Quick Upgrade
 
@@ -374,14 +378,12 @@ npm run build
 ### Optional: Update Environment Variables
 
 ```bash
-# Fix deprecated names (optional, old names still work)
-TRACING_ENABLED → OTEL_ENABLED
-DEDUP_ENABLED → DEDUPLICATION_ENABLED
-
-# Add new options (optional)
-export RATE_LIMIT_READS_PER_MINUTE=300
-export RATE_LIMIT_WRITES_PER_MINUTE=60
+# Add or tune optional settings as needed
+export TRACING_ENABLED=true
+export TRACING_SAMPLE_RATE=0.1
 export OTEL_LOG_SPANS=true
+export MCP_REMOTE_EXECUTOR_URL=https://example.com/mcp
+export MCP_REMOTE_EXECUTOR_TOOLS=sheets_compute,sheets_analyze
 ```
 
 [Full Migration Guide →](./RELEASE_NOTES_v1.6.0.md#migration-guide)
@@ -407,14 +409,14 @@ Before considering installation complete:
 - [ ] Claude Desktop restarted and shows 🔨 icon (custom ServalSheets icon may not appear yet)
 - [ ] Test operation succeeded
 - [ ] Logs show no errors
-- [ ] v1.6.0 features confirmed in logs
+- [ ] Current automatic features confirmed in logs
 - [ ] Service account email shared with target spreadsheets (if applicable)
 - [ ] Documentation reviewed for your use case
 
-**Congratulations!** ServalSheets v1.6.0 is now installed and ready to use.
+**Congratulations!** ServalSheets is now installed and ready to use.
 
 ---
 
-**Version:** 1.1.1
-**Last Updated:** 2026-01-04
-**Compatibility:** Node.js 22+, Claude Desktop, MCP Protocol 2025-11-25
+**Version:** 2.0.0
+**Last Updated:** 2026-03-24
+**Compatibility:** Node.js 20+, Claude Desktop, MCP Protocol 2025-11-25

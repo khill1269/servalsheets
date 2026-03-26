@@ -79,10 +79,10 @@ const ResponseFormatSchema = z
 const ReadActionSchema = CommonFieldsSchema.extend({
   action: z.literal('read').describe('Read cell values from a range'),
   range: RangeInputSchema.optional().describe(
-    'Range to read in A1 notation or semantic (e.g., "Sheet1!A1:B10"). Use dataFilter for dynamic queries that survive insertions/deletions.'
+    'Fast direct lookup by cell coordinates (e.g., "Sheet1!A1:B10"). Use when you know exact locations. Fragile if rows are inserted/deleted — use dataFilter for dynamic queries that survive structural changes.'
   ),
   dataFilter: DataFilterSchema.optional().describe(
-    'Dynamic range filter (survives insertions/deletions). Use developerMetadataLookup to query by metadata tags instead of hard-coded ranges.'
+    'Dynamic lookup by condition or metadata. Survives insertions/deletions. Use developerMetadataLookup to query by metadata tags instead of hard-coded ranges. Slower but robust to sheet structure changes.'
   ),
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
@@ -91,8 +91,7 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .enum(['SERIAL_NUMBER', 'FORMATTED_STRING'])
     .optional()
     .describe(
-      'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. ' +
-        'SERIAL_NUMBER (default): date as number. FORMATTED_STRING: date as formatted string.'
+      'How dates/times should be rendered when valueRenderOption is UNFORMATTED_VALUE. SERIAL_NUMBER: dates as numeric serial (e.g., 44927 = 2023-01-01). FORMATTED_STRING: dates as display text (e.g., "1/1/2023").'
     ),
   majorDimension: MajorDimensionSchema.optional()
     .default('ROWS')
@@ -156,6 +155,13 @@ const WriteActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Return the written values for verification'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
+  preserveDataValidation: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'When true, uses batchUpdate/updateCells with fields=userEnteredValue so data validation rules on target cells are not cleared. Slightly slower than the default values.update path.'
+    ),
 })
   .superRefine((val, ctx) => {
     // Exactly ONE of range or dataFilter must be provided
@@ -558,12 +564,46 @@ const SmartFillActionSchema = z.object({
 });
 
 // ============================================================================
+// Auto Fill Action (extend pattern to a fill range)
+// ============================================================================
+
+const AutoFillActionSchema = z.object({
+  action: z
+    .literal('auto_fill')
+    .describe(
+      'Fill a range by extending a pattern detected in a source range. ' +
+        'Supports arithmetic progressions, date sequences, and repeating patterns. ' +
+        'Use strategy=detect to auto-detect the pattern, or specify linear/repeat/date explicitly.'
+    ),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sourceRange: RangeInputSchema.describe(
+    'Source cells containing the pattern to extend (e.g. "Sheet1!A1:A3" or {a1: "Sheet1!A1:A3"})'
+  ),
+  fillRange: RangeInputSchema.describe(
+    'Target cells to fill with the detected pattern (e.g. "Sheet1!A4:A20" or {a1: "Sheet1!A4:A20"})'
+  ),
+  strategy: z
+    .enum(['detect', 'linear', 'repeat', 'date'])
+    .optional()
+    .default('detect')
+    .describe(
+      'Fill strategy: detect (auto-detect pattern), linear (arithmetic progression), ' +
+        'repeat (copy pattern cyclically), date (date sequence)'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+// ============================================================================
 // F2: Multi-Spreadsheet Federation (4 actions)
 // ============================================================================
 
 const SourceRefSchema = z.object({
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
-  range: z.string().min(1).describe('Range in A1 notation (e.g. "Sheet1!A1:D100")'),
+  range: RangeInputSchema.describe('Range to read (e.g. "Sheet1!A1:D100" or named range)'),
   label: z.string().optional().describe('Human-readable label for this source in output'),
 });
 
@@ -588,20 +628,43 @@ const CrossReadActionSchema = z.object({
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for merged rows (full, compact, preview)'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 const CrossQueryActionSchema = z.object({
   action: z
     .literal('cross_query')
     .describe('Search for rows matching a keyword query across multiple spreadsheets'),
-  sources: z.array(SourceRefSchema).min(1).max(10),
+  sources: z
+    .array(SourceRefSchema)
+    .min(1)
+    .max(10)
+    .describe('Spreadsheets to search across (1–10 sources, each with spreadsheetId + range)'),
   query: z.string().min(1).max(500).describe('Search query — matched against all cell values'),
-  maxResults: z.number().int().min(1).max(500).optional().default(100),
+  maxResults: z
+    .number()
+    .int()
+    .min(1)
+    .max(500)
+    .optional()
+    .default(100)
+    .describe('Maximum number of matching rows to return (default 100, max 500)'),
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for query matches (full, compact, preview)'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 const CrossWriteActionSchema = z.object({
@@ -613,14 +676,26 @@ const CrossWriteActionSchema = z.object({
       range: z.string().min(1),
     })
     .describe('Spreadsheet and range to write to'),
-  valueInputOption: ValueInputOptionSchema.optional().default('USER_ENTERED'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  valueInputOption: ValueInputOptionSchema.optional()
+    .default('USER_ENTERED')
+    .describe(
+      'How to interpret input data: USER_ENTERED (formulas parsed, dates detected) or RAW (literal text)'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 const CrossCompareActionSchema = z.object({
   action: z.literal('cross_compare').describe('Diff ranges across two spreadsheets cell by cell'),
-  source1: SourceRefSchema,
-  source2: SourceRefSchema,
+  source1: SourceRefSchema.describe('First spreadsheet source to compare (base/left side of diff)'),
+  source2: SourceRefSchema.describe(
+    'Second spreadsheet source to compare (changed/right side of diff)'
+  ),
   compareColumns: z
     .array(z.string())
     .optional()
@@ -632,7 +707,13 @@ const CrossCompareActionSchema = z.object({
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for diff payload (full, compact, preview)'),
-  verbosity: z.enum(['minimal', 'standard', 'detailed']).optional().default('standard'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (counts only), standard (data + summary), detailed (full metadata)'
+    ),
 });
 
 // ============================================================================
@@ -658,13 +739,32 @@ const normalizeDataRequest = (val: unknown): unknown => {
   // Check for deprecated actions and throw helpful error
   // Use Object.hasOwn to prevent prototype pollution (e.g., __proto__, constructor)
   if (action && Object.hasOwn(DEPRECATED_ACTIONS, action)) {
-    throw new Error(DEPRECATED_ACTIONS[action]);
+    // Throw plain Error — schemas are a leaf layer and must not import from core/errors.
+    // The tool handler's Zod parse catch will convert this to a typed ValidationError.
+    throw new Error(DEPRECATED_ACTIONS[action] as string);
   }
 
   // Alias: 'range' → 'cell' for cell-based actions (LLM compatibility)
   const cellActions = ['add_note', 'get_note', 'clear_note', 'set_hyperlink', 'clear_hyperlink'];
   if (cellActions.includes(action) && obj['range'] && !obj['cell']) {
-    return { ...obj, cell: obj['range'] };
+    const { range: _range, ...rest } = obj;
+    void _range;
+    return { ...rest, cell: obj['range'] };
+  }
+
+  // BUG-3 fix: Alias common LLM param names for smart_fill
+  // LLMs often pass 'range' instead of 'sourceRange', and 'targetRange' instead of 'fillRange'
+  if (action === 'smart_fill') {
+    const patched = { ...obj };
+    if (obj['range'] && !obj['sourceRange']) {
+      patched['sourceRange'] = obj['range'];
+      delete patched['range'];
+    }
+    if (obj['targetRange'] && !obj['fillRange']) {
+      patched['fillRange'] = obj['targetRange'];
+      delete patched['targetRange'];
+    }
+    return patched;
   }
 
   return val;
@@ -726,6 +826,9 @@ export const SheetsDataInputSchema = z.object({
 
       // Smart fill (1)
       SmartFillActionSchema, // Pattern-detection fill
+
+      // Auto fill (1) - extend source pattern to fill range
+      AutoFillActionSchema,
 
       // F2: Cross-spreadsheet federation (4)
       CrossReadActionSchema, // Merge data from multiple spreadsheets
@@ -957,6 +1060,13 @@ const DataResponseSchema = z.discriminatedUnion('success', [
       .optional()
       .describe('Cell-level diff result (cross_compare)'),
 
+    // auto_fill results (S3-B)
+    cellsFilled: z.coerce.number().int().optional().describe('Number of cells filled (auto_fill)'),
+    detectedPattern: z
+      .enum(['linear', 'repeat', 'date', 'unknown'])
+      .optional()
+      .describe('Pattern detected or applied during auto_fill'),
+
     // Safety
     dryRun: z.boolean().optional().describe('True if this was a dry run (no changes made)'),
     mutation: MutationSummarySchema.optional().describe('Summary of mutation for tracking'),
@@ -1144,4 +1254,12 @@ export type DataSmartFillInput = SheetsDataInput['request'] & {
   sourceRange: string;
   fillRange: string;
   useSampling?: boolean;
+};
+
+export type DataAutoFillInput = SheetsDataInput['request'] & {
+  action: 'auto_fill';
+  spreadsheetId: string;
+  sourceRange: string;
+  fillRange: string;
+  strategy?: 'detect' | 'linear' | 'repeat' | 'date';
 };

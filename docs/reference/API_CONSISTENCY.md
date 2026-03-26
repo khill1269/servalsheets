@@ -2,15 +2,15 @@
 title: ServalSheets API Consistency Reference
 category: reference
 last_updated: 2026-01-31
-description: 'Version: 1.6.0'
-version: 1.6.0
+description: 'Version: 2.0.0'
+version: 2.0.0
 tags: [api, sheets]
 stability: stable
 ---
 
 # ServalSheets API Consistency Reference
 
-**Version**: 1.6.0
+**Version**: 2.0.0
 **Last Updated**: 2026-01-30
 
 ---

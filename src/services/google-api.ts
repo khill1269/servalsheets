@@ -31,8 +31,13 @@ import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
 import { HybridTokenStore } from './keychain-store.js';
-import { CircuitBreaker, FallbackStrategies } from '../utils/circuit-breaker.js';
-import { getCircuitBreakerConfig } from '../config/env.js';
+import {
+  CircuitBreaker,
+  QuotaCircuitBreaker,
+  FallbackStrategies,
+  type ICircuitBreaker,
+} from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
 import { getRequestContext } from '../utils/request-context.js';
@@ -48,6 +53,7 @@ import {
   getRecommendedScopes,
 } from '../config/oauth-scopes.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { PerSpreadsheetThrottle } from './per-spreadsheet-throttle.js';
 
 // Lazy-loaded metrics module — avoids dynamic import overhead on every API call
 let _metricsModule: typeof import('../observability/metrics.js') | null = null;
@@ -113,6 +119,11 @@ class SharedDriveRateLimiter {
   }
 }
 
+// Module-level singleton — shared across all GoogleApiClient instances so that
+// concurrent calls from different client instances for the same spreadsheet
+// still respect the per-spreadsheet RPS cap (src/config/env.ts:PER_SPREADSHEET_RPS).
+const perSpreadsheetThrottle = new PerSpreadsheetThrottle();
+
 export interface GoogleApiClientOptions {
   credentials?: {
     clientId: string;
@@ -121,6 +132,7 @@ export interface GoogleApiClientOptions {
   };
   accessToken?: string;
   refreshToken?: string;
+  oauthTokens?: StoredTokens;
   serviceAccountKeyPath?: string;
   scopes?: string[];
   /** @deprecated Use scopes array directly. Retained for backward compatibility. */
@@ -235,7 +247,7 @@ export class GoogleApiClient {
   private retryOptions?: RetryOptions;
   private timeoutMs?: number;
   private tokenStore?: TokenStore;
-  private sheetsCircuit: CircuitBreaker;
+  private sheetsCircuit: QuotaCircuitBreaker;
   private driveCircuit: CircuitBreaker;
   private bigqueryCircuit: CircuitBreaker;
   private docsCircuit: CircuitBreaker;
@@ -245,24 +257,28 @@ export class GoogleApiClient {
   private httpAgents: { http: HttpAgent; https: HttpsAgent };
   private _authType: GoogleAuthType;
   private tokenManager?: TokenManager;
+  // Existence pre-check cache: spreadsheetId → expiry timestamp (Fix B).
+  // Survives reinitializeApis() calls; invalidated explicitly on 404.
+  private readonly spreadsheetExistenceCache = new Map<string, number>();
+  private static readonly EXISTENCE_TTL_MS = 5 * 60 * 1000;
   private poolMonitorInterval?: NodeJS.Timeout;
   // Token validation cache to avoid excessive API calls
   private lastValidationResult?: { valid: boolean; error?: string };
   private lastValidationTime?: number;
-  // HTTP/2 connection reset tracking
-  private lastCredentialChangeTime?: number;
   private static readonly VALIDATION_CACHE_TTL_MS = 60 * 1000; // 1 minute (reduced from 5min to detect token invalidation faster)
 
   // HTTP/2 Connection Health Management
   private consecutiveErrors = 0;
   private static readonly CONNECTION_ERROR_THRESHOLD = 5;
   private lastSuccessfulCall = Date.now();
-  private connectionResetInProgress = false;
+  private connectionResetQueue: PQueue = new PQueue({ concurrency: 1 });
   private keepaliveInterval?: NodeJS.Timeout;
 
   // Shared Drive rate limiter
   private sharedDriveRateLimiter: SharedDriveRateLimiter;
-  private sharedDriveMembershipCache = new Map<string, boolean>();
+  private sharedDriveMembershipCache = new Map<string, { value: boolean; timestamp: number }>();
+  private static readonly DRIVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly DRIVE_CACHE_MAX = 1000; // LRU eviction threshold
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -292,7 +308,7 @@ export class GoogleApiClient {
 
     // Initialize per-API circuit breakers (separate so a Sheets outage doesn't block Drive/BigQuery)
     const circuitConfig = getCircuitBreakerConfig();
-    this.sheetsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-sheets-api' });
+    this.sheetsCircuit = new QuotaCircuitBreaker({ ...circuitConfig, name: 'google-sheets-api' });
     this.driveCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-drive-api' });
     this.bigqueryCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-bigquery-api' });
     this.docsCircuit = new CircuitBreaker({ ...circuitConfig, name: 'google-docs-api' });
@@ -404,7 +420,7 @@ export class GoogleApiClient {
 
     // Enable HTTP/2 for improved performance (5-15% latency reduction)
     // gaxios automatically negotiates HTTP/2 via ALPN if server supports it
-    const enableHTTP2 = process.env['GOOGLE_API_HTTP2_ENABLED'] !== 'false'; // Enabled by default
+    const enableHTTP2 = getEnv().GOOGLE_API_HTTP2_ENABLED; // Enabled by default
 
     // Validate HTTP/2 configuration
     const validation = validateHTTP2Config(enableHTTP2);
@@ -483,18 +499,31 @@ export class GoogleApiClient {
         // google-auth-library v10.5.0 sets 'User-Agent: google-api-nodejs-client/10.5.0' (no gzip suffix).
         // Google docs require '(gzip)' in User-Agent for compressed responses.
         // Setting a custom UA here causes the auth interceptor to append the library token:
-        //   result → 'ServalSheets/1.7.0 (gzip) google-api-nodejs-client/10.5.0'
+        //   result → 'ServalSheets/2.0.0 (gzip) google-api-nodejs-client/10.5.0'
         // https://developers.google.com/sheets/api/guides/performance#gzip
         const existingHeaders = (defaults['headers'] as Record<string, string> | undefined) ?? {};
-        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/1.7.0 (gzip)' };
+        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/2.0.0 (gzip)' };
       }
     }
+
+    // Capture raw (pre-wrap) sheetsApi so the existence checker never re-enters the proxy.
+    const rawSheetsForExistenceInit = sheetsApi;
+    const existenceCheckerInit = async (spreadsheetId: string): Promise<void> => {
+      const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
+      if (expiry !== undefined && Date.now() < expiry) return;
+      await rawSheetsForExistenceInit.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' });
+      this.spreadsheetExistenceCache.set(
+        spreadsheetId,
+        Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
+      );
+    };
 
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.sheetsCircuit,
       client: this,
+      existenceChecker: existenceCheckerInit,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
@@ -564,7 +593,7 @@ export class GoogleApiClient {
     this.httpAgents = createHttpAgents();
 
     // Recreate API clients with new agents
-    const enableHTTP2 = process.env['GOOGLE_API_HTTP2_ENABLED'] !== 'false';
+    const enableHTTP2 = getEnv().GOOGLE_API_HTTP2_ENABLED;
 
     const sheetsApi = google.sheets({
       version: 'v4',
@@ -607,16 +636,32 @@ export class GoogleApiClient {
         defaults['agent'] = this.httpAgents.https;
         defaults['httpAgent'] = this.httpAgents.http;
         const existingHeaders = (defaults['headers'] as Record<string, string> | undefined) ?? {};
-        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/1.7.0 (gzip)' };
+        defaults['headers'] = { ...existingHeaders, 'User-Agent': 'ServalSheets/2.0.0 (gzip)' };
       }
     }
 
     // Wrap with retry/circuit breaker (maintain existing error handling)
+    // Rebuild existence checker against the new raw sheetsApi after reinit.
+    const rawSheetsForExistenceReinit = sheetsApi;
+    const existenceCheckerReinit = async (spreadsheetId: string): Promise<void> => {
+      const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
+      if (expiry !== undefined && Date.now() < expiry) return;
+      await rawSheetsForExistenceReinit.spreadsheets.get({
+        spreadsheetId,
+        fields: 'spreadsheetId',
+      });
+      this.spreadsheetExistenceCache.set(
+        spreadsheetId,
+        Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
+      );
+    };
+
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.sheetsCircuit,
       client: this,
+      existenceChecker: existenceCheckerReinit,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
@@ -661,32 +706,31 @@ export class GoogleApiClient {
    * @internal Called automatically when consecutive errors exceed threshold
    */
   private async resetConnectionsAfterErrors(): Promise<void> {
-    if (this.connectionResetInProgress) {
+    if (this.connectionResetQueue.pending > 0) {
       logger.debug('Connection reset already in progress, skipping');
       return;
     }
 
-    this.connectionResetInProgress = true;
-    logger.warn('Resetting HTTP/2 connections due to consecutive errors', {
-      consecutiveErrors: this.consecutiveErrors,
-      lastSuccess: new Date(this.lastSuccessfulCall).toISOString(),
+    await this.connectionResetQueue.add(async () => {
+      logger.warn('Resetting HTTP/2 connections due to consecutive errors', {
+        consecutiveErrors: this.consecutiveErrors,
+        lastSuccess: new Date(this.lastSuccessfulCall).toISOString(),
+      });
+
+      try {
+        // Record metric with different reason than token refresh
+        (await getMetrics())?.recordHttp2ConnectionReset('consecutive_errors');
+
+        // Reuse the existing agent reset logic
+        await this.resetHttpAgents();
+
+        this.consecutiveErrors = 0;
+        this.lastSuccessfulCall = Date.now();
+        logger.info('HTTP/2 connections reset successfully after errors');
+      } catch (error) {
+        logger.error('Failed to reset connections after errors', { error });
+      }
     });
-
-    try {
-      // Record metric with different reason than token refresh
-      (await getMetrics())?.recordHttp2ConnectionReset('consecutive_errors');
-
-      // Reuse the existing agent reset logic
-      await this.resetHttpAgents();
-
-      this.consecutiveErrors = 0;
-      this.lastSuccessfulCall = Date.now();
-      logger.info('HTTP/2 connections reset successfully after errors');
-    } catch (error) {
-      logger.error('Failed to reset connections after errors', { error });
-    } finally {
-      this.connectionResetInProgress = false;
-    }
   }
 
   /**
@@ -694,22 +738,21 @@ export class GoogleApiClient {
    * Called by the retry wrapper before retrying a failed request.
    */
   public async resetOnConnectionError(): Promise<void> {
-    if (this.connectionResetInProgress) {
+    if (this.connectionResetQueue.pending > 0) {
       return; // Already resetting
     }
 
-    this.connectionResetInProgress = true;
-    try {
-      logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
-      (await getMetrics())?.recordHttp2ConnectionReset('goaway_retry');
-      await this.resetHttpAgents();
-      this.consecutiveErrors = 0;
-      logger.info('HTTP/2 connections reset successfully for retry');
-    } catch (error) {
-      logger.error('Failed to reset connections for retry', { error });
-    } finally {
-      this.connectionResetInProgress = false;
-    }
+    await this.connectionResetQueue.add(async () => {
+      try {
+        logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
+        (await getMetrics())?.recordHttp2ConnectionReset('goaway_retry');
+        await this.resetHttpAgents();
+        this.consecutiveErrors = 0;
+        logger.info('HTTP/2 connections reset successfully for retry');
+      } catch (error) {
+        logger.error('Failed to reset connections for retry', { error });
+      }
+    });
   }
 
   /**
@@ -824,24 +867,11 @@ export class GoogleApiClient {
   }
 
   /**
-   * Stop keepalive interval. Called during cleanup/destroy.
-   *
-   * @internal
-   */
-  private stopKeepalive(): void {
-    if (this.keepaliveInterval) {
-      clearInterval(this.keepaliveInterval);
-      this.keepaliveInterval = undefined;
-      logger.debug('Keepalive stopped');
-    }
-  }
-
-  /**
    * Validate API schemas using Discovery API (optional)
    * Only runs if DISCOVERY_API_ENABLED environment variable is true
    */
   private async validateSchemasWithDiscovery(): Promise<void> {
-    if (process.env['DISCOVERY_API_ENABLED'] !== 'true') {
+    if (!getEnv().DISCOVERY_API_ENABLED) {
       return;
     }
 
@@ -938,8 +968,9 @@ export class GoogleApiClient {
     }
 
     const explicitTokens: StoredTokens = this.sanitizeTokens({
-      access_token: this.options.accessToken,
-      refresh_token: this.options.refreshToken,
+      ...(this.options.oauthTokens ?? {}),
+      access_token: this.options.accessToken ?? this.options.oauthTokens?.access_token,
+      refresh_token: this.options.refreshToken ?? this.options.oauthTokens?.refresh_token,
     });
 
     if (explicitTokens.access_token || explicitTokens.refresh_token) {
@@ -994,7 +1025,6 @@ export class GoogleApiClient {
         // Reset HTTP agents to prevent GOAWAY errors
         const { env } = await import('../config/env.js');
         if (env.ENABLE_AUTO_CONNECTION_RESET) {
-          this.lastCredentialChangeTime = Date.now();
           await this.resetHttpAgents();
         }
       });
@@ -1398,7 +1428,6 @@ export class GoogleApiClient {
     void (async () => {
       const { env } = await import('../config/env.js');
       if (env.ENABLE_AUTO_CONNECTION_RESET) {
-        this.lastCredentialChangeTime = Date.now();
         await this.resetHttpAgents();
       }
     })();
@@ -1446,6 +1475,7 @@ export class GoogleApiClient {
     this.poolMonitorInterval = setInterval(() => {
       this.logConnectionPoolStats();
     }, intervalMs);
+    this.poolMonitorInterval.unref();
 
     // Register cleanup to prevent memory leak
     registerCleanup(
@@ -1601,6 +1631,37 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get cached shared drive membership with TTL expiration check
+   */
+  private getSharedDriveMembership(driveId: string): boolean | undefined {
+    const entry = this.sharedDriveMembershipCache.get(driveId);
+    if (!entry) return undefined; // OK: Explicit empty
+    // Check if TTL has expired
+    if (Date.now() - entry.timestamp > GoogleApiClient.DRIVE_CACHE_TTL_MS) {
+      this.sharedDriveMembershipCache.delete(driveId);
+      return undefined; // OK: Explicit empty
+    }
+    return entry.value;
+  }
+
+  /**
+   * Set cached shared drive membership with LRU eviction at max size
+   */
+  private setSharedDriveMembership(driveId: string, value: boolean): void {
+    // Evict oldest entry if at max capacity
+    if (this.sharedDriveMembershipCache.size >= GoogleApiClient.DRIVE_CACHE_MAX) {
+      const oldestKey = this.sharedDriveMembershipCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.sharedDriveMembershipCache.delete(oldestKey);
+      }
+    }
+    this.sharedDriveMembershipCache.set(driveId, {
+      value,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
    * Resolve whether a Drive file belongs to a shared drive using documented
    * Drive API metadata rather than file ID heuristics.
    */
@@ -1609,7 +1670,7 @@ export class GoogleApiClient {
       return false;
     }
 
-    const cached = this.sharedDriveMembershipCache.get(fileId);
+    const cached = this.getSharedDriveMembership(fileId);
     if (typeof cached === 'boolean') {
       return cached;
     }
@@ -1621,12 +1682,7 @@ export class GoogleApiClient {
         supportsAllDrives: true,
       });
       const isSharedDrive = Boolean(response.data.driveId);
-      // Cap at 500 entries to prevent unbounded memory growth in long-running servers
-      if (this.sharedDriveMembershipCache.size >= 500) {
-        const firstKey = this.sharedDriveMembershipCache.keys().next().value;
-        if (firstKey !== undefined) this.sharedDriveMembershipCache.delete(firstKey);
-      }
-      this.sharedDriveMembershipCache.set(fileId, isSharedDrive);
+      this.setSharedDriveMembership(fileId, isSharedDrive);
       return isSharedDrive;
     } catch (error) {
       logger.debug('Failed to resolve shared-drive membership for Drive file', {
@@ -1646,6 +1702,12 @@ export class GoogleApiClient {
     if (this.poolMonitorInterval) {
       clearInterval(this.poolMonitorInterval);
       this.poolMonitorInterval = undefined;
+    }
+
+    // Stop keepalive interval
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = undefined;
     }
 
     this.sharedDriveMembershipCache.clear();
@@ -1688,7 +1750,12 @@ export async function createGoogleApiClient(
 
 function wrapGoogleApi<T extends object>(
   api: T,
-  options?: RetryOptions & { circuit?: CircuitBreaker; client?: GoogleApiClient }
+  options?: RetryOptions & {
+    circuit?: ICircuitBreaker;
+    client?: GoogleApiClient;
+    /** Called before write operations to fast-fail on unknown spreadsheetIds (Fix B). */
+    existenceChecker?: (spreadsheetId: string) => Promise<void>;
+  }
 ): T {
   const cache = new WeakMap<object, unknown>();
   const circuit = options?.circuit;
@@ -1749,6 +1816,12 @@ function wrapGoogleApi<T extends object>(
                 const sharedDriveFileId =
                   typeof params['spreadsheetId'] === 'string' ? params['spreadsheetId'] : undefined;
 
+                // Fast-fail on unknown spreadsheetId before consuming quota (Fix B).
+                // Uses raw (pre-wrap) sheets API; cached 5 min to avoid redundant probes.
+                if (isWriteOp && sharedDriveFileId && options?.existenceChecker) {
+                  await options.existenceChecker(sharedDriveFileId);
+                }
+
                 if (isWriteOp && (await client.isSharedDriveFile(sharedDriveFileId))) {
                   const waitMs = await client.waitForSharedDriveWriteToken();
                   if (waitMs > 0) {
@@ -1757,6 +1830,13 @@ function wrapGoogleApi<T extends object>(
                       waitedMs: waitMs,
                     });
                   }
+                }
+
+                // Per-spreadsheet request throttle — enforces PER_SPREADSHEET_RPS
+                // to follow Google's guidance of limiting concurrent requests per
+                // spreadsheet and avoid 503 quota-exceeded responses.
+                if (sharedDriveFileId) {
+                  await perSpreadsheetThrottle.throttle(sharedDriveFileId);
                 }
               }
 
@@ -1796,13 +1876,21 @@ function wrapGoogleApi<T extends object>(
               // Wrap with circuit breaker if available
               const result = circuit ? await circuit.execute(operation) : await operation();
 
-              // Track successful API call
+              // Track successful API call (connection health + per-request counter)
               client?.recordCallResult(true);
+              const ctx = getRequestContext();
+              if (ctx) {
+                ctx.apiCallsMade++;
+              }
 
               return result;
             } catch (error) {
-              // Track failed API call
+              // Track failed API call (connection health + per-request counter)
               client?.recordCallResult(false);
+              const ctx = getRequestContext();
+              if (ctx) {
+                ctx.apiCallsMade++;
+              }
               throw error;
             }
           };

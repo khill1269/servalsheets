@@ -4,8 +4,21 @@
  * Verifies refresh-token failures return explicit errors (no silent success).
  */
 
-import { describe, it, expect } from 'vitest';
-import { OAuthProvider } from '../../src/oauth-provider.js';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock env module before imports
+vi.mock('../../src/config/env.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/config/env.js')>();
+  return {
+    ...actual,
+    env: {
+      OAUTH_MAX_TOKEN_TTL: 1800,
+      LOG_LEVEL: 'error',
+    },
+  };
+});
+
+import { OAuthProvider } from '../../src/auth/oauth-provider.js';
 import { InMemorySessionStore } from '../../src/storage/session-store.js';
 
 type MockResponse = {

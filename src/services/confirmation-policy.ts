@@ -97,7 +97,7 @@ export const CONFIRMATION_THRESHOLDS = {
 /**
  * Operations that are always destructive (data loss possible)
  */
-const DESTRUCTIVE_OPERATIONS = new Set([
+export const DESTRUCTIVE_OPERATIONS = new Set([
   'sheets_data:clear',
   'sheets_data:batch_clear',
   'sheets_data:cut_paste',
@@ -115,7 +115,7 @@ const DESTRUCTIVE_OPERATIONS = new Set([
 /**
  * Operations that modify data (but can often be undone)
  */
-const MODIFYING_OPERATIONS = new Set([
+export const MODIFYING_OPERATIONS = new Set([
   'sheets_data:write',
   'sheets_data:append',
   'sheets_data:batch_write',
@@ -144,7 +144,7 @@ const MODIFYING_OPERATIONS = new Set([
 /**
  * Operations that are read-only (never need confirmation)
  */
-const READONLY_OPERATIONS = new Set([
+export const READONLY_OPERATIONS = new Set([
   'sheets_auth:status',
   'sheets_core:get',
   'sheets_core:get_url',

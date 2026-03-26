@@ -3,7 +3,7 @@ title: Integration Tests - Quick Start
 category: development
 last_updated: 2026-01-31
 description: Get integration tests running in 5 minutes!
-version: 1.6.0
+version: 2.0.0
 tags: [testing, sheets]
 ---
 

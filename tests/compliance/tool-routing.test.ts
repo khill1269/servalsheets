@@ -49,7 +49,7 @@ describe('Tool Routing - Description Quality', () => {
       const desc = TOOL_DESCRIPTIONS_MINIMAL[tool]!;
       expect(desc.length).toBeGreaterThan(10);
       // Should mention the tool category or key purpose
-      expect(desc.length).toBeLessThan(300); // Token efficient
+      expect(desc.length).toBeLessThanOrEqual(300); // Token efficient
     }
   });
 

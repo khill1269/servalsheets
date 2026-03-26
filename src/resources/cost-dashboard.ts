@@ -11,6 +11,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getCostTracker, type CostBreakdown } from '../services/cost-tracker.js';
 import { getBillingIntegration } from '../services/billing-integration.js';
 import { logger } from '../utils/logger.js';
+import { ValidationError } from '../core/errors.js';
 
 interface CostDashboard {
   tenantId: string;
@@ -94,7 +95,6 @@ interface CostDashboard {
  */
 function generateCostDashboard(tenantId: string): CostDashboard {
   const costTracker = getCostTracker();
-  const _billing = getBillingIntegration();
 
   // Get cost breakdown
   const breakdown = costTracker.calculateCost(tenantId);
@@ -332,7 +332,7 @@ export function registerCostDashboardResources(server: McpServer): number {
         const tenantId = uriStr.split('/').pop() || '';
 
         if (!tenantId) {
-          throw new Error('Tenant ID is required');
+          throw new ValidationError('Tenant ID is required', 'tenantId', 'non-empty string');
         }
 
         const dashboard = generateCostDashboard(tenantId);
@@ -381,7 +381,7 @@ export function registerCostDashboardResources(server: McpServer): number {
         const tenantId = uriStr.split('/').pop() || '';
 
         if (!tenantId) {
-          throw new Error('Tenant ID is required');
+          throw new ValidationError('Tenant ID is required', 'tenantId', 'non-empty string');
         }
 
         const allocation = generateCostAllocationReport(tenantId);
@@ -433,7 +433,7 @@ export function registerCostDashboardResources(server: McpServer): number {
         const tenantId = uriStr.split('/').pop() || '';
 
         if (!tenantId) {
-          throw new Error('Tenant ID is required');
+          throw new ValidationError('Tenant ID is required', 'tenantId', 'non-empty string');
         }
 
         const billing = getBillingIntegration();

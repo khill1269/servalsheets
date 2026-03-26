@@ -14,6 +14,8 @@
  * // { patterns: [...], insights: [...], recommendations: [...], confidence: 0.92 }
  */
 
+import { ServiceError } from '../core/errors.js';
+
 /**
  * Analysis type options
  */
@@ -67,6 +69,8 @@ export interface SamplingRequest {
     speedPriority?: number;
   };
   maxTokens: number;
+  // MCP 2025-11-25 soft-deprecates includeContext hints; omit by default unless
+  // the caller has verified the client advertises sampling.context support.
   includeContext?: 'none' | 'thisServer' | 'allServers';
 }
 
@@ -158,14 +162,19 @@ Format your response as JSON with this structure:
         },
       },
     ],
-    systemPrompt: `You are an expert data analyst specializing in spreadsheet data analysis. You provide clear, actionable insights based on the data provided. Always be specific, cite examples from the data, and indicate your confidence level. Focus on practical findings that help users understand and improve their data.`,
+    systemPrompt: `You are an expert data analyst specializing in spreadsheet data analysis. You provide clear, actionable insights based on the data provided. Always be specific, cite examples from the data, and indicate your confidence level. Focus on practical findings that help users understand and improve their data.
+
+Always respond in this JSON schema:
+{ "summary": string, "findings": [{"type": string, "severity": "critical"|"high"|"medium"|"low", "location": string, "description": string, "recommendation": string}], "confidence": number }
+
+Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% of 71 rows). These are likely missing transactions. Use sheets_fix.fill_missing with strategy:'mean' to impute."`,
     modelPreferences: {
       hints: [{ name: 'claude-3-sonnet' }],
       intelligencePriority: 0.8,
       speedPriority: 0.5,
     },
     maxTokens: request.maxTokens ?? 4096,
-    includeContext: 'thisServer',
+    includeContext: 'thisServer' as const,
   };
 }
 
@@ -188,10 +197,29 @@ export function buildFormulaSamplingRequest(
   const targetInfo = context.targetCell ? `\n**Target cell:** ${context.targetCell}` : '';
   const sheetInfo = context.sheetName ? `\n**Sheet:** ${context.sheetName}` : '';
 
+  // Inject relevant formula patterns as examples for the LLM
+  let patternExamplesText = '';
+  try {
+    // Dynamic import to avoid circular deps at module load time
+    const { extractFormulaKeywords, getRelevantPatterns } =
+      require('../analysis/formula-helpers.js') as typeof import('../analysis/formula-helpers.js');
+    const keywords = extractFormulaKeywords(description);
+    const relevantPatterns = getRelevantPatterns(keywords);
+    if (relevantPatterns.length > 0) {
+      patternExamplesText =
+        '\n\n**Relevant formula patterns for reference:**\n' +
+        relevantPatterns
+          .map((p) => `Pattern: ${p.template}\nExample: ${p.example}\nUse case: ${p.description}`)
+          .join('\n\n');
+    }
+  } catch {
+    // Pattern injection is best-effort; never block formula generation
+  }
+
   const prompt = `Generate a Google Sheets formula for the following requirement:
 
 **Requirement:** ${description}
-${sheetInfo}${headerInfo}${targetInfo}${sampleInfo}
+${sheetInfo}${headerInfo}${targetInfo}${sampleInfo}${patternExamplesText}
 
 Please provide:
 1. The formula
@@ -230,7 +258,6 @@ Format your response as JSON:
       speedPriority: 0.5,
     },
     maxTokens: 2048,
-    includeContext: 'thisServer',
   };
 }
 
@@ -311,7 +338,6 @@ Format your response as JSON:
       speedPriority: 0.6,
     },
     maxTokens: 2048,
-    includeContext: 'thisServer',
   };
 }
 
@@ -498,7 +524,11 @@ export function getSamplingAnalysisService(): SamplingAnalysisService {
  */
 export function resetSamplingAnalysisService(): void {
   if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
-    throw new Error('resetSamplingAnalysisService() can only be called in test environment');
+    throw new ServiceError(
+      'resetSamplingAnalysisService() can only be called in test environment',
+      'INTERNAL_ERROR',
+      'SamplingAnalysisService'
+    );
   }
   samplingAnalysisService = null;
 }

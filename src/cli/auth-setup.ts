@@ -367,10 +367,10 @@ async function main(): Promise<void> {
     }
 
     if (!clientId || !clientSecret) {
-      // Try embedded credentials (published app — zero-config for end users)
+      // Try bundle-provided credentials when this installation includes them.
       if (isEmbeddedOAuthConfigured()) {
         console.log(
-          `${colors.green}✓ Using ServalSheets published OAuth credentials${colors.reset}`
+          `${colors.green}✓ Using OAuth credentials from the current ServalSheets installation${colors.reset}`
         );
         clientId = EMBEDDED_OAUTH.clientId;
         clientSecret = EMBEDDED_OAUTH.clientSecret;
@@ -378,7 +378,7 @@ async function main(): Promise<void> {
       } else {
         console.log(`${colors.yellow}No credentials found automatically.${colors.reset}`);
         console.log('');
-        console.log('The embedded OAuth credentials have not been configured yet.');
+        console.log('This installation does not include bundled OAuth credentials.');
         console.log('You can either:');
         console.log('');
         console.log(`  ${colors.cyan}Option A:${colors.reset} Create your own OAuth credentials:`);
@@ -389,9 +389,14 @@ async function main(): Promise<void> {
         console.log(`    3. Download the JSON file as credentials.json`);
         console.log(`    4. Place it in the current directory and run this script again`);
         console.log('');
-        console.log(`  ${colors.cyan}Option B:${colors.reset} Wait for the published app release`);
-        console.log(`    The maintainer is setting up Google-verified OAuth credentials.`);
-        console.log(`    Once available, this script will use them automatically.`);
+        console.log(
+          `  ${colors.cyan}Option B:${colors.reset} Provide existing credentials directly:`
+        );
+        console.log(`    1. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in .env or your shell`);
+        console.log(
+          `    2. Optionally set OAUTH_REDIRECT_URI if you do not use the default callback`
+        );
+        console.log(`    3. Run this script again`);
         console.log('');
         process.exit(1);
       }
@@ -583,3 +588,86 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export { main as runAuthSetup };
+
+export interface EnvAuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  encryptionKey: string;
+}
+
+/**
+ * Parse OAuth and encryption settings from .env file content
+ */
+export function parseEnvAuthConfig(envContent: string): Partial<EnvAuthConfig> {
+  const clientIdMatch = envContent.match(/OAUTH_CLIENT_ID=(.+)/);
+  const clientSecretMatch = envContent.match(/OAUTH_CLIENT_SECRET=(.+)/);
+  const redirectUriMatch = envContent.match(/OAUTH_REDIRECT_URI=(.+)/);
+  const encryptionKeyMatch = envContent.match(/ENCRYPTION_KEY=(.+)/);
+
+  const result: Partial<EnvAuthConfig> = {};
+  if (clientIdMatch) result.clientId = clientIdMatch[1]?.trim();
+  if (clientSecretMatch) result.clientSecret = clientSecretMatch[1]?.trim();
+  if (redirectUriMatch) result.redirectUri = redirectUriMatch[1]?.trim();
+  if (encryptionKeyMatch) result.encryptionKey = encryptionKeyMatch[1]?.trim();
+
+  return result;
+}
+
+export interface ValidateOAuthTokensOptions {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  tokenPath: string;
+  encryptionKey: string;
+}
+
+export interface ValidateOAuthTokensResult {
+  valid: boolean;
+  message: string;
+}
+
+/**
+ * Validate stored OAuth tokens by loading them from the encrypted token store
+ * and probing the Google API to confirm they are still active.
+ */
+export async function validateStoredOAuthTokens(
+  options: ValidateOAuthTokensOptions
+): Promise<ValidateOAuthTokensResult> {
+  const { clientId, clientSecret, redirectUri, tokenPath, encryptionKey } = options;
+  const tokenStore = new EncryptedFileTokenStore(tokenPath, encryptionKey);
+  const tokens = await tokenStore.load();
+
+  if (!tokens) {
+    return { valid: false, message: 'Token store does not contain any stored tokens' };
+  }
+
+  const oauth2Client: OAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  oauth2Client.setCredentials(tokens);
+
+  const now = Date.now();
+  const isExpired = tokens.expiry_date != null && tokens.expiry_date < now;
+
+  if (isExpired) {
+    if (!tokens.refresh_token) {
+      return { valid: false, message: 'Tokens are expired and missing a refresh token' };
+    }
+    // Attempt to refresh
+    try {
+      await oauth2Client.getAccessToken();
+      return { valid: true, message: 'Tokens refreshed successfully' };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return { valid: false, message: `Token refresh failed: ${msg}` };
+    }
+  }
+
+  // Token not expired — verify it is still valid via tokeninfo
+  try {
+    await oauth2Client.getTokenInfo(tokens.access_token ?? '');
+    return { valid: true, message: 'Tokens are valid' };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { valid: false, message: `Token validation failed: ${msg}` };
+  }
+}

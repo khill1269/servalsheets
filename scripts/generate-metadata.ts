@@ -6,9 +6,10 @@
  * Derived outputs:
  * - Tool/action counts
  * - package.json description
+ * - manifest.json registry metadata
  * - src/schemas/index.ts exports
- * - src/schemas/action-counts.ts ACTION_COUNTS
- * - src/mcp/completions.ts TOOL_ACTIONS
+ * - src/generated/action-counts.ts ACTION_COUNTS
+ * - src/generated/completions.ts TOOL_ACTIONS
  * - server.json metadata
  *
  * Uses TypeScript Compiler API for robust AST parsing instead of regex.
@@ -18,10 +19,19 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import * as ts from 'typescript';
+import {
+  SERVER_ICON_DATA_URI,
+  SERVER_ICON_MIME_TYPE,
+  SERVER_ICON_SIZES,
+} from '../src/constants/server-icon.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
+const DOCS_BASE_URL = 'https://servalsheets.dev';
+const PRIVACY_POLICY_URL = `${DOCS_BASE_URL}/privacy`;
+const SUPPORT_URL = 'https://github.com/khill1269/servalsheets/issues';
+const REPOSITORY_URL = 'https://github.com/khill1269/servalsheets.git';
 
 // ============================================================================
 // CLI FLAGS
@@ -106,7 +116,7 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
   // NOTE: analyze and confirm kept as special cases because AST parser over-counts
   // (finds z.literal in output schemas too, not just input discriminated unions)
   analyze: {
-    count: 21,
+    count: 26,
     actions: [
       'comprehensive',
       'analyze_data',
@@ -132,6 +142,14 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       // Diagnostic actions
       'diagnose_errors',
       'formula_health_check',
+      // S3-A: Fast structural snapshot
+      'quick_insights',
+      // ISSUE-174/175: Semantic search
+      'semantic_search',
+      // Scheduled Intelligence Engine
+      'schedule_intelligence',
+      'get_intelligence_report',
+      'cancel_intelligence',
     ],
   },
   confirm: {
@@ -376,6 +394,54 @@ const ACTION_COUNT = totalActions;
 
 console.log(`\n✅ Total: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions\n`);
 
+function updateToolAndActionCounts(text: string, separator: ',' | 'and' | 'with'): string {
+  if (separator === ',') {
+    return text.replace(
+      /\d+\s+tools\s*,\s+\d+\s+actions/gi,
+      `${TOOL_COUNT} tools, ${ACTION_COUNT} actions`
+    );
+  }
+  if (separator === 'and') {
+    return text.replace(
+      /\d+\s+tools\s+and\s+\d+\s+actions/gi,
+      `${TOOL_COUNT} tools and ${ACTION_COUNT} actions`
+    );
+  }
+  return text.replace(
+    /\d+\s+tools\s+with\s+\d+\s+actions/gi,
+    `${TOOL_COUNT} tools with ${ACTION_COUNT} actions`
+  );
+}
+
+function syncCountedDescription(text: string): string {
+  let updated = updateToolAndActionCounts(text, ',');
+  updated = updateToolAndActionCounts(updated, 'and');
+  updated = updateToolAndActionCounts(updated, 'with');
+  return updated;
+}
+
+function syncToolDescription(
+  existingDescription: unknown,
+  toolName: string,
+  actionCount: number
+): string {
+  if (typeof existingDescription === 'string' && existingDescription.trim().length > 0) {
+    if (/(\d+\s+actions)/i.test(existingDescription)) {
+      return existingDescription.replace(/(\d+\s+actions)/i, `${actionCount} actions`);
+    }
+    if (/\d+\s+actions/i.test(existingDescription)) {
+      return existingDescription.replace(/\d+\s+actions/i, `${actionCount} actions`);
+    }
+    return `${existingDescription.trim()} (${actionCount} actions)`;
+  }
+
+  return `${toolName} operations (${actionCount} actions)`;
+}
+
+const sortedToolAnalyses = [...toolAnalyses].sort((left, right) =>
+  left.toolName.localeCompare(right.toolName)
+);
+
 // ============================================================================
 // UPDATE PACKAGE.JSON
 // ============================================================================
@@ -384,10 +450,7 @@ const pkgPath = join(ROOT, 'package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
 
 const oldDescription = pkg.description;
-pkg.description = oldDescription.replace(
-  /\d+ tools, \d+ actions/,
-  `${TOOL_COUNT} tools, ${ACTION_COUNT} actions`
-);
+pkg.description = syncCountedDescription(oldDescription);
 
 if (oldDescription !== pkg.description) {
   writeOrTrack(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
@@ -418,10 +481,10 @@ writeOrTrack(schemasIndexPath, schemasIndex);
 console.log('✅ Updated src/schemas/index.ts constants');
 
 // ============================================================================
-// UPDATE SRC/SCHEMAS/ACTION-COUNTS.TS - ACTION_COUNTS
+// UPDATE SRC/GENERATED/ACTION-COUNTS.TS - ACTION_COUNTS
 // ============================================================================
 
-const actionCountsPath = join(ROOT, 'src/schemas/action-counts.ts');
+const actionCountsPath = join(ROOT, 'src/generated/action-counts.ts');
 
 // Build ACTION_COUNTS map
 const actionCountsMap = analyses
@@ -430,7 +493,8 @@ const actionCountsMap = analyses
   .join('\n');
 
 // Generate complete action-counts.ts file
-const actionCountsContent = `/**
+const actionCountsContent = `// @generated — Do not edit manually. Run npm run schema:commit to regenerate.
+/**
  * ServalSheets - Action Counts
  *
  * Source of truth for the number of actions per tool.
@@ -458,10 +522,10 @@ writeOrTrack(actionCountsPath, actionCountsContent);
 console.log('✅ Updated src/schemas/action-counts.ts ACTION_COUNTS');
 
 // ============================================================================
-// UPDATE SRC/MCP/COMPLETIONS.TS - TOOL_ACTIONS
+// UPDATE SRC/GENERATED/COMPLETIONS.TS - TOOL_ACTIONS
 // ============================================================================
 
-const completionsPath = join(ROOT, 'src/mcp/completions.ts');
+const completionsPath = join(ROOT, 'src/generated/completions.ts');
 let completionsContent = readFileSync(completionsPath, 'utf-8');
 
 // Build TOOL_ACTIONS map - always use multi-line for consistency
@@ -508,25 +572,17 @@ const serverJson = {
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
   icons: [
     {
-      src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png',
-      mimeType: 'image/png',
-      sizes: ['1536x1024'],
-    },
-    {
-      src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-512.png',
-      mimeType: 'image/png',
-      sizes: ['512x512'],
+      src: SERVER_ICON_DATA_URI,
+      mimeType: SERVER_ICON_MIME_TYPE,
+      sizes: [...SERVER_ICON_SIZES],
     },
   ],
   mcpProtocol: '2025-11-25',
   instructions:
-    '⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\n' +
-    'NEVER wrap arguments in {"request":{...}} object.\n\n' +
-    '✅ CORRECT format for ALL tools:\n' +
+    'ServalSheets uses an envelope parameter format:\n' +
+    '{"request":{"action":"...", "spreadsheetId":"...", "range":"..."}}\n\n' +
+    'LEGACY compatibility format (also accepted, normalized at runtime):\n' +
     '{"action":"...", "spreadsheetId":"...", "range":"..."}\n\n' +
-    '❌ LEGACY format (normalized at runtime, avoid in new integrations):\n' +
-    '{"request": {"action":"...", "spreadsheetId":"..."}}\n\n' +
-    'Use flat format for all new tool calls. No exceptions.\n\n' +
     '---\n\n' +
     'ServalSheets provides ' +
     TOOL_COUNT +
@@ -542,13 +598,11 @@ const serverJson = {
       description: pkg.description,
     },
   ],
-  tools: analyses
-    .filter((a) => a.actionCount > 0)
-    .map((a) => ({
-      name: `sheets_${a.toolName}`,
-      description: `${a.toolName} operations (${a.actionCount} actions)`,
-      actions: a.actions,
-    })),
+  tools: sortedToolAnalyses.map((a) => ({
+    name: `sheets_${a.toolName}`,
+    description: `${a.toolName} operations (${a.actionCount} actions)`,
+    actions: a.actions,
+  })),
   capabilities: ['tools', 'resources', 'prompts', 'logging', 'completions', 'tasks'],
   metadata: {
     toolCount: TOOL_COUNT,
@@ -587,13 +641,13 @@ const serverJson = {
   },
   repository: {
     type: 'git',
-    url: 'https://github.com/khill1269/servalsheets',
+    url: REPOSITORY_URL,
     source: 'https://github.com/khill1269/servalsheets',
   },
-  homepage: 'https://github.com/khill1269/servalsheets#readme',
+  homepage: DOCS_BASE_URL,
   privacy_policies: [
     {
-      url: 'https://github.com/khill1269/servalsheets/blob/main/PRIVACY.md',
+      url: PRIVACY_POLICY_URL,
       description: 'ServalSheets Privacy Policy',
     },
   ],
@@ -608,6 +662,133 @@ writeOrTrack(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
 console.log('✅ Generated server.json');
 
 // ============================================================================
+// GENERATE ROOT MANIFEST.JSON
+// ============================================================================
+
+const registryManifestPath = join(ROOT, 'manifest.json');
+const existingRegistryManifest = existsSync(registryManifestPath)
+  ? JSON.parse(readFileSync(registryManifestPath, 'utf-8'))
+  : {};
+const existingManifestTools = new Map(
+  Array.isArray(existingRegistryManifest.tools)
+    ? existingRegistryManifest.tools
+        .filter((tool): tool is { name: string; description?: string } => Boolean(tool?.name))
+        .map((tool) => [tool.name, tool.description])
+    : []
+);
+
+const registryManifest = {
+  manifest_version: '0.3',
+  name: pkg.name,
+  display_name: 'ServalSheets',
+  version: pkg.version,
+  description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
+  long_description: `ServalSheets is a production-grade MCP server for Google Sheets with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions. Features OAuth 2.1, MCP sampling, elicitation, tasks, and advanced data operations.`,
+  keywords: ['google-sheets', 'spreadsheet', 'mcp', 'ai', 'automation', 'data'],
+  support: SUPPORT_URL,
+  documentation: DOCS_BASE_URL,
+  homepage: DOCS_BASE_URL,
+  author: {
+    name: 'Thomas Lee Cahill',
+    url: 'https://github.com/khill1269',
+  },
+  repository: {
+    type: 'git',
+    url: REPOSITORY_URL,
+  },
+  license: 'MIT',
+  icon: existingRegistryManifest.icon || 'assets/servalsheets-logo-512.png',
+  server: {
+    type: 'node',
+    entry_point: 'dist/cli.js',
+    mcp_config: {
+      command: 'node',
+      args: ['${__dirname}/dist/cli.js'],
+      env: {
+        LOG_LEVEL: '${user_config.LOG_LEVEL}',
+        OAUTH_CLIENT_ID: '${user_config.OAUTH_CLIENT_ID}',
+        OAUTH_CLIENT_SECRET: '${user_config.OAUTH_CLIENT_SECRET}',
+        OAUTH_REDIRECT_URI: '${user_config.OAUTH_REDIRECT_URI}',
+        GOOGLE_TOKEN_STORE_PATH: '${user_config.GOOGLE_TOKEN_STORE_PATH}',
+        ENCRYPTION_KEY: '${user_config.ENCRYPTION_KEY}',
+        OAUTH_SCOPE_MODE: '${user_config.OAUTH_SCOPE_MODE}',
+      },
+    },
+  },
+  compatibility: {
+    claude_desktop: '>=0.10.0',
+    platforms: ['darwin', 'win32', 'linux'],
+    runtimes: {
+      node: pkg.engines?.node,
+    },
+  },
+  privacy_policies: [PRIVACY_POLICY_URL],
+  user_config: {
+    LOG_LEVEL: {
+      type: 'string',
+      title: 'Log Level',
+      description: 'Log verbosity (error, warn, info, debug).',
+      default: 'info',
+      required: false,
+    },
+    OAUTH_CLIENT_ID: {
+      type: 'string',
+      title: 'OAuth Client ID',
+      description:
+        'Google desktop-app OAuth client ID. Required for this self-hosted release unless your packaging step injects bundled credentials.',
+      required: true,
+    },
+    OAUTH_CLIENT_SECRET: {
+      type: 'string',
+      title: 'OAuth Client Secret',
+      description:
+        'Google desktop-app OAuth client secret. Required for this self-hosted release unless your packaging step injects bundled credentials.',
+      sensitive: true,
+      required: true,
+    },
+    OAUTH_REDIRECT_URI: {
+      type: 'string',
+      title: 'OAuth Redirect URI',
+      description: 'Redirect URI for the local OAuth flow.',
+      default: 'http://localhost:3000/callback',
+      required: false,
+    },
+    GOOGLE_TOKEN_STORE_PATH: {
+      type: 'string',
+      title: 'Token Store Path',
+      description: 'Path to the encrypted OAuth token store file.',
+      default: '${HOME}${/}.config${/}servalsheets${/}tokens.enc',
+      required: false,
+    },
+    ENCRYPTION_KEY: {
+      type: 'string',
+      title: 'Token Store Encryption Key',
+      description: '64-character hex key used to encrypt stored OAuth tokens.',
+      sensitive: true,
+      required: false,
+    },
+    OAUTH_SCOPE_MODE: {
+      type: 'string',
+      title: 'OAuth Scope Mode',
+      description: 'Requested Google OAuth scope set (`full` or `minimal`).',
+      default: 'full',
+      required: false,
+    },
+  },
+  tools: sortedToolAnalyses.map((analysis) => ({
+    name: `sheets_${analysis.toolName}`,
+    description: syncToolDescription(
+      existingManifestTools.get(`sheets_${analysis.toolName}`),
+      analysis.toolName,
+      analysis.actionCount
+    ),
+  })),
+};
+
+writeOrTrack(registryManifestPath, JSON.stringify(registryManifest, null, 2) + '\n');
+console.log('✅ Generated manifest.json');
+
+// ============================================================================
 // GENERATE MANIFEST (src/generated/manifest.json)
 // ============================================================================
 
@@ -620,7 +801,7 @@ const manifest = {
   _comment: 'Auto-generated by scripts/generate-metadata.ts — DO NOT EDIT',
   toolCount: TOOL_COUNT,
   actionCount: ACTION_COUNT,
-  tools: toolAnalyses.map((a) => ({
+  tools: sortedToolAnalyses.map((a) => ({
     name: `sheets_${a.toolName}`,
     actionCount: a.actionCount,
     actions: a.actions,
@@ -787,8 +968,9 @@ console.log(`
 ║  Updated:                              ║
 ║  ✓ package.json                        ║
 ║  ✓ src/schemas/index.ts                ║
-║  ✓ src/schemas/action-counts.ts         ║
-║  ✓ src/mcp/completions.ts              ║
+║  ✓ src/generated/action-counts.ts       ║
+║  ✓ src/generated/completions.ts        ║
+║  ✓ manifest.json                       ║
 ║  ✓ server.json                         ║
 ║  ✓ src/generated/manifest.json         ║
 ╚════════════════════════════════════════╝

@@ -87,12 +87,11 @@ export interface SchemaValidatorConfig {
 export class SchemaValidator {
   private readonly discoveryClient: DiscoveryApiClient;
   private readonly schemaCache: SchemaCache;
-  private readonly strictMode: boolean;
 
   constructor(config: SchemaValidatorConfig = {}) {
     this.discoveryClient = config.discoveryClient ?? new DiscoveryApiClient();
     this.schemaCache = config.schemaCache ?? new SchemaCache();
-    this.strictMode = config.strictMode ?? false;
+    // config.strictMode reserved for future strict validation enforcement
   }
 
   /**
@@ -576,7 +575,7 @@ export class SchemaValidator {
     deprecationMessage: string;
   }): string | undefined {
     // OK: Explicit empty - no field provided
-    if (!field) return undefined;
+    if (!field) return undefined; // OK: Explicit empty
 
     return `// Before (deprecated)
 const value = spreadsheet.${field.path};
@@ -595,7 +594,7 @@ const value = spreadsheet.${field.path};
     newType: string;
   }): string | undefined {
     // OK: Explicit empty - no field provided
-    if (!field) return undefined;
+    if (!field) return undefined; // OK: Explicit empty
 
     return `// Before
 const value: ${field.oldType} = data.${field.path};
@@ -618,7 +617,7 @@ if (typeof value === '${field.newType}') {
     description: string;
   }): string | undefined {
     // OK: Explicit empty - no field provided
-    if (!field) return undefined;
+    if (!field) return undefined; // OK: Explicit empty
 
     return `// New field available: ${field.description}
 const ${field.path.split('.').pop()} = spreadsheet.${field.path};
