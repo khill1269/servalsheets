@@ -9,10 +9,9 @@
  * live API tests (real Google API).
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createMockSheetsApi,
-  createMockDriveApi,
   createMockContext,
   type MockSpreadsheetData,
 } from '../helpers/google-api-mocks.js';
@@ -33,7 +32,6 @@ import {
   SheetsCoreInputSchema,
   SheetsFormatInputSchema,
   SheetsDimensionsInputSchema,
-  SheetsCollaborateInputSchema,
 } from '../../src/schemas/index.js';
 
 /**
@@ -111,7 +109,7 @@ describe('Handler Chain Integration', () => {
         expect(validated.success).toBe(true);
 
         // Call handler (mock context)
-        const context = createMockContext({
+        createMockContext({
           sheets: mockApi,
         });
 
