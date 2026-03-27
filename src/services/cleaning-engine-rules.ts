@@ -765,10 +765,29 @@ function parseAnyDate(str: string): ParsedDate | null {
   m = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
   if (m) {
     const monthNames: Record<string, number> = {
-      jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
-      apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
-      aug: 8, august: 8, sep: 9, september: 9, oct: 10, october: 10,
-      nov: 11, november: 11, dec: 12, december: 12,
+      jan: 1,
+      january: 1,
+      feb: 2,
+      february: 2,
+      mar: 3,
+      march: 3,
+      apr: 4,
+      april: 4,
+      may: 5,
+      jun: 6,
+      june: 6,
+      jul: 7,
+      july: 7,
+      aug: 8,
+      august: 8,
+      sep: 9,
+      september: 9,
+      oct: 10,
+      october: 10,
+      nov: 11,
+      november: 11,
+      dec: 12,
+      december: 12,
     };
     const month = monthNames[m[1]!.toLowerCase()];
     if (month) return { year: parseInt(m[3]!, 10), month, day: parseInt(m[2]!, 10) };
@@ -779,5 +798,7 @@ function parseAnyDate(str: string): ParsedDate | null {
 
 function normalizeDate(str: string): string {
   const d = parseAnyDate(str);
-  return d ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : str;
+  return d
+    ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`
+    : str;
 }
