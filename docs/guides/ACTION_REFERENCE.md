@@ -1,7 +1,7 @@
 ---
 title: ServalSheets - Action Reference (407 Actions, 25 Tools)
 category: guide
-last_updated: 2026-03-27
+last_updated: 2026-03-26
 description: 'Generated action reference for the current 25-tool, 407-action MCP surface.'
 version: 2.0.0
 audience: user

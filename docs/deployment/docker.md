@@ -24,7 +24,7 @@ stdio setup, use [`CLAUDE_DESKTOP_SETUP.md`](../guides/CLAUDE_DESKTOP_SETUP.md).
 
 ```bash
 # Pull or build image
-docker build -f deployment/docker/Dockerfile -t servalsheets:latest .
+docker build -t servalsheets:latest .
 
 # Run with service account
 docker run -d \
@@ -42,11 +42,11 @@ For production deployments with additional services:
 
 ```yaml
 # docker-compose.yml
+version: '3.8'
+
 services:
   servalsheets:
-    build:
-      context: ../..
-      dockerfile: deployment/docker/Dockerfile
+    build: .
     ports:
       - '3000:3000'
     environment:
@@ -57,7 +57,7 @@ services:
     volumes:
       - ./service-account.json:/etc/google/service-account.json:ro
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health/live']
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -77,12 +77,7 @@ volumes:
 Start:
 
 ```bash
-docker compose -f deployment/docker/docker-compose.yml up -d
-
-# Optional TLS reverse proxy:
-# 1. Put fullchain.pem and privkey.pem in deployment/docker/certs/
-# 2. Review deployment/docker/nginx.conf
-docker compose -f deployment/docker/docker-compose.prod.yml --profile production up -d
+docker-compose up -d
 ```
 
 ## Environment Variables
@@ -106,7 +101,7 @@ allowlist settings described in
 docker inspect servalsheets --format='{{.State.Health.Status}}'
 
 # View health endpoint
-curl http://localhost:3000/health/ready
+curl http://localhost:3000/health
 ```
 
 ## Logs
