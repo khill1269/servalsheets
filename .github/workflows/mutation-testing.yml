@@ -1,12 +1,6 @@
 name: Mutation Testing
 
 on:
-  # Run on PRs to main to catch weak tests before merge
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'tests/**'
   # Manual trigger for full run or specific configs
   workflow_dispatch:
     inputs:
