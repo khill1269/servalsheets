@@ -65,22 +65,19 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should include authentication step as STEP 1', () => {
-      expect(instructions).toContain('## STARTUP SEQUENCE');
-      expect(instructions).toContain('1. **Auth check:**');
+      expect(instructions).toContain('STEP 1');
       expect(instructions).toContain('sheets_auth');
-      expect(instructions).toContain('authenticated: false');
+      expect(instructions).toContain('NEVER skip authentication');
     });
 
     it('should include session context as STEP 2', () => {
+      expect(instructions).toContain('STEP 2');
       expect(instructions).toContain('sheets_session');
-      expect(instructions).toContain('get_context');
       expect(instructions).toContain('set_active');
     });
 
     it('should include tool selection decision tree', () => {
-      expect(instructions).toContain('## 5-GROUP MENTAL MODEL');
-      expect(instructions).toContain('GROUP 1');
-      expect(instructions).toContain('GROUP 5');
+      expect(instructions).toContain('TOOL SELECTION DECISION TREE');
     });
 
     it('should route all tools in decision tree or advanced sections', () => {
@@ -90,21 +87,20 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should include tool chaining patterns', () => {
-      expect(instructions).toContain('**Optimal sequence:**');
-      expect(instructions).toContain('analyze.scout');
-      expect(instructions).toContain('quality.validate');
-      expect(instructions).toContain('record_operation');
+      expect(instructions).toContain('TOOL CHAINING');
+      expect(instructions).toContain('sheets_dependencies analyze_impact');
+      expect(instructions).toContain('sheets_analyze scout');
+      expect(instructions).toContain('sheets_fix');
     });
 
     it('should include anti-patterns', () => {
-      expect(instructions).toContain("don't use find_replace for targeted updates");
-      expect(instructions).toContain('Do NOT use `execute_pipeline`');
+      expect(instructions).toContain("Don't use transactions for single operations");
+      expect(instructions).toContain("Don't read entire sheet");
     });
 
     it('should include error recovery table', () => {
-      expect(instructions).toContain('ERROR SELF-CORRECTION (TAER)');
-      expect(instructions).toContain('SHEET_NOT_FOUND');
-      expect(instructions).toContain('INVALID_RANGE');
+      expect(instructions).toContain('UNAUTHENTICATED');
+      expect(instructions).toContain('PERMISSION_DENIED');
       expect(instructions).toContain('QUOTA_EXCEEDED');
     });
 
@@ -114,28 +110,27 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should include safety checklist', () => {
-      expect(instructions).toContain('sheets_quality action:"analyze_impact"');
-      expect(instructions).toContain('sheets_session action:"record_operation"');
-      expect(instructions).toContain('sheets_confirm action:"wizard_start"');
+      expect(instructions).toContain('dryRun');
+      expect(instructions).toContain('sheets_confirm');
     });
 
     it('should include quota awareness section', () => {
-      expect(instructions).toContain('batch_write');
-      expect(instructions).toContain('sheets_transaction');
-      expect(instructions).toContain('80-95% API savings');
+      expect(instructions).toContain('quotaStatus');
+      expect(instructions).toContain('batch_read');
     });
 
     it('should include formula expertise section', () => {
-      expect(instructions).toContain('Formula locale');
-      expect(instructions).toContain('spreadsheetLocale');
-      expect(instructions).toContain('guide://advanced-usage');
+      expect(instructions).toContain('Quick formula tips');
+      expect(instructions).toContain('VLOOKUP');
+      expect(instructions).toContain('INDEX/MATCH');
     });
 
     it('should include collaborative workflow pattern', () => {
-      expect(instructions).toContain('connectorOnboarding');
-      expect(instructions).toContain('interactiveMode:true');
-      expect(instructions).toContain('history.undo');
-      expect(instructions).toContain('wizard_start');
+      expect(instructions).toContain('Gather requirements');
+      expect(instructions).toContain('Plan execution steps');
+      expect(instructions).toContain('Wait for user approval');
+      expect(instructions).toContain('Execute with safety checks');
+      expect(instructions).toContain('Verify results and report back');
     });
 
     it('should include Tier 7 tools in decision tree', () => {

@@ -68,11 +68,9 @@ describe('Test Infrastructure', () => {
     it('should provide default configuration', () => {
       const config = getTestConfig();
 
-      const expectedMaxRetries = Number(process.env['TEST_MAX_RETRIES'] ?? '5');
-      expect(config.retry.maxRetries).toBe(expectedMaxRetries);
+      expect(config.retry.maxRetries).toBe(5);
       expect(config.quota.maxReadsPerMinute).toBe(200);
-      const expectedPoolMaxSize = Number(process.env['TEST_POOL_MAX_SIZE'] ?? '5');
-      expect(config.pool.maxSize).toBe(expectedPoolMaxSize);
+      expect(config.pool.maxSize).toBe(5);
       expect(config.timeout.liveApi).toBe(60000);
     });
 
@@ -86,8 +84,7 @@ describe('Test Infrastructure', () => {
     });
 
     it('should provide convenient accessors', () => {
-      const expectedMaxRetries = Number(process.env['TEST_MAX_RETRIES'] ?? '5');
-      expect(TEST_CONFIG.retry.maxRetries).toBe(expectedMaxRetries);
+      expect(TEST_CONFIG.retry.maxRetries).toBe(5);
       expect(TEST_CONFIG.quota.delayBetweenTestsMs).toBe(200);
     });
   });

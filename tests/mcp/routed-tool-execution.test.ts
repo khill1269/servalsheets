@@ -126,45 +126,6 @@ describe('executeRoutedToolCall', () => {
     expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_analyze');
   });
 
-  it('falls back to the hosted remote executor when local execution returns an internal error response', async () => {
-    getRemoteToolClient.mockResolvedValue({
-      callRemoteTool: vi.fn(async () => ({
-        structuredContent: {
-          response: {
-            success: true,
-            source: 'remote',
-          },
-        },
-      })),
-    });
-    const localExecute = vi.fn(async () => ({
-      response: {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'local compute failed',
-          retryable: false,
-        },
-      },
-    }));
-
-    const result = await executeRoutedToolCall({
-      toolName: 'sheets_compute',
-      transport: 'streamable-http',
-      args: { request: { action: 'evaluate' } },
-      localExecute,
-    });
-
-    expect(result).toMatchObject({
-      response: {
-        success: true,
-        source: 'remote',
-      },
-    });
-    expect(localExecute).toHaveBeenCalledTimes(1);
-    expect(getRemoteToolClient).toHaveBeenCalledWith('sheets_compute');
-  });
-
   it('falls back to the hosted remote executor for sheets_connectors after local failure', async () => {
     getRemoteToolClient.mockResolvedValue({
       callRemoteTool: vi.fn(async () => ({

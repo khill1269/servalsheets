@@ -4,7 +4,7 @@
 
 import { homedir, tmpdir } from 'os';
 import { ValidationError } from '../core/errors.js';
-import { join, resolve, isAbsolute, sep } from 'path';
+import { join, resolve, isAbsolute } from 'path';
 
 export function getDefaultTokenStorePath(): string {
   return join(homedir(), '.servalsheets', 'tokens.encrypted');
@@ -18,16 +18,8 @@ export function sanitizeTokenStorePath(rawPath: string): string {
   // resolve() collapses any ../.. traversal sequences into an absolute path
   const resolved = isAbsolute(rawPath) ? resolve(rawPath) : resolve(process.cwd(), rawPath);
   // Defense-in-depth: constrain to home or temp directory to prevent access to /etc, /proc, etc.
-  const allowedRoots = new Set([
-    resolve(homedir()),
-    resolve(tmpdir()),
-    resolve('/tmp'),
-    resolve('/private/tmp'),
-  ]);
-  const isWithinAllowedRoot = [...allowedRoots].some(
-    (root) => resolved === root || resolved.startsWith(`${root}${sep}`)
-  );
-  if (!isWithinAllowedRoot) {
+  const allowedPrefixes = [homedir(), tmpdir()];
+  if (!allowedPrefixes.some((prefix) => resolved.startsWith(prefix))) {
     throw new ValidationError(
       `Token store path must be within home or temp directory. Got: ${resolved}`,
       'tokenStorePath'

@@ -27,33 +27,9 @@ const httpTransportFailoverMocks = vi.hoisted(() => {
   };
 });
 
-const httpTransportFailoverGoogleClientMocks = vi.hoisted(() => ({
-  createTokenBackedGoogleClient: vi.fn(async (options?: { accessToken?: string; refreshToken?: string }) => ({
-    authType: 'oauth2',
-    sheets: {},
-    drive: {},
-    oauth2: {
-      getAccessToken: vi
-        .fn()
-        .mockResolvedValue({ token: options?.accessToken ?? 'http-failover-access-token' }),
-    },
-    getTokenStatus: vi.fn(() => ({
-      hasAccessToken: true,
-      hasRefreshToken: Boolean(options?.refreshToken),
-      expiryDate: Date.now() + 60 * 60 * 1000,
-    })),
-    validateToken: vi.fn().mockResolvedValue({ valid: true }),
-  })),
-}));
-
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
   getRemoteToolClient: httpTransportFailoverMocks.getRemoteToolClient,
   resetRemoteToolClient: httpTransportFailoverMocks.resetRemoteToolClient,
-}));
-
-vi.mock('../../src/startup/google-client-bootstrap.js', () => ({
-  createTokenBackedGoogleClient:
-    httpTransportFailoverGoogleClientMocks.createTokenBackedGoogleClient,
 }));
 
 vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
@@ -172,7 +148,6 @@ describe.skipIf(!canListenLocalhost)('HTTP transport hosted failover', () => {
     httpTransportFailoverMocks.remoteToolCall.mockReset();
     httpTransportFailoverMocks.getRemoteToolClient.mockClear();
     httpTransportFailoverMocks.resetRemoteToolClient.mockClear();
-    httpTransportFailoverGoogleClientMocks.createTokenBackedGoogleClient.mockClear();
     delete process.env['MCP_REMOTE_EXECUTOR_URL'];
     delete process.env['MCP_REMOTE_EXECUTOR_TOOLS'];
     await httpTransportFailoverMocks.resetRemoteToolClient();
@@ -289,12 +264,11 @@ describe.skipIf(!canListenLocalhost)('HTTP transport hosted failover', () => {
         'sheets_compute'
       );
       expect(httpTransportFailoverMocks.remoteToolCall).toHaveBeenCalledWith('sheets_compute', {
-        request: expect.objectContaining({
+        request: {
           action: 'evaluate',
           spreadsheetId: 'spreadsheet-123',
           formula: '=REMOTE_FAILOVER_SENTINEL()',
-          verbosity: 'standard',
-        }),
+        },
       });
     } finally {
       await server.stop?.();
@@ -412,12 +386,11 @@ describe.skipIf(!canListenLocalhost)('HTTP transport hosted failover', () => {
         'sheets_analyze'
       );
       expect(httpTransportFailoverMocks.remoteToolCall).toHaveBeenCalledWith('sheets_analyze', {
-        request: expect.objectContaining({
+        request: {
           action: 'analyze_data',
           spreadsheetId: 'remote-failover-analyze',
           analysisTypes: ['summary'],
-          verbosity: 'standard',
-        }),
+        },
       });
     } finally {
       await server.stop?.();

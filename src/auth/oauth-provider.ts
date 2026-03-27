@@ -757,11 +757,10 @@ export class OAuthProvider {
 
       // Validate client
       const clientIdMatch = client_id === this.config.clientId;
-      const providedClientSecret = client_secret ?? '';
-      const expectedClientSecret = this.config.clientSecret;
-      const clientSecretMatch =
-        providedClientSecret.length === expectedClientSecret.length &&
-        timingSafeEqual(Buffer.from(providedClientSecret), Buffer.from(expectedClientSecret));
+      const clientSecretMatch = timingSafeEqual(
+        Buffer.from(client_secret ?? ''),
+        Buffer.from(this.config.clientSecret)
+      );
       if (!clientIdMatch || !clientSecretMatch) {
         res.status(401).json({ error: 'invalid_client' });
         return;
@@ -845,8 +844,7 @@ export class OAuthProvider {
           if (!authHeader || authHeader !== `Bearer ${dcrToken}`) {
             res.status(401).json({
               error: 'invalid_token',
-              error_description:
-                'A valid initial access token is required for dynamic client registration.',
+              error_description: 'A valid initial access token is required for dynamic client registration.',
             });
             return;
           }

@@ -893,14 +893,11 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     // Read context data if range provided
     let headers: string[] | undefined;
     let sampleData: unknown[][] | undefined;
-    let resolvedRange: string | undefined;
 
-    if ('range' in req && req.range) {
-      resolvedRange =
-        typeof req.range === 'string'
-          ? req.range
-          : this.resolveAnalyzeRange(this.convertRangeInput(req.range));
-      const data = await this.readData(req.spreadsheetId, resolvedRange);
+    if ('range' in req && req.range && typeof req.range !== 'string') {
+      const convertedRange = this.convertRangeInput(req.range);
+      const rangeStr = this.resolveAnalyzeRange(convertedRange);
+      const data = await this.readData(req.spreadsheetId, rangeStr);
       if (data.length > 0) {
         headers = data[0]?.map(String);
         sampleData = data.slice(0, 10);
@@ -909,12 +906,8 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
 
     // Build sampling request
     const sheetName =
-      'range' in req && req.range
-        ? typeof req.range === 'string'
-          ? this.getSheetNameFromRange(resolvedRange ?? req.range)
-          : 'sheetName' in req.range
-            ? (req.range as { sheetName: string }).sheetName
-            : this.getSheetNameFromRange(resolvedRange)
+      'range' in req && req.range && typeof req.range === 'object' && 'sheetName' in req.range
+        ? (req.range as { sheetName: string }).sheetName
         : undefined;
 
     const samplingRequest = buildFormulaSamplingRequest(req.description, {

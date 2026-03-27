@@ -13,13 +13,6 @@ interface SessionContextCandidate {
   recordOperation?: SessionContextManager['recordOperation'];
 }
 
-type HostedFailoverErrorCode = 'INTERNAL_ERROR' | 'UNKNOWN_ERROR';
-
-const HOSTED_FAILOVER_ERROR_CODES = new Set<HostedFailoverErrorCode>([
-  'INTERNAL_ERROR',
-  'UNKNOWN_ERROR',
-]);
-
 export interface ExecuteRoutedToolCallOptions<T> {
   readonly toolName: string;
   readonly transport: ToolTransport;
@@ -80,46 +73,6 @@ function unwrapRemoteCallResult<T>(result: CallToolResult | unknown): T {
   return result as T;
 }
 
-function assertHostedFailoverEligible(result: unknown): void {
-  if (!result || typeof result !== 'object' || !('response' in result)) {
-    return;
-  }
-
-  const response = (result as { response?: unknown }).response;
-  if (!response || typeof response !== 'object') {
-    return;
-  }
-
-  if ((response as { success?: unknown }).success !== false) {
-    return;
-  }
-
-  const error = (response as { error?: unknown }).error;
-  if (!error || typeof error !== 'object') {
-    return;
-  }
-
-  const code = (error as { code?: unknown }).code;
-  if (
-    typeof code === 'string' &&
-    HOSTED_FAILOVER_ERROR_CODES.has(code as HostedFailoverErrorCode)
-  ) {
-    const message =
-      typeof (error as { message?: unknown }).message === 'string'
-        ? (error as { message: string }).message
-        : `Local ${code.toLowerCase()} response`;
-    throw new ServiceError(
-      message,
-      code as HostedFailoverErrorCode,
-      'HostedRemoteFailover',
-      false,
-      {
-        localResult: result,
-      }
-    );
-  }
-}
-
 function createHostedRemoteExecutor<T>({
   toolName,
   args,
@@ -151,11 +104,7 @@ export async function executeRoutedToolCall<T>(
   return await dispatchToolCall({
     toolName: options.toolName,
     transport: options.transport,
-    localExecute: async () => {
-      const result = await options.localExecute();
-      assertHostedFailoverEligible(result);
-      return result;
-    },
+    localExecute: options.localExecute,
     remoteExecute: createRemoteExecutor(options) ?? createHostedRemoteExecutor(options),
   });
 }
