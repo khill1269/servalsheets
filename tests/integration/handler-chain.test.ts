@@ -1,212 +1,197 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import type { HandlerContext } from '../../src/handlers/base.js';
+import { SheetsCoreHandler } from '../../src/handlers/core.js';
+import { SheetsDataHandler } from '../../src/handlers/data.js';
+import { FormatHandler } from '../../src/handlers/format.js';
+import {
+  createMockSheetsApi,
+  createMockContext,
+  createMockDriveApi,
+} from '../helpers/google-api-mocks.js';
+
+function createAuthenticatedContext(overrides: Partial<HandlerContext> = {}): HandlerContext {
+  return createMockContext({
+    googleClient: {},
+    auth: {
+      hasElevatedAccess: false,
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file',
+      ],
+    },
+    ...overrides,
+  }) as HandlerContext;
+}
 
 describe('Handler Chain Integration', () => {
-  describe('Error Handling (404, 403, 429, 500)', () => {
-    it('should handle 404 Not Found', () => {
-      const response = {
-        success: false,
-        error: {
-          code: 'NOT_FOUND',
-          message: 'Spreadsheet not found',
-          retryable: false,
-        },
-      };
-      expect(response.success).toBe(false);
-      expect(response.error.code).toBe('NOT_FOUND');
-      expect(response.error.retryable).toBe(false);
+  it('executes create -> add_sheet through the real SheetsCoreHandler', async () => {
+    const mockSheetsApi = createMockSheetsApi();
+    mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
+      data: {
+        replies: [
+          {
+            addSheet: {
+              properties: {
+                sheetId: 7,
+                title: 'Expenses',
+                index: 1,
+                gridProperties: {
+                  rowCount: 1000,
+                  columnCount: 26,
+                },
+              },
+            },
+          },
+        ],
+      },
     });
 
-    it('should handle 403 Forbidden', () => {
-      const response = {
-        success: false,
-        error: {
-          code: 'PERMISSION_DENIED',
-          message: 'Insufficient permissions',
-          retryable: false,
-        },
-      };
-      expect(response.success).toBe(false);
-      expect(response.error.code).toBe('PERMISSION_DENIED');
+    const handler = new SheetsCoreHandler(
+      createAuthenticatedContext(),
+      mockSheetsApi,
+      createMockDriveApi()
+    );
+
+    const createResult = await handler.handle({
+      action: 'create',
+      title: 'Quarterly Ops',
     });
 
-    it('should handle 429 Rate Limited', () => {
-      const response = {
-        success: false,
-        error: {
-          code: 'QUOTA_EXCEEDED',
-          message: 'Rate limited, retry after delay',
-          retryable: true,
-          retryAfterMs: 5000,
-        },
-      };
-      expect(response.success).toBe(false);
-      expect(response.error.retryable).toBe(true);
-      expect(response.error.retryAfterMs).toBeGreaterThan(0);
+    expect(createResult.response.success).toBe(true);
+    if (!createResult.response.success) {
+      throw new Error('Expected create to succeed');
+    }
+
+    const spreadsheetId = createResult.response.newSpreadsheetId;
+
+    const addSheetResult = await handler.handle({
+      action: 'add_sheet',
+      spreadsheetId,
+      title: 'Expenses',
     });
 
-    it('should handle 500 Internal Server Error', () => {
-      const response = {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          retryable: true,
-        },
-      };
-      expect(response.success).toBe(false);
-      expect(response.error.retryable).toBe(true);
-    });
+    expect(addSheetResult.response.success).toBe(true);
+    if (!addSheetResult.response.success) {
+      throw new Error('Expected add_sheet to succeed');
+    }
+
+    expect(addSheetResult.response.sheet.title).toBe('Expenses');
+    expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalledTimes(1);
+    expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId,
+      })
+    );
   });
 
-  describe('Cross-Handler Scenarios', () => {
-    it('should chain create → add_sheet → write', () => {
-      // Step 1: Create spreadsheet
-      const createResponse = {
-        success: true,
-        action: 'create',
-        spreadsheetId: 'new-123',
-      };
+  it('executes read -> set_background across real handlers with shared mocks', async () => {
+    const mockSheetsApi = createMockSheetsApi();
+    const rangeResolver = {
+      resolve: vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:B2',
+        sheetId: 0,
+        sheetName: 'Sheet1',
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 2,
+          startColumnIndex: 0,
+          endColumnIndex: 2,
+        },
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1,
+          path: '',
+        },
+      }),
+      clearCache: vi.fn(),
+    };
 
-      // Step 2: Add sheet to created spreadsheet
-      const addSheetResponse = {
-        success: true,
-        action: 'add_sheet',
-        spreadsheetId: 'new-123',
-        sheetId: 456,
-      };
+    const context = createAuthenticatedContext({ rangeResolver });
+    const dataHandler = new SheetsDataHandler(context, mockSheetsApi);
+    const formatHandler = new FormatHandler(context, mockSheetsApi);
 
-      // Step 3: Write data to added sheet
-      const writeResponse = {
-        success: true,
-        action: 'write',
-        spreadsheetId: 'new-123',
-        updatedRows: 10,
-      };
-
-      expect(createResponse.success).toBe(true);
-      expect(addSheetResponse.spreadsheetId).toBe(createResponse.spreadsheetId);
-      expect(writeResponse.spreadsheetId).toBe(createResponse.spreadsheetId);
+    const readResult = await dataHandler.handle({
+      action: 'read',
+      spreadsheetId: 'test-spreadsheet-id',
+      range: { a1: 'Sheet1!A1:B2' },
     });
 
-    it('should chain read → format → validate', () => {
-      // Step 1: Read data
-      const readResponse = {
-        success: true,
+    expect(readResult.response.success).toBe(true);
+    if (!readResult.response.success) {
+      throw new Error('Expected read to succeed');
+    }
+
+    const formatResult = await formatHandler.handle({
+      action: 'set_background',
+      spreadsheetId: 'test-spreadsheet-id',
+      range: { a1: 'Sheet1!A1:B2' },
+      color: { red: 1, green: 0, blue: 0 },
+    });
+
+    expect(formatResult.response.success).toBe(true);
+    if (!formatResult.response.success) {
+      throw new Error('Expected set_background to succeed');
+    }
+
+    expect(readResult.response.values).toEqual([
+      ['A1', 'B1'],
+      ['A2', 'B2'],
+    ]);
+    expect(formatResult.response.cellsFormatted).toBe(4);
+    expect(mockSheetsApi.spreadsheets.values.get).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'test-spreadsheet-id',
+        range: 'Sheet1!A1:B2',
+      })
+    );
+    expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'test-spreadsheet-id',
+      })
+    );
+  });
+
+  it('rejects with a structured auth error before handler execution', async () => {
+    const mockSheetsApi = createMockSheetsApi();
+    const handler = new SheetsDataHandler(createMockContext() as HandlerContext, mockSheetsApi);
+
+    await expect(
+      handler.handle({
         action: 'read',
-        values: [['Name', 'Age'], ['Alice', 30]],
-      };
-
-      // Step 2: Format the range
-      const formatResponse = {
-        success: true,
-        action: 'set_format',
-        spreadsheetId: 'format-123',
-      };
-
-      // Step 3: Validate
-      const validateResponse = {
-        success: true,
-        action: 'validate',
-        issues: 0,
-      };
-
-      expect(readResponse.values.length).toBe(2);
-      expect(formatResponse.success).toBe(true);
-      expect(validateResponse.issues).toBe(0);
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:B2' },
+      })
+    ).rejects.toMatchObject({
+      success: false,
+      error: {
+        code: 'AUTHENTICATION_REQUIRED',
+      },
     });
   });
 
-  describe('Input Boundary Conditions', () => {
-    it('should handle empty spreadsheet gracefully', () => {
-      const request = {
-        request: {
-          action: 'read',
-          spreadsheetId: 'empty-123',
-          range: 'Sheet1',
-        },
-      };
-      const response = {
-        success: true,
-        action: 'read',
-        values: [],
-      };
-      expect(response.values.length).toBe(0);
-      expect(response.success).toBe(true);
+  it('maps downstream API failures into structured handler errors', async () => {
+    const mockSheetsApi = createMockSheetsApi();
+    mockSheetsApi.spreadsheets.values.get = vi.fn().mockRejectedValue({
+      code: 429,
+      message: 'Too many requests',
     });
 
-    it('should handle very large ranges', () => {
-      const request = {
-        request: {
-          action: 'read',
-          spreadsheetId: 'large-123',
-          range: 'Sheet1!A1:Z1000',
-        },
-      };
-      expect(request.request.range.length).toBeGreaterThan(0);
+    const handler = new SheetsDataHandler(createAuthenticatedContext(), mockSheetsApi);
+
+    const result = await handler.handle({
+      action: 'read',
+      spreadsheetId: 'test-spreadsheet-id',
+      range: { a1: 'Sheet1!A1:B2' },
     });
 
-    it('should handle special characters in names', () => {
-      const sheetName = "Sheet's Data (Q1 2024)";
-      const request = {
-        request: {
-          action: 'read',
-          spreadsheetId: 'special-123',
-          range: `'${sheetName.replace(/'/g, "''")}!A1:B10`,
-        },
-      };
-      expect(request.request.range).toContain('A1:B10');
-    });
-  });
+    expect(result.response.success).toBe(false);
+    if (result.response.success) {
+      throw new Error('Expected rate-limit error');
+    }
 
-  describe('Value Boundary Conditions', () => {
-    it('should handle null/undefined values', () => {
-      const request = {
-        request: {
-          action: 'write',
-          spreadsheetId: 'null-123',
-          range: 'A1:B2',
-          values: [[null, 'text'], [undefined, 42]],
-        },
-      };
-      expect(request.request.values.length).toBe(2);
-    });
-
-    it('should handle very long strings', () => {
-      const longString = 'x'.repeat(50000);
-      const request = {
-        request: {
-          action: 'write',
-          spreadsheetId: 'long-123',
-          range: 'A1',
-          values: [[longString]],
-        },
-      };
-      expect(request.request.values[0][0].length).toBe(50000);
-    });
-
-    it('should handle numeric precision', () => {
-      const request = {
-        request: {
-          action: 'write',
-          spreadsheetId: 'float-123',
-          range: 'A1:C1',
-          values: [[0.1 + 0.2, Math.PI, 1e-10]],
-        },
-      };
-      expect(request.request.values[0].length).toBe(3);
-    });
-
-    it('should handle dates and timestamps', () => {
-      const now = new Date();
-      const request = {
-        request: {
-          action: 'write',
-          spreadsheetId: 'date-123',
-          range: 'A1',
-          values: [[now.toISOString()]],
-        },
-      };
-      expect(typeof request.request.values[0][0]).toBe('string');
-    });
+    expect(result.response.error.code.length).toBeGreaterThan(0);
+    expect(result.response.error.message.length).toBeGreaterThan(0);
+    expect(mockSheetsApi.spreadsheets.values.get).toHaveBeenCalledTimes(1);
   });
 });

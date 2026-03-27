@@ -1,259 +1,139 @@
 import { describe, it, expect } from 'vitest';
+import {
+  SheetsCoreInputSchema,
+  SheetsDataInputSchema,
+  SheetsFormatInputSchema,
+  SheetsDimensionsInputSchema,
+  SheetsVisualizeInputSchema,
+  SheetsCollaborateInputSchema,
+  SheetsTransactionInputSchema,
+  SheetsAnalyzeInputSchema,
+} from '../../src/schemas/index.js';
+import { getToolFixtures } from '../audit/action-coverage-fixtures.js';
 
-describe('Cross-Tool Workflows', () => {
-  describe('Create and Format Spreadsheet', () => {
-    it('should create spreadsheet then add formatted sheet', () => {
-      const createReq = {
-        request: {
-          action: 'create',
-          title: 'Q1 Budget',
-        },
-      };
-      const addSheetReq = {
-        request: {
-          action: 'add_sheet',
-          spreadsheetId: 'created-id-123',
-          properties: { title: 'Expenses' },
-        },
-      };
-      const formatReq = {
-        request: {
-          action: 'set_format',
-          spreadsheetId: 'created-id-123',
-          range: 'Expenses!A1:D1',
-          format: { numberFormat: '$#,##0.00' },
-        },
-      };
+type WorkflowInput = {
+  request: Record<string, unknown>;
+};
 
-      expect(createReq.request.action).toBe('create');
-      expect(addSheetReq.request.action).toBe('add_sheet');
-      expect(formatReq.request.action).toBe('set_format');
-      expect(addSheetReq.request.spreadsheetId).toBe('created-id-123');
-    });
+function getFixtureInput(tool: string, action: string): WorkflowInput {
+  const fixture = getToolFixtures(tool).find((candidate) => candidate.action === action);
+  if (!fixture) {
+    throw new Error(`Missing fixture for ${tool}.${action}`);
+  }
+  return structuredClone(fixture.validInput) as WorkflowInput;
+}
+
+function withSpreadsheetId(input: WorkflowInput, spreadsheetId: string): WorkflowInput {
+  const cloned = structuredClone(input);
+  cloned.request.spreadsheetId = spreadsheetId;
+  return cloned;
+}
+
+function expectValid(
+  label: string,
+  schema: {
+    safeParse: (input: unknown) => { success: boolean; error?: { issues: unknown[] } };
+  },
+  input: unknown
+): void {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    throw new Error(`${label} failed schema validation:\n${JSON.stringify(result.error?.issues, null, 2)}`);
+  }
+  expect(result.success).toBe(true);
+}
+
+describe('Cross-Tool Workflow Contracts', () => {
+  it('validates create -> add_sheet -> write -> set_format with a shared spreadsheet id', () => {
+    const create = getFixtureInput('sheets_core', 'create');
+    const createdSpreadsheetId = 'workflow-sheet-001';
+
+    const addSheet = withSpreadsheetId(getFixtureInput('sheets_core', 'add_sheet'), createdSpreadsheetId);
+    addSheet.request.title = 'Expenses';
+
+    const write = withSpreadsheetId(getFixtureInput('sheets_data', 'write'), createdSpreadsheetId);
+    const format = withSpreadsheetId(
+      getFixtureInput('sheets_format', 'set_format'),
+      createdSpreadsheetId
+    );
+
+    expectValid('sheets_core.create', SheetsCoreInputSchema, create);
+    expectValid('sheets_core.add_sheet', SheetsCoreInputSchema, addSheet);
+    expectValid('sheets_data.write', SheetsDataInputSchema, write);
+    expectValid('sheets_format.set_format', SheetsFormatInputSchema, format);
+
+    expect(addSheet.request.spreadsheetId).toBe(createdSpreadsheetId);
+    expect(write.request.spreadsheetId).toBe(createdSpreadsheetId);
+    expect(format.request.spreadsheetId).toBe(createdSpreadsheetId);
   });
 
-  describe('Data Analysis and Visualization', () => {
-    it('should read data then create chart', () => {
-      const readReq = {
-        request: {
-          action: 'read',
-          spreadsheetId: 'sheet-id-123',
-          range: 'Sheet1!A1:C100',
-        },
-      };
-      const chartReq = {
-        request: {
-          action: 'chart_create',
-          spreadsheetId: 'sheet-id-123',
-          chartType: 'LINE',
-          data: {
-            sourceRange: 'Sheet1!A1:C100',
-          },
-        },
-      };
+  it('validates read -> chart_create -> analyze_data over the same spreadsheet', () => {
+    const spreadsheetId = 'workflow-sheet-002';
+    const read = withSpreadsheetId(getFixtureInput('sheets_data', 'read'), spreadsheetId);
+    const chartCreate = withSpreadsheetId(
+      getFixtureInput('sheets_visualize', 'chart_create'),
+      spreadsheetId
+    );
+    const analyze = withSpreadsheetId(
+      getFixtureInput('sheets_analyze', 'analyze_data'),
+      spreadsheetId
+    );
 
-      expect(readReq.request.action).toBe('read');
-      expect(chartReq.request.action).toBe('chart_create');
-      expect(chartReq.request.chartType).toBe('LINE');
-    });
+    expectValid('sheets_data.read', SheetsDataInputSchema, read);
+    expectValid('sheets_visualize.chart_create', SheetsVisualizeInputSchema, chartCreate);
+    expectValid('sheets_analyze.analyze_data', SheetsAnalyzeInputSchema, analyze);
+
+    expect(chartCreate.request.spreadsheetId).toBe(spreadsheetId);
+    expect(analyze.request.spreadsheetId).toBe(spreadsheetId);
   });
 
-  describe('Collaboration Setup', () => {
-    it('should share spreadsheet then add comment', () => {
-      const shareReq = {
-        request: {
-          action: 'share_add',
-          spreadsheetId: 'shared-id-123',
-          type: 'user',
-          role: 'writer',
-        },
-      };
-      const commentReq = {
-        request: {
-          action: 'comment_add',
-          spreadsheetId: 'shared-id-123',
-          content: 'Please review Q1 numbers',
-        },
-      };
+  it('validates freeze -> resize -> sort_range as a single dimensions workflow', () => {
+    const spreadsheetId = 'workflow-sheet-003';
+    const freeze = withSpreadsheetId(getFixtureInput('sheets_dimensions', 'freeze'), spreadsheetId);
+    const resize = withSpreadsheetId(getFixtureInput('sheets_dimensions', 'resize'), spreadsheetId);
+    const sortRange = withSpreadsheetId(
+      getFixtureInput('sheets_dimensions', 'sort_range'),
+      spreadsheetId
+    );
 
-      expect(shareReq.request.action).toBe('share_add');
-      expect(commentReq.request.action).toBe('comment_add');
-      expect(['user', 'group', 'domain', 'anyone']).toContain(shareReq.request.type);
-    });
+    expectValid('sheets_dimensions.freeze', SheetsDimensionsInputSchema, freeze);
+    expectValid('sheets_dimensions.resize', SheetsDimensionsInputSchema, resize);
+    expectValid('sheets_dimensions.sort_range', SheetsDimensionsInputSchema, sortRange);
+
+    expect(freeze.request.spreadsheetId).toBe(spreadsheetId);
+    expect(resize.request.spreadsheetId).toBe(spreadsheetId);
+    expect(sortRange.request.spreadsheetId).toBe(spreadsheetId);
   });
 
-  describe('Transactional Update', () => {
-    it('should begin transaction, write data, commit', () => {
-      const beginReq = {
-        request: {
-          action: 'begin',
-          spreadsheetId: 'tx-sheet-123',
-        },
-      };
-      const queueReq = {
-        request: {
-          action: 'queue',
-          transactionId: 'tx-abc-123',
-          tool: 'sheets_data',
-          operation: 'write',
-        },
-      };
-      const commitReq = {
-        request: {
-          action: 'commit',
-          transactionId: 'tx-abc-123',
-        },
-      };
+  it('validates collaboration flows with shared spreadsheet context', () => {
+    const spreadsheetId = 'workflow-sheet-004';
+    const share = withSpreadsheetId(getFixtureInput('sheets_collaborate', 'share_add'), spreadsheetId);
+    const comment = withSpreadsheetId(
+      getFixtureInput('sheets_collaborate', 'comment_add'),
+      spreadsheetId
+    );
 
-      expect(beginReq.request.action).toBe('begin');
-      expect(queueReq.request.action).toBe('queue');
-      expect(commitReq.request.action).toBe('commit');
-      expect(queueReq.request.transactionId).toBe('tx-abc-123');
-    });
+    expectValid('sheets_collaborate.share_add', SheetsCollaborateInputSchema, share);
+    expectValid('sheets_collaborate.comment_add', SheetsCollaborateInputSchema, comment);
+
+    expect(share.request.spreadsheetId).toBe(spreadsheetId);
+    expect(comment.request.spreadsheetId).toBe(spreadsheetId);
   });
 
-  describe('Data Analysis Workflow', () => {
-    it('should analyze sheet then generate suggestions', () => {
-      const analyzeReq = {
-        request: {
-          action: 'comprehensive',
-          spreadsheetId: 'data-sheet-123',
-        },
-      };
-      const suggestReq = {
-        request: {
-          action: 'suggest_next_actions',
-          spreadsheetId: 'data-sheet-123',
-          maxSuggestions: 5,
-        },
-      };
+  it('validates begin -> queue -> commit transaction sequencing', () => {
+    const begin = withSpreadsheetId(
+      getFixtureInput('sheets_transaction', 'begin'),
+      'workflow-sheet-005'
+    );
+    const queue = getFixtureInput('sheets_transaction', 'queue');
+    const commit = getFixtureInput('sheets_transaction', 'commit');
 
-      expect(analyzeReq.request.action).toBe('comprehensive');
-      expect(suggestReq.request.action).toBe('suggest_next_actions');
-    });
-  });
+    expectValid('sheets_transaction.begin', SheetsTransactionInputSchema, begin);
+    expectValid('sheets_transaction.queue', SheetsTransactionInputSchema, queue);
+    expectValid('sheets_transaction.commit', SheetsTransactionInputSchema, commit);
 
-  describe('Template-Based Creation', () => {
-    it('should apply template to new spreadsheet', () => {
-      const createReq = {
-        request: {
-          action: 'create',
-          title: 'New Project',
-        },
-      };
-      const applyTemplateReq = {
-        request: {
-          action: 'apply',
-          templateId: 'template-budget-001',
-          spreadsheetId: 'new-sheet-456',
-        },
-      };
-
-      expect(createReq.request.action).toBe('create');
-      expect(applyTemplateReq.request.action).toBe('apply');
-    });
-  });
-
-  describe('Dimension Management', () => {
-    it('should freeze header, resize columns, sort data', () => {
-      const freezeReq = {
-        request: {
-          action: 'freeze',
-          spreadsheetId: 'dim-sheet-123',
-          dimension: 'ROWS',
-          count: 1,
-        },
-      };
-      const resizeReq = {
-        request: {
-          action: 'resize',
-          spreadsheetId: 'dim-sheet-123',
-          dimension: 'COLUMNS',
-          startIndex: 0,
-          endIndex: 5,
-          pixelSize: 200,
-        },
-      };
-      const sortReq = {
-        request: {
-          action: 'sort_range',
-          spreadsheetId: 'dim-sheet-123',
-          range: 'Sheet1!A1:D100',
-        },
-      };
-
-      expect(freezeReq.request.action).toBe('freeze');
-      expect(resizeReq.request.action).toBe('resize');
-      expect(sortReq.request.action).toBe('sort_range');
-    });
-  });
-
-  describe('History and Undo', () => {
-    it('should track changes then undo/redo', () => {
-      const readReq = {
-        request: {
-          action: 'read',
-          spreadsheetId: 'hist-sheet-123',
-          range: 'A1:D10',
-        },
-      };
-      const timelineReq = {
-        request: {
-          action: 'timeline',
-          spreadsheetId: 'hist-sheet-123',
-        },
-      };
-      const undoReq = {
-        request: {
-          action: 'undo',
-          spreadsheetId: 'hist-sheet-123',
-        },
-      };
-      const redoReq = {
-        request: {
-          action: 'redo',
-          spreadsheetId: 'hist-sheet-123',
-        },
-      };
-
-      expect(readReq.request.action).toBe('read');
-      expect(timelineReq.request.action).toBe('timeline');
-      expect(undoReq.request.action).toBe('undo');
-      expect(redoReq.request.action).toBe('redo');
-    });
-  });
-
-  describe('Batch Operations', () => {
-    it('should batch read multiple ranges', () => {
-      const batchReadReq = {
-        request: {
-          action: 'batch_read',
-          spreadsheetId: 'batch-sheet-123',
-          ranges: ['Sheet1!A1:D10', 'Sheet2!A1:B5'],
-        },
-      };
-      expect(batchReadReq.request.action).toBe('batch_read');
-      expect(Array.isArray(batchReadReq.request.ranges)).toBe(true);
-      expect(batchReadReq.request.ranges.length).toBe(2);
-    });
-  });
-
-  describe('Conditional Formatting', () => {
-    it('should apply conditional formatting rules', () => {
-      const conditionalReq = {
-        request: {
-          action: 'add_conditional_format_rule',
-          spreadsheetId: 'cond-sheet-123',
-          range: 'Sheet1!A1:D100',
-          rule: {
-            booleanRule: {
-              condition: { type: 'NOT_BLANK' },
-            },
-          },
-        },
-      };
-      expect(conditionalReq.request.action).toBe('add_conditional_format_rule');
-      expect(conditionalReq.request.rule).toBeDefined();
-    });
+    expect(begin.request.action).toBe('begin');
+    expect(queue.request.action).toBe('queue');
+    expect(commit.request.action).toBe('commit');
   });
 });
