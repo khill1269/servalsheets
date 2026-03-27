@@ -92,6 +92,8 @@ get_budget_override() {
     "src/services/session-context.ts")      echo 1850 ;;
     # impact-analyzer.ts: 1287 lines — dependency impact analysis
     "src/services/impact-analyzer.ts")      echo 1450 ;;
+    # cleaning-engine-rules.ts: 804 lines — rule ordering and regex helpers
+    "src/services/cleaning-engine-rules.ts") echo 850 ;;
     # cache-invalidation-graph.ts: 805 lines — full action → dep mapping for all 25 tools
     "src/services/cache-invalidation-graph.ts") echo 900 ;;
     # composite-operations.ts: 835 lines — CSV/XLSX import, dedup, smart-append
