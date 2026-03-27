@@ -86,7 +86,11 @@ function deriveKey(configDir: string = CONNECTOR_CONFIG_DIR): Buffer | null {
   const saltHex = salt.toString('hex');
 
   // Return cached key if password and salt are unchanged
-  if (_cachedDerivedKey && _cachedDerivedKey.password === password && _cachedDerivedKey.salt === saltHex) {
+  if (
+    _cachedDerivedKey &&
+    _cachedDerivedKey.password === password &&
+    _cachedDerivedKey.salt === saltHex
+  ) {
     return _cachedDerivedKey.key;
   }
 

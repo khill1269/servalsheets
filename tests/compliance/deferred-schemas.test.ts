@@ -153,7 +153,7 @@ describe('Deferred Schema Mode', () => {
   });
 
   describe('Schema size optimization', () => {
-    it('total deferred schema payload should be under 30KB', () => {
+    it('total deferred schema payload should stay within the current compact budget', () => {
       if (!DEFER_SCHEMAS) return;
 
       let totalSize = 0;
@@ -170,9 +170,9 @@ describe('Deferred Schema Mode', () => {
         totalSize += JSON.stringify(outputJson).length;
       }
 
-      // 25 tools, 391 actions: flat input schemas (~26KB) + minimal output schemas (~6KB) ≈ ~32KB
-      // With action enums and property descriptions, budget is ~55KB
-      expect(totalSize).toBeLessThan(55_000);
+      // Current deferred payload includes 25 tools / 407 actions and stays
+      // compact enough for initial registration while allowing inline hints.
+      expect(totalSize).toBeLessThan(56_000);
     });
   });
 });

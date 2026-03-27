@@ -5,7 +5,7 @@ metadata:
   namespace: servalsheets
   labels:
     app: servalsheets
-    version: 1.1.0
+    version: 2.0.0
 spec:
   replicas: 2
   strategy:
@@ -20,7 +20,7 @@ spec:
     metadata:
       labels:
         app: servalsheets
-        version: 1.1.0
+        version: 2.0.0
       annotations:
         prometheus.io/scrape: 'true'
         prometheus.io/port: '3000'
@@ -28,9 +28,8 @@ spec:
     spec:
       containers:
         - name: servalsheets
-          image: servalsheets:1.1.0
+          image: ghcr.io/khill1269/servalsheets:2.0.0
           imagePullPolicy: Always
-          command: ['npm', 'run', 'start:http']
           ports:
             - name: http
               containerPort: 3000
@@ -84,7 +83,7 @@ spec:
               memory: 2Gi
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: http
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -92,7 +91,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: http
             initialDelaySeconds: 10
             periodSeconds: 5

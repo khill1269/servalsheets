@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsAppsScriptHandler } from '../../src/handlers/appsscript.js';
 import { SheetsDataHandler } from '../../src/handlers/data.js';
+import { setMaxConcurrentRuns } from '../../src/handlers/appsscript-actions/execution-operations.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
 
@@ -39,6 +40,11 @@ const createMockAppsScriptContext = (): HandlerContext =>
     cachedApi: {} as any,
     googleClient: {
       oauth2: { getAccessToken: vi.fn().mockResolvedValue({ token: 'new-token' }) },
+      getTokenStatus: vi.fn().mockReturnValue({
+        hasAccessToken: true,
+        hasRefreshToken: true,
+        expiryDate: Date.now() + 60 * 60 * 1000,
+      }),
     } as any,
     samplingServer: undefined,
     elicitationServer: undefined,
@@ -77,19 +83,14 @@ describe('Concurrent modification edge cases', () => {
       const mockContext = createMockAppsScriptContext();
       mockSheetsApi = createMockSheetsApi();
       handler = new SheetsAppsScriptHandler(mockContext, mockSheetsApi);
-      // Reset static counter to 0 before each test
-      (SheetsAppsScriptHandler as any).activeRunExecutions = 0;
+      setMaxConcurrentRuns(15);
     });
 
     afterEach(() => {
-      // Always restore counter to avoid polluting other tests
-      (SheetsAppsScriptHandler as any).activeRunExecutions = 0;
+      setMaxConcurrentRuns(15);
     });
 
     it('allows run when under the concurrent execution limit', async () => {
-      // Set counter well below limit
-      (SheetsAppsScriptHandler as any).activeRunExecutions = 5;
-
       // Mock a successful execution
       const mockApiRequest = vi.fn().mockResolvedValue({
         done: true,
@@ -102,6 +103,7 @@ describe('Concurrent modification edge cases', () => {
           action: 'run',
           scriptId: 'test-script-id',
           functionName: 'myFunction',
+          devMode: true,
         },
       });
 
@@ -110,14 +112,14 @@ describe('Concurrent modification edge cases', () => {
     });
 
     it('returns QUOTA_EXCEEDED when concurrent execution limit is reached', async () => {
-      // Set counter to max (15 — the configured limit)
-      (SheetsAppsScriptHandler as any).activeRunExecutions = 15;
+      setMaxConcurrentRuns(0);
 
       const result = await handler.handle({
         request: {
           action: 'run',
           scriptId: 'test-script-id',
           functionName: 'myFunction',
+          devMode: true,
         },
       });
 
@@ -129,18 +131,22 @@ describe('Concurrent modification edge cases', () => {
     });
 
     it('releases the slot even when execution returns an error result', async () => {
-      (SheetsAppsScriptHandler as any).activeRunExecutions = 3;
-      const initialCount = 3;
+      setMaxConcurrentRuns(1);
 
-      // Mock API returning a script error in the response body (not a thrown exception)
-      const mockApiRequest = vi.fn().mockResolvedValue({
-        done: true,
-        error: {
-          code: 500,
-          message: 'Script error',
-          details: [{ '@type': 'type.googleapis.com/google.apps.script.v1.ExecutionError' }],
-        },
-      });
+      const mockApiRequest = vi
+        .fn()
+        .mockResolvedValueOnce({
+          done: true,
+          error: {
+            code: 500,
+            message: 'Script error',
+            details: [{ '@type': 'type.googleapis.com/google.apps.script.v1.ExecutionError' }],
+          },
+        })
+        .mockResolvedValueOnce({
+          done: true,
+          response: { result: 'ok' },
+        });
       (handler as any).apiRequest = mockApiRequest;
 
       await handler.handle({
@@ -148,13 +154,22 @@ describe('Concurrent modification edge cases', () => {
           action: 'run',
           scriptId: 'test-script-id',
           functionName: 'failingFunction',
+          devMode: true,
         },
       });
 
-      // Counter should be decremented back, not leak
-      // Lifecycle: start=3 → increment to 4 → decrement to 3 (net change = 0)
-      const finalCount = (SheetsAppsScriptHandler as any).activeRunExecutions;
-      expect(finalCount).toBe(initialCount);
+      const secondResult = await handler.handle({
+        request: {
+          action: 'run',
+          scriptId: 'test-script-id',
+          functionName: 'recoveredFunction',
+          devMode: true,
+        },
+      });
+
+      expect(secondResult.response.success).toBe(true);
+      expect((secondResult.response as { result?: unknown }).result).toBe('ok');
+      expect(mockApiRequest).toHaveBeenCalledTimes(2);
     });
   });
 

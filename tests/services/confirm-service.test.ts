@@ -683,22 +683,27 @@ describe('ConfirmService', () => {
     });
 
     it('should track average response time', () => {
-      const now = Date.now();
-      // Process with known response times
-      service.processElicitationResult(
-        { action: 'accept', content: { approved: true } },
-        now - 1000
-      ); // 1000ms
-      service.processElicitationResult(
-        { action: 'accept', content: { approved: true } },
-        now - 2000
-      ); // 2000ms
-      service.processElicitationResult({ action: 'decline' }, now - 3000); // 3000ms
+      const now = 1704067204000;
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
 
-      const stats = service.getStats();
+      try {
+        service.processElicitationResult(
+          { action: 'accept', content: { approved: true } },
+          now - 1000
+        ); // 1000ms
+        service.processElicitationResult(
+          { action: 'accept', content: { approved: true } },
+          now - 2000
+        ); // 2000ms
+        service.processElicitationResult({ action: 'decline' }, now - 3000); // 3000ms
 
-      // Average should be (1000 + 2000 + 3000) / 3 = 2000ms
-      expect(stats.avgResponseTime).toBeCloseTo(2000, 0);
+        const stats = service.getStats();
+
+        // Average should be (1000 + 2000 + 3000) / 3 = 2000ms
+        expect(stats.avgResponseTime).toBe(2000);
+      } finally {
+        dateNowSpy.mockRestore();
+      }
     });
 
     it('should reset statistics', () => {

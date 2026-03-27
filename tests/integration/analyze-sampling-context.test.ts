@@ -117,6 +117,18 @@ vi.mock('../../src/services/index.js', async () => {
   };
 });
 
+vi.mock('../../src/services/google-api.js', async () => {
+  const actual = await vi.importActual<typeof import('../../src/services/google-api.js')>(
+    '../../src/services/google-api.js'
+  );
+
+  return {
+    ...actual,
+    createGoogleApiClient: mockCreateGoogleApiClient,
+    GoogleApiClient: class MockGoogleApiClient {},
+  };
+});
+
 vi.mock('../../src/startup/performance-init.js', () => ({
   initializePerformanceOptimizations: vi.fn(async () => ({
     batchingSystem: undefined,

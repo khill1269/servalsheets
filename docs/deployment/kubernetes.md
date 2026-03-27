@@ -210,7 +210,7 @@ spec:
   replicas: 1
   image:
     repository: servalsheets/server
-    tag: '1.6.0'
+    tag: '2.0.0'
     pullPolicy: IfNotPresent
 ```
 
@@ -226,7 +226,7 @@ spec:
   replicas: 3
   image:
     repository: servalsheets/server
-    tag: '1.6.0'
+    tag: '2.0.0'
     pullPolicy: IfNotPresent
 
   resources:
@@ -614,7 +614,7 @@ spec:
     spec:
       containers:
         - name: servalsheets
-          image: servalsheets:1.6.0
+          image: servalsheets:2.0.0
           ports:
             - containerPort: 3000
           env:
@@ -635,13 +635,13 @@ spec:
               memory: 2Gi
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 3000
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 5
@@ -783,7 +783,7 @@ spec:
   replicas: 5
   image:
     repository: servalsheets/server
-    tag: '1.6.0'
+    tag: '2.0.0'
     pullPolicy: IfNotPresent
 
   resources:
@@ -865,7 +865,7 @@ spec:
   replicas: 3
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: "2.0.0"
   resources:
     requests:
       cpu: "500m"
@@ -907,7 +907,7 @@ spec:
   replicas: 3
   image:
     repository: servalsheets/server
-    tag: "1.6.0"
+    tag: "2.0.0"
   resources:
     requests:
       cpu: "500m"
@@ -1159,7 +1159,7 @@ kubectl get endpoints -n my-namespace
 
 # Test Service directly (port-forward)
 kubectl port-forward -n my-namespace svc/<service-name> 8080:80
-curl http://localhost:8080/health
+curl http://localhost:8080/health/ready
 
 # Check TLS certificate
 kubectl get secret <tls-secret-name> -n my-namespace

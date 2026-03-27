@@ -30,7 +30,7 @@ Then visit: http://localhost:8080
   kubectl logs -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "servalsheets.name" . }}" -f
 
 🔍 Health check:
-  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "servalsheets.fullname" . }} -- curl -s localhost:{{ .Values.config.httpPort }}/health
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "servalsheets.fullname" . }} -- curl -s localhost:{{ .Values.config.httpPort }}/health/ready
 
 {{- if .Values.serviceMonitor.enabled }}
 

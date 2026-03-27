@@ -99,6 +99,8 @@ get_budget_override() {
     # agent-engine.ts: now a thin re-export facade (~75 lines) — no budget override needed
     # batching-system.ts: 1028 lines — intent → batchUpdate compiler
     "src/services/batching-system.ts")      echo 1150 ;;
+    # cleaning-engine-rules.ts: 804 lines — regex/date normalization tables; keep flat until targeted extraction lands
+    "src/services/cleaning-engine-rules.ts") echo 850 ;;
     # webhook-manager.ts: 976 lines — webhook delivery
     "src/services/webhook-manager.ts")      echo 1100 ;;
 
