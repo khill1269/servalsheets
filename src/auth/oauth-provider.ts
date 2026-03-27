@@ -844,7 +844,8 @@ export class OAuthProvider {
           if (!authHeader || authHeader !== `Bearer ${dcrToken}`) {
             res.status(401).json({
               error: 'invalid_token',
-              error_description: 'A valid initial access token is required for dynamic client registration.',
+              error_description:
+                'A valid initial access token is required for dynamic client registration.',
             });
             return;
           }
