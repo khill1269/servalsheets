@@ -8,11 +8,17 @@ on:
       - '.dependency-cruiser.cjs'
       - 'package.json'
       - 'package-lock.json'
+      - '**/package.json'
+      - '**/package-lock.json'
   push:
     branches: [main, develop]
     paths:
       - 'src/**/*.ts'
       - '.dependency-cruiser.cjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '**/package.json'
+      - '**/package-lock.json'
 
 permissions:
   contents: read

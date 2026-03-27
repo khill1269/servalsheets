@@ -6,7 +6,7 @@ version: '3.8'
 services:
   # ServalSheets HTTP Server (Production)
   servalsheets:
-    image: ghcr.io/khill1269/servalsheets:latest
+    image: ghcr.io/khill1269/servalsheets:2.0.0
     container_name: servalsheets-prod
     ports:
       - '3000:3000'
@@ -103,7 +103,7 @@ services:
     depends_on:
       - servalsheets
     healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/health']
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/health/live']
       interval: 30s
       timeout: 3s
       retries: 3

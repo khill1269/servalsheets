@@ -69,7 +69,7 @@ replicaCount: 3
 
 image:
   repository: ghcr.io/khill1269/servalsheets
-  tag: '1.6.0'
+  tag: '2.0.0'
 
 config:
   logLevel: warn
@@ -167,7 +167,7 @@ kubectl logs -n servalsheets -l app.kubernetes.io/name=servalsheets -f
 ### Health check
 
 ```bash
-kubectl exec -n servalsheets deploy/servalsheets -- curl -s localhost:3000/health
+kubectl exec -n servalsheets deploy/servalsheets -- curl -s localhost:3000/health/ready
 ```
 
 ## License

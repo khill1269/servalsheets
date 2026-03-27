@@ -24,7 +24,7 @@ stdio setup, use [`CLAUDE_DESKTOP_SETUP.md`](../guides/CLAUDE_DESKTOP_SETUP.md).
 
 ```bash
 # Pull or build image
-docker build -t servalsheets:latest .
+docker build -f deployment/docker/Dockerfile -t servalsheets:latest .
 
 # Run with service account
 docker run -d \
@@ -46,7 +46,9 @@ version: '3.8'
 
 services:
   servalsheets:
-    build: .
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile
     ports:
       - '3000:3000'
     environment:
@@ -57,7 +59,7 @@ services:
     volumes:
       - ./service-account.json:/etc/google/service-account.json:ro
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health/live']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -101,7 +103,7 @@ allowlist settings described in
 docker inspect servalsheets --format='{{.State.Health.Status}}'
 
 # View health endpoint
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 ```
 
 ## Logs

@@ -19,8 +19,8 @@ Enterprise deployment options for ServalSheets MCP Server.
 ### Docker
 
 ```bash
-# Build
-docker build -t servalsheets:latest .
+# Build using the dedicated deployment Dockerfile
+docker build -f deployment/docker/Dockerfile -t servalsheets:latest .
 
 # Run with service account
 docker run -d \
@@ -33,14 +33,8 @@ docker run -d \
 ### Docker Compose
 
 ```bash
-# Copy environment file
-cp .env.docker.example .env
-
-# Edit with your credentials
-vim .env
-
-# Start
-docker-compose up -d
+# Start the deployment/docker stack from the repo root
+docker compose -f deployment/docker/docker-compose.yml up -d
 ```
 
 ### Kubernetes
@@ -162,9 +156,10 @@ All deployments should configure health checks:
 
 | Endpoint       | Purpose    | Expected Response |
 | -------------- | ---------- | ----------------- |
-| `GET /health`  | Liveness   | `200 OK`          |
-| `GET /ready`   | Readiness  | `200 OK`          |
-| `GET /metrics` | Prometheus | Metrics payload   |
+| `GET /health/live`  | Liveness   | `200 OK`        |
+| `GET /health/ready` | Readiness  | `200 OK`        |
+| `GET /health`       | Alias      | `200 OK`        |
+| `GET /metrics`      | Prometheus | Metrics payload |
 
 ## Monitoring
 
@@ -225,7 +220,7 @@ Access:
 
 ```bash
 # Check health
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 
 # View logs (Docker)
 docker logs servalsheets -f
