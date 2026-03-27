@@ -6,10 +6,13 @@
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { ServalSheetsServer } from '../../src/server.js';
+import { createMcpLogRateLimitState } from '../../src/server/logging-bridge-utils.js';
+import { installServerLoggingBridge } from '../../src/server/logging-bridge.js';
 import { logger } from '../../src/utils/logger.js';
 
 describe('MCP Logging Notifications', () => {
   let server: ServalSheetsServer;
+  const originalLoggerLog = logger.log;
 
   beforeAll(async () => {
     server = new ServalSheetsServer({});
@@ -22,15 +25,31 @@ describe('MCP Logging Notifications', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    logger.log = originalLoggerLog;
   });
 
+  function installBridge(requestedMcpLogLevel: 'debug' | 'info' | 'warning' | 'error') {
+    let loggingBridgeInstalled = false;
+    let forwardingMcpLog = false;
+    const rateLimitState = createMcpLogRateLimitState();
+
+    installServerLoggingBridge({
+      loggingBridgeInstalled,
+      setLoggingBridgeInstalled: (value) => {
+        loggingBridgeInstalled = value;
+      },
+      getRequestedMcpLogLevel: () => requestedMcpLogLevel,
+      getForwardingMcpLog: () => forwardingMcpLog,
+      setForwardingMcpLog: (value) => {
+        forwardingMcpLog = value;
+      },
+      getRateLimitState: () => rateLimitState,
+      server: server.server,
+    });
+  }
+
   it('should forward logs via sendLoggingMessage when MCP level is set', async () => {
-    const internal = server as unknown as {
-      requestedMcpLogLevel?: string;
-      installLoggingBridge: () => void;
-    };
-    internal.requestedMcpLogLevel = 'debug';
-    internal.installLoggingBridge();
+    installBridge('debug');
 
     const sendLoggingMessageSpy = vi
       .spyOn(server.server.server, 'sendLoggingMessage')
@@ -58,12 +77,7 @@ describe('MCP Logging Notifications', () => {
   });
 
   it('redacts sensitive metadata before emitting MCP log notifications', async () => {
-    const internal = server as unknown as {
-      requestedMcpLogLevel?: string;
-      installLoggingBridge: () => void;
-    };
-    internal.requestedMcpLogLevel = 'debug';
-    internal.installLoggingBridge();
+    installBridge('debug');
 
     const sendLoggingMessageSpy = vi
       .spyOn(server.server.server, 'sendLoggingMessage')

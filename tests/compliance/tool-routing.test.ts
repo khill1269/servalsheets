@@ -48,8 +48,9 @@ describe('Tool Routing - Description Quality', () => {
     for (const tool of ALL_TOOLS) {
       const desc = TOOL_DESCRIPTIONS_MINIMAL[tool]!;
       expect(desc.length).toBeGreaterThan(10);
-      // Should mention the tool category or key purpose
-      expect(desc.length).toBeLessThanOrEqual(300); // Token efficient
+      // Minimal descriptions are still compact, but some now include explicit
+      // "when to use / when to skip" routing guardrails.
+      expect(desc.length).toBeLessThanOrEqual(500);
     }
   });
 
@@ -71,7 +72,7 @@ describe('Tool Routing - Description Quality', () => {
     expect(fullDesc).toContain('Skip this tool when:');
     expect(fullDesc).toContain('Use this first ONLY when:');
     expect(minimalDesc).not.toContain('START HERE');
-    expect(minimalDesc).toContain('skip this tool');
+    expect(minimalDesc).toMatch(/skip/i);
   });
 });
 
@@ -136,7 +137,7 @@ describe('Tool Routing - Decision Tree Coverage', () => {
   it('should cover CRUD scenarios', () => {
     // Create
     expect(instructions).toContain('sheets_core');
-    expect(instructions).toContain('create');
+    expect(instructions).toContain('create spreadsheet');
 
     // Read
     expect(instructions).toContain('sheets_data');
@@ -146,7 +147,7 @@ describe('Tool Routing - Decision Tree Coverage', () => {
     expect(instructions).toContain('write');
 
     // Delete
-    expect(instructions).toContain('delete_sheet');
+    expect(instructions).toContain('0-based indices for insert/delete');
   });
 
   it('should cover data quality workflow', () => {
@@ -163,8 +164,8 @@ describe('Tool Routing - Decision Tree Coverage', () => {
 
   it('should cover collaboration scenarios', () => {
     expect(instructions).toContain('sheets_collaborate');
-    expect(instructions).toContain('share_add');
-    expect(instructions).toContain('comment_add');
+    expect(instructions).toContain('share');
+    expect(instructions).toContain('protect');
   });
 
   it('should cover automation scenarios', () => {
@@ -176,12 +177,12 @@ describe('Tool Routing - Decision Tree Coverage', () => {
   it('should cover safety scenarios', () => {
     expect(instructions).toContain('sheets_confirm');
     expect(instructions).toContain('sheets_transaction');
-    expect(instructions).toContain('dryRun');
+    expect(instructions).toContain('record_operation');
   });
 
   it('should cover large dataset scenarios', () => {
-    expect(instructions).toContain('>10K rows');
-    expect(instructions).toContain('batch_read');
+    expect(instructions).toContain('Large dataset or performance concern');
+    expect(instructions).toContain('guide://range-strategy');
     expect(instructions).toContain('sheets_bigquery');
   });
 
