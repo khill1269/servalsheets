@@ -378,7 +378,27 @@ jobs:
           echo "## 🏎️ Performance Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           for job in regression-tests compliance-tests tool-benchmarks action-benchmarks live-api-tests; do
-            result="${{ needs[job].result || 'unknown' }}"
+            case "$job" in
+              regression-tests)
+                result="${{ needs.regression-tests.result }}"
+                ;;
+              compliance-tests)
+                result="${{ needs.compliance-tests.result }}"
+                ;;
+              tool-benchmarks)
+                result="${{ needs.tool-benchmarks.result }}"
+                ;;
+              action-benchmarks)
+                result="${{ needs.action-benchmarks.result }}"
+                ;;
+              live-api-tests)
+                result="${{ needs.live-api-tests.result }}"
+                ;;
+              *)
+                result="unknown"
+                ;;
+            esac
+
             case "$result" in
               success) echo "- ✅ $job: Passed" >> $GITHUB_STEP_SUMMARY ;;
               skipped) echo "- ⏭️ $job: Skipped" >> $GITHUB_STEP_SUMMARY ;;
