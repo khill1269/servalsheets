@@ -35,6 +35,10 @@ docker run -d \
 ```bash
 # Start the deployment/docker stack from the repo root
 docker compose -f deployment/docker/docker-compose.yml up -d
+
+# Optional: include the nginx TLS proxy after placing certs in
+# deployment/docker/certs/ and reviewing deployment/docker/nginx.conf
+docker compose -f deployment/docker/docker-compose.prod.yml --profile production up -d
 ```
 
 ### Kubernetes

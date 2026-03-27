@@ -42,12 +42,10 @@ For production deployments with additional services:
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
-
 services:
   servalsheets:
     build:
-      context: .
+      context: ../..
       dockerfile: deployment/docker/Dockerfile
     ports:
       - '3000:3000'
@@ -79,7 +77,12 @@ volumes:
 Start:
 
 ```bash
-docker-compose up -d
+docker compose -f deployment/docker/docker-compose.yml up -d
+
+# Optional TLS reverse proxy:
+# 1. Put fullchain.pem and privkey.pem in deployment/docker/certs/
+# 2. Review deployment/docker/nginx.conf
+docker compose -f deployment/docker/docker-compose.prod.yml --profile production up -d
 ```
 
 ## Environment Variables
