@@ -3,11 +3,17 @@
 const config = {
   packageManager: 'npm',
   testRunner: 'vitest',
+  vitest: {
+    configFile: 'vitest.config.stryker-critical.ts',
+    related: false,
+  },
   checkers: ['typescript'],
+  coverageAnalysis: 'perTest',
   tsconfigFile: 'tsconfig.json',
+  disableTypeChecks: true,
   reporters: ['clear-text', 'progress'],
   timeoutMS: 30000,
-  concurrency: 2,
+  concurrency: 1,
   thresholds: {
     high: 80,
     low: 60,
@@ -22,8 +28,8 @@ const config = {
     'src/middleware/rate-limit-middleware.ts',
     'src/utils/retry.ts',
     'src/utils/circuit-breaker.ts',
-    'src/workers/python-worker.ts',
-    'src/workers/duckdb-worker.ts',
+    'src/services/python-worker.ts',
+    'src/services/duckdb-worker.ts',
   ],
   ignorePatterns: [
     'dist',
