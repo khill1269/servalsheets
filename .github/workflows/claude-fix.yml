@@ -1,11 +1,13 @@
 name: Claude Auto-Fix
 
 on:
-  # Trigger when CI fails on main/remediation branches
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main, "remediation/**"]
+  # Auto-trigger disabled until ANTHROPIC_API_KEY secret is configured
+  # workflow_run:
+  #   workflows: [CI]
+  #   types: [completed]
+  #   branches: [main, "remediation/**"]
+
+  workflow_dispatch: # Manual only until API key is set up
 
 concurrency:
   group: claude-fix-${{ github.event.workflow_run.head_sha }}
@@ -20,7 +22,6 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:

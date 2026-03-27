@@ -1,11 +1,12 @@
 # ServalSheets Production Stack
-# Usage: docker compose -f deployment/docker/docker-compose.prod.yml up -d
-# Optional TLS proxy: docker compose -f deployment/docker/docker-compose.prod.yml --profile production up -d
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+version: '3.8'
 
 services:
   # ServalSheets HTTP Server (Production)
   servalsheets:
-    image: ghcr.io/khill1269/servalsheets:2.0.0
+    image: ghcr.io/khill1269/servalsheets:latest
     container_name: servalsheets-prod
     ports:
       - '3000:3000'
@@ -97,14 +98,12 @@ services:
       - '80:80'
       - '443:443'
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/nginx/certs:ro
+      - ./deployment/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployment/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - servalsheets
-    profiles:
-      - production
     healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/health/live']
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/health']
       interval: 30s
       timeout: 3s
       retries: 3

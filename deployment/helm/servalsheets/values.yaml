@@ -149,7 +149,7 @@ google:
 # Liveness probe configuration
 livenessProbe:
   httpGet:
-    path: /health/live
+    path: /health
     port: http
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -159,7 +159,7 @@ livenessProbe:
 # Readiness probe configuration
 readinessProbe:
   httpGet:
-    path: /health/ready
+    path: /health
     port: http
   initialDelaySeconds: 10
   periodSeconds: 5

@@ -223,7 +223,7 @@ services:
       - OTEL_EXPORT_ENABLED=true
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
       - OTEL_SERVICE_NAME=servalsheets
-      - OTEL_SERVICE_VERSION=${VERSION:-2.0.0}
+      - OTEL_SERVICE_VERSION=${VERSION:-1.6.0}
 
       # Observability - Logging
       - LOG_LEVEL=${LOG_LEVEL:-info}

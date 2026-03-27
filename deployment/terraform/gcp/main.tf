@@ -336,7 +336,7 @@ resource "google_cloud_run_v2_service" "main" {
 
       startup_probe {
         http_get {
-          path = "/health/ready"
+          path = "/health"
           port = 3000
         }
         initial_delay_seconds = 10
@@ -347,7 +347,7 @@ resource "google_cloud_run_v2_service" "main" {
 
       liveness_probe {
         http_get {
-          path = "/health/live"
+          path = "/health"
           port = 3000
         }
         initial_delay_seconds = 30

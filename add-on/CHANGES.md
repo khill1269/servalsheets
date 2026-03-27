@@ -27,7 +27,7 @@
 
 **Sidebar.html enhancements:**
 
-- 4 new quick action buttons: 💡 Smart Suggestions, 🤖 Run Agent, 📊 Compute, 🌐 Live Data
+- 4 new quick action buttons: 💡 Smart Suggestions, 🤖 Run Agent, 📉 Compute, 🌐 Live Data
 - Rich suggestion cards: `suggest_next_actions` responses now render as clickable cards with confidence %, Apply button per suggestion (`renderSuggestionsPanel`, `applySuggestionCard`, `addMessageHtml`)
 - New client-side handlers: `quickAction_suggestNext`, `quickAction_runAgent`, `quickAction_compute`, `quickAction_liveData`
 
@@ -168,7 +168,7 @@ if (result.result && result.result.content && result.result.content[0]) {
 - [src/http-server.ts:1800](src/http-server.ts#L1800): `const { mcpServer, taskStore } = await createMcpServerInstance(googleToken)`
 - [src/cli.ts:252-268](src/cli.ts#L252-268): Conditional startup (STDIO vs HTTP)
 
-### 🧸 Testing Performed
+### 🧪 Testing Performed
 
 1. **HTTP Server Test:**
 

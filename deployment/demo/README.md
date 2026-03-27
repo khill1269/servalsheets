@@ -17,8 +17,7 @@ export PROJECT_ID="your-project-id"
 export REGION="us-central1"
 
 # Build and push container
-docker build -f deployment/demo/Dockerfile -t gcr.io/$PROJECT_ID/servalsheets-demo .
-docker push gcr.io/$PROJECT_ID/servalsheets-demo
+gcloud builds submit --tag gcr.io/$PROJECT_ID/servalsheets-demo .
 
 # Deploy
 gcloud run deploy servalsheets-demo \

@@ -5,6 +5,9 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  pull_request:
+    # opened: auto-review new PRs; synchronize: respond to force-pushes only if @claude mentioned
+    types: [opened]
 
 concurrency:
   group: claude-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
@@ -23,7 +26,6 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      id-token: write
     steps:
       # Checkout required so Claude can read CLAUDE.md, source files, and run npm commands
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

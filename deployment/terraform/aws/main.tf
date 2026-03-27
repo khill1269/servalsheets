@@ -386,6 +386,8 @@ resource "aws_ecs_task_definition" "main" {
       name      = "servalsheets"
       image     = var.container_image
       essential = true
+      command   = ["npm", "run", "start:http"]
+
       portMappings = [
         {
           containerPort = 3000
@@ -433,7 +435,7 @@ resource "aws_ecs_task_definition" "main" {
       }
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:3000/health/live || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3
@@ -470,7 +472,7 @@ resource "aws_lb_target_group" "main" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/health/ready"
+    path                = "/health"
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5

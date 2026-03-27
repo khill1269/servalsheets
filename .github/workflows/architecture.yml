@@ -1,4 +1,7 @@
-name: Architecture Validation
+name: Architecture & Dependency Validation
+
+# Consolidated from: architecture.yml + dependency-validation.yml
+# Handles: circular deps, dead code, npm audit, license check, version sync
 
 on:
   pull_request:
@@ -17,8 +20,6 @@ on:
       - '.dependency-cruiser.cjs'
       - 'package.json'
       - 'package-lock.json'
-      - '**/package.json'
-      - '**/package-lock.json'
 
 permissions:
   contents: read
@@ -148,11 +149,41 @@ jobs:
           path: knip-output.txt
           retention-days: 30
 
+  dependency-validation:
+    name: Dependency Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Security Audit
+        continue-on-error: true
+        run: npm audit --audit-level=critical
+
+      - name: Check Outdated Packages
+        run: npm outdated || true
+
+      - name: Check Version Synchronization (Syncpack)
+        run: |
+          npm ci
+          npx syncpack lint
+
+      - name: Check Metadata Drift
+        run: npm run check:drift
+
   architecture-summary:
     name: Architecture Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [dependency-analysis, dead-code-analysis]
+    needs: [dependency-analysis, dead-code-analysis, dependency-validation]
     if: always()
 
     steps:

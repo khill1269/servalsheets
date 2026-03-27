@@ -51,7 +51,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 PAGERDUTY_SERVICE_KEY=your_pagerduty_integration_key_here
 
 # Optional: Version and logging
-VERSION=2.0.0
+VERSION=1.6.0
 LOG_LEVEL=info
 ```
 
@@ -358,7 +358,7 @@ ServalSheets uses structured JSON logging with automatic context injection:
   "message": "Tool call completed",
   "timestamp": "2026-02-02T12:00:00.000Z",
   "service": "servalsheets",
-  "version": "2.0.0",
+  "version": "1.6.0",
   "requestId": "req-abc123",
   "traceId": "32-char-trace-id",
   "spanId": "16-char-span-id",

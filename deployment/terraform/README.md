@@ -45,7 +45,7 @@ cd deployment/terraform/aws
 cat > terraform.tfvars << EOF
 environment                    = "prod"
 region                         = "us-east-1"
-container_image                = "ghcr.io/khill1269/servalsheets:2.0.0"
+container_image                = "ghcr.io/khill1269/servalsheets:1.6.0"
 domain_name                    = "sheets.example.com"
 certificate_arn                = "arn:aws:acm:us-east-1:123456789:certificate/xxx"
 google_credentials_secret_arn  = "arn:aws:secretsmanager:us-east-1:123456789:secret:google-creds"
@@ -69,7 +69,7 @@ cat > terraform.tfvars << EOF
 project_id           = "your-project-id"
 region               = "us-central1"
 environment          = "prod"
-container_image      = "gcr.io/your-project/servalsheets:2.0.0"
+container_image      = "gcr.io/your-project/servalsheets:1.6.0"
 domain_name          = "sheets.example.com"
 service_account_json = file("path/to/service-account.json")
 oauth_client_id      = "your-client-id"

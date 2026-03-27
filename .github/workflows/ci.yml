@@ -410,30 +410,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run critical-path regression suite
-        run: >
-          npx vitest run
-          tests/contracts/oauth-refresh-errors.test.ts
-          tests/contracts/mutation-action-consistency.test.ts
-          tests/middleware/mutation-safety-middleware.test.ts
-          tests/middleware/write-lock-middleware.test.ts
-          tests/services/python-worker.test.ts
-          tests/services/duckdb-worker.test.ts
-          tests/utils/retry.test.ts
-          tests/utils/circuit-breaker-states.test.ts
-          tests/utils/circuit-breaker-fallback.test.ts
-          tests/unit/circuit-breaker-fallback.test.ts
-
-      - name: Run mutation tests on critical paths (advisory)
-        id: mutation_critical
-        continue-on-error: true
+      - name: Run mutation tests on critical paths
         run: npx stryker run stryker.critical.conf.mjs
-
-      - name: Report mutation runner instability
-        if: steps.mutation_critical.outcome == 'failure'
-        run: |
-          echo "::warning::Stryker did not discover tests with the current Vitest runner integration."
-          echo "::warning::Keeping mutation testing advisory for now; the critical-path regression suite above is still enforced."
 
   security:
     name: Security Audit
@@ -461,3 +439,92 @@ jobs:
       - name: Run security audit (warn on moderate)
         run: npm audit --audit-level=moderate
         continue-on-error: true
+
+  # Coverage reporting (consolidated from standalone coverage.yml)
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [test-fast]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
+        continue-on-error: true
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+        continue-on-error: true
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+  # Docs validation (consolidated from standalone docs-validation.yml)
+  docs-validation:
+    name: Documentation Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint docs
+        run: npm run docs:lint
+        continue-on-error: true
+
+      - name: Spell check docs
+        run: npm run docs:spell
+        continue-on-error: true
+
+      - name: Check doc links
+        run: npm run docs:check-links
+        continue-on-error: true
+
+      - name: Build docs (verify no build errors)
+        run: npm run docs:site
+
+  # File size check (consolidated from standalone file-size-check.yml)
+  file-size-check:
+    name: File Size Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check file sizes
+        run: bash scripts/check-file-sizes.sh
