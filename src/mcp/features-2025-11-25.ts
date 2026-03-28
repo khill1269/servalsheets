@@ -31,7 +31,7 @@
  */
 
 import type { ServerCapabilities, Icon, ToolExecution } from '@modelcontextprotocol/sdk/types.js';
-import { DEFER_SCHEMAS, STAGED_REGISTRATION } from '../config/constants.js';
+import { DEFER_SCHEMAS, STAGED_REGISTRATION, getEffectiveToolMode } from '../config/constants.js';
 import { getConfiguredActionCount, getConfiguredToolCount } from './tool-catalog.js';
 
 // ============================================================================
@@ -509,6 +509,30 @@ required fields, and common request shapes.
 - When you need to know which actions are available
 - When you get validation errors (check required fields for the selected action)
 `;
+
+  const flatModeInstructions = `
+## FLAT MODE (Active)
+
+This server exposes individual tools per action (not bundled compound tools). Each tool does exactly one thing.
+
+**Tool naming:** \`sheets_{domain}_{action}\` — e.g., \`sheets_data_read\`, \`sheets_dim_freeze\`, \`sheets_collab_comment_add\`.
+
+**Domain shortcuts:** dim (dimensions), viz (visualize), collab (collaborate), deps (dependencies), tx (transaction), script (appsscript), bq (bigquery), fed (federation).
+
+**Discovery:** Most tools are deferred to save context. Use \`sheets_discover\` to find the right tool:
+- \`sheets_discover query:"sort by date"\` → returns matching tools with confidence scores
+- \`sheets_discover query:"add a chart" category:"visualization"\` → filtered search
+
+**Always available** (no discovery needed): sheets_auth_status, sheets_auth_login, sheets_session_get_context, sheets_session_set_active, sheets_data_read, sheets_data_write, sheets_data_append, sheets_core_list, sheets_core_list_sheets, sheets_core_get, sheets_core_create.
+
+**Calling pattern:** Call flat tools directly with their parameters (no \`action\` field needed):
+\`sheets_data_read spreadsheetId:"1ABC..." range:"Sheet1!A1:D10"\`
+`;
+
+  // Flat mode gets its own instructions + core rules (skip 5-group model)
+  if (getEffectiveToolMode() === 'flat') {
+    return (baseInstructions + flatModeInstructions).trim();
+  }
 
   // Include deferred schema instructions when DEFER_SCHEMAS is enabled
   if (DEFER_SCHEMAS) {

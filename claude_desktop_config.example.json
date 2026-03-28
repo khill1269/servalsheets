@@ -1,5 +1,15 @@
 {
   "mcpServers": {
+    "github-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
     "servalsheets": {
       "command": "node",
       "args": ["/absolute/path/to/servalsheets/dist/cli.js"],
@@ -10,7 +20,8 @@
         "OAUTH_CLIENT_SECRET": "your-client-secret",
         "OAUTH_REDIRECT_URI": "http://localhost:3000/callback",
         "GOOGLE_TOKEN_STORE_PATH": "/Users/your-user/.config/servalsheets/tokens.enc",
-        "ENCRYPTION_KEY": "<64-char-hex-key>"
+        "ENCRYPTION_KEY": "<64-char-hex-key>",
+        "SERVAL_TOOL_MODE": "auto"
       }
     }
   }

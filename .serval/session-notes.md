@@ -6,7 +6,58 @@
 
 ## Current Phase
 
-**Session 109 (2026-03-24) — Codebase verification + layer violation fix + oversized file decomposition.** Branch `release-1.7.1`. 407 actions (25 tools). 2784/2784 tests pass (141 test files).
+**Session 111 (2026-03-27) — Flat tool presentation layer (MCP surface restructure).** Branch `audit/session-110-fixes`. 407 actions (25 tools → ~407 flat tools in flat mode). 2784/2784 + 49 new tests pass (142 test files).
+
+## What Was Just Completed (Session 111)
+
+**Flat tool presentation layer — 97% token reduction for LLM tool selection without any handler changes.**
+
+Implements a presentation adapter that re-exposes all 407 actions as individual flat MCP tools, following the MCP convention of 1 tool = 1 operation. Controlled by `SERVAL_TOOL_MODE` env (flat/bundled/auto).
+
+### Research findings driving the design
+- MCP tool selection accuracy degrades past 30-50 tools (Anthropic official)
+- `defer_loading` / `tool_search` supports up to 10,000 tools with 85%+ token reduction
+- Action-inside-tool discriminated union is an anti-pattern per MCP community consensus
+- Semantic tool discovery achieves 97.1% hit rate at K=3 (arxiv 2603.20313)
+- ServalSheets token cost: ~53K bundled → ~1,500 flat+deferred (97% reduction)
+
+### New files (4)
+- **`src/mcp/registration/flat-tool-registry.ts`** (~290 lines): Generates ~407 flat tool definitions from TOOL_ACTIONS. 15 always-loaded (auth, session, data essentials), rest deferred. Domain prefix shortcuts (dim, viz, collab, deps, tx, script, bq, fed).
+- **`src/mcp/registration/flat-tool-routing.ts`** (~128 lines): Maps flat names back to compound handlers. `isFlatToolName()`, `routeFlatToolCall()`, `resolveCompoundToolName()`.
+- **`src/mcp/registration/flat-discover-handler.ts`** (~100 lines): `sheets_discover` meta-tool wrapping existing inverted-index action-discovery service.
+- **`src/mcp/registration/flat-tool-call-interceptor.ts`** (~185 lines): Overrides SDK's `tools/call` dispatch to rewrite flat tool calls → compound handlers with full middleware (auth, rate limiting, tracing, history).
+
+### Modified files (3)
+- **`src/config/constants.ts`**: `ToolMode` type, `TOOL_MODE` env config, `getEffectiveToolMode()` (auto: STDIO→flat, HTTP→bundled)
+- **`src/mcp/registration/tools-list-compat.ts`**: `buildFlatToolListEntries()`, `buildDiscoverToolEntry()`, flat mode branch in tools/list handler
+- **`src/mcp/registration/tool-handlers.ts`**: Import + call `registerFlatToolCallInterceptor(server)` after tool registration
+
+### Test file (1)
+- **`tests/mcp/flat-tool-surface.test.ts`** (49 tests): Registry generation, naming roundtrips, routing, discover handler, cross-layer integration
+
+### End-to-end flow
+1. `SERVAL_TOOL_MODE=flat` (or auto for STDIO) → flat mode active
+2. `tools/list` returns ~407 flat tools (most deferred) + `sheets_discover`
+3. LLM sees ~15 always-loaded tools + search
+4. LLM calls `sheets_data_read({ spreadsheetId, range })` → interceptor rewrites to `sheets_data({ action: 'read', spreadsheetId, range })` → compound handler runs with full middleware
+5. Zero handler modifications required
+
+### Production hardening (continued in same session)
+- **Per-action schemas for always-loaded tools**: 15 tools now have detailed JSON Schema with correct required fields, types, enums, and descriptions (vs. minimal placeholder schemas). Deferred tools keep minimal schemas.
+- **Fixed always-loaded set**: `sheets_core.get_metadata` → `sheets_core.get` (action didn't exist)
+- **Flat-mode server instructions**: `getServerInstructions()` now returns flat-mode-specific instructions when `SERVAL_TOOL_MODE=flat` — explains naming convention, domain shortcuts, `sheets_discover` usage, and calling pattern (no `action` field needed)
+- **Env config**: `SERVAL_TOOL_MODE` added to `.env.example` (with documentation) and `claude_desktop_config.example.json`
+- **Modified files**: `tools-list-compat.ts` (ALWAYS_LOADED_SCHEMAS map), `features-2025-11-25.ts` (flat mode instructions), `.env.example`, `claude_desktop_config.example.json`
+
+**Verification**: TypeScript 0 errors. 2784/2784 existing + 49 new tests pass.
+
+---
+
+## What Was Just Completed (Session 110)
+
+**Full production audit session (2784/2784 tests, 0 TS errors, all checks green).** Branch `audit/session-110-fixes`.
+
+---
 
 ## What Was Just Completed (Session 109)
 
@@ -75,6 +126,10 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 
 ## Key Decisions Made
 
+- **Flat tool naming**: `sheets_{domain}_{action}` with domain shortcuts (dim, viz, collab, deps, tx, script, bq, fed)
+- **Always-loaded set**: 15 tools (auth bootstrap + session + data essentials) — rest deferred
+- **SDK interceptor pattern**: Override `CallToolRequestSchema` handler (same pattern as tools/list override)
+- **Auto mode**: STDIO → flat, HTTP → bundled (backwards compatible for API consumers)
 - **Safety rail order**: `createSnapshotIfNeeded()` BEFORE `confirmDestructiveAction()`
 - **`autoRecord` preference**: Defaults to false (opt-in)
 - **`SamplingMessage` source**: Import from `@modelcontextprotocol/sdk/types.js` directly
@@ -88,10 +143,12 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 - Current metrics: `src/schemas/action-counts.ts` + `.serval/state.md`
 - TASKS.md: open backlog
 
-## Session History (Sessions 86–109)
+## Session History (Sessions 86–111)
 
 | Date       | Session | Summary |
 | ---------- | ------- | ------- |
+| 2026-03-27 | 111     | Flat tool presentation layer (4 new files, 3 modified); 97% token reduction; SERVAL_TOOL_MODE env; 49 new tests; 2784+49 pass |
+| 2026-03-26 | 110     | Full production audit (2784/2784 tests, 0 TS errors, all checks green) |
 | 2026-03-24 | 109     | Codebase verification (3 agents); layer violation fix (sampling-consent.ts); incremental-scope.ts 82% reduction; TS error fix; 2784/2784 |
 | 2026-03-24 | 108     | MCP SEP compliance audit + 5 fixes (annotation titles, idempotentHint, agencyHint, requiredScopes); 2747/2747 |
 | 2026-03-24 | 107     | 8 improvements: get_context connector enrichment, autoRecord preference, transaction error messages, retryAfterMs, server instructions startup sequence; 2747/2747 |

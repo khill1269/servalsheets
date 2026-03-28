@@ -108,6 +108,7 @@ import {
 } from '../../schemas/index.js';
 import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
+import { registerFlatToolCallInterceptor } from './flat-tool-call-interceptor.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
@@ -1931,6 +1932,11 @@ export async function registerServalSheetsTools(
 
   // Override tools/list to safely serialize schemas with transforms/pipes.
   registerToolsListCompatibilityHandler(server);
+
+  // In flat mode, intercept tools/call to rewrite flat tool names → compound names.
+  // Must come after registerToolsListCompatibilityHandler (tools/list) and after
+  // all compound tools are registered in _registeredTools.
+  registerFlatToolCallInterceptor(server);
 
   if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
     resourceNotifications.syncToolList(

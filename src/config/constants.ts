@@ -248,7 +248,7 @@ export const DEFER_SCHEMAS = resolveDeferSchemas();
  * When enabled, tools are registered with minimal ~100 char descriptions
  * instead of full ~1000+ char descriptions. Full documentation available via:
  * - schema://tools/{toolName} - Full schemas with examples
- * - resource://skill/servalsheets - Comprehensive SKILL.md guide
+ * - guide://tool-selection, guide://workflows, guide://advanced-usage - On-demand routing and advanced usage guides
  *
  * Benefits:
  * - Reduces tool description payload from ~31KB to ~3KB (~90% reduction)
@@ -258,7 +258,7 @@ export const DEFER_SCHEMAS = resolveDeferSchemas();
  *
  * Trade-offs:
  * - Less detailed routing hints in tool descriptions
- * - Claude should read SKILL.md resource for complex operations
+ * - Claude should read the guide:// resources for complex operations
  *
  * Set via SERVAL_DEFER_DESCRIPTIONS=true environment variable.
  *
@@ -318,6 +318,58 @@ export const STRIP_SCHEMA_DESCRIPTIONS = process.env['SERVAL_STRIP_SCHEMA_DESCRI
  * Set via SERVAL_STAGED_REGISTRATION=true environment variable.
  */
 export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] === 'true';
+
+// ============================================================================
+// Tool Presentation Mode
+// ============================================================================
+
+/**
+ * Tool presentation mode
+ *
+ * Controls how tools are exposed to LLM clients:
+ *
+ * - 'bundled' (legacy): 25 compound tools with discriminated union schemas.
+ *   Each tool contains multiple actions selected via an 'action' parameter.
+ *   Compatible with existing integrations but violates MCP's 1-tool-1-operation
+ *   convention and causes LLM routing confusion.
+ *
+ * - 'flat': ~407 individual tools, one per action, each with a flat z.object()
+ *   schema. All but ~15 core tools are marked defer_loading: true for on-demand
+ *   discovery via tool_search / sheets_discover. Follows MCP best practices.
+ *   Token cost: ~1,500 tokens (vs ~53K bundled).
+ *
+ * - 'auto' (default): Detects client capabilities.
+ *   - STDIO transport → 'flat' (optimized for Claude Desktop / Claude Code)
+ *   - HTTP transport → 'bundled' (backward compat for existing API integrations)
+ *   - Override: SERVAL_TOOL_MODE=flat|bundled always takes precedence
+ *
+ * @see src/mcp/registration/flat-tool-registry.ts
+ * @see src/mcp/registration/flat-tool-routing.ts
+ */
+export type ToolMode = 'flat' | 'bundled' | 'auto';
+
+function resolveToolMode(): ToolMode {
+  const envVal = process.env['SERVAL_TOOL_MODE']?.toLowerCase();
+  if (envVal === 'flat') return 'flat';
+  if (envVal === 'bundled') return 'bundled';
+  return 'auto';
+}
+
+export const TOOL_MODE: ToolMode = resolveToolMode();
+
+/**
+ * Resolve the effective tool mode at runtime.
+ * 'auto' resolves based on transport type.
+ */
+export function getEffectiveToolMode(): 'flat' | 'bundled' {
+  if (TOOL_MODE === 'flat') return 'flat';
+  if (TOOL_MODE === 'bundled') return 'bundled';
+  // Auto-detect: STDIO → flat, HTTP → bundled
+  const entry = path.basename(process.argv[1] ?? '');
+  const isHttp =
+    process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
+  return isHttp ? 'bundled' : 'flat';
+}
 
 export type ToolStage = 1 | 2 | 3;
 
