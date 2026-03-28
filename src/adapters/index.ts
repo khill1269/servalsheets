@@ -17,3 +17,10 @@ export { NotionBackend } from './notion-backend.js';
 export type { NotionClient, NotionBackendConfig } from './notion-backend.js';
 export { AirtableBackend } from './airtable-backend.js';
 export type { AirtableClient, AirtableBackendConfig } from './airtable-backend.js';
+
+// Backend router: multi-platform dispatch
+export { BackendRouter } from './backend-router.js';
+export type { BackendRouterConfig } from './backend-router.js';
+
+// Excel Online mutation builders (format, chart, validation, filter, protection)
+export * from './excel-mutation-builders.js';

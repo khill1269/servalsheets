@@ -392,6 +392,32 @@ const EnvSchema = z.object({
   EXCEL_ONLINE_CLIENT_SECRET: z.string().optional(),
   EXCEL_ONLINE_TENANT_ID: z.string().optional(),
 
+  // Microsoft Graph API Configuration (for src/services/microsoft-graph-client.ts)
+  // Required to use Excel Online backend via Microsoft Graph API.
+  // Requires @azure/msal-node peer dependency (optional).
+  MICROSOFT_CLIENT_ID: z
+    .string()
+    .optional()
+    .describe('OAuth 2.0 client ID for Microsoft Graph API'),
+  MICROSOFT_CLIENT_SECRET: z
+    .string()
+    .optional()
+    .describe('OAuth 2.0 client secret (required for service-to-service auth)'),
+  MICROSOFT_TENANT_ID: z
+    .string()
+    .default('common')
+    .describe('Azure AD tenant ID (default: common for multi-tenant apps)'),
+  MICROSOFT_REDIRECT_URI: z
+    .string()
+    .optional()
+    .describe('OAuth redirect URI for user-delegated flow'),
+  EXCEL_SESSION_MODE: z
+    .enum(['persistent', 'non-persistent'])
+    .default('non-persistent')
+    .describe(
+      'Excel Online workbook session mode (persistent=longer-lived, non-persistent=stateless)'
+    ),
+
   // Action Log Sheet (audit-to-spreadsheet)
   // When enabled, each mutation is appended to a designated Google Sheet for audit trail
   ENABLE_ACTION_LOG_SHEET: strictBoolean().default(false),
@@ -572,6 +598,35 @@ const EnvSchema = z.object({
   // OAuth scope selection
   OAUTH_SCOPE_MODE: z.string().optional(),
   DEPLOYMENT_MODE: z.enum(['self-hosted', 'saas']).catch('self-hosted').default('self-hosted'),
+
+  // AgentCore compatibility timeouts
+  // When set, tool call handlers respect these as maximum execution times
+  // SYNC: Synchronous operation timeout (interactive tool calls)
+  // ASYNC: Asynchronous operation timeout (background tasks)
+  AGENTCORE_SYNC_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('AgentCore sync timeout (ms, default 15min)'),
+  AGENTCORE_ASYNC_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('AgentCore async timeout (ms, default 8h)'),
+
+  // CloudWatch structured logging
+  // When LOG_FORMAT=json, output CloudWatch-compatible JSON logs
+  // When CLOUDWATCH_LOG_GROUP is set, indicates CloudWatch Logs Insights mode
+  LOG_FORMAT: z
+    .enum(['text', 'json'])
+    .default('text')
+    .describe('Log output format (text or JSON for CloudWatch)'),
+  CLOUDWATCH_LOG_GROUP: z
+    .string()
+    .optional()
+    .describe('CloudWatch log group name (enables structured logging when set)'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

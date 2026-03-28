@@ -9,11 +9,16 @@
  * - Anthropic (Claude)
  * - OpenAI (GPT-4)
  * - Google (Gemini)
+ * - AWS Bedrock (Claude on Bedrock)
  *
  * Configuration via environment variables:
- * - LLM_PROVIDER: 'anthropic' | 'openai' | 'google' (default: 'anthropic')
+ * - LLM_PROVIDER: 'anthropic' | 'openai' | 'google' | 'bedrock' (default: 'anthropic')
  * - LLM_API_KEY or ANTHROPIC_API_KEY or OPENAI_API_KEY or GOOGLE_API_KEY
  * - LLM_MODEL: Model name (default: claude-sonnet-4-20250514)
+ * - AWS_BEDROCK_REGION: AWS region for Bedrock (default: us-east-1)
+ * - BEDROCK_INFERENCE_PROFILE: Application Inference Profile ID (optional, overrides LLM_MODEL)
+ * - BEDROCK_GUARDRAIL_ID: Guardrail ID for content filtering (optional)
+ * - BEDROCK_GUARDRAIL_VERSION: Guardrail version (optional, with BEDROCK_GUARDRAIL_ID)
  *
  * @module services/llm-fallback
  */
@@ -27,7 +32,7 @@ import { recordRequestLlmProvenance } from '../utils/request-context.js';
 // Types
 // ============================================================================
 
-export type LLMProvider = 'anthropic' | 'openai' | 'google';
+export type LLMProvider = 'anthropic' | 'openai' | 'google' | 'bedrock';
 
 export interface LLMMessage {
   role: 'user' | 'assistant' | 'system';
@@ -71,13 +76,16 @@ export function getLLMFallbackConfig(): LLMFallbackConfig | null {
   const provider = (process.env['LLM_PROVIDER'] as LLMProvider) || 'anthropic';
 
   // Try to find API key in order of precedence
+  // Note: Bedrock uses IAM credentials (no explicit API key needed)
   const apiKey =
-    process.env['LLM_API_KEY'] ||
-    process.env['ANTHROPIC_API_KEY'] ||
-    process.env['OPENAI_API_KEY'] ||
-    process.env['GOOGLE_API_KEY'];
+    provider === 'bedrock'
+      ? process.env['LLM_API_KEY'] || 'bedrock-uses-iam'
+      : process.env['LLM_API_KEY'] ||
+        process.env['ANTHROPIC_API_KEY'] ||
+        process.env['OPENAI_API_KEY'] ||
+        process.env['GOOGLE_API_KEY'];
 
-  if (!apiKey) {
+  if (!apiKey && provider !== 'bedrock') {
     return null;
   }
 
@@ -86,6 +94,7 @@ export function getLLMFallbackConfig(): LLMFallbackConfig | null {
     anthropic: 'claude-sonnet-4-20250514',
     openai: 'gpt-4o',
     google: 'gemini-2.0-flash',
+    bedrock: 'us.anthropic.claude-sonnet-4-6',
   };
 
   const model = process.env['LLM_MODEL'] || defaultModels[provider];
@@ -95,11 +104,12 @@ export function getLLMFallbackConfig(): LLMFallbackConfig | null {
     anthropic: 'https://api.anthropic.com',
     openai: 'https://api.openai.com',
     google: 'https://generativelanguage.googleapis.com',
+    bedrock: '', // Bedrock SDK handles endpoint configuration
   };
 
   return {
     provider,
-    apiKey,
+    apiKey: apiKey ?? '',
     model,
     baseUrl: process.env['LLM_BASE_URL'] || baseUrls[provider],
   };
@@ -301,6 +311,130 @@ async function callGoogle(
   };
 }
 
+// Cached Bedrock client (lazy-loaded via dynamic import)
+let bedrockClient: unknown | null = null;
+let bedrockSdkUnavailable = false;
+
+/**
+ * Call AWS Bedrock with Claude models
+ *
+ * Uses Application Inference Profiles if BEDROCK_INFERENCE_PROFILE is set,
+ * otherwise uses the standard model ID from config. Supports Bedrock Guardrails
+ * for content filtering via BEDROCK_GUARDRAIL_ID and BEDROCK_GUARDRAIL_VERSION.
+ */
+async function callBedrock(
+  config: LLMFallbackConfig,
+  options: LLMRequestOptions
+): Promise<LLMResponse> {
+  // Lazy load Bedrock SDK
+  if (!bedrockClient && !bedrockSdkUnavailable) {
+    try {
+      // @ts-ignore - optional dependency; install @aws-sdk/client-bedrock-runtime to enable
+      const sdk = await import('@aws-sdk/client-bedrock-runtime');
+      const region = process.env['AWS_BEDROCK_REGION'] || 'us-east-1';
+      bedrockClient = new sdk.BedrockRuntimeClient({ region });
+    } catch (error) {
+      bedrockSdkUnavailable = true;
+      logger.warn(
+        'AWS Bedrock SDK not available. Install @aws-sdk/client-bedrock-runtime to enable.',
+        { error: error instanceof Error ? error.message : String(error) }
+      );
+      throw new ServiceError(
+        'Bedrock SDK not installed. Install @aws-sdk/client-bedrock-runtime to use Bedrock provider.',
+        'UNAVAILABLE',
+        'Bedrock',
+        true
+      );
+    }
+  }
+
+  if (!bedrockClient) {
+    throw new ServiceError(
+      'Bedrock SDK not available. Install @aws-sdk/client-bedrock-runtime to use Bedrock provider.',
+      'UNAVAILABLE',
+      'Bedrock',
+      true
+    );
+  }
+
+  // Determine model ID: prefer Application Inference Profile if set
+  const modelId = process.env['BEDROCK_INFERENCE_PROFILE'] || config.model;
+
+  // Format messages in Anthropic Messages API format (used by Claude on Bedrock)
+  const messages = options.messages.map((m) => ({
+    role: m.role === 'system' ? 'user' : m.role,
+    content: m.content,
+  }));
+
+  // Build request body
+  const requestBody: Record<string, unknown> = {
+    anthropic_version: '2023-06-01',
+    max_tokens: options.maxTokens || 4096,
+    system: options.systemPrompt,
+    messages,
+    temperature: options.temperature,
+  };
+
+  // Add guardrails if configured
+  const guardrailId = process.env['BEDROCK_GUARDRAIL_ID'];
+  const guardrailVersion = process.env['BEDROCK_GUARDRAIL_VERSION'];
+  if (guardrailId) {
+    requestBody['guardrailIdentifier'] = guardrailId;
+    if (guardrailVersion) {
+      requestBody['guardrailVersion'] = guardrailVersion;
+    }
+  }
+
+  try {
+    // @ts-ignore - optional dependency; install @aws-sdk/client-bedrock-runtime to enable
+    const sdk = await import('@aws-sdk/client-bedrock-runtime');
+    const command = new sdk.InvokeModelCommand({
+      modelId,
+      contentType: 'application/json',
+      body: JSON.stringify(requestBody),
+    });
+
+    const response = await (bedrockClient as InstanceType<typeof sdk.BedrockRuntimeClient>).send(
+      command
+    );
+
+    // Parse response body
+    const responseBody = JSON.parse(
+      response.body instanceof Uint8Array
+        ? new TextDecoder().decode(response.body)
+        : String(response.body)
+    ) as {
+      content: Array<{ type: string; text: string }>;
+      usage?: { input_tokens: number; output_tokens: number };
+    };
+
+    return {
+      content: responseBody.content
+        .filter((c) => c.type === 'text')
+        .map((c) => c.text)
+        .join('\n'),
+      model: modelId,
+      mode: 'fallback',
+      provider: 'bedrock',
+      usage: responseBody.usage
+        ? {
+            inputTokens: responseBody.usage.input_tokens,
+            outputTokens: responseBody.usage.output_tokens,
+          }
+        : undefined,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Bedrock API request failed', { error: errorMessage, modelId });
+    throw new ServiceError(
+      `AI analysis service temporarily unavailable. Please try again.`,
+      'UNAVAILABLE',
+      'Bedrock',
+      true
+    );
+  }
+}
+
 // ============================================================================
 // Main API
 // ============================================================================
@@ -341,6 +475,9 @@ export async function createLLMMessage(options: LLMRequestOptions): Promise<LLMR
       break;
     case 'google':
       response = await callGoogle(config, options);
+      break;
+    case 'bedrock':
+      response = await callBedrock(config, options);
       break;
     default:
       throw new ConfigError(
