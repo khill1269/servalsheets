@@ -45,7 +45,7 @@
   pointer-events: none;
 }
 
-.flamegraph .d3-flame-graph-tooltip {
+.d3-flame-graph-tip {
   background-color: rgba(0, 0, 0, 0.9);
   color: white;
   padding: 8px 12px;

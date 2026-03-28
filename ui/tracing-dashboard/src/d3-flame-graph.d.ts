@@ -1,4 +1,4 @@
-declare module 'd3-flame-graph' {
+declare module 'd3-flame-graph/dist/d3-flamegraph.js' {
   import type { Selection } from 'd3-selection';
   import type { FlameGraphNode } from './types';
 

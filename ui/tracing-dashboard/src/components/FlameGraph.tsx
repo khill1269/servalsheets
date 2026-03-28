@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { flamegraph } from 'd3-flame-graph';
+import flamegraph from 'd3-flame-graph/dist/d3-flamegraph.js';
 import { traceToFlameGraph } from '../utils';
-import type { RequestTrace } from '../types';
+import type { FlameGraphNode, RequestTrace } from '../types';
+import './d3-flame-graph.css';
 import './FlameGraph.css';
-import 'd3-flame-graph/dist/d3-flamegraph.css';
 
 interface FlameGraphProps {
   trace: RequestTrace;
@@ -34,11 +34,11 @@ export default function FlameGraph({ trace }: FlameGraphProps) {
       .tooltip(true);
 
     const renderChart = chart as unknown as (
-      selection: d3.Selection<HTMLDivElement, unknown, null, undefined>
+      selection: d3.Selection<HTMLDivElement, FlameGraphNode, null, undefined>
     ) => void;
 
     // Render
-    d3.select(containerRef.current)
+    d3.select<HTMLDivElement, FlameGraphNode>(containerRef.current)
       .datum(data)
       .call(renderChart);
 
@@ -46,7 +46,7 @@ export default function FlameGraph({ trace }: FlameGraphProps) {
     const handleResize = () => {
       if (containerRef.current) {
         chart.width(containerRef.current.clientWidth);
-        d3.select(containerRef.current)
+        d3.select<HTMLDivElement, FlameGraphNode>(containerRef.current)
           .datum(data)
           .call(renderChart);
       }

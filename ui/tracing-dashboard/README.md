@@ -2,13 +2,19 @@
 
 Interactive React dashboard for visualizing request traces with flame graphs.
 
+This app now lives at `ui/tracing-dashboard/` and is built from the repo root
+into `dist/ui/tracing`.
+
+The repo-root `package.json` and `vite.config.ts` are the canonical build and
+dev entrypoints. This directory intentionally keeps only source-facing config.
+
 ## Quick Start
 
 ```bash
-npm install        # Install dependencies
-npm run dev        # Development (Vite HMR)
-npm run build      # Production build
-npm run typecheck  # Type checking
+npm run dev:ui        # Development (repo-root Vite config)
+npm run build:ui      # Production build into dist/ui/tracing
+npm run ui:typecheck  # Type checking
+npm run ui:clean      # Optional: remove local dashboard node_modules/dist
 ```
 
 ## Tech Stack
@@ -55,15 +61,15 @@ Backend API proxied to `http://localhost:3000/traces`
 ## Build
 
 ```bash
-npm run build
-# Output: dist/index.html, dist/assets/*
+npm run build:ui
+# Output: dist/ui/tracing/index.html, dist/ui/tracing/assets/*
 ```
 
 ## Integration
 
 Built dashboard served by ServalSheets HTTP server:
 
-- See `src/http-server-tracing-ui.ts`
+- See `src/ui/tracing.ts`
 - Route: `GET /ui/tracing`
 
 ---

@@ -158,7 +158,7 @@ if [ -n "$STAGED_MD_FILES" ]; then
   # Legacy check: explicit README.md / SKILL.md count verification
   if echo "$STAGED_MD_FILES" | grep -q "README.md\|docs/guides/SKILL.md"; then
     # Dynamically read expected counts from source of truth
-    EXPECTED=$(node -e "const {TOOL_COUNT,ACTION_COUNT}=require('./src/schemas/action-counts.ts');console.log(\`\${TOOL_COUNT} tools, \${ACTION_COUNT} actions\`);")
+    EXPECTED=$(node -e "const m=JSON.parse(require('fs').readFileSync('src/generated/manifest.json','utf8'));console.log(\`\${m.toolCount} tools, \${m.actionCount} actions\`);")
     EXPECTED_WITH=$(echo "$EXPECTED" | sed 's/, / with /')
 
     if ! grep -q "$EXPECTED" README.md; then

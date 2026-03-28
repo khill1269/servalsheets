@@ -12,5 +12,5 @@
     "tests/config/vitest.config.live.ts",
     "tests/config/vitest.config.load.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "exclude": ["node_modules", "dist", "coverage", "sdks/**", "tests/sdks/**"]
 }
