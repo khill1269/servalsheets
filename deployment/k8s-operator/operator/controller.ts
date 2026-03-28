@@ -8,11 +8,11 @@
  * - npm install @kubernetes/client-node
  *
  * Usage:
- * - node dist/k8s/operator/controller.js
+ * - node dist/controller.js
  */
 
 import * as k8s from '@kubernetes/client-node';
-import { logger } from '../../src/utils/logger.js';
+import { logger } from './logger.js';
 
 const GROUP = 'servalsheets.io';
 const VERSION = 'v1alpha1';
@@ -47,6 +47,7 @@ interface ServalSheetsServerSpec {
     className?: string;
     host?: string;
     tls?: { enabled: boolean; secretName?: string };
+    annotations?: Record<string, string>;
   };
 }
 
@@ -272,12 +273,12 @@ export class ServalSheetsOperator {
                   { name: 'PORT', value: '3000' },
                 ],
                 livenessProbe: {
-                  httpGet: { path: '/health', port: 'http' as any },
+                  httpGet: { path: '/health/live', port: 'http' as any },
                   initialDelaySeconds: 30,
                   periodSeconds: 10,
                 },
                 readinessProbe: {
-                  httpGet: { path: '/health', port: 'http' as any },
+                  httpGet: { path: '/health/ready', port: 'http' as any },
                   initialDelaySeconds: 10,
                   periodSeconds: 5,
                 },

@@ -167,7 +167,7 @@ kubectl logs -n servalsheets -l app.kubernetes.io/name=servalsheets -f
 ### Health check
 
 ```bash
-kubectl exec -n servalsheets deploy/servalsheets -- curl -s localhost:3000/health
+kubectl exec -n servalsheets deploy/servalsheets -- curl -s localhost:3000/health/ready
 ```
 
 ## License

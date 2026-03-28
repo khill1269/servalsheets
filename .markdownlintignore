@@ -42,3 +42,6 @@ docs/development/**
 # Research and planning docs (dense structured format, not public-facing)
 docs/research/**
 docs/testing/**
+
+# Infrastructure docs (auto-generated, dense format)
+infra/**

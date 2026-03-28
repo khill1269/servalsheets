@@ -91,14 +91,15 @@ pm2 start deployment/pm2/ecosystem.config.js
 
 ## Detailed Documentation
 
-| Component  | Documentation                                                           |
-| ---------- | ----------------------------------------------------------------------- |
-| Docker     | [deployment/docker/](./docker/)                                         |
-| Kubernetes | [deployment/k8s/README.md](./k8s/README.md)                             |
-| Helm Chart | [deployment/helm/servalsheets/README.md](./helm/servalsheets/README.md) |
-| Terraform  | [deployment/terraform/README.md](./terraform/README.md)                 |
-| PM2        | [deployment/pm2/](./pm2/)                                               |
-| Prometheus | [deployment/prometheus/README.md](./prometheus/README.md)               |
+| Component    | Documentation                                                           |
+| ------------ | ----------------------------------------------------------------------- |
+| Docker       | [deployment/docker/](./docker/)                                         |
+| Kubernetes   | [deployment/k8s/README.md](./k8s/README.md)                             |
+| K8s Operator | [docs/deployment/kubernetes.md](../docs/deployment/kubernetes.md)       |
+| Helm Chart   | [deployment/helm/servalsheets/README.md](./helm/servalsheets/README.md) |
+| Terraform    | [deployment/terraform/README.md](./terraform/README.md)                 |
+| PM2          | [deployment/pm2/](./pm2/)                                               |
+| Prometheus   | [deployment/prometheus/README.md](./prometheus/README.md)               |
 
 ## Architecture
 
@@ -160,11 +161,12 @@ pm2 start deployment/pm2/ecosystem.config.js
 
 All deployments should configure health checks:
 
-| Endpoint       | Purpose    | Expected Response |
-| -------------- | ---------- | ----------------- |
-| `GET /health`  | Liveness   | `200 OK`          |
-| `GET /ready`   | Readiness  | `200 OK`          |
-| `GET /metrics` | Prometheus | Metrics payload   |
+| Endpoint            | Purpose             | Expected Response |
+| ------------------- | ------------------- | ----------------- |
+| `GET /health/live`  | Liveness            | `200 OK`          |
+| `GET /health/ready` | Readiness           | `200 OK`          |
+| `GET /health`       | Compatibility alias | `200 OK`          |
+| `GET /metrics`      | Prometheus          | Metrics payload   |
 
 ## Monitoring
 
@@ -225,7 +227,7 @@ Access:
 
 ```bash
 # Check health
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 
 # View logs (Docker)
 docker logs servalsheets -f

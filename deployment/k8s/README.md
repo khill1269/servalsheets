@@ -50,12 +50,12 @@ Edit the manifests to update:
 
 ```bash
 # Apply all manifests
-kubectl apply -f k8s/
+kubectl apply -f deployment/k8s/
 
 # Or apply individually
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml
+kubectl apply -f deployment/k8s/deployment.yaml
+kubectl apply -f deployment/k8s/service.yaml
+kubectl apply -f deployment/k8s/ingress.yaml
 ```
 
 ### 5. Verify Deployment
@@ -74,7 +74,7 @@ kubectl get ingress -n servalsheets
 kubectl logs -f deployment/servalsheets -n servalsheets
 
 # Check health
-kubectl exec -it deployment/servalsheets -n servalsheets -- wget -q -O- http://localhost:3000/health
+kubectl exec -it deployment/servalsheets -n servalsheets -- wget -q -O- http://localhost:3000/health/ready
 ```
 
 ## Files
@@ -95,8 +95,8 @@ The HPA is configured to:
 
 ## Health Checks
 
-- **Liveness Probe**: Checks `/health` every 10s
-- **Readiness Probe**: Checks `/health` every 5s
+- **Liveness Probe**: Checks `/health/live` every 10s
+- **Readiness Probe**: Checks `/health/ready` every 5s
 - Ensures zero-downtime deployments
 
 ## Rolling Updates

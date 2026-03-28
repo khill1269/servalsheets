@@ -1,0 +1,87 @@
+# ServalSheets AgentCore Runtime Dockerfile
+# ARM64 container for AWS Bedrock AgentCore deployment
+# Protocol: MCP 2025-11-25 (Streamable HTTP at /mcp)
+
+# Stage 1: Build
+FROM --platform=linux/arm64 node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files (root + all workspace packages for npm ci)
+COPY package*.json ./
+COPY packages/serval-core/package*.json ./packages/serval-core/
+COPY packages/mcp-client/package*.json ./packages/mcp-client/
+COPY packages/mcp-http/package*.json ./packages/mcp-http/
+COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
+COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
+
+# Install dependencies (including devDependencies for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# Prune devDependencies
+RUN npm prune --production
+
+# Stage 2: Runtime (ARM64 for AgentCore)
+FROM --platform=linux/arm64 node:20-alpine
+
+WORKDIR /app
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+# Copy built artifacts and production dependencies
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/server.json ./
+
+# Create non-root user
+RUN addgroup -g 1001 -S servalsheets && \
+    adduser -S servalsheets -u 1001
+
+# Change ownership
+RUN chown -R servalsheets:servalsheets /app
+
+# Switch to non-root user
+USER servalsheets
+
+# AgentCore Runtime requires port 8000 on 0.0.0.0
+EXPOSE 8000
+
+# AgentCore health check — liveness probe at /health/live, also supports /ping
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:8000/health/live || exit 1
+
+# AgentCore Runtime environment
+ENV MCP_TRANSPORT=http
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=8000
+
+# AWS-specific defaults
+ENV AWS_BEDROCK_REGION=us-east-1
+ENV SECRETS_PROVIDER=aws
+ENV AWS_SECRETS_REGION=us-east-1
+
+# Enable Cognito auth when deployed on AgentCore
+# COGNITO_USER_POOL_ID and COGNITO_REGION set by AgentCore at runtime
+
+# MCP protocol settings
+ENV MCP_PROTOCOL_VERSION=2025-11-25
+ENV ENABLE_AGGRESSIVE_FIELD_MASKS=true
+ENV ENABLE_REQUEST_MERGING=true
+ENV ENABLE_PARALLEL_EXECUTOR=true
+
+# Session timeout alignment with AgentCore limits
+# Sync: 15 min, Async: 8 hours
+ENV SESSION_TIMEOUT_MS=900000
+ENV AGENTCORE_ASYNC_TIMEOUT_MS=28800000
+
+# Start HTTP server (serves MCP at /mcp endpoint)
+CMD ["node", "dist/http-server.js"]
