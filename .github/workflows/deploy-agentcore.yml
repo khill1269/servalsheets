@@ -1,0 +1,691 @@
+name: Deploy to AWS AgentCore Runtime
+
+# Triggers:
+# - Push to main: auto-deploy to staging
+# - Push version tags (v*.*.* ): auto-deploy to production (after staging succeeds)
+# - Manual dispatch: allows selecting environment (dev/staging/prod) and custom image tag
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      image_tag:
+        description: 'Docker image tag (e.g., sha-abc123, v1.2.3, latest)'
+        required: true
+        type: string
+
+# Concurrency: only one deployment per environment at a time
+concurrency:
+  group: deploy-agentcore-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_ACCOUNT_ID: '050752643237'
+  AWS_REGION: 'us-east-1'
+  ECR_REPOSITORY: 'servalsheets/mcp-server'
+  DOCKERFILE: 'Dockerfile.agentcore'
+
+jobs:
+  # Job 1: Pre-deployment verification (typecheck, tests, drift checks)
+  # Timeout: 5 minutes
+  # Runs on every deployment trigger
+  verify:
+    name: Pre-Deployment Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b8c0 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type checking
+        run: npm run typecheck
+
+      - name: Run unit and integration tests
+        run: npm run test:fast
+
+      - name: Check metadata drift
+        run: npm run check:drift
+
+  # Job 2: Build ARM64 Docker image and push to ECR
+  # Timeout: 15 minutes
+  # Depends on: verify
+  # Runs on push to main/tags or manual dispatch
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: verify
+    permissions:
+      contents: read
+      id-token: write
+
+    outputs:
+      image-uri: ${{ steps.image.outputs.uri }}
+      image-tag: ${{ steps.image.outputs.tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: 'arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-servalsheets'
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff0ed5e42a04b4ad0dc3a2b49ccf # v2
+        with:
+          mask-password: 'true'
+
+      - name: Set up QEMU for ARM64 cross-compilation
+        uses: docker/setup-qemu-action@5927c834f5b4fdf14fffe21cade625748b9fc3a3 # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Determine image tag
+        id: image
+        run: |
+          # Default to SHA if not manually specified
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          elif [[ ${{ github.ref }} == refs/tags/* ]]; then
+            # Extract version from tag (v1.2.3 -> 1.2.3)
+            TAG="${{ github.ref_name }}"
+          else
+            # Use short SHA for main branch pushes
+            TAG="sha-${{ github.sha }}"
+          fi
+
+          # Build full image URI
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          FULL_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${TAG}"
+
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "uri=${FULL_URI}" >> $GITHUB_OUTPUT
+          echo "registry=${ECR_REGISTRY}" >> $GITHUB_OUTPUT
+          echo "📦 Image URI: ${FULL_URI}"
+
+      - name: Build and push ARM64 Docker image
+        id: docker-build
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          file: ./${{ env.DOCKERFILE }}
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.uri }}
+            ${{ steps.image.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            VCS_REF=${{ github.sha }}
+
+      - name: Output image digest
+        run: |
+          echo "✅ Docker image built successfully"
+          echo "📦 Digest: ${{ steps.docker-build.outputs.digest }}"
+          echo "🏷️  Tag: ${{ steps.image.outputs.tag }}"
+
+  # Job 3: Deploy to staging ECS cluster
+  # Timeout: 10 minutes
+  # Depends on: build-and-push
+  # Runs only on main branch pushes or manual staging/dev triggers
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build-and-push
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+    # Only run on main branch or when manually triggered for staging/dev
+    if: |
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.environment == 'staging' ||
+        github.event.inputs.environment == 'dev'))
+
+    environment:
+      name: staging
+      url: ${{ secrets.STAGING_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: 'arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-servalsheets'
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to ECS Staging
+        id: deploy
+        run: |
+          CLUSTER="servalsheets-staging"
+          SERVICE="servalsheets-staging-service"
+          IMAGE_URI="${{ needs.build-and-push.outputs.image-uri }}"
+
+          echo "🚀 Deploying to ECS Staging"
+          echo "  Cluster: ${CLUSTER}"
+          echo "  Service: ${SERVICE}"
+          echo "  Image: ${IMAGE_URI}"
+
+          # Fetch current task definition
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster ${CLUSTER} \
+            --services ${SERVICE} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+
+          echo "📋 Current task definition: ${TASK_DEF_ARN}"
+
+          # Register new task definition with updated image
+          aws ecs describe-task-definition \
+            --task-definition ${TASK_DEF_ARN} \
+            --query 'taskDefinition' \
+            | jq \
+              --arg IMAGE "${IMAGE_URI}" \
+              '.containerDefinitions[0].image = $IMAGE |
+               del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            | aws ecs register-task-definition --cli-input-json file:///dev/stdin \
+            | jq '.taskDefinition.taskDefinitionArn' \
+            | xargs -I {} echo "NEW_TASK_DEF={}" >> $GITHUB_OUTPUT
+
+          NEW_TASK_DEF=$(cat $GITHUB_OUTPUT | grep NEW_TASK_DEF | cut -d= -f2)
+          echo "✅ Registered new task definition: ${NEW_TASK_DEF}"
+
+          # Update service with new task definition
+          aws ecs update-service \
+            --cluster ${CLUSTER} \
+            --service ${SERVICE} \
+            --task-definition ${NEW_TASK_DEF} \
+            --force-new-deployment \
+            --output text
+
+      - name: Wait for deployment stability (5 min timeout)
+        id: wait
+        run: |
+          CLUSTER="servalsheets-staging"
+          SERVICE="servalsheets-staging-service"
+          TIMEOUT=300  # 5 minutes
+          ELAPSED=0
+          INTERVAL=10  # Check every 10 seconds
+
+          echo "⏳ Waiting for deployment to stabilize..."
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            DEPLOYMENT_STATUS=$(aws ecs describe-services \
+              --cluster ${CLUSTER} \
+              --services ${SERVICE} \
+              --query 'services[0].deployments[0].status' \
+              --output text)
+
+            RUNNING=$(aws ecs describe-services \
+              --cluster ${CLUSTER} \
+              --services ${SERVICE} \
+              --query 'services[0].deployments[0].runningCount' \
+              --output text)
+
+            DESIRED=$(aws ecs describe-services \
+              --cluster ${CLUSTER} \
+              --services ${SERVICE} \
+              --query 'services[0].deployments[0].desiredCount' \
+              --output text)
+
+            echo "  Status: ${DEPLOYMENT_STATUS}, Running: ${RUNNING}/${DESIRED}"
+
+            if [ "${DEPLOYMENT_STATUS}" == "PRIMARY" ] && [ "${RUNNING}" == "${DESIRED}" ]; then
+              echo "✅ Deployment stabilized"
+              echo "status=success" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "⚠️  Deployment timeout - proceeding with caution"
+          echo "status=timeout" >> $GITHUB_OUTPUT
+
+      - name: Run E2E smoke tests against staging
+        id: smoke-test
+        run: |
+          echo "🧪 Running E2E smoke tests against staging"
+
+          STAGING_URL="${{ secrets.STAGING_URL }}"
+
+          if [ -z "${STAGING_URL}" ]; then
+            echo "⚠️  STAGING_URL secret not configured, skipping smoke tests"
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          export TEST_E2E=true
+          export ENDPOINT_URL="${STAGING_URL}"
+
+          npm ci > /dev/null 2>&1
+
+          # Run basic smoke tests only (protocol compliance + basic CRUD)
+          npm run test:e2e 2>&1 | tee smoke-test.log
+
+          if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo "✅ Smoke tests passed"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Smoke tests failed"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Rollback on smoke test failure
+        if: failure() && steps.smoke-test.outcome == 'failure'
+        run: |
+          CLUSTER="servalsheets-staging"
+          SERVICE="servalsheets-staging-service"
+
+          echo "🔙 Rolling back deployment..."
+
+          # Get previous task definition
+          PREVIOUS_TASK=$(aws ecs describe-services \
+            --cluster ${CLUSTER} \
+            --services ${SERVICE} \
+            --query 'services[0].deployments[1].taskDefinition' \
+            --output text)
+
+          if [ ! -z "${PREVIOUS_TASK}" ] && [ "${PREVIOUS_TASK}" != "None" ]; then
+            aws ecs update-service \
+              --cluster ${CLUSTER} \
+              --service ${SERVICE} \
+              --task-definition ${PREVIOUS_TASK} \
+              --output text
+            echo "✅ Rolled back to: ${PREVIOUS_TASK}"
+          else
+            echo "⚠️  Could not find previous task definition to rollback"
+          fi
+
+      - name: Create deployment status check
+        if: always()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const status = '${{ steps.smoke-test.outcome }}' === 'success' ? 'success' : 'failure';
+            const description = status === 'success'
+              ? '✅ Staging deployment successful'
+              : '❌ Staging deployment failed - check logs for details';
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: status,
+              description: description,
+              context: 'deploy-agentcore/staging'
+            });
+
+  # Job 4: Deploy to production ECS cluster
+  # Timeout: 15 minutes
+  # Depends on: deploy-staging
+  # Runs only on version tags or manual prod trigger (requires environment approval)
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-and-push, deploy-staging]
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+    # Only run on version tags or manual prod trigger
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.event.inputs.environment == 'prod')
+
+    environment:
+      name: production
+      url: ${{ secrets.PROD_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        with:
+          role-to-assume: 'arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-servalsheets'
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to ECS Production
+        id: deploy
+        run: |
+          CLUSTER="servalsheets-prod"
+          SERVICE="servalsheets-prod-service"
+          IMAGE_URI="${{ needs.build-and-push.outputs.image-uri }}"
+
+          echo "🚀 Deploying to ECS Production"
+          echo "  Cluster: ${CLUSTER}"
+          echo "  Service: ${SERVICE}"
+          echo "  Image: ${IMAGE_URI}"
+
+          # Fetch current task definition
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster ${CLUSTER} \
+            --services ${SERVICE} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+
+          echo "📋 Current task definition: ${TASK_DEF_ARN}"
+
+          # Register new task definition with updated image
+          aws ecs describe-task-definition \
+            --task-definition ${TASK_DEF_ARN} \
+            --query 'taskDefinition' \
+            | jq \
+              --arg IMAGE "${IMAGE_URI}" \
+              '.containerDefinitions[0].image = $IMAGE |
+               del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            | aws ecs register-task-definition --cli-input-json file:///dev/stdin \
+            | jq '.taskDefinition.taskDefinitionArn' \
+            | xargs -I {} echo "NEW_TASK_DEF={}" >> $GITHUB_OUTPUT
+
+          NEW_TASK_DEF=$(cat $GITHUB_OUTPUT | grep NEW_TASK_DEF | cut -d= -f2)
+          echo "✅ Registered new task definition: ${NEW_TASK_DEF}"
+
+          # Update service with new task definition
+          aws ecs update-service \
+            --cluster ${CLUSTER} \
+            --service ${SERVICE} \
+            --task-definition ${NEW_TASK_DEF} \
+            --force-new-deployment \
+            --output text
+
+      - name: Wait for production deployment stability (5 min timeout)
+        id: wait
+        run: |
+          CLUSTER="servalsheets-prod"
+          SERVICE="servalsheets-prod-service"
+          TIMEOUT=300
+          ELAPSED=0
+          INTERVAL=10
+
+          echo "⏳ Waiting for production deployment to stabilize..."
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            DEPLOYMENT_STATUS=$(aws ecs describe-services \
+              --cluster ${CLUSTER} \
+              --services ${SERVICE} \
+              --query 'services[0].deployments[0].status' \
+              --output text)
+
+            RUNNING=$(aws ecs describe-services \
+              --cluster ${CLUSTER} \
+              --services ${SERVICE} \
+              --query 'services[0].deployments[0].runningCount' \
+              --output text)
+
+            DESIRED=$(aws ecs describe-services \
+              --cluster ${CLUSTER} \
+              --services ${SERVICE} \
+              --query 'services[0].deployments[0].desiredCount' \
+              --output text)
+
+            echo "  Status: ${DEPLOYMENT_STATUS}, Running: ${RUNNING}/${DESIRED}"
+
+            if [ "${DEPLOYMENT_STATUS}" == "PRIMARY" ] && [ "${RUNNING}" == "${DESIRED}" ]; then
+              echo "✅ Production deployment stabilized"
+              echo "status=success" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "⚠️  Deployment timeout - check CloudWatch for details"
+          echo "status=timeout" >> $GITHUB_OUTPUT
+
+      - name: Run E2E smoke tests against production
+        id: smoke-test
+        run: |
+          echo "🧪 Running E2E smoke tests against production"
+
+          PROD_URL="${{ secrets.PROD_URL }}"
+
+          if [ -z "${PROD_URL}" ]; then
+            echo "⚠️  PROD_URL secret not configured, skipping smoke tests"
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          export TEST_E2E=true
+          export ENDPOINT_URL="${PROD_URL}"
+
+          npm ci > /dev/null 2>&1
+
+          # Run smoke tests against production
+          npm run test:e2e 2>&1 | tee smoke-test-prod.log
+
+          if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo "✅ Production smoke tests passed"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Production smoke tests failed"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Rollback on production smoke test failure
+        if: failure() && steps.smoke-test.outcome == 'failure'
+        run: |
+          CLUSTER="servalsheets-prod"
+          SERVICE="servalsheets-prod-service"
+
+          echo "🔙 Rolling back production deployment..."
+
+          # Get previous task definition
+          PREVIOUS_TASK=$(aws ecs describe-services \
+            --cluster ${CLUSTER} \
+            --services ${SERVICE} \
+            --query 'services[0].deployments[1].taskDefinition' \
+            --output text)
+
+          if [ ! -z "${PREVIOUS_TASK}" ] && [ "${PREVIOUS_TASK}" != "None" ]; then
+            aws ecs update-service \
+              --cluster ${CLUSTER} \
+              --service ${SERVICE} \
+              --task-definition ${PREVIOUS_TASK} \
+              --output text
+            echo "✅ Rolled back production to: ${PREVIOUS_TASK}"
+          else
+            echo "⚠️  Could not find previous task definition to rollback"
+          fi
+
+      - name: Create GitHub issue on production failure
+        if: failure() && steps.smoke-test.outcome == 'failure'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Production Deployment Failed',
+              body: `**Deployment Rollback Triggered**\n\n` +
+                    `**Commit**: ${context.sha}\n` +
+                    `**Ref**: ${context.ref}\n` +
+                    `**Run**: ${context.runId}\n\n` +
+                    `Smoke tests failed after production deployment. Service was automatically rolled back.\n\n` +
+                    `**Action Required**:\n` +
+                    `1. Review test logs in the Actions run\n` +
+                    `2. Check CloudWatch logs for the production cluster\n` +
+                    `3. Verify the rollback was successful\n` +
+                    `4. Investigate and fix the issue before retrying deployment\n\n` +
+                    `[View Deployment Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              labels: ['deployment', 'production', 'incident']
+            });
+
+            console.log(`Created issue #${issue.data.number}`);
+
+      - name: Create production deployment status check
+        if: always()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const status = '${{ steps.smoke-test.outcome }}' === 'success' ? 'success' : 'failure';
+            const description = status === 'success'
+              ? '✅ Production deployment successful'
+              : '❌ Production deployment failed - rolled back automatically';
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: status,
+              description: description,
+              context: 'deploy-agentcore/production'
+            });
+
+  # Job 5: Post-deployment notifications
+  # Timeout: 2 minutes
+  # Runs always (success or failure)
+  # Sends notifications via Slack if webhook is configured
+  notify:
+    name: Post-Deployment Notification
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: always()
+    needs: [build-and-push, deploy-staging, deploy-production]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Determine deployment status
+        id: status
+        run: |
+          # Aggregate job statuses
+          VERIFY_STATUS="${{ needs.build-and-push.result }}"
+          STAGING_STATUS="${{ needs.deploy-staging.result }}"
+          PROD_STATUS="${{ needs.deploy-production.result }}"
+
+          if [ "${VERIFY_STATUS}" == "success" ] && \
+             [ "${STAGING_STATUS}" == "success" -o "${STAGING_STATUS}" == "skipped" ]; then
+            OVERALL_STATUS="success"
+          else
+            OVERALL_STATUS="failure"
+          fi
+
+          echo "overall_status=${OVERALL_STATUS}" >> $GITHUB_OUTPUT
+          echo "build_status=${VERIFY_STATUS}" >> $GITHUB_OUTPUT
+          echo "staging_status=${STAGING_STATUS}" >> $GITHUB_OUTPUT
+          echo "prod_status=${PROD_STATUS}" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        if: vars.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@6c661ce58804a1a50a7b60e06d07bb122d186d2b # v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "ServalSheets AgentCore Deployment",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🐳 ServalSheets AgentCore Deployment"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Ref:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Build:*\n${{ steps.status.outputs.build_status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Staging:*\n${{ steps.status.outputs.staging_status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Production:*\n${{ steps.status.outputs.prod_status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Overall:*\n${{ steps.status.outputs.overall_status }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Image: `${{ needs.build-and-push.outputs.image-uri }}`"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow Run"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Commit"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+                    }
+                  ]
+                }
+              ]
+            }

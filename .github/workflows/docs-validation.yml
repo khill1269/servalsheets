@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'docs/**'
+      - '.github/workflows/**'
+      - 'package.json'
+      - 'scripts/check-npm-run-references.ts'
       - '*.md'
       - '.markdownlint.json'
       - '.cspell.json'
@@ -11,6 +14,9 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - '.github/workflows/**'
+      - 'package.json'
+      - 'scripts/check-npm-run-references.ts'
       - '*.md'
   schedule:
     # Run external link check every Monday at 9am UTC
@@ -44,6 +50,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate script references
+        run: npm run check:npm-run-refs
 
       - name: Lint Markdown
         run: npm run docs:lint

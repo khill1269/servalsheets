@@ -8,8 +8,8 @@ updates:
       - '/tools/google-docs-server'
       - '/tools/gcloud-console-server'
       - '/tools/test-intelligence-server'
-      - '/src/ui/tracing-dashboard'
-      - '/k8s/operator'
+      - '/ui/tracing-dashboard'
+      - '/deployment/k8s-operator/operator'
     schedule:
       interval: 'weekly'
       day: 'monday'
