@@ -83,10 +83,11 @@ https://www.googleapis.com/auth/script.metrics
 1. **Enable OAuth in ServalSheets:**
 
    ```bash
-   # Start server with OAuth enabled
-   npm run start:oauth
-   # or
-   node dist/http-server.js --enable-oauth
+   # Run interactive browser OAuth setup
+   npm run auth:setup
+
+   # Start the HTTP transport
+   npm run start:http
    ```
 
 2. **Configure Google Cloud Project:**
@@ -1105,9 +1106,10 @@ See [OAUTH_USER_SETUP.md](./OAUTH_USER_SETUP.md) for detailed instructions.
 
 **Solution**:
 
-1. Enable OAuth mode: `npm run start:oauth`
-2. Complete OAuth flow in browser
-3. Use user access token (not service account)
+1. Run browser OAuth setup: `npm run auth:setup`
+2. Start the HTTP transport: `npm run start:http`
+3. Complete OAuth flow in browser
+4. Use user access token (not service account)
 
 ---
 

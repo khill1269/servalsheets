@@ -308,7 +308,7 @@ kubectl get secret servalsheets-tls -n servalsheets -o yaml
 ### Ingress with TLS
 
 ```yaml
-# k8s/ingress.yaml
+# deployment/k8s/ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -396,7 +396,7 @@ aws elbv2 modify-listener \
 ## GCP Managed Certificates
 
 ```yaml
-# k8s/managed-certificate.yaml
+# example managed-certificate.yaml
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
 metadata:

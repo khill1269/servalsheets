@@ -170,7 +170,7 @@ npm run docs:watch     # Watch mode
 | [README.md](../README.md)       | Project overview        |
 | [CHANGELOG.md](../CHANGELOG.md) | Version history         |
 | [SECURITY.md](../SECURITY.md)   | Security policy         |
-| [SKILL.md](../SKILL.md)         | Claude skill definition |
+| [SKILL.md](./guides/SKILL.md)   | Claude skill definition |
 
 ### Configuration Examples
 

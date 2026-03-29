@@ -24,7 +24,7 @@ A living operational document that:
 4. Defines new scripts to close verification gaps in the existing framework
 5. Provides a weighted scoring model that reflects actual compliance depth
 
-**Not a one-time report.** Update finding statuses as items are remediated. Re-run `npm run audit:aquivr` to get the current score at any time.
+**Not a one-time report.** Update finding statuses as items are remediated. The planned runner script is `audit:aquivr`, but it is not currently defined in `package.json`.
 
 **Related benchmark execution plan:** The sheet-backed 44-fix workflow priority list now lives in [docs/remediation/benchmark-fix-action-plan-2026-03-20.md](./docs/remediation/benchmark-fix-action-plan-2026-03-20.md). Use this framework for audit gates and verification evidence; use the benchmark plan for live spreadsheet execution defaults and tool-routing priorities.
 
@@ -33,11 +33,9 @@ A living operational document that:
 ## Quick Run
 
 ```bash
-# Full framework (all 25 gates + scoring)
-npm run audit:aquivr
-
-# Tier 1 blockers only (< 5 min)
-npm run audit:aquivr:tier1
+# Planned command surface once the runner scripts exist:
+# audit:aquivr
+# audit:aquivr:tier1
 
 # Single gate
 bash scripts/aquivr-gate.sh G15

@@ -106,8 +106,8 @@ curl http://localhost:3000/metrics | grep rate_limit_hits_total
 # Verify credentials are valid
 curl http://localhost:3000/health/ready | jq '.checks[] | select(.name == "auth")'
 
-# Refresh OAuth token if needed
-npm run auth:refresh
+# Rerun browser auth setup if needed
+npm run auth:setup
 ```
 
 #### Step 3: Reset Circuit Breaker (Manual Override)
@@ -177,8 +177,8 @@ kubectl set env deployment/servalsheets MAX_CONCURRENT_REQUESTS=10
 **Solution:**
 
 ```bash
-# Refresh OAuth token
-npm run auth:refresh
+# Rerun browser auth setup if you rely on user OAuth
+npm run auth:setup
 
 # Update service account credentials
 kubectl create secret generic google-creds \

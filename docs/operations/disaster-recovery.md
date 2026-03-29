@@ -75,7 +75,7 @@ cd /opt/servalsheets
 ./docs/operations/restore-from-backup.sh latest
 
 # 5. Verify recovery
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 ```
 
 **Estimated Recovery Time:** 15-30 minutes
@@ -214,7 +214,7 @@ aws s3 cp s3://servalsheets-dr-backups/redis/latest.rdb /tmp/
 aws route53 change-resource-record-sets --hosted-zone-id Z123 --change-batch file://dr-dns.json
 
 # 5. Start services
-kubectl apply -f k8s/production/
+kubectl apply -f deployment/k8s/
 
 # 6. Monitor recovery
 watch kubectl get pods -n servalsheets
@@ -415,7 +415,7 @@ Updates will be provided every 30 minutes.
 
 ```bash
 # Health check
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 
 # Check logs (last 100 lines)
 docker-compose logs --tail=100
@@ -433,7 +433,7 @@ redis-cli PING
 curl http://localhost:3000/.well-known/oauth-authorization-server
 
 # Monitor in real-time
-watch -n 5 'curl -s http://localhost:3000/health | jq .'
+watch -n 5 'curl -s http://localhost:3000/health/ready | jq .'
 ```
 
 ---

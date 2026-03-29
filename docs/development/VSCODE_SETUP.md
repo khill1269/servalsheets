@@ -446,7 +446,7 @@ Add custom tasks to [.vscode/tasks.json](../../.vscode/tasks.json):
 {
   "label": "My Custom Task",
   "type": "shell",
-  "command": "npm run my-script",
+  "command": "npm run test:quick",
   "problemMatcher": [],
   "presentation": {
     "reveal": "always"

@@ -1,5 +1,15 @@
 {
   "mcpServers": {
+    "github-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
     "servalsheets": {
       "command": "node",
       "args": ["/Users/thomascahill/Documents/servalsheets 2/dist/cli.js"],
@@ -8,7 +18,7 @@
         "LOG_LEVEL": "warn",
 
         "OAUTH_CLIENT_ID": "928247231183-7unv94dc4rs3vo3tmib9tkcu5mkd8sd1.apps.googleusercontent.com",
-        "OAUTH_CLIENT_SECRET": "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",
+        "OAUTH_CLIENT_SECRET": "YOUR_OAUTH_CLIENT_SECRET",
         "OAUTH_REDIRECT_URI": "http://localhost:3000/callback",
         "ENCRYPTION_KEY": "5964e384d31a97cb2e607bba1dc974fd877727332be081a7e03a4e531fe520e4",
         "GOOGLE_TOKEN_STORE_PATH": "/Users/thomascahill/.servalsheets/tokens.encrypted",

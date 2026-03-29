@@ -102,8 +102,10 @@ The ServalSheets Kubernetes Operator provides declarative management of MCP serv
 #### Quick Start
 
 ```bash
-# 1. Install the operator (CRDs + RBAC + Operator deployment)
-kubectl apply -f https://raw.githubusercontent.com/yourusername/servalsheets/main/k8s/install.yaml
+# 1. Install the operator (CRD + RBAC + Operator deployment)
+kubectl apply -f deployment/k8s-operator/crds/servalsheets-server.yaml
+kubectl apply -f deployment/k8s-operator/operator/rbac.yaml
+kubectl apply -f deployment/k8s-operator/operator/deployment.yaml
 
 # 2. Wait for operator to be ready
 kubectl wait --for=condition=ready pod \
@@ -142,20 +144,20 @@ kubectl describe servalsheets-server my-sheets-server
 **Step 1: Install CRD**
 
 ```bash
-kubectl apply -f k8s/crds/servalsheets-server.yaml
+kubectl apply -f deployment/k8s-operator/crds/servalsheets-server.yaml
 ```
 
 **Step 2: Install RBAC**
 
 ```bash
 # Creates: Namespace, ServiceAccount, ClusterRole, ClusterRoleBinding
-kubectl apply -f k8s/operator/rbac.yaml
+kubectl apply -f deployment/k8s-operator/operator/rbac.yaml
 ```
 
 **Step 3: Deploy Operator**
 
 ```bash
-kubectl apply -f k8s/operator/deployment.yaml
+kubectl apply -f deployment/k8s-operator/operator/deployment.yaml
 
 # Verify operator is running
 kubectl get pods -n servalsheets-system
@@ -635,13 +637,13 @@ spec:
               memory: 2Gi
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 3000
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 5
@@ -1056,7 +1058,7 @@ kubectl get clusterrole servalsheets-operator
 kubectl get clusterrolebinding servalsheets-operator
 
 # Re-apply RBAC if missing
-kubectl apply -f k8s/operator/rbac.yaml
+kubectl apply -f deployment/k8s-operator/operator/rbac.yaml
 ```
 
 #### Issue 2: CRD Not Found
@@ -1073,7 +1075,7 @@ kubectl apply -f k8s/operator/rbac.yaml
 kubectl get crd servalsheets-servers.servalsheets.io
 
 # If missing, install CRD
-kubectl apply -f k8s/crds/servalsheets-server.yaml
+kubectl apply -f deployment/k8s-operator/crds/servalsheets-server.yaml
 
 # Verify CRD is established
 kubectl get crd servalsheets-servers.servalsheets.io -o jsonpath='{.status.conditions[?(@.type=="Established")].status}'
@@ -1159,7 +1161,7 @@ kubectl get endpoints -n my-namespace
 
 # Test Service directly (port-forward)
 kubectl port-forward -n my-namespace svc/<service-name> 8080:80
-curl http://localhost:8080/health
+curl http://localhost:8080/health/ready
 
 # Check TLS certificate
 kubectl get secret <tls-secret-name> -n my-namespace

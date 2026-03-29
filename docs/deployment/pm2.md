@@ -287,7 +287,7 @@ Add to ecosystem config:
 ```javascript
 {
   health_check: {
-    url: 'http://localhost:3000/health',
+    url: 'http://localhost:3000/health/ready',
     interval: 10000,
     timeout: 5000
   }

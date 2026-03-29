@@ -93,7 +93,7 @@ docker-compose up -d
 #### Kubernetes
 
 ```yaml
-# k8s/deployment.yaml
+# deployment/k8s/deployment.yaml
 spec:
   template:
     spec:
@@ -110,7 +110,7 @@ spec:
 
 ```bash
 # Apply and rolling update
-kubectl apply -f k8s/deployment.yaml
+kubectl apply -f deployment/k8s/deployment.yaml
 kubectl rollout status deployment/servalsheets
 ```
 
@@ -230,7 +230,7 @@ server {
 #### Kubernetes Service + Ingress
 
 ```yaml
-# k8s/service.yaml
+# deployment/k8s/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -245,7 +245,7 @@ spec:
   sessionAffinity: None # No sticky sessions needed (Redis handles state)
 
 ---
-# k8s/ingress.yaml
+# deployment/k8s/ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -343,7 +343,7 @@ aws autoscaling describe-auto-scaling-groups \
 **Kubernetes HorizontalPodAutoscaler:**
 
 ```yaml
-# k8s/hpa.yaml
+# example hpa.yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -385,7 +385,7 @@ spec:
 
 ```bash
 # Apply HPA
-kubectl apply -f k8s/hpa.yaml
+kubectl apply -f hpa.yaml
 
 # Monitor autoscaling
 watch kubectl get hpa servalsheets-hpa
@@ -598,7 +598,7 @@ kubectl top pods -n servalsheets
 **AWS Spot Instances** (up to 90% cheaper):
 
 ```yaml
-# k8s/spot-deployment.yaml
+# example spot-deployment.yaml
 spec:
   template:
     spec:

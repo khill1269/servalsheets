@@ -125,7 +125,7 @@ ServalSheets provides **100% data isolation** between tenants:
 The multi-tenancy implementation is verified by 20+ security tests:
 
 ```bash
-npm run test:security -- tenant-isolation
+vitest run tests/security/tenant-isolation.test.ts
 ```
 
 Key test coverage:

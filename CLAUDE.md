@@ -60,8 +60,15 @@ npm run check:silent-fallbacks  # No silent {} returns
 npm run validate:alignment  # Schema-handler alignment
 npm run validate:audit      # Audit document validation
 
-# Full gate pipeline
-npm run gates               # G0-G5 validation gates
+# Gate pipeline — 3 tiers (use the right one for the right moment)
+# Tier 1: Pre-commit (~50s) — must pass before every commit
+npm run audit:gate          # G1-G12: typecheck, drift, arch, wiring, action-coverage, memory, contracts, API, MCP, dead-code
+
+# Tier 2: CI/PR (~3 min) — runs on every push/PR in GitHub Actions
+npm run gates               # G0-G5: full test suite + compliance + build verification + audit scoring
+npm run check:sdk-drift     # Detect openapi.yaml/server.json changes since last gen:sdks
+
+# Tier 3: Release verification
 npm run verify:build        # Build + validate + smoke
 ```
 
@@ -146,6 +153,7 @@ LLM clients using ServalSheets MUST follow these patterns:
 ### 10. Adapter Pattern: packages/mcp-http vs src/http-server
 
 **NOT duplication.** Two different concerns:
+
 - `packages/mcp-http/`: Generic HTTP transport library (publishable as `@serval/mcp-http`)
   - Zero ServalSheets-specific imports — only DI-injected interfaces
   - Implements transport mechanics: SSE, streamable HTTP, rate limiting, CORS, helmet

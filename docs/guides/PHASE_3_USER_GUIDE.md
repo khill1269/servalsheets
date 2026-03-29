@@ -1,16 +1,20 @@
 ---
-title: 'Phase 3 Features: User Guide'
+title: 'Phase 3 Features: Historical Reference'
 category: guide
-last_updated: 2026-03-10
-description: Complete guide to ServalSheets' cutting-edge MCP features
+last_updated: 2026-03-27
+description: Historical guide to experimental Phase 3 concepts; not all surfaces are part of the current tracked runtime
 version: 2.0.0
 audience: user
 difficulty: intermediate
 ---
 
-# Phase 3 Features: User Guide
+# Phase 3 Features: Historical Reference
 
-**Complete guide to ServalSheets' cutting-edge MCP features**
+**Historical guide to experimental Phase 3 concepts**
+
+> Status: This page is not a source of truth for the current tracked runtime.
+> The current repo supports STDIO and HTTP/SSE transports.
+> It does not currently export `WebSocketTransport`, and `package.json` does not define end-user `plugin:*` commands.
 
 ---
 
@@ -29,7 +33,8 @@ difficulty: intermediate
 
 ### Overview
 
-ServalSheets now supports WebSocket connections for real-time, bidirectional communication with **90% latency reduction** compared to HTTP (500ms → 50ms).
+This section documents a historical or aspirational transport design, not a currently supported tracked runtime surface.
+Use the current HTTP/STDIO transport docs for supported deployment and testing flows.
 
 ### Benefits
 
@@ -137,7 +142,8 @@ const transport = new WebSocketTransport({
 
 ### Overview
 
-The ServalSheets plugin system enables custom JavaScript/TypeScript extensions with V8 sandboxing for security.
+This section documents a historical or aspirational plugin design.
+The current tracked runtime does not expose an end-user plugin CLI or the `plugin:*` npm commands shown in older drafts.
 
 ### Benefits
 
@@ -255,20 +261,15 @@ export default {
 
 ### Plugin Marketplace
 
-Install community plugins:
+The older marketplace commands shown in previous revisions are not part of the current package surface.
+Treat plugin examples in this document as conceptual notes, not runnable commands.
 
 ```bash
-# Search marketplace
-npm run plugin:search "data validation"
-
-# Install plugin
-npm run plugin:install "email-validator@1.2.0"
-
-# List installed plugins
-npm run plugin:list
-
-# Uninstall plugin
-npm run plugin:uninstall "email-validator"
+# Current tracked repo status:
+# - no plugin:search script
+# - no plugin:install script
+# - no plugin:list script
+# - no plugin:uninstall script
 ```
 
 ### Use Cases

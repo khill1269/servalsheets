@@ -45,3 +45,10 @@ docs/testing/**
 
 # Infrastructure docs (auto-generated, dense format)
 infra/**
+
+# Audit documents (dense structured format)
+docs/audits/**
+
+# Deployment operational docs (auto-generated)
+docs/deployment/AGENTCORE_DEPLOYMENT.md
+docs/deployment/SETUP_CHECKLIST.md

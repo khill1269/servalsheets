@@ -57,7 +57,7 @@ services:
     volumes:
       - ./service-account.json:/etc/google/service-account.json:ro
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health/ready']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -100,8 +100,8 @@ allowlist settings described in
 # Check container health
 docker inspect servalsheets --format='{{.State.Health.Status}}'
 
-# View health endpoint
-curl http://localhost:3000/health
+# View readiness endpoint
+curl http://localhost:3000/health/ready
 ```
 
 ## Logs

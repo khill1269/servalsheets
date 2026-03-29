@@ -155,11 +155,11 @@ kubectl rollout restart deployment/servalsheets -n servalsheets
    - Stream large responses
    - Implement pagination for large datasets
 
-5. **Regular heap snapshots:**
+5. **Regular memory profiling:**
 
    ```bash
-   # Schedule daily heap snapshots
-   npm run snapshot:heap
+   # Capture heap profiles regularly
+   npm run profile:memory
    # Analyze trends weekly
    ```
 

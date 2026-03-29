@@ -452,14 +452,14 @@ For critical deployments, reduce RPO with:
 
    ```bash
    docker-compose up -d
-   # or: kubectl apply -f k8s/
+   # or: kubectl apply -f deployment/k8s/
    # or: systemctl start servalsheets
    ```
 
 6. **Verify**
 
    ```bash
-   curl http://localhost:3000/health
+   curl http://localhost:3000/health/ready
    # Should return: {"status": "healthy"}
    ```
 
@@ -510,7 +510,7 @@ docker-compose up -d
 sleep 30
 
 # 5. Run health checks
-curl -f http://localhost:3000/health || { echo "Health check failed"; exit 1; }
+curl -f http://localhost:3000/health/ready || { echo "Health check failed"; exit 1; }
 
 # 6. Test OAuth flow
 curl -f http://localhost:3000/.well-known/oauth-authorization-server || { echo "OAuth check failed"; exit 1; }

@@ -86,7 +86,7 @@ Then verify:
 ```bash
 curl http://localhost:3000/.well-known/mcp.json
 curl http://localhost:3000/.well-known/oauth-authorization-server
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 ```
 
 ## 5. Add The Connector In Claude

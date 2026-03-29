@@ -3,6 +3,8 @@ title: Docs Optimization Plan
 date: 2026-03-24
 status: active
 priority: P0
+category: reference
+last_updated: 2026-03-24
 ---
 
 # 📋 Docs Optimization Plan
@@ -52,10 +54,10 @@ The docs/ folder has grown to **28.8 MB across 620 files**, but **86% of that (2
 - **20 different values** found across 139 references (100, 207, 291...408)
 - **Root Cause:** Counts were never centralized; each doc hardcodes its own number
 - **Fix:**
-  1. Run `npm run check:metadata-drift` to get actual count from source code
+  1. Run `npm run check:drift` to get actual count from source code
   2. Update `development/SOURCE_OF_TRUTH.md` with canonical number
   3. Run `scripts/fix-doc-action-counts.sh` to bulk-update all docs
-  4. Add CI gate: `npm run check:hardcoded-counts`
+  4. Add CI gate: `npm run check:doc-counts`
 
 ### 2.2 Tool Count Inconsistency
 
@@ -151,7 +153,7 @@ The `review/` folder has **50 files / 1.2 MB** — many are one-time audit artif
 {
   "docs:audit": "npx tsx scripts/crawl-docs-audit.ts",
   "docs:links": "npx tsx scripts/check-doc-links.sh",
-  "docs:counts": "npm run check:hardcoded-counts",
+  "docs:counts": "npm run check:doc-counts",
   "docs:frontmatter": "npx tsx scripts/check-frontmatter.ts"
 }
 ```

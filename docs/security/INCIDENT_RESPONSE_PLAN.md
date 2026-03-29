@@ -51,8 +51,8 @@ tags: [security, sheets, grafana]
 ### Phase 2: Assess
 
 ```bash
-# Check server health
-curl -s http://localhost:3000/health | jq .
+# Check server readiness
+curl -s http://localhost:3000/health/ready | jq .
 
 # Check tool integrity (rug-pull detection)
 curl -s http://localhost:3000/.well-known/mcp/tool-hashes | jq '.generated, (.tools | keys | length)'
@@ -126,8 +126,8 @@ npm run emergency:disable -- --off
 # Restart normally
 npm start
 
-# Verify health
-curl -s http://localhost:3000/health | jq .status
+# Verify readiness
+curl -s http://localhost:3000/health/ready | jq .status
 ```
 
 ---

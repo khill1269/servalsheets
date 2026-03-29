@@ -185,7 +185,7 @@ kubectl set env deployment/servalsheets DB_CACHE_ENABLED=true -n servalsheets
 4. **Add performance tests:**
 
    ```bash
-   npm run test:performance
+   npm run test:benchmarks
    npm run test:load
    ```
 
@@ -193,7 +193,10 @@ kubectl set env deployment/servalsheets DB_CACHE_ENABLED=true -n servalsheets
 
    ```bash
    # Generate flame graphs weekly
-   npm run profile
+   npm run profile:flame
+   # Or capture CPU / heap profiles as needed
+   npm run profile:cpu
+   npm run profile:memory
    ```
 
 ## Post-Incident

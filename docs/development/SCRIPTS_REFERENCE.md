@@ -877,7 +877,7 @@ npm run test:fast              # 8-12s - Unit + contracts
 # Test specific layer
 npm run test:handlers          # Handler layer only
 npm run test:services          # Service layer only
-npm run test:schemas           # Schema validation only
+npm run test:unit              # Unit + schema + util/core coverage
 
 # Comprehensive testing
 npm test                       # All tests (~3 min)

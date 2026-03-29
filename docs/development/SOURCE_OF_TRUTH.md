@@ -269,7 +269,7 @@ Line Counts:
   src/handlers/base.ts:  1605 lines
 
 Build Status:
-  npm run verify:      ✅ PASSING
+  npm run verify       ✅ PASSING
   TypeScript:          ✅ 0 errors
   Placeholders:        ✅ None found
   Metadata Drift:      ✅ PASSING

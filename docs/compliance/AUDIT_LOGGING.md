@@ -74,7 +74,7 @@ Each audit entry includes:
 
 ```bash
 # Verify audit log integrity
-npm run verify:audit
+npm run validate:audit
 
 # Or programmatically
 import { getAuditLogger } from './services/audit-logger.js';

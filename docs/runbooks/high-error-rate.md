@@ -83,8 +83,8 @@ Check the error distribution dashboard:
 **If authentication issue:**
 
 ```bash
-# Refresh OAuth credentials
-npm run auth:refresh
+# Rerun browser auth setup if you rely on user OAuth
+npm run auth:setup
 
 # Restart service to pick up new credentials
 kubectl rollout restart deployment/servalsheets -n servalsheets
@@ -135,7 +135,7 @@ kubectl scale deployment/servalsheets --replicas=5 -n servalsheets
 
    ```bash
    npm run test:integration
-   npm run test:live-api
+   npm run test:live
    ```
 
 2. **Implement gradual rollouts:**

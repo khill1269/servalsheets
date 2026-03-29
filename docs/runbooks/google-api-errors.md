@@ -76,8 +76,8 @@ kubectl logs -n servalsheets deployment/servalsheets | grep "token" | tail -20
 ### Step 1: Authentication Issues (401)
 
 ```bash
-# Refresh OAuth credentials
-npm run auth:refresh
+# Rerun browser auth setup if you rely on user OAuth
+npm run auth:setup
 
 # Verify token scopes
 # Navigate to: https://myaccount.google.com/permissions

@@ -158,7 +158,8 @@ If quota increase needed:
 
    ```bash
    # Weekly review of API usage patterns
-   npm run analyze:quota-usage
+   curl http://localhost:3000/metrics | grep servalsheets_quota_usage
+   kubectl logs -n servalsheets deployment/servalsheets | grep "quota" | tail -200
    ```
 
 5. **Add circuit breakers:**

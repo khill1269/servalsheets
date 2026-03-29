@@ -103,7 +103,7 @@ After configuration:
 
 ```bash
 npm run start:http
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 curl http://localhost:3000/.well-known/oauth-authorization-server
 ```
 

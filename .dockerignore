@@ -66,10 +66,24 @@ scripts/manual
 scripts/diagnose-all.sh
 scripts/quick-test.sh
 scripts/integrate-inference.sh
+tools
+ui
+infra
+benchmark
+benchmarks
+bundle
+artifacts
+audit-logs
+audit-output
+sdks
+.data
+.serval-data
+.tmp
+.probe-data
+.probe-profiles
 
-# Deployment files (except docker)
-deployment/kubernetes
-deployment/terraform
+# Deployment files
+deployment
 
 # Assets not needed in runtime
 assets

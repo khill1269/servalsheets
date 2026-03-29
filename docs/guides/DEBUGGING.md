@@ -180,11 +180,12 @@ CircuitBreakerError: Circuit breaker is OPEN
 **Solution:**
 
 ```bash
-# Check circuit breaker status
-npm run monitor:health
+# Check readiness and circuit breaker status
+curl http://localhost:3000/health/ready | jq
+curl http://localhost:3000/metrics/circuit-breakers | jq
 
 # Reset circuit breaker
-curl -X POST http://localhost:3000/admin/circuit-breakers/reset
+curl -X POST http://localhost:3000/admin/api/circuit-breakers/reset
 
 # Or wait for half-open timeout (30 seconds)
 ```

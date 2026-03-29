@@ -47,6 +47,7 @@ export default [
         projectService: {
           allowDefaultProject: ['scripts/*.ts', 'scripts/*/*.ts', 'scripts/*/*/*.ts', 'vitest.config.ts'],
           defaultProject: './tsconfig.eslint.json',
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 30,
         },
       },
       globals: {
@@ -166,6 +167,14 @@ export default [
     rules: {
       'no-console': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+  {
+    // Analysis agent scripts: relax strict typing rules (non-production utility code)
+    files: ['scripts/analysis/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 ];

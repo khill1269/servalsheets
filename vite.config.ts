@@ -8,13 +8,13 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  root: 'src/ui/tracing-dashboard',
+  root: 'ui/tracing-dashboard',
   build: {
     outDir: resolve(__dirname, 'dist/ui/tracing'),
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'src/ui/tracing-dashboard/index.html'),
+        main: resolve(__dirname, 'ui/tracing-dashboard/index.html'),
       },
     },
   },

@@ -72,8 +72,8 @@ docker-compose up -d --no-deps --build servalsheets
 # or: kubectl rollout restart deployment/servalsheets
 
 # 6. Verify
-curl http://localhost:3000/health
-# Should show: "version": "1.1.1"
+curl http://localhost:3000/health/ready
+# Should report healthy status before proceeding
 ```
 
 **Estimated Time**: 10-15 minutes
@@ -117,8 +117,8 @@ docker-compose restart servalsheets
 # 2. Stop services
 docker-compose down
 
-# 3. Run migration script
-npm run migrate:1.1-to-2.0
+# 3. Run the deployment-specific migration procedure for your environment
+# No canonical npm migrate:* script is currently defined in package.json
 
 # 4. Update environment variables
 cp .env .env.backup
@@ -132,8 +132,8 @@ npm run build
 # 6. Start services
 docker-compose up -d
 
-# 7. Verify migration
-npm run verify:migration
+# 7. Run the supported smoke suite
+npm run smoke
 
 # 8. Monitor for issues
 docker-compose logs -f
@@ -235,7 +235,7 @@ npm run build
 docker-compose up -d
 
 # 5. Verify
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 ```
 
 ### Full Rollback (> 1 hour, data migrated)
@@ -252,14 +252,14 @@ git checkout v1.6.0
 npm ci
 npm run build
 
-# 4. Run reverse migration script (if available)
-npm run migrate:2.0-to-1.1
+# 4. Run the reverse migration procedure for your environment (if available)
+# No canonical npm reverse-migration script is currently defined in package.json
 
 # 5. Start services
 docker-compose up -d
 
 # 6. Verify
-curl http://localhost:3000/health
+curl http://localhost:3000/health/ready
 ```
 
 ---
@@ -368,7 +368,7 @@ export async function down(redis: Redis) {
 ### Rolling Update Strategy
 
 ```yaml
-# k8s/deployment.yaml
+# deployment/k8s/deployment.yaml
 spec:
   strategy:
     type: RollingUpdate
@@ -393,7 +393,7 @@ kubectl rollout undo deployment/servalsheets
 
 ```bash
 # 1. Deploy new version (green) alongside current (blue)
-kubectl apply -f k8s/deployment-green.yaml
+kubectl apply -f deployment-green.yaml
 
 # 2. Test green deployment
 kubectl port-forward deployment/servalsheets-green 9000:3000
@@ -465,7 +465,7 @@ kubectl patch service servalsheets -p '
 npm run test:integration
 
 # Run smoke tests
-npm run test:smoke
+npm run smoke
 
 # Load test to verify performance
 k6 run tests/load/post-migration-test.js
@@ -475,8 +475,8 @@ k6 run tests/load/post-migration-test.js
 
 ```bash
 # 1. Health check
-curl http://localhost:3000/health
-# Expected: {"status": "healthy", "version": "2.0.0"}
+curl http://localhost:3000/health/ready
+# Expected: {"status": "healthy"}
 
 # 2. OAuth flow
 curl http://localhost:3000/.well-known/oauth-authorization-server
@@ -528,8 +528,8 @@ docker-compose logs servalsheets | tail -100
 # Check current schema version
 redis-cli GET servalsheets:schema_version
 
-# Run migration script
-npm run migrate:schema
+# Run the deployment-specific schema migration procedure for your environment
+# No canonical npm migrate:schema script is currently defined in package.json
 
 # Or force set version (DANGER - only if certain)
 redis-cli SET servalsheets:schema_version "2.0.0"

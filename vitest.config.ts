@@ -9,6 +9,7 @@ const minWorkers = isCI ? 1 : 2;
 export default defineConfig({
   resolve: {
     // Handle .js imports for .ts files (NodeNext module resolution compatibility)
+    // @ts-expect-error extensionAlias is a valid Vite option not yet in all type versions
     extensionAlias: {
       '.js': ['.ts', '.js'],
     },
@@ -33,6 +34,7 @@ export default defineConfig({
     // switch to 'forks' if OOM in low-memory environments (~3GB heap needed)
     maxConcurrency,
     maxWorkers,
+    // @ts-expect-error minWorkers is a valid vitest option not in all type versions
     minWorkers,
     // Test sharding support for parallel execution
     // Use: npm run test:shard 1/4 to run 1st quarter of tests

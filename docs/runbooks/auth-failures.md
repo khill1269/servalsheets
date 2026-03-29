@@ -89,14 +89,11 @@ kubectl get deployment/servalsheets -n servalsheets \
 **Resolution:**
 
 ```bash
-# Method 1: Refresh token via CLI
+# Method 1: Rerun interactive auth setup
 cd /path/to/servalsheets
-npm run auth:refresh
-
-# Method 2: Run interactive auth setup
 npm run auth:setup
 
-# Method 3: Update OAuth credentials
+# Method 2: Update OAuth credentials
 # 1. Go to Google Cloud Console
 # 2. Go to APIs & Services > Credentials
 # 3. Download new credentials.json
@@ -291,25 +288,9 @@ auth.getClient().then(client => {
 
 ## Prevention
 
-1. **Set up token refresh automation:**
-
-   ```yaml
-   # Add CronJob to refresh tokens
-   apiVersion: batch/v1
-   kind: CronJob
-   metadata:
-     name: refresh-auth-token
-   spec:
-     schedule: '0 */6 * * *' # Every 6 hours
-     jobTemplate:
-       spec:
-         template:
-           spec:
-             containers:
-               - name: refresh
-                 image: servalsheets:latest
-                 command: ['npm', 'run', 'auth:refresh']
-   ```
+1. **Choose a refresh strategy that matches your auth mode:**
+   - For service accounts or ADC, rely on Google-managed token refresh and rotate the underlying credentials through your secret manager.
+   - For interactive browser OAuth, rerun `npm run auth:setup` after token invalidation or credential rotation.
 
 2. **Add token expiry monitoring:**
 
