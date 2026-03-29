@@ -26,7 +26,7 @@ import { SERVER_INFO, SERVER_ICONS } from '../version.js';
 import {
   createHttpMcpServerInstance as createPackagedHttpMcpServerInstance,
   type HttpMcpServerInstance as PackagedHttpMcpServerInstance,
-} from '../../packages/mcp-http/dist/runtime-factory.js';
+} from '#mcp-http/runtime-factory';
 import {
   registerHttpLoggingSetLevelHandler,
   type HttpLoggingSubscriber,

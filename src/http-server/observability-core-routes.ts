@@ -6,7 +6,7 @@ import { SERVER_INFO, VERSION } from '../version.js';
 import {
   registerHttpObservabilityCoreRoutes as registerHttpObservabilityCoreRoutesImpl,
   type HttpObservabilityCoreLogger,
-} from '../../packages/mcp-http/dist/observability-core-routes.js';
+} from '#mcp-http/observability-core-routes';
 
 export type { HttpObservabilityCoreLogger };
 

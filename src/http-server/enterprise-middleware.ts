@@ -2,7 +2,7 @@ import type { Application } from 'express';
 import {
   registerHttpEnterpriseMiddleware as registerPackagedHttpEnterpriseMiddleware,
   type RegisterHttpEnterpriseMiddlewareOptions as PackagedRegisterHttpEnterpriseMiddlewareOptions,
-} from '../../packages/mcp-http/dist/enterprise-middleware.js';
+} from '#mcp-http/enterprise-middleware';
 import { logger as defaultLogger } from '../utils/logger.js';
 export type RegisterHttpEnterpriseMiddlewareOptions = Omit<
   PackagedRegisterHttpEnterpriseMiddlewareOptions,

@@ -8,7 +8,7 @@ import type { StartStdioRuntimeOptions } from './start-stdio-runtime.js';
 import {
   buildServerStdioShutdownArgs as buildServerStdioShutdownArgsBase,
   buildServerStdioStartOptions as buildServerStdioStartOptionsBase,
-} from '../../packages/mcp-stdio/dist/build-server-stdio-lifecycle.js';
+} from '#mcp-stdio/build-server-stdio-lifecycle';
 
 interface ShutdownContextLike {
   rangeResolver?: { clearCache(): void };

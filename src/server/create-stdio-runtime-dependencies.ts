@@ -1,4 +1,4 @@
 export {
   createStdioRuntimeDependencies,
   type CreateStdioRuntimeDependenciesInput,
-} from '../../packages/mcp-stdio/dist/create-stdio-runtime-dependencies.js';
+} from '#mcp-stdio/create-stdio-runtime-dependencies';

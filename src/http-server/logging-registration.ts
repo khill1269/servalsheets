@@ -4,7 +4,7 @@ import {
   registerHttpLoggingSetLevelHandler as registerPackagedHttpLoggingSetLevelHandler,
   type HttpLoggingSetLevelResponse,
   type HttpLoggingSubscriber,
-} from '../../packages/mcp-http/dist/logging-registration.js';
+} from '#mcp-http/logging-registration';
 import { handleLoggingSetLevel } from '../handlers/logging.js';
 import type { McpLogRateLimitState } from '../server/logging-bridge-utils.js';
 import { logger as defaultLogger } from '../utils/logger.js';

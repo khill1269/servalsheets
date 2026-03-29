@@ -5,7 +5,7 @@ import {
   type ProcessMemoryUsageLike,
   type RegisterHttpStatsRoutesOptions as PackagedRegisterHttpStatsRoutesOptions,
   type StatsUserRateLimiterLike,
-} from '../../packages/mcp-http/dist/stats-routes.js';
+} from '#mcp-http/stats-routes';
 import { requireAdminAuth } from '../admin/index.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import type { UserRateLimiter } from '../services/user-rate-limiter.js';

@@ -14,7 +14,7 @@ import { installInitializeCancellationGuard } from './initialize-cancellation-gu
 import {
   buildServerStdioInfrastructure as buildServerStdioInfrastructureBase,
   type ServerStdioInfrastructure as PackageServerStdioInfrastructure,
-} from '../../packages/mcp-stdio/dist/build-server-stdio-infrastructure.js';
+} from '#mcp-stdio/build-server-stdio-infrastructure';
 
 interface BuildServerStdioInfrastructureOptions {
   name?: string;

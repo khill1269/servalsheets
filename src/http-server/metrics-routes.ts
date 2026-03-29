@@ -3,7 +3,7 @@ import {
   registerHttpMetricsRoutes as registerHttpMetricsRoutesImpl,
   type HttpMetricsRoutesLogger,
   type RegisterHttpMetricsRoutesOptions as PackagedRegisterHttpMetricsRoutesOptions,
-} from '../../packages/mcp-http/dist/metrics-routes.js';
+} from '#mcp-http/metrics-routes';
 import { requireAdminAuth } from '../admin/index.js';
 import { metricsHandler } from '../observability/metrics.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';

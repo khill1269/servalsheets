@@ -12,7 +12,7 @@ import {
   type HttpRateLimiterLogger,
   type RedisClientLike,
   type UserRateLimiterLike,
-} from '../../packages/mcp-http/dist/rate-limit-bootstrap.js';
+} from '#mcp-http/rate-limit-bootstrap';
 
 export type {
   HttpRateLimiterBootstrap,

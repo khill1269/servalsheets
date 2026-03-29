@@ -5,7 +5,7 @@ import { addGraphQLEndpoint } from '../graphql/index.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { logger } from '../utils/logger.js';
 import { createTokenBackedInitializedGoogleHandlerContext } from '../server/google-handler-bundle.js';
-import { registerHttpGraphQlAndAdmin as registerPackagedHttpGraphQlAndAdmin } from '../../packages/mcp-http/dist/graphql-admin.js';
+import { registerHttpGraphQlAndAdmin as registerPackagedHttpGraphQlAndAdmin } from '#mcp-http/graphql-admin';
 
 export function registerHttpGraphQlAndAdmin(params: {
   app: Express;

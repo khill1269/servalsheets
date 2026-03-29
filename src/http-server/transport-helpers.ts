@@ -6,7 +6,7 @@ import {
   normalizeMcpSessionHeader as normalizePackagedMcpSessionHeader,
   verifySessionSecurityContext as verifyPackagedSessionSecurityContext,
   type SessionSecurityContext,
-} from '../../packages/mcp-http/dist/transport-helpers.js';
+} from '#mcp-http/transport-helpers';
 import { InMemoryEventStore, RedisEventStore } from '../mcp/event-store.js';
 import { logger } from '../utils/logger.js';
 import { extractTrustedClientIp } from './client-ip.js';

@@ -8,7 +8,7 @@ import {
   type HttpOAuthServerConfig,
   type OAuthProviderLike,
   type SamlProviderLike,
-} from '../../packages/mcp-http/dist/auth-providers.js';
+} from '#mcp-http/auth-providers';
 
 export type { HttpAuthProvidersLogger, HttpOAuthServerConfig, OAuthProviderLike, SamlProviderLike };
 

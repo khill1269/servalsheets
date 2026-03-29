@@ -4,7 +4,7 @@ import {
   extractTrustedClientIp as extractTrustedClientIpImpl,
   normalizeClientIp,
   type ClientIpLogger,
-} from '../../packages/mcp-http/dist/client-ip.js';
+} from '#mcp-http/client-ip';
 
 export { normalizeClientIp, type ClientIpLogger };
 

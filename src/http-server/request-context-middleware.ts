@@ -6,7 +6,7 @@ import {
   registerHttpRequestContextMiddleware as registerHttpRequestContextMiddlewareImpl,
   type HttpRequestContextLogger,
   type HttpRequestContextMiddlewareOptions,
-} from '../../packages/mcp-http/dist/request-context-middleware.js';
+} from '#mcp-http/request-context-middleware';
 
 export type { HttpRequestContextLogger, HttpRequestContextMiddlewareOptions };
 

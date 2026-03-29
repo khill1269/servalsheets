@@ -4,8 +4,8 @@ import {
   type BuildRemoteHttpServerOptionsParams,
   type RemoteHttpEnvConfig,
   type RemoteHttpServerOptions,
-} from '../../packages/mcp-http/dist/remote-options.js';
-import type { HttpOAuthServerConfig } from '../../packages/mcp-http/dist/auth-providers.js';
+} from '#mcp-http/remote-options';
+import type { HttpOAuthServerConfig } from '#mcp-http/auth-providers';
 
 export type {
   BuildRemoteHttpServerOptionsParams,

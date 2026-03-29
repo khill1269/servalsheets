@@ -2,4 +2,4 @@ export {
   buildCliServerOptions,
   type BuiltCliServerOptions,
   type CliCredentialEnvironment,
-} from '../../packages/mcp-stdio/dist/build-cli-server-options.js';
+} from '#mcp-stdio/build-cli-server-options';

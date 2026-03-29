@@ -4,4 +4,4 @@ export {
   shouldAllowDegradedStartup,
   type DegradedStartupOptions,
   type ProcessBreadcrumbsExtra,
-} from '../../packages/mcp-runtime/dist/runtime-diagnostics.js';
+} from '#mcp-runtime/runtime-diagnostics';

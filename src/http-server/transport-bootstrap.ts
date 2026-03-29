@@ -6,7 +6,7 @@ import { registerHttpTransportRoutes, type HttpTransportSession } from './routes
 import {
   bootstrapHttpTransportSessions as bootstrapPackagedHttpTransportSessions,
   type HttpTransportBootstrapResult as PackagedHttpTransportBootstrapResult,
-} from '../../packages/mcp-http/dist/transport-bootstrap.js';
+} from '#mcp-http/transport-bootstrap';
 
 export interface BootstrapHttpTransportSessionsOptions {
   readonly app: Express;

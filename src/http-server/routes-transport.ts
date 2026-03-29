@@ -25,7 +25,7 @@ import {
 import {
   registerHttpTransportRoutes as registerPackagedHttpTransportRoutes,
   type HttpTransportSession as PackagedHttpTransportSession,
-} from '../../packages/mcp-http/dist/routes-transport.js';
+} from '#mcp-http/routes-transport';
 
 export type HttpTransportSession = PackagedHttpTransportSession<
   McpServer,

@@ -1,1 +1,1 @@
-export { createHandlerRuntimeBridge } from '../../packages/mcp-runtime/dist/handler-runtime-bridge.js';
+export { createHandlerRuntimeBridge } from '#mcp-runtime/handler-runtime-bridge';

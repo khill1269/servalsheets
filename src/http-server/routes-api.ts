@@ -2,7 +2,7 @@ import type { Router } from 'express';
 import {
   registerApiRoutes as registerPackagedApiRoutes,
   type FormulaEvalDeps as PackagedFormulaEvalDeps,
-} from '../../packages/mcp-http/dist/routes-api.js';
+} from '#mcp-http/routes-api';
 import { logger } from '../utils/logger.js';
 export type FormulaEvalDeps = Omit<PackagedFormulaEvalDeps, 'log'>;
 

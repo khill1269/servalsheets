@@ -2,7 +2,7 @@ import {
   startCliRuntime as startPackagedCliRuntime,
   type CliOutput,
   type StartCliRuntimeOptions as PackagedStartCliRuntimeOptions,
-} from '../../packages/mcp-stdio/dist/start-cli-runtime.js';
+} from '#mcp-stdio/start-cli-runtime';
 
 type StartCliRuntimeOptions = Omit<
   PackagedStartCliRuntimeOptions,

@@ -3,7 +3,7 @@ import {
   startStdioTransport as startPackagedStdioTransport,
   type StdioConnectableServer,
   type StartStdioTransportOptions as PackagedStartStdioTransportOptions,
-} from '../../packages/mcp-stdio/dist/start-stdio-transport.js';
+} from '#mcp-stdio/start-stdio-transport';
 import { logger as defaultLogger } from '../utils/logger.js';
 
 export type StartStdioTransportOptions<

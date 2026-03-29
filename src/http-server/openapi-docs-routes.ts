@@ -6,7 +6,7 @@ import { resolveOpenApiJsonPath, resolveOpenApiYamlPath } from '../utils/runtime
 import {
   registerHttpOpenApiDocsRoutes as registerHttpOpenApiDocsRoutesImpl,
   type HttpOpenApiDocsLogger,
-} from '../../packages/mcp-http/dist/openapi-docs-routes.js';
+} from '#mcp-http/openapi-docs-routes';
 
 export type { HttpOpenApiDocsLogger };
 

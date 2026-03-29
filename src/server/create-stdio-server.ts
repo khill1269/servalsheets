@@ -1,4 +1,4 @@
 export {
   createStdioServer,
   type CreateStdioServerDependencies,
-} from '../../packages/mcp-stdio/dist/create-stdio-server.js';
+} from '#mcp-stdio/create-stdio-server';

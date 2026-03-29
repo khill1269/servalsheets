@@ -1,7 +1,7 @@
 import {
   startStdioCli as startPackagedStdioCli,
   type StartStdioCliOptions as PackagedStartStdioCliOptions,
-} from '../../packages/mcp-stdio/dist/start-stdio-cli.js';
+} from '#mcp-stdio/start-stdio-cli';
 import { logger as defaultLogger } from '../utils/logger.js';
 
 export type StartStdioCliOptions<TServerOptions> = Omit<

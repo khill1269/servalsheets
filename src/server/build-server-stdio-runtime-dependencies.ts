@@ -34,7 +34,7 @@ import {
   buildStdioRuntimeDependencies,
   type StdioLoggingBridgeInput,
   type StdioRuntimeDependenciesResult,
-} from '../../packages/mcp-stdio/dist/build-stdio-runtime-dependencies.js';
+} from '#mcp-stdio/build-stdio-runtime-dependencies';
 import {
   registerStdioCompletions,
   registerStdioLogging,

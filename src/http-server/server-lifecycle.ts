@@ -2,7 +2,7 @@ import { ConfigError } from '../core/errors.js';
 import {
   createHttpServerLifecycle as createPackagedHttpServerLifecycle,
   type CreateHttpServerLifecycleOptions as PackagedCreateHttpServerLifecycleOptions,
-} from '../../packages/mcp-http/dist/server-lifecycle.js';
+} from '#mcp-http/server-lifecycle';
 import { logger as defaultLogger } from '../utils/logger.js';
 export type CreateHttpServerLifecycleOptions<
   TMetricsExporter = unknown,

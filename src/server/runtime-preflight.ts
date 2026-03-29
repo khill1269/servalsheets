@@ -1,1 +1,1 @@
-export { prepareRuntimePreflight } from '../../packages/mcp-runtime/dist/runtime-preflight.js';
+export { prepareRuntimePreflight } from '#mcp-runtime/runtime-preflight';

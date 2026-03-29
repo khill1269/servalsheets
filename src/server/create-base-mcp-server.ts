@@ -1,4 +1,4 @@
 export {
   createBaseMcpServer,
   type CreateBaseMcpServerOptions,
-} from '../../packages/mcp-runtime/dist/create-base-mcp-server.js';
+} from '#mcp-runtime/create-base-mcp-server';

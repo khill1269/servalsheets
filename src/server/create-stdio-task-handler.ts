@@ -5,4 +5,4 @@ export {
   type StdioTaskHandlerLogger,
   type StdioTaskRequestStoreLike,
   type StdioTaskStatusUpdaterLike,
-} from '../../packages/mcp-stdio/dist/create-stdio-task-handler.js';
+} from '#mcp-stdio/create-stdio-task-handler';

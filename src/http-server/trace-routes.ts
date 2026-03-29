@@ -3,7 +3,7 @@ import {
   registerHttpTraceRoutes as registerHttpTraceRoutesImpl,
   type HttpTraceRoutesLogger,
   type RegisterHttpTraceRoutesOptions as PackagedRegisterHttpTraceRoutesOptions,
-} from '../../packages/mcp-http/dist/trace-routes.js';
+} from '#mcp-http/trace-routes';
 import { requireAdminAuth } from '../admin/index.js';
 import { getTraceAggregator } from '../services/trace-aggregator.js';
 import { logger as defaultLogger } from '../utils/logger.js';

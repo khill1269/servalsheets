@@ -4,4 +4,4 @@ export {
   registerStdioLogging,
   registerStdioPrompts,
   registerStdioTaskCancelHandler,
-} from '../../packages/mcp-stdio/dist/register-stdio-capabilities.js';
+} from '#mcp-stdio/register-stdio-capabilities';

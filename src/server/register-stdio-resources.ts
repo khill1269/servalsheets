@@ -4,4 +4,4 @@ export {
   type EnsureStdioResourcesRegisteredDependencies,
   type EnsureStdioResourcesRegisteredState,
   type RegisterStdioResourcesDependencies,
-} from '../../packages/mcp-stdio/dist/register-stdio-resources.js';
+} from '#mcp-stdio/register-stdio-resources';

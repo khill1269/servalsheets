@@ -3,7 +3,7 @@ import type { HealthService } from '../server/health.js';
 import {
   registerHttpSurfaceRoutes as registerPackagedHttpSurfaceRoutes,
   type RegisterHttpSurfaceRoutesOptions as PackagedRegisterHttpSurfaceRoutesOptions,
-} from '../../packages/mcp-http/dist/route-surface.js';
+} from '#mcp-http/route-surface';
 import { registerWellKnownHandlers } from '../server/well-known.js';
 import type { UserRateLimiter } from '../services/user-rate-limiter.js';
 import { logger as defaultLogger } from '../utils/logger.js';

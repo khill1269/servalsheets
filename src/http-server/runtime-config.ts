@@ -6,4 +6,4 @@ export {
   type HttpServerRuntimeEnvConfig,
   type HttpServerRuntimeOptionOverrides,
   type ResolveHttpServerRuntimeConfigOptions,
-} from '../../packages/mcp-http/dist/runtime-config.js';
+} from '#mcp-http/runtime-config';

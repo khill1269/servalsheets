@@ -2,7 +2,7 @@ import {
   createHttpLoggingBridge as createPackagedHttpLoggingBridge,
   type HttpLoggingBridge,
   type LoggerBridgeTarget,
-} from '../../packages/mcp-http/dist/logging-bridge.js';
+} from '#mcp-http/logging-bridge';
 import { forwardServerLogMessage } from '../server/logging-bridge.js';
 import { logger as defaultLogger } from '../utils/logger.js';
 

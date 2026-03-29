@@ -1,1 +1,1 @@
-export { buildBillingBootstrapConfig } from '../../packages/mcp-runtime/dist/billing-bootstrap-config.js';
+export { buildBillingBootstrapConfig } from '#mcp-runtime/billing-bootstrap-config';

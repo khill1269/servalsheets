@@ -1,1 +1,1 @@
-export { installInitializeCancellationGuard } from '../../packages/mcp-runtime/dist/initialize-cancellation-guard.js';
+export { installInitializeCancellationGuard } from '#mcp-runtime/initialize-cancellation-guard';

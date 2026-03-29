@@ -4,7 +4,7 @@ import type { HealthService } from '../server/health.js';
 import {
   registerHttpObservabilityRoutes as registerPackagedHttpObservabilityRoutes,
   type RegisterHttpObservabilityRoutesOptions as PackagedRegisterHttpObservabilityRoutesOptions,
-} from '../../packages/mcp-http/dist/observability-routes.js';
+} from '#mcp-http/observability-routes';
 import { registerHttpMetricsRoutes } from './metrics-routes.js';
 import {
   registerHttpObservabilityCoreRoutes,

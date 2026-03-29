@@ -2,7 +2,7 @@ import type { Env } from '../config/env.js';
 import {
   createHttpRbacInitializer as createPackagedHttpRbacInitializer,
   type CreateHttpRbacInitializerOptions as PackagedCreateHttpRbacInitializerOptions,
-} from '../../packages/mcp-http/dist/rbac-bootstrap.js';
+} from '#mcp-http/rbac-bootstrap';
 import { logger as defaultLogger } from '../utils/logger.js';
 
 export type CreateHttpRbacInitializerOptions<

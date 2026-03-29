@@ -8,4 +8,4 @@ export {
   type StdioToolCallLogger,
   type StdioToolCallQueueLike,
   type StdioToolCallRequestContext,
-} from '../../packages/mcp-stdio/dist/execute-stdio-tool-call.js';
+} from '#mcp-stdio/execute-stdio-tool-call';

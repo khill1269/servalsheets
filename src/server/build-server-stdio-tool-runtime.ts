@@ -43,7 +43,7 @@ import {
   buildStdioToolRuntime,
   type BuildStdioToolRuntimeInput as PackageBuildStdioToolRuntimeInput,
   type StdioToolRuntime,
-} from '../../packages/mcp-stdio/dist/build-stdio-tool-runtime.js';
+} from '#mcp-stdio/build-stdio-tool-runtime';
 import { createMetadataCache } from '../services/metadata-cache.js';
 import { recordToolCall, updateQueueMetrics } from '../observability/metrics.js';
 

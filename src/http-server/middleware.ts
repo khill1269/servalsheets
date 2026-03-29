@@ -11,7 +11,7 @@ import {
   createHttpsEnforcementMiddleware,
   createOriginValidationMiddleware,
 } from './request-validation-middleware.js';
-import { registerHttpFoundationMiddleware as registerPackagedHttpFoundationMiddleware } from '../../packages/mcp-http/dist/middleware.js';
+import { registerHttpFoundationMiddleware as registerPackagedHttpFoundationMiddleware } from '#mcp-http/middleware';
 
 export function registerHttpFoundationMiddleware(params: {
   app: Application;

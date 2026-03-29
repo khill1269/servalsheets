@@ -3,7 +3,7 @@ import {
   registerHttpWebhookDashboardRoutes as registerHttpWebhookDashboardRoutesImpl,
   type HttpWebhookDashboardLogger,
   type RegisterHttpWebhookDashboardRoutesOptions as PackagedRegisterHttpWebhookDashboardRoutesOptions,
-} from '../../packages/mcp-http/dist/webhook-dashboard-routes.js';
+} from '#mcp-http/webhook-dashboard-routes';
 import { requireAdminAuth } from '../admin/index.js';
 import { logger as defaultLogger } from '../utils/logger.js';
 

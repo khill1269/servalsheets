@@ -6,7 +6,7 @@ import {
   categorizeChanges,
   registerHttpWebhookRoutes as registerPackagedHttpWebhookRoutes,
   type RegisterHttpWebhookRoutesOptions as PackagedRegisterHttpWebhookRoutesOptions,
-} from '../../packages/mcp-http/dist/routes-webhooks.js';
+} from '#mcp-http/routes-webhooks';
 
 export { categorizeChanges };
 

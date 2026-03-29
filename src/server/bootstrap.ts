@@ -7,7 +7,7 @@ import {
 import { registerSamplingConsentChecker } from '../mcp/sampling.js';
 import { ConfigError } from '../core/errors.js';
 import { logger as baseLogger } from '../utils/logger.js';
-import { prepareStdioBootstrap } from '../../packages/mcp-stdio/dist/prepare-stdio-bootstrap.js';
+import { prepareStdioBootstrap } from '#mcp-stdio/prepare-stdio-bootstrap';
 
 export interface ServerBootstrapOptions {
   taskStore?: TaskStoreAdapter;
