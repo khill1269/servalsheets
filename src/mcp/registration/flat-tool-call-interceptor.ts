@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { isFlatToolName, routeFlatToolCall } from './flat-tool-routing.js';
 import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
-import { buildToolResponse } from './tool-handlers.js';
+import { buildToolResponse } from './tool-response.js';
 import { logger } from '../../utils/logger.js';
 
 type CallToolRequest = z.infer<typeof CallToolRequestSchema>;
