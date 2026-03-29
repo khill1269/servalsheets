@@ -2,24 +2,24 @@
 ##
 ## ServalSheets - CI Audit Gate
 ##
-## Single command pre-commit check. Fail-fast, ordered by speed.
+## Single command pre-commit check. Ordered by speed with aggregated failures.
 ##
 ## Usage:
 ##   npm run audit:gate
 ##
 ## Gates (ordered by speed):
-##   G1: TypeScript compiles           (~10s)
-##   G2: No metadata drift             (~3s)
-##   G3: Architecture boundaries       (~2s)
-##   G4: Integration wiring            (~1s)
-##   G5: No silent fallbacks           (~2s)
-##   G6: No debug prints               (~2s)
-##   G7: Action coverage passes        (~5s)
-##   G8: Memory leak tests pass        (~3s)
-##   G9: Contract tests pass           (~8s)
-##   G10: Google API compliance         (~2s)
-##   G11: MCP protocol compliance       (~5s)
-##   G12: Dead-code baseline            (~7s)
+##   A1: TypeScript compiles           (~10s)
+##   A2: No metadata drift             (~3s)
+##   A3: Architecture boundaries       (~2s)
+##   A4: Integration wiring            (~1s)
+##   A5: No silent fallbacks           (~2s)
+##   A6: No debug prints               (~2s)
+##   A7: Action coverage passes        (~5s)
+##   A8: Memory leak tests pass        (~3s)
+##   A9: Contract tests pass           (~8s)
+##   A10: Google API compliance         (~2s)
+##   A11: MCP protocol compliance       (~5s)
+##   A12: Dead-code baseline            (~7s)
 ##
 ## Exit 0 = all pass. Exit 1 = failure with clear message.
 ##
@@ -80,47 +80,47 @@ echo ""
 echo "ServalSheets Audit Gate"
 echo "══════════════════════════════════════"
 
-# G1: TypeScript
+# A1: TypeScript
 echo ""
 echo "Running ${TOTAL_GATES} gates..."
 echo ""
 
-run_gate "G1: TypeScript compiles" "npx tsc --noEmit" || true
+run_gate "A1: TypeScript compiles" "npx tsc --noEmit" || true
 
-# G2: Metadata drift
-run_gate "G2: No metadata drift" "npm run check:drift" || true
+# A2: Metadata drift
+run_gate "A2: No metadata drift" "npm run check:drift" || true
 
-# G3: Architecture boundaries
-run_gate "G3: Architecture boundaries" "npm run check:architecture" || true
+# A3: Architecture boundaries
+run_gate "A3: Architecture boundaries" "npm run check:architecture" || true
 
-# G4: Integration wiring
-run_gate "G4: Integration wiring" "npm run check:integration-wiring" || true
+# A4: Integration wiring
+run_gate "A4: Integration wiring" "npm run check:integration-wiring" || true
 
-# G5: Silent fallbacks
-run_gate "G5: No silent fallbacks" "npm run check:silent-fallbacks" || true
+# A5: Silent fallbacks
+run_gate "A5: No silent fallbacks" "npm run check:silent-fallbacks" || true
 
-# G6: Debug prints
-run_gate "G6: No debug prints" "npm run check:debug-prints" || true
+# A6: Debug prints
+run_gate "A6: No debug prints" "npm run check:debug-prints" || true
 
-# G7: Action coverage
-run_gate "G7: Action coverage passes" "npx vitest run tests/audit/action-coverage.test.ts" || true
+# A7: Action coverage
+run_gate "A7: Action coverage passes" "npx vitest run tests/audit/action-coverage.test.ts" || true
 
-# G8: Memory leak tests
-run_gate "G8: Memory leak tests pass" "npx vitest run tests/audit/memory-leaks.test.ts" || true
+# A8: Memory leak tests
+run_gate "A8: Memory leak tests pass" "npx vitest run tests/audit/memory-leaks.test.ts" || true
 
-# G9: Contract tests
-run_gate "G9: Contract tests pass" "npx vitest run tests/contracts/" || true
+# A9: Contract tests
+run_gate "A9: Contract tests pass" "npx vitest run tests/contracts/" || true
 
-# G10: Google API compliance (network-optional — uses cache if available)
-run_gate "G10: Google API compliance" \
+# A10: Google API compliance (network-optional — uses cache if available)
+run_gate "A10: Google API compliance" \
   "node scripts/audit-google-api-compliance.mjs --offline-ok" || true
 
-# G11: MCP protocol compliance (protocol version, features, tool schemas, transport)
-run_gate "G11: MCP protocol compliance" \
+# A11: MCP protocol compliance (protocol version, features, tool schemas, transport)
+run_gate "A11: MCP protocol compliance" \
   "npx vitest run tests/compliance/mcp-2025-11-25.test.ts tests/compliance/mcp-features.test.ts tests/compliance/mcp-evaluation-suite.test.ts tests/contracts/mcp-protocol.test.ts tests/contracts/mcp-http-transport-auth-security.test.ts tests/contracts/mcp-audit-docs.test.ts" || true
 
-# G12: Dead-code baseline (non-writing; prevents regressions without dirtying worktree)
-run_gate "G12: Dead-code baseline" "npm run check:dead-code:baseline" || true
+# A12: Dead-code baseline (non-writing; prevents regressions without dirtying worktree)
+run_gate "A12: Dead-code baseline" "npm run check:dead-code:baseline" || true
 
 # Summary
 TOTAL_DURATION=$((SECONDS - START_TIME))

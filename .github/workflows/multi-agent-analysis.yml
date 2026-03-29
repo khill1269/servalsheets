@@ -1,8 +1,9 @@
 name: Multi-Agent Analysis
 
 on:
-  push:
-    branches: [main]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -137,24 +138,6 @@ jobs:
             } catch (error) {
               console.log('No report file found or error reading report:', error.message);
             }
-
-      - name: Apply Auto-fixes
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        run: |
-          # Only auto-fix on main branch pushes
-          npx tsx scripts/analysis/auto-fixer.ts analysis-report.json || true
-
-          # Commit fixes if any were made
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add -A
-            git commit -m "chore: apply auto-fixes from multi-agent analysis
-
-            Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-            git push
-          fi
 
       - name: Block on Critical Issues
         if: github.event_name == 'pull_request'

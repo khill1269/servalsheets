@@ -19,41 +19,11 @@ import {
   extractHandlerCases,
   isSingleActionTool,
 } from '../src/utils/ast-schema-parser.js';
+import { ACCEPTABLE_DEVIATIONS } from '../src/schemas/handler-deviations.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-
-// Import deviation tracking
-const DEVIATIONS_PATH = path.join(PROJECT_ROOT, 'src/schemas/handler-deviations.ts');
-
-interface HandlerDeviation {
-  tool: string;
-  reason: string;
-  extraCases?: string[];
-  missingCases?: string[];
-  justification: string;
-  addedDate: string;
-  reviewedBy?: string;
-  reference?: string;
-}
-
-// Load deviations dynamically
-let ACCEPTABLE_DEVIATIONS: HandlerDeviation[] = [];
-try {
-  const deviationsContent = fs.readFileSync(DEVIATIONS_PATH, 'utf-8');
-  const deviationsMatch = deviationsContent.match(
-    /export const ACCEPTABLE_DEVIATIONS: HandlerDeviation\[\] = (\[[\s\S]*?\n\]);/
-  );
-  if (deviationsMatch) {
-    // Use eval with sanitized input (safe since we control the source file)
-    // eslint-disable-next-line no-eval
-    ACCEPTABLE_DEVIATIONS = eval(deviationsMatch[1]);
-  }
-} catch (error) {
-  console.warn('⚠️  Could not load handler deviations:', (error as Error).message);
-  console.warn('   Continuing with empty deviations list...\n');
-}
 
 interface AlignmentResult {
   tool: string;

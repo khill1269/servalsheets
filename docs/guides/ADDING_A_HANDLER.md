@@ -447,7 +447,7 @@ This automatically:
 📊 Analyzing 23 schema files...
   📝 export.ts → 3 actions [export_as_csv, export_as_pdf, export_as_xlsx]
   ...
-✅ Total: 25 tools, 407 actions
+✅ Total: 25 tools, 408 actions
 ✅ Updated src/schemas/index.ts constants
 ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 ✅ Updated src/mcp/completions.ts TOOL_ACTIONS

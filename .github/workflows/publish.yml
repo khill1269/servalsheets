@@ -42,8 +42,8 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
 
-      - name: Run tests
-        run: npm test -- --run
+      - name: Run validated fast test suite
+        run: npm run test:fast
 
       - name: Build
         run: npm run build

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ServalSheets - 4-Level Gate Pipeline
+# ServalSheets - 6-Gate Pipeline
 #
 # MUST pass in order: G0 → G1 → G2 → G3 → G4
 # Any gate failure stops the pipeline immediately

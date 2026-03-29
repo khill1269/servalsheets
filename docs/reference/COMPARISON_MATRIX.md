@@ -183,7 +183,7 @@ function updateSheet() {
 
 | MCP Feature       | ServalSheets             | Availability Elsewhere |
 | ----------------- | ------------------------ | ---------------------- |
-| Tools             | ✅ 25 tools, 407 actions | ❌ Not MCP             |
+| Tools             | ✅ 25 tools, 408 actions | ❌ Not MCP             |
 | Resources         | ✅ 6 URI templates       | ❌ Not MCP             |
 | Prompts           | ✅ 6 guided workflows    | ❌ Not MCP             |
 | Task cancellation | ✅ Full AbortController  | ❌ Not MCP             |

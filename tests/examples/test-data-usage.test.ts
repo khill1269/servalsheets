@@ -6,8 +6,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  createAnalyzeInput,
-  createFormatApplyInput,
+  createAnalyzeComprehensiveInput,
+  createFormatSetInput,
   createMockSheetsResponse,
   createValuesReadInput,
   createValuesWriteInput,
@@ -36,17 +36,18 @@ describe('Test Data Usage Examples', () => {
   });
 
   it('uses formatting and analysis factories', () => {
-    const formatInput = createFormatApplyInput({
+    const formatInput = createFormatSetInput({
       range: { a1: 'Sheet1!C1:D2' },
       format: { backgroundColor: { red: 1, green: 1, blue: 0 } },
     });
 
-    const analyzeInput = createAnalyzeInput({
-      analysisTypes: ['summary'],
+    const analyzeInput = createAnalyzeComprehensiveInput({
+      range: { a1: 'Sheet1!A1:D20' },
+      includeFormulas: true,
     });
 
-    expect(formatInput.action).toBe('apply');
-    expect(analyzeInput.action).toBe('analyze');
+    expect(formatInput.action).toBe('set_format');
+    expect(analyzeInput.action).toBe('comprehensive');
   });
 
   it('uses mock response factory', () => {
