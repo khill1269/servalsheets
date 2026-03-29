@@ -22,16 +22,19 @@ import { getEnv } from '../config/env.js';
  * Discovery API schema definition
  */
 export interface DiscoverySchema {
-  id: string;
+  id?: string;
+  kind?: string;
+  discoveryVersion?: string;
   name: string;
   version: string;
   title: string;
   description: string;
+  ownerDomain?: string;
+  ownerName?: string;
   documentationLink: string;
-  schemas: Record<string, SchemaDefinition>;
-  resources: Record<string, ResourceDefinition>;
-  methods?: Record<string, MethodDefinition>;
+  protocol?: string;
   baseUrl?: string;
+  basePath?: string;
   rootUrl?: string;
   servicePath?: string;
   batchPath?: string;
@@ -41,6 +44,9 @@ export interface DiscoverySchema {
       scopes?: Record<string, { description: string }>;
     };
   };
+  schemas: Record<string, SchemaDefinition>;
+  resources: Record<string, ResourceDefinition>;
+  methods?: Record<string, MethodDefinition>;
 }
 
 /**
@@ -141,11 +147,13 @@ export interface SchemaComparison {
   api: string;
   version: string;
   newFields: Array<{ path: string; type: string; description: string }>;
-  deprecatedFields: Array<{ path: string; deprecationMessage: string }>;
+  deprecatedFields: Array<{ path: string; deprecationMessage: string; removalDate?: string }>;
   changedFields: Array<{ path: string; oldType: string; newType: string }>;
-  newMethods: Array<{ name: string; description: string }>;
+  newMethods: Array<{ name: string; description: string; path?: string }>;
   removedMethods: string[];
-  hasChanges: boolean;
+  hasChanges?: boolean;
+  timestamp?: number;
+  summary?: string;
 }
 
 /**

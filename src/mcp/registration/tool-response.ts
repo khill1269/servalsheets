@@ -10,7 +10,7 @@ import { logger } from '../../utils/logger.js';
 import { getRequestContext, getRequestLlmProvenance, getRequestVerbosity } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { applyResponseIntelligence } from './response-intelligence.js';
-import { applyVerbosityFilter } from '../../handlers/helpers/verbosity-filter.js';
+import { applyVerbosityFilter } from '../../utils/verbosity-filter.js';
 import { sanitizeToolOutput } from './tool-output-sanitization.js';
 import { getEnv } from '../../config/env.js';
 import {

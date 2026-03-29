@@ -6,7 +6,7 @@
  *
  * Full documentation available via:
  * - schema://tools/{toolName} - Full schemas
- * - resource://skill/servalsheets - Comprehensive guide (SKILL.md)
+ * - guide://tool-selection, guide://workflows, guide://advanced-usage - On-demand routing and advanced usage guides
  *
  * @module schemas/descriptions-minimal
  */

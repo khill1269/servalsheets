@@ -353,7 +353,11 @@ export async function handleUpdate(
       name: req.name,
       description: req.description,
       category: req.category,
-      sheets: req.sheets,
+      sheets: req.sheets?.map((s) => ({
+        ...s,
+        rowCount: s.rowCount ?? 1000,
+        columnCount: s.columnCount ?? 26,
+      })),
       namedRanges: req.namedRanges,
       metadata: req.metadata,
     });

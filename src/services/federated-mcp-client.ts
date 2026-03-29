@@ -2,7 +2,7 @@ import {
   FederatedMcpClient as PackagedFederatedMcpClient,
   type FederatedMcpClientDependencies,
   type FederationServerConfig,
-} from '../../packages/mcp-client/dist/federated-mcp-client.js';
+} from '#mcp-client/federated-mcp-client';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { logger } from '../utils/logger.js';
 import { validateFederationServerUrl } from './webhook-url-validation.js';

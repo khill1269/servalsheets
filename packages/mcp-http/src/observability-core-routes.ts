@@ -107,6 +107,14 @@ export function registerHttpObservabilityCoreRoutes<
     res.status(statusCode).json(health);
   });
 
+  /**
+   * AgentCore liveness probe endpoint (alias for /health/live)
+   * Returns minimal status for fast health checks
+   */
+  app.get('/ping', async (_req: Request, res: Response) => {
+    res.status(200).json({ status: 'ok' });
+  });
+
   app.get('/trace', (req: Request, res: Response) => {
     const traceId = req.headers['x-trace-id'] as string | undefined;
     const spanId = req.headers['x-span-id'] as string | undefined;
@@ -172,6 +180,7 @@ export function registerHttpObservabilityCoreRoutes<
   app.head('/health', (_req: Request, res: Response) => res.status(200).end());
   app.head('/health/live', (_req: Request, res: Response) => res.status(200).end());
   app.head('/health/ready', (_req: Request, res: Response) => res.status(200).end());
+  app.head('/ping', (_req: Request, res: Response) => res.status(200).end());
   app.head('/info', (_req: Request, res: Response) => res.status(200).end());
 
   log.info('HTTP observability core routes registered');

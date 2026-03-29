@@ -65,8 +65,8 @@ export function resolveTracingDashboardPath(): string | null {
   return resolveExistingPath([
     join(RUNTIME_ROOT, 'ui', 'tracing'),
     join(PACKAGE_ROOT, 'dist', 'ui', 'tracing'),
-    join(PACKAGE_ROOT, 'src', 'ui', 'tracing-dashboard', 'dist'),
+    join(PACKAGE_ROOT, 'ui', 'tracing-dashboard', 'dist'),
     join(process.cwd(), 'dist', 'ui', 'tracing'),
-    join(process.cwd(), 'src', 'ui', 'tracing-dashboard', 'dist'),
+    join(process.cwd(), 'ui', 'tracing-dashboard', 'dist'),
   ]);
 }

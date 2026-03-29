@@ -2,7 +2,7 @@ import {
   RemoteToolClient as PackagedRemoteToolClient,
   type RemoteToolClientConfig,
   type RemoteToolClientDependencies,
-} from '../../packages/mcp-client/dist/remote-tool-client.js';
+} from '#mcp-client/remote-tool-client';
 import { ServiceError } from '../core/errors.js';
 import { getRemoteMcpExecutorConfig } from '../config/env.js';
 import { logger } from '../utils/logger.js';

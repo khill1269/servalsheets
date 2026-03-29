@@ -37,6 +37,49 @@ const level =
 // Detect STDIO mode
 const isStdioMode = process.env['MCP_TRANSPORT'] === 'stdio' || !process.env['MCP_TRANSPORT'];
 
+// Detect CloudWatch/JSON logging mode
+const logFormat = process.env['LOG_FORMAT'] || 'text';
+const isJsonFormat = logFormat === 'json';
+const cloudwatchLogGroup = process.env['CLOUDWATCH_LOG_GROUP'];
+
+/**
+ * CloudWatch-compatible JSON formatter
+ * Outputs structured logs compatible with CloudWatch Logs Insights queries
+ */
+const cloudwatchJsonFormat = winston.format((info) => {
+  const entry: Record<string, unknown> = {
+    timestamp: info['timestamp'],
+    level: info.level,
+    message: info.message,
+    component: info['component'] || 'servalsheets',
+  };
+
+  // Add request context if available
+  if (info['requestId']) entry['requestId'] = info['requestId'];
+  if (info['traceId']) entry['traceId'] = info['traceId'];
+  if (info['spanId']) entry['spanId'] = info['spanId'];
+
+  // Add CloudWatch log group if configured
+  if (cloudwatchLogGroup) {
+    entry['logGroup'] = cloudwatchLogGroup;
+  }
+
+  // Add any additional metadata
+  if (info['meta'] && Object.keys(info['meta']).length > 0) {
+    entry['metadata'] = info['meta'];
+  }
+
+  // Handle errors with stack traces
+  if (info['stack']) {
+    entry['stack'] = info['stack'];
+  }
+
+  return {
+    ...info,
+    ...entry,
+  };
+});
+
 /**
  * Base logger without request context enrichment
  * Used as fallback in request-context.ts to avoid circular dependency
@@ -48,6 +91,7 @@ export const baseLogger = winston.createLogger({
     winston.format.timestamp(),
     addServiceContext(),
     redactSensitive(),
+    ...(isJsonFormat ? [cloudwatchJsonFormat()] : []),
     winston.format.json()
   ),
   transports: [

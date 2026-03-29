@@ -8,6 +8,7 @@
 
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodTypeAny } from 'zod';
+import { ServiceError } from '../../core/errors.js';
 
 import { DEFER_DESCRIPTIONS } from '../../config/constants.js';
 import { getLazyLoadTools } from '../../config/schema-optimization.js';
@@ -93,7 +94,13 @@ function getDescription(toolName: string): string {
 function getToolAnnotations(toolName: string): ToolAnnotations {
   const annotations = TOOL_ANNOTATIONS[toolName];
   if (!annotations) {
-    throw new Error(`Missing TOOL_ANNOTATIONS entry for ${toolName}`);
+    throw new ServiceError(
+      `Missing TOOL_ANNOTATIONS entry for ${toolName}`,
+      'INTERNAL_ERROR',
+      'tool-definitions',
+      false,
+      { toolName }
+    );
   }
   return annotations;
 }

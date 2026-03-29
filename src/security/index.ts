@@ -42,3 +42,13 @@ export {
   createSamlProviderFromEnv,
   type SamlProviderConfig,
 } from './saml-provider.js';
+
+export {
+  CognitoJwtValidator,
+  createCognitoAuthMiddleware,
+  createCognitoAuthMiddlewareFromEnv,
+  isCognitoEnabled,
+  createCognitoValidatorFromEnv,
+  type CognitoConfig,
+  type CognitoTokenClaims,
+} from './cognito-jwt.js';

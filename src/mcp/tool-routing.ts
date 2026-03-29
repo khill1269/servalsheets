@@ -18,4 +18,4 @@ export {
   type ToolRoutePolicy,
   type ToolRoutingSummary,
   type ToolTransport,
-} from '../../packages/mcp-runtime/dist/index.js';
+} from '#mcp-runtime';

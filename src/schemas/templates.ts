@@ -306,7 +306,9 @@ export const SHEETS_TEMPLATES_ANNOTATIONS: ToolAnnotations = {
 // TYPE EXPORTS
 // ============================================================================
 
-export type SheetsTemplatesInput = z.infer<typeof SheetsTemplatesInputSchema>;
+// Use z.input<> so callers can omit fields that have .default() (e.g. verbosity,
+// includeBuiltin). The handler fills in defaults via the ?? operator internally.
+export type SheetsTemplatesInput = z.input<typeof SheetsTemplatesInputSchema>;
 export type SheetsTemplatesOutput = z.infer<typeof SheetsTemplatesOutputSchema>;
 export type TemplatesResponse = z.infer<typeof TemplatesResponseSchema>;
 export type TemplatesRequest = SheetsTemplatesInput['request'];

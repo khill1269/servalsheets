@@ -37,7 +37,7 @@ import {
 import {
   createHttpServer as createPackagedHttpServer,
   type HttpServerOptions as PackagedHttpServerOptions,
-} from '../packages/mcp-http/dist/create-http-server.js';
+} from '#mcp-http/create-http-server';
 import { registerHttpEnterpriseMiddleware } from './http-server/enterprise-middleware.js';
 import { getSharedHttpLoggingBridge } from './http-server/logging-bridge.js';
 import { registerHttpFoundationMiddleware } from './http-server/middleware.js';
