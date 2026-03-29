@@ -775,7 +775,10 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     }
 
     // Step 3: Create named ranges for each parent's child options
-    const spreadsheetMeta = await this.sheetsApi.spreadsheets.get({ spreadsheetId });
+    const spreadsheetMeta = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets.properties(sheetId,title)',
+    });
     const lookupSheetObj = spreadsheetMeta.data.sheets?.find(
       (s) => s.properties?.title === lookupSheet
     );

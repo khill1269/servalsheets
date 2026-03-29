@@ -1,14 +1,14 @@
 /**
  * ServalSheets - Flat Tool Registry
  *
- * Presentation adapter that exposes each of the 407 actions as an individual
+ * Presentation adapter that exposes each of the current actions as an individual
  * MCP tool with a flat z.object() schema. This eliminates the discriminated
  * union "action-inside-a-tool" pattern and gives LLMs single-purpose tools
  * that follow the MCP convention of 1 tool = 1 operation.
  *
  * Architecture:
  *   - Internal handlers remain unchanged (25 compound tools)
- *   - This module generates ~407 flat tool definitions at startup
+ *   - This module generates the current flat tool definitions at startup
  *   - The routing adapter maps flat tool names back to compound handlers
  *   - TOOL_MODE env controls which surface is exposed
  *
@@ -22,10 +22,7 @@
 import { TOOL_ACTIONS } from '../completions.js';
 import { ACTION_ANNOTATIONS } from '../../schemas/annotations.js';
 import { logger } from '../../utils/logger.js';
-import {
-  filterAvailableActions,
-  isToolFullyUnavailable,
-} from '../tool-availability.js';
+import { filterAvailableActions, isToolFullyUnavailable } from '../tool-availability.js';
 
 // ============================================================================
 // TYPES
@@ -90,31 +87,96 @@ const ALWAYS_LOADED_ACTIONS: ReadonlySet<string> = new Set([
  * Used to set destructiveHint on flat tools.
  */
 const KNOWN_MUTATIONS: ReadonlySet<string> = new Set([
-  'write', 'append', 'clear', 'batch_write', 'merge_cells', 'unmerge_cells',
-  'create', 'delete_sheet', 'duplicate_sheet', 'rename_sheet', 'add_sheet',
-  'update_sheet', 'rename', 'copy_to',
-  'set_background', 'set_text_format', 'set_number_format', 'set_alignment',
-  'set_borders', 'clear_format', 'apply_preset',
-  'add_conditional_format_rule', 'generate_conditional_format',
-  'rule_add_conditional_format', 'build_dependent_dropdown', 'clear_data_validation',
-  'resize_rows', 'resize_columns', 'insert_rows', 'insert_columns',
-  'delete_rows', 'delete_columns', 'move_rows', 'move_columns',
-  'hide_rows', 'hide_columns', 'unhide_rows', 'unhide_columns',
-  'freeze', 'unfreeze', 'sort_range', 'group', 'ungroup',
-  'chart_create', 'chart_update', 'chart_delete', 'chart_move', 'chart_resize',
-  'pivot_create', 'pivot_update', 'pivot_delete',
-  'share_add', 'share_update', 'share_remove', 'share_transfer_ownership',
-  'comment_add', 'comment_update', 'comment_delete', 'comment_resolve',
-  'comment_reopen', 'comment_add_reply', 'comment_update_reply', 'comment_delete_reply',
-  'clean', 'standardize_formats', 'fill_missing',
-  'fix', 'auto_enhance',
-  'begin', 'queue', 'commit', 'rollback',
-  'undo', 'redo', 'revert_to', 'restore_cells',
-  'add_named_range', 'update_named_range', 'delete_named_range',
-  'add_protected_range', 'update_protected_range', 'delete_protected_range',
-  'set_metadata', 'delete_metadata',
-  'add_banding', 'update_banding', 'delete_banding',
-  'create_table', 'delete_table', 'update_table',
+  'write',
+  'append',
+  'clear',
+  'batch_write',
+  'merge_cells',
+  'unmerge_cells',
+  'create',
+  'delete_sheet',
+  'duplicate_sheet',
+  'rename_sheet',
+  'add_sheet',
+  'update_sheet',
+  'rename',
+  'copy_to',
+  'set_background',
+  'set_text_format',
+  'set_number_format',
+  'set_alignment',
+  'set_borders',
+  'clear_format',
+  'apply_preset',
+  'add_conditional_format_rule',
+  'generate_conditional_format',
+  'rule_add_conditional_format',
+  'build_dependent_dropdown',
+  'clear_data_validation',
+  'resize_rows',
+  'resize_columns',
+  'insert_rows',
+  'insert_columns',
+  'delete_rows',
+  'delete_columns',
+  'move_rows',
+  'move_columns',
+  'hide_rows',
+  'hide_columns',
+  'unhide_rows',
+  'unhide_columns',
+  'freeze',
+  'unfreeze',
+  'sort_range',
+  'group',
+  'ungroup',
+  'chart_create',
+  'chart_update',
+  'chart_delete',
+  'chart_move',
+  'chart_resize',
+  'pivot_create',
+  'pivot_update',
+  'pivot_delete',
+  'share_add',
+  'share_update',
+  'share_remove',
+  'share_transfer_ownership',
+  'comment_add',
+  'comment_update',
+  'comment_delete',
+  'comment_resolve',
+  'comment_reopen',
+  'comment_add_reply',
+  'comment_update_reply',
+  'comment_delete_reply',
+  'clean',
+  'standardize_formats',
+  'fill_missing',
+  'fix',
+  'auto_enhance',
+  'begin',
+  'queue',
+  'commit',
+  'rollback',
+  'undo',
+  'redo',
+  'revert_to',
+  'restore_cells',
+  'add_named_range',
+  'update_named_range',
+  'delete_named_range',
+  'add_protected_range',
+  'update_protected_range',
+  'delete_protected_range',
+  'set_metadata',
+  'delete_metadata',
+  'add_banding',
+  'update_banding',
+  'delete_banding',
+  'create_table',
+  'delete_table',
+  'update_table',
 ]);
 
 /**
@@ -174,9 +236,7 @@ export function buildFlatToolName(parentTool: string, action: string): string {
  *
  * Returns null if the name doesn't match any known flat tool.
  */
-export function parseFlatToolName(
-  flatName: string
-): { parentTool: string; action: string } | null {
+export function parseFlatToolName(flatName: string): { parentTool: string; action: string } | null {
   // Build reverse lookup from the registry
   const registry = getFlatToolRegistry();
   const entry = registry.find((t) => t.name === flatName);
@@ -273,7 +333,10 @@ export function getDeferredFlatTools(): FlatToolDefinition[] {
 /**
  * Search flat tools by name pattern (for tool_search regex support).
  */
-export function searchFlatToolsByPattern(pattern: string, maxResults: number = 5): FlatToolDefinition[] {
+export function searchFlatToolsByPattern(
+  pattern: string,
+  maxResults: number = 5
+): FlatToolDefinition[] {
   try {
     const regex = new RegExp(pattern, 'i');
     return getFlatToolRegistry()

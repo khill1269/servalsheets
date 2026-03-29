@@ -70,7 +70,7 @@ describe('http server lifecycle helper', () => {
       initTelemetry,
       onShutdown,
       toolCount: 25,
-      actionCount: 407,
+      actionCount: 408,
       log: log as never,
     });
 
@@ -90,7 +90,7 @@ describe('http server lifecycle helper', () => {
     expect(log.info).toHaveBeenCalledWith('Legacy SSE endpoints disabled (use /mcp)');
     expect(log.info).toHaveBeenCalledWith('HTTP endpoint: http://127.0.0.1:3000/mcp');
     expect(log.info).toHaveBeenCalledWith('Health check: http://127.0.0.1:3000/health');
-    expect(log.info).toHaveBeenCalledWith('Metrics: 25 tools, 407 actions');
+    expect(log.info).toHaveBeenCalledWith('Metrics: 25 tools, 408 actions');
     expect(onShutdown).toHaveBeenCalledTimes(4);
   });
 
@@ -129,7 +129,7 @@ describe('http server lifecycle helper', () => {
       initTelemetry: vi.fn(async () => undefined),
       onShutdown: vi.fn(),
       toolCount: 25,
-      actionCount: 407,
+      actionCount: 408,
       log: {
         info: vi.fn(),
         warn: vi.fn(),

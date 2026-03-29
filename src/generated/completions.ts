@@ -13,7 +13,7 @@ import { getAvailableToolActions, getAvailableToolNames } from '../mcp/tool-regi
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 407 actions across 25 tools
+ * Total: 408 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -476,6 +476,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'watch_changes',
     'subscribe_workspace',
     'unsubscribe_workspace',
+    'reactivate_workspace',
     'list_workspace_subscriptions',
   ],
 };

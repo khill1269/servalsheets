@@ -24,7 +24,7 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
         server,
         getIsShutdown: vi.fn(() => false),
         toolCount: 25,
-        actionCount: 407,
+        actionCount: 408,
         log: {
           info: vi.fn(),
           warn: vi.fn(),
@@ -44,7 +44,7 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
       expect.objectContaining({
         server,
         toolCount: 25,
-        actionCount: 407,
+        actionCount: 408,
       })
     );
   });

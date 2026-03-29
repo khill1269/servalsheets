@@ -25,7 +25,10 @@ export async function handleBuildDashboardAction(
   access.sendProgress(0, 10, 'Setting up dashboard sheet');
 
   // Step 1: Ensure dashboard sheet exists (add it if missing)
-  const spreadsheet = await access.sheetsApi.spreadsheets.get({ spreadsheetId });
+  const spreadsheet = await access.sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(sheetId,title)',
+  });
   const existingSheets = spreadsheet.data.sheets ?? [];
   const dashboardExists = existingSheets.some((s) => s.properties?.title === dashboardSheet);
 
@@ -58,7 +61,10 @@ export async function handleBuildDashboardAction(
   // Step 3: Bold the label row via batchUpdate if KPIs present
   if (kpis && kpis.length > 0) {
     const dashboardSheetObj = (
-      await access.sheetsApi.spreadsheets.get({ spreadsheetId })
+      await access.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      })
     ).data.sheets?.find((s) => s.properties?.title === dashboardSheet);
     const dashboardSheetId = dashboardSheetObj?.properties?.sheetId ?? 0;
     await access.sheetsApi.spreadsheets.batchUpdate({
@@ -87,7 +93,10 @@ export async function handleBuildDashboardAction(
   let chartsAddedCount = 0;
   if (charts && charts.length > 0 && layout !== 'kpi_header') {
     const dashboardSheetObj2 = (
-      await access.sheetsApi.spreadsheets.get({ spreadsheetId })
+      await access.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      })
     ).data.sheets?.find((s) => s.properties?.title === dashboardSheet);
     const dashboardSheetId2 = dashboardSheetObj2?.properties?.sheetId ?? 0;
 
@@ -132,11 +141,17 @@ export async function handleBuildDashboardAction(
   let slicersAddedCount = 0;
   if (slicers && slicers.length > 0 && layout === 'full_analytics') {
     const dataSheetObj = (
-      await access.sheetsApi.spreadsheets.get({ spreadsheetId })
+      await access.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      })
     ).data.sheets?.find((s) => s.properties?.title === dataSheet);
     const dataSheetId = dataSheetObj?.properties?.sheetId ?? 0;
     const dashboardSheetObj3 = (
-      await access.sheetsApi.spreadsheets.get({ spreadsheetId })
+      await access.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      })
     ).data.sheets?.find((s) => s.properties?.title === dashboardSheet);
     const dashboardSheetId3 = dashboardSheetObj3?.properties?.sheetId ?? 0;
 

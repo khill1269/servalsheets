@@ -12,7 +12,7 @@ Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 407 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 408 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -146,6 +146,7 @@ LLM clients using ServalSheets MUST follow these patterns:
 ### 10. Adapter Pattern: packages/mcp-http vs src/http-server
 
 **NOT duplication.** Two different concerns:
+
 - `packages/mcp-http/`: Generic HTTP transport library (publishable as `@serval/mcp-http`)
   - Zero ServalSheets-specific imports — only DI-injected interfaces
   - Implements transport mechanics: SSE, streamable HTTP, rate limiting, CORS, helmet

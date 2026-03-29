@@ -56,45 +56,64 @@ const BATCHING_HINTS: Partial<Record<string, string>> = {
  */
 const ACTION_GOTCHAS: Partial<Record<string, string>> = {
   // Data operations
-  'sheets_data.append': 'CAUTION: append is NOT idempotent. If you need to retry, read the target range first to check for duplicates.',
-  'sheets_data.find_replace': 'find_replace scans the ENTIRE range. For targeted updates at known cells, use sheets_data.write instead.',
-  'sheets_data.write': 'Sheets API returns 200 even for #ERROR! formula cells. Verify with a read if writing formulas.',
-  'sheets_data.read': 'For numeric calculations, use valueRenderOption:"UNFORMATTED_VALUE" to avoid locale-formatted strings.',
+  'sheets_data.append':
+    'CAUTION: append is NOT idempotent. If you need to retry, read the target range first to check for duplicates.',
+  'sheets_data.find_replace':
+    'find_replace scans the ENTIRE range. For targeted updates at known cells, use sheets_data.write instead.',
+  'sheets_data.write':
+    'Sheets API returns 200 even for #ERROR! formula cells. Verify with a read if writing formulas.',
+  'sheets_data.read':
+    'For numeric calculations, use valueRenderOption:"UNFORMATTED_VALUE" to avoid locale-formatted strings.',
   // Formatting
-  'sheets_format.set_format': 'For 3+ format changes in a session, switch to batch_format — saves 70%+ API calls.',
-  'sheets_format.set_background': 'Colors use 0-1 float scale, NOT 0-255. E.g., red = {"red":1,"green":0,"blue":0}.',
+  'sheets_format.set_format':
+    'For 3+ format changes in a session, switch to batch_format — saves 70%+ API calls.',
+  'sheets_format.set_background':
+    'Colors use 0-1 float scale, NOT 0-255. E.g., red = {"red":1,"green":0,"blue":0}.',
   // Dimensions
-  'sheets_dimensions.insert': 'Row/column indices are 0-based. Row 1 in the UI = index 0 in the API.',
-  'sheets_dimensions.delete': 'Row/column indices are 0-based. Deleting "row 5" means startIndex:4, endIndex:5.',
+  'sheets_dimensions.insert':
+    'Row/column indices are 0-based. Row 1 in the UI = index 0 in the API.',
+  'sheets_dimensions.delete':
+    'Row/column indices are 0-based. Deleting "row 5" means startIndex:4, endIndex:5.',
   // Structure
-  'sheets_core.delete_sheet': 'This is PERMANENT. Use sheets_history.create_snapshot first if the data may be needed later.',
-  'sheets_core.clear_sheet': 'Clears ALL data and formatting. Use sheets_data.clear for value-only clearing.',
+  'sheets_core.delete_sheet':
+    'This is PERMANENT. Use sheets_history.create_snapshot first if the data may be needed later.',
+  'sheets_core.clear_sheet':
+    'Clears ALL data and formatting. Use sheets_data.clear for value-only clearing.',
   // Transactions
-  'sheets_transaction.begin': 'Transactions have a 5-minute timeout. Queue all operations before committing.',
+  'sheets_transaction.begin':
+    'Transactions have a 5-minute timeout. Queue all operations before committing.',
   // History / Time-Travel
-  'sheets_history.restore_cells': 'restore_cells writes OLD values to CURRENT sheet. Always create a snapshot first (sheets_history.create_snapshot).',
-  'sheets_history.timeline': 'Timeline uses Drive Revision API — large spreadsheets may have merged revisions (multiple edits in one entry).',
+  'sheets_history.restore_cells':
+    'restore_cells writes OLD values to CURRENT sheet. Always create a snapshot first (sheets_history.create_snapshot).',
+  'sheets_history.timeline':
+    'Timeline uses Drive Revision API — large spreadsheets may have merged revisions (multiple edits in one entry).',
   // Compute
-  'sheets_compute.aggregate': 'aggregate runs server-side. For client-visible formulas, use sheets_data.write with formula strings instead.',
-  'sheets_compute.forecast': 'Forecast uses linear/exponential regression on historical data. Accuracy degrades with <10 data points.',
+  'sheets_compute.aggregate':
+    'aggregate runs server-side. For client-visible formulas, use sheets_data.write with formula strings instead.',
+  'sheets_compute.forecast':
+    'Forecast uses linear/exponential regression on historical data. Accuracy degrades with <10 data points.',
   // Connectors
-  'sheets_connectors.query': 'Connector queries run against external APIs. Rate limits are PER-CONNECTOR, not shared with Sheets API quota.',
-  'sheets_connectors.configure': 'API keys are stored encrypted in session. They do NOT persist across server restarts.',
+  'sheets_connectors.query':
+    'Connector queries run against external APIs. Rate limits are PER-CONNECTOR, not shared with Sheets API quota.',
+  'sheets_connectors.configure':
+    'API keys are stored encrypted in session. They do NOT persist across server restarts.',
   // Templates
-  'sheets_templates.apply': 'Template application creates a NEW spreadsheet. It does NOT modify the template source.',
+  'sheets_templates.apply':
+    'Template application creates a NEW spreadsheet. It does NOT modify the template source.',
   // BigQuery
-  'sheets_bigquery.query': 'BigQuery queries consume project quota. Use LIMIT clauses and preview before running large queries.',
+  'sheets_bigquery.query':
+    'BigQuery queries consume project quota. Use LIMIT clauses and preview before running large queries.',
   // Federation
-  'sheets_federation.call_remote': 'Remote MCP calls have network latency. Batch operations on the remote server where possible.',
+  'sheets_federation.call_remote':
+    'Remote MCP calls have network latency. Batch operations on the remote server where possible.',
   // Agent
-  'sheets_agent.execute_plan': 'Plan execution is sequential. If a step fails, subsequent steps are skipped. Use checkpoints for recovery.',
+  'sheets_agent.execute_plan':
+    'Plan execution is sequential. If a step fails, subsequent steps are skipped. Use checkpoints for recovery.',
 };
 
 // Map tool.action → relevant MCP prompt for guided follow-up workflows
 // These surface prompted workflows the LLM can invoke for deeper operations
-const FOLLOW_UP_PROMPTS: Partial<
-  Record<string, { prompt: string; description: string }>
-> = {
+const FOLLOW_UP_PROMPTS: Partial<Record<string, { prompt: string; description: string }>> = {
   // After reading data, suggest analysis prompts
   'sheets_data.read': {
     prompt: 'analyze-sheet',
@@ -281,7 +300,6 @@ const ACTION_DISAMBIGUATION: Partial<Record<string, string>> = {
   'sheets_transaction.list': 'Listed active transactions',
   'sheets_appsscript.list_versions': 'Listed Apps Script versions',
   'sheets_appsscript.list_deployments': 'Listed Apps Script deployments',
-  'sheets_appsscript.list_triggers': 'Listed Apps Script triggers',
   'sheets_appsscript.list_processes': 'Listed Apps Script processes',
   'sheets_bigquery.list_connections': 'Listed BigQuery connections',
   'sheets_agent.list_plans': 'Listed agent plans',
@@ -301,7 +319,6 @@ const ACTION_DISAMBIGUATION: Partial<Record<string, string>> = {
   'sheets_webhook.unregister': 'Unregistered a webhook',
   'sheets_dimensions.delete_filter_view': 'Deleted a filter view',
   'sheets_dimensions.delete_slicer': 'Deleted a slicer',
-  'sheets_appsscript.delete_trigger': 'Deleted an Apps Script trigger',
   'sheets_session.delete_checkpoint': 'Deleted a session checkpoint',
   // "create" appears in 6+ tools
   'sheets_core.create': 'Created a new spreadsheet',
@@ -317,7 +334,6 @@ const ACTION_DISAMBIGUATION: Partial<Record<string, string>> = {
   'sheets_dimensions.create_slicer': 'Created a slicer',
   'sheets_appsscript.create': 'Created an Apps Script project',
   'sheets_appsscript.create_version': 'Created an Apps Script version',
-  'sheets_appsscript.create_trigger': 'Created an Apps Script trigger',
   'sheets_bigquery.create_scheduled_query': 'Created a scheduled BigQuery query',
   // "get" appears in 7+ tools
   'sheets_core.get': 'Got spreadsheet metadata',
@@ -572,14 +588,16 @@ function getRecoveryPlaybook(
   switch (errorCode) {
     case 'SHEET_NOT_FOUND':
       return {
-        description: 'Sheet name mismatch — list sheets to find the correct name (often emoji/unicode issue)',
+        description:
+          'Sheet name mismatch — list sheets to find the correct name (often emoji/unicode issue)',
         maxRetries: 1,
         steps: [
           {
             tool: 'sheets_core',
             action: 'list_sheets',
             ...(sid ? { params: { spreadsheetId: sid } } : {}),
-            description: 'List all sheet names to find the correct one (copy name exactly — may contain emoji)',
+            description:
+              'List all sheet names to find the correct one (copy name exactly — may contain emoji)',
           },
           {
             tool: toolName ?? 'sheets_data',
@@ -617,7 +635,8 @@ function getRecoveryPlaybook(
           {
             tool: 'sheets_transaction',
             action: 'begin',
-            description: 'Start a transaction to batch remaining operations (80-95% fewer API calls)',
+            description:
+              'Start a transaction to batch remaining operations (80-95% fewer API calls)',
           },
           {
             tool: toolName ?? 'sheets_data',
@@ -683,7 +702,8 @@ function getRecoveryPlaybook(
           {
             tool: toolName ?? 'sheets_data',
             action: actionName ?? 'read',
-            description: 'Retry the same operation using tasks/call for background execution (no timeout)',
+            description:
+              'Retry the same operation using tasks/call for background execution (no timeout)',
           },
         ],
       };

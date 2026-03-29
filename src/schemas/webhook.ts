@@ -10,6 +10,13 @@
 import { z } from 'zod';
 import { ErrorDetailSchema } from './shared.js';
 
+const PubSubTopicSchema = z
+  .string()
+  .regex(
+    /^projects\/[^/]+\/topics\/[^/]+$/,
+    'Must be a Pub/Sub topic in the format projects/{project}/topics/{topic}'
+  );
+
 /**
  * Webhook actions
  */
@@ -22,6 +29,7 @@ export const WebhookActionsSchema = z.enum([
   'get_stats',
   'watch_changes',
   'subscribe_workspace',
+  'reactivate_workspace',
   'unsubscribe_workspace',
   'list_workspace_subscriptions',
 ]);
@@ -169,14 +177,15 @@ export const WebhookWatchChangesInputSchema = z.object({
  * Note: Workspace Events API delivers via Pub/Sub, not HTTP endpoints directly.
  */
 export const WebhookSubscribeWorkspaceInputSchema = z.object({
-  action: z.literal('subscribe_workspace'),
-  spreadsheetId: z.string().min(1),
-  notificationEndpoint: z
-    .string()
-    .min(1)
+  action: z
+    .literal('subscribe_workspace')
     .describe(
-      'Pub/Sub topic to receive Workspace Events (format: projects/{project}/topics/{topic})'
+      'Create a Google Workspace Events subscription via Pub/Sub. Spreadsheet subscriptions currently use the Google Drive Workspace Events v1beta surface.'
     ),
+  spreadsheetId: z.string().min(1),
+  notificationEndpoint: PubSubTopicSchema.describe(
+    'Pub/Sub topic to receive Workspace Events (format: projects/{project}/topics/{topic}). Google recommends Pub/Sub topics for delivery, and spreadsheet subscriptions currently use the Drive Workspace Events v1beta surface.'
+  ),
 });
 
 /**
@@ -188,6 +197,21 @@ export const WebhookUnsubscribeWorkspaceInputSchema = z.object({
 });
 
 /**
+ * Workspace Events reactivate input
+ */
+export const WebhookReactivateWorkspaceInputSchema = z.object({
+  action: z
+    .literal('reactivate_workspace')
+    .describe(
+      'Reactivate a suspended Google Workspace Events subscription after resolving the suspension cause.'
+    ),
+  subscriptionId: z
+    .string()
+    .min(1)
+    .describe('Subscription ID returned by subscribe_workspace or list_workspace_subscriptions'),
+});
+
+/**
  * Workspace Events list subscriptions input
  */
 export const WebhookListWorkspaceSubscriptionsInputSchema = z.object({
@@ -196,6 +220,39 @@ export const WebhookListWorkspaceSubscriptionsInputSchema = z.object({
     .string()
     .optional()
     .describe('Filter by spreadsheet ID (omit for all subscriptions)'),
+});
+
+export const WorkspaceSubscriptionStateSchema = z.enum([
+  'STATE_UNSPECIFIED',
+  'ACTIVE',
+  'SUSPENDED',
+  'DELETED',
+]);
+
+export const WorkspaceSubscriptionInfoSchema = z.object({
+  id: z
+    .string()
+    .describe('Workspace Events resource name, formatted as subscriptions/{subscription}'),
+  uid: z.string().optional().describe('Stable server-assigned subscription UID'),
+  spreadsheetId: z.string().describe('Spreadsheet file ID derived from the target Drive resource'),
+  notificationEndpoint: PubSubTopicSchema.describe(
+    'Pub/Sub topic receiving Workspace Events deliveries'
+  ),
+  expireTime: z.string().describe('ISO 8601 expiration timestamp returned by Workspace Events'),
+  createdAt: z.string().describe('ISO 8601 creation timestamp'),
+  state: WorkspaceSubscriptionStateSchema.optional().describe(
+    'Current Google Workspace subscription state when known'
+  ),
+  suspensionReason: z
+    .string()
+    .optional()
+    .describe('Google Workspace suspension reason when the subscription is suspended'),
+  updateTime: z.string().optional().describe('ISO 8601 last update timestamp from Google'),
+  reconciling: z
+    .boolean()
+    .optional()
+    .describe('Whether Google is still reconciling the subscription state'),
+  etag: z.string().optional().describe('ETag returned by the Workspace Events API'),
 });
 
 /**
@@ -210,6 +267,7 @@ const WebhookRequestSchema = z.discriminatedUnion('action', [
   WebhookStatsInputSchema,
   WebhookWatchChangesInputSchema,
   WebhookSubscribeWorkspaceInputSchema,
+  WebhookReactivateWorkspaceInputSchema,
   WebhookUnsubscribeWorkspaceInputSchema,
   WebhookListWorkspaceSubscriptionsInputSchema,
 ]);
@@ -352,7 +410,6 @@ const WebhookResponseSchema = z.discriminatedUnion('success', [
     success: z.literal(true),
     data: z.union([
       WebhookRegisterResponseSchema,
-      z.object({ success: z.boolean(), message: z.string() }),
       z.object({ webhooks: z.array(WebhookInfoSchema) }),
       z.object({ webhook: WebhookInfoSchema }),
       z.object({ delivery: WebhookDeliverySchema }),
@@ -366,6 +423,16 @@ const WebhookResponseSchema = z.discriminatedUnion('success', [
         spreadsheetId: z.string(),
         webhookUrl: z.string(),
       }),
+      z.object({
+        success: z.boolean(),
+        message: z.string(),
+        subscriptionId: z.string(),
+        subscription: WorkspaceSubscriptionInfoSchema,
+      }),
+      z.object({
+        subscriptions: z.array(WorkspaceSubscriptionInfoSchema),
+      }),
+      z.object({ success: z.boolean(), message: z.string() }),
     ]),
   }),
   z.object({
@@ -402,12 +469,15 @@ export type WebhookTestInput = z.infer<typeof WebhookTestInputSchema>;
 export type WebhookStatsInput = z.infer<typeof WebhookStatsInputSchema>;
 export type WebhookWatchChangesInput = z.infer<typeof WebhookWatchChangesInputSchema>;
 export type WebhookSubscribeWorkspaceInput = z.infer<typeof WebhookSubscribeWorkspaceInputSchema>;
+export type WebhookReactivateWorkspaceInput = z.infer<typeof WebhookReactivateWorkspaceInputSchema>;
 export type WebhookUnsubscribeWorkspaceInput = z.infer<
   typeof WebhookUnsubscribeWorkspaceInputSchema
 >;
 export type WebhookListWorkspaceSubscriptionsInput = z.infer<
   typeof WebhookListWorkspaceSubscriptionsInputSchema
 >;
+export type WorkspaceSubscriptionState = z.infer<typeof WorkspaceSubscriptionStateSchema>;
+export type WorkspaceSubscriptionInfo = z.infer<typeof WorkspaceSubscriptionInfoSchema>;
 export type WebhookRegisterResponse = z.infer<typeof WebhookRegisterResponseSchema>;
 export type WebhookInfo = z.infer<typeof WebhookInfoSchema>;
 export type WebhookDelivery = z.infer<typeof WebhookDeliverySchema>;

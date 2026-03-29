@@ -1,7 +1,7 @@
 /**
  * ServalSheets - Webhook Handler
  *
- * Thin dispatcher for sheets_webhook MCP tool (10 actions).
+ * Thin dispatcher for sheets_webhook MCP tool.
  * Action implementations live in src/handlers/webhook-actions/.
  *
  * @category Handlers
@@ -28,6 +28,7 @@ import { handleTest, handleGetStats } from './webhook-actions/delivery.js';
 import {
   handleWatchChanges,
   handleSubscribeWorkspace,
+  handleReactivateWorkspace,
   handleUnsubscribeWorkspace,
   handleListWorkspaceSubscriptions,
 } from './webhook-actions/integrations.js';
@@ -188,6 +189,8 @@ export class WebhookHandler {
           };
         case 'subscribe_workspace':
           return { response: await handleSubscribeWorkspace(access, req) };
+        case 'reactivate_workspace':
+          return { response: await handleReactivateWorkspace(access, req) };
         case 'unsubscribe_workspace':
           return { response: await handleUnsubscribeWorkspace(access, req) };
         case 'list_workspace_subscriptions':

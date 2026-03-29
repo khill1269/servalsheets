@@ -2,7 +2,7 @@
 title: Tools Overview
 category: reference
 last_updated: 2026-03-17
-description: ServalSheets provides 25 MCP tools with 407 total actions covering the complete Google Sheets API v4.
+description: ServalSheets provides 25 MCP tools with 408 total actions covering the complete Google Sheets API v4.
 version: 2.0.0
 tags: [sheets]
 stability: stable
@@ -10,7 +10,7 @@ stability: stable
 
 # Tools Overview
 
-ServalSheets provides 25 MCP tools with 407 total actions covering the complete Google Sheets API v4.
+ServalSheets provides 25 MCP tools with 408 total actions covering the complete Google Sheets API v4.
 
 ## Tool Categories
 
@@ -35,7 +35,7 @@ ServalSheets provides 25 MCP tools with 407 total actions covering the complete 
 | `sheets_templates`    | 8       | Template management                                                                                      |
 | `sheets_bigquery`     | 17      | Connected Sheets + BigQuery query/import/export                                                          |
 | `sheets_appsscript`   | 19      | Apps Script project/deploy/run                                                                           |
-| `sheets_webhook`      | 10      | Webhook register/test/stats                                                                              |
+| `sheets_webhook`      | 11      | Webhook register/test/stats/workspace subscription lifecycle                                             |
 | `sheets_dependencies` | 10      | Dependency graph + impact analysis                                                                       |
 | `sheets_agent`        | 8       | Autonomous multi-step plan/execute/rollback                                                              |
 | `sheets_compute`      | 16      | Statistical analysis, SQL queries, Python/DuckDB compute                                                 |

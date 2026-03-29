@@ -104,7 +104,7 @@ not through `claude_desktop_config.json`.
 
 ServalSheets uses deployment-aware OAuth scopes:
 
-**Self-Hosted (Default)** - Full scope mode exposes all 407 actions:
+**Self-Hosted (Default)** - Full scope mode exposes all 408 actions:
 
 ```bash
 # No configuration needed - defaults to full scopes

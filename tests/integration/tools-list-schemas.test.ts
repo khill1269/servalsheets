@@ -395,7 +395,11 @@ describe('tools/list Schema Serialization', () => {
           expect.arrayContaining(['register', 'list', 'test', 'get_stats'])
         );
         expect(availability?.['availableActions']).toEqual(
-          expect.arrayContaining(['watch_changes', 'subscribe_workspace'])
+          expect.arrayContaining([
+            'watch_changes',
+            'subscribe_workspace',
+            'reactivate_workspace',
+          ])
         );
       }
     } finally {

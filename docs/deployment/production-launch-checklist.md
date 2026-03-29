@@ -13,7 +13,7 @@ Use this checklist for the final go/no-go review before deploying ServalSheets t
 
 This checklist assumes the repository is already in the current validated state:
 
-- `25` tools and `407` actions synchronized
+- `25` tools and `408` actions synchronized
 - `npm run typecheck` passing
 - `npm run build` passing
 - `npm run test:all` passing
@@ -97,7 +97,7 @@ For multi-instance or resumable HTTP deployments:
 - [ ] The release artifact is built from the validated commit.
 - [ ] Docker/Helm/Kubernetes manifests point to the intended image tag.
 - [ ] The runtime image contains the required workspace package artifacts:
-  `packages/mcp-runtime/dist`, `packages/mcp-http/dist`, `packages/mcp-stdio/dist`, and `packages/mcp-client/dist`.
+      `packages/mcp-runtime/dist`, `packages/mcp-http/dist`, `packages/mcp-stdio/dist`, and `packages/mcp-client/dist`.
 - [ ] Health and readiness probes target `/health/live` and `/health/ready`.
 - [ ] TLS termination and ingress rules are configured.
 - [ ] Resource limits and autoscaling settings are set for expected load.

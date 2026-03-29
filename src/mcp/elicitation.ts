@@ -10,7 +10,13 @@
  * @see https://spec.modelcontextprotocol.io/specification/2025-11-25/client/elicitation/
  */
 
-import type { ClientCapabilities, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  ClientCapabilities,
+  ElicitRequestFormParams,
+  ElicitRequestURLParams,
+  ElicitResult,
+  PrimitiveSchemaDefinition,
+} from '@modelcontextprotocol/sdk/types.js';
 import { ServiceError } from '../core/errors.js';
 import { recordElicitationRequest } from '../observability/metrics.js';
 
@@ -30,69 +36,12 @@ export interface ElicitationSupport {
   url: boolean;
 }
 
-/**
- * Primitive schema types for form fields
- */
-export interface StringSchema {
-  type: 'string';
-  title?: string;
-  description?: string;
-  default?: string;
-  minLength?: number;
-  maxLength?: number;
-  format?: 'email' | 'uri' | 'date' | 'date-time';
-}
+export type PrimitiveSchema = PrimitiveSchemaDefinition;
+// MCP 2025-11-25 form elicitation uses restricted schema definitions:
+// strings, numbers, booleans, and enums, including multi-select enum arrays.
 
-export interface NumberSchema {
-  type: 'number' | 'integer';
-  title?: string;
-  description?: string;
-  default?: number;
-  minimum?: number;
-  maximum?: number;
-}
-
-export interface BooleanSchema {
-  type: 'boolean';
-  title?: string;
-  description?: string;
-  default?: boolean;
-}
-
-export interface EnumSchema {
-  type: 'string';
-  title?: string;
-  description?: string;
-  default?: string;
-  enum?: string[];
-  oneOf?: Array<{ const: string; title: string }>;
-}
-
-export type PrimitiveSchema = StringSchema | NumberSchema | BooleanSchema | EnumSchema;
-// MCP 2025-11-25 requires primitive types only: string, number, boolean, and enum (not array/object)
-
-/**
- * Form elicitation request parameters
- */
-export interface FormElicitParams {
-  mode?: 'form';
-  message: string;
-  requestedSchema: {
-    type: 'object';
-    properties: Record<string, PrimitiveSchema>;
-    required?: string[];
-  };
-}
-
-/**
- * URL elicitation request parameters
- */
-export interface URLElicitParams {
-  mode: 'url';
-  message: string;
-  elicitationId: string;
-  url: string;
-}
+export type FormElicitParams = ElicitRequestFormParams;
+export type URLElicitParams = ElicitRequestURLParams;
 
 /**
  * Server interface for elicitation (subset of Server methods we need)
@@ -166,7 +115,7 @@ export function stringField(options: {
   minLength?: number;
   maxLength?: number;
   format?: 'email' | 'uri' | 'date' | 'date-time';
-}): StringSchema {
+}): PrimitiveSchema {
   return {
     type: 'string',
     title: options.title,
@@ -188,7 +137,7 @@ export function numberField(options: {
   minimum?: number;
   maximum?: number;
   integer?: boolean;
-}): NumberSchema {
+}): PrimitiveSchema {
   return {
     type: options.integer ? 'integer' : 'number',
     title: options.title,
@@ -206,7 +155,7 @@ export function booleanField(options: {
   title: string;
   description?: string;
   default?: boolean;
-}): BooleanSchema {
+}): PrimitiveSchema {
   return {
     type: 'boolean',
     title: options.title,
@@ -223,7 +172,7 @@ export function enumField(options: {
   description?: string;
   values: string[];
   default?: string;
-}): EnumSchema {
+}): PrimitiveSchema {
   return {
     type: 'string',
     title: options.title,
@@ -241,7 +190,7 @@ export function selectField(options: {
   description?: string;
   options: Array<{ value: string; label: string }>;
   default?: string;
-}): EnumSchema {
+}): PrimitiveSchema {
   return {
     type: 'string',
     title: options.title,
@@ -251,6 +200,33 @@ export function selectField(options: {
       title: opt.label,
     })),
     ...(options.default && { default: options.default }),
+  };
+}
+
+/**
+ * Build a multi-select enum field schema with display titles
+ */
+export function multiSelectField(options: {
+  title: string;
+  description?: string;
+  options: Array<{ value: string; label: string }>;
+  default?: string[];
+  minItems?: number;
+  maxItems?: number;
+}): PrimitiveSchema {
+  return {
+    type: 'array',
+    title: options.title,
+    ...(options.description && { description: options.description }),
+    ...(options.minItems !== undefined && { minItems: options.minItems }),
+    ...(options.maxItems !== undefined && { maxItems: options.maxItems }),
+    items: {
+      anyOf: options.options.map((opt) => ({
+        const: opt.value,
+        title: opt.label,
+      })),
+    },
+    ...(options.default !== undefined && { default: options.default }),
   };
 }
 

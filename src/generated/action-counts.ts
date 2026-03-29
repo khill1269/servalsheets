@@ -33,7 +33,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_templates: 8,
   sheets_transaction: 6,
   sheets_visualize: 18,
-  sheets_webhook: 10,
+  sheets_webhook: 11,
 };
 
 /**

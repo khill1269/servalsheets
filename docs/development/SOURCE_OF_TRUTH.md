@@ -18,10 +18,10 @@ tags: [sheets, prometheus]
 
 ### Tool & Action Counts
 
-| Metric           | Source File                    | Line              | Current Value | Verification Command                                            |
-| ---------------- | ------------------------------ | ----------------- | ------------- | --------------------------------------------------------------- |
-| **TOOL_COUNT**   | `docs/generated/facts.json`    | `counts.tools`    | `25`          | `jq '.counts.tools' docs/generated/facts.json`                 |
-| **ACTION_COUNT** | `docs/generated/facts.json`    | `counts.actions`  | `407`         | `jq '.counts.actions' docs/generated/facts.json`               |
+| Metric           | Source File                 | Line             | Current Value | Verification Command                             |
+| ---------------- | --------------------------- | ---------------- | ------------- | ------------------------------------------------ |
+| **TOOL_COUNT**   | `docs/generated/facts.json` | `counts.tools`   | `25`          | `jq '.counts.tools' docs/generated/facts.json`   |
+| **ACTION_COUNT** | `docs/generated/facts.json` | `counts.actions` | `408`         | `jq '.counts.actions' docs/generated/facts.json` |
 
 **Verification:**
 
@@ -30,7 +30,7 @@ tags: [sheets, prometheus]
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 25 tools, 407 actions
+# ✅ Total: 25 tools, 408 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -124,14 +124,14 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 | `sheets_templates`    | 8       | `src/schemas/templates.ts`    |
 | `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
 | `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
-| `sheets_webhook`      | 10      | `src/schemas/webhook.ts`      |
-| **TOTAL**             | **407** | —                             |
+| `sheets_webhook`      | 11      | `src/schemas/webhook.ts`      |
+| **TOTAL**             | **408** | —                             |
 
 **Verification:**
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 25 tools, 407 actions
+# Output: ✅ Total: 25 tools, 408 actions
 ```
 
 ---
@@ -140,14 +140,14 @@ npm run check:drift | grep "Total:"
 
 These files are **automatically generated** by `scripts/generate-metadata.ts`:
 
-| File                         | What It Contains                          | Updated By             |
-| ---------------------------- | ----------------------------------------- | ---------------------- |
-| `package.json`               | Description with tool/action counts       | `npm run gen:metadata` |
-| `docs/generated/facts.json`  | Docs-facing facts manifest                | `node scripts/gen-doc-facts.mjs` |
-| `src/schemas/index.ts`       | Backward-compatible count re-exports      | `npm run gen:metadata` |
-| `src/schemas/annotations.ts` | `ACTION_COUNTS` per-tool breakdown        | `npm run gen:metadata` |
-| `src/mcp/completions.ts`     | `TOOL_ACTIONS` for autocompletion         | `npm run gen:metadata` |
-| `server.json`                | Full MCP server metadata                  | `npm run gen:metadata` |
+| File                         | What It Contains                     | Updated By                       |
+| ---------------------------- | ------------------------------------ | -------------------------------- |
+| `package.json`               | Description with tool/action counts  | `npm run gen:metadata`           |
+| `docs/generated/facts.json`  | Docs-facing facts manifest           | `node scripts/gen-doc-facts.mjs` |
+| `src/schemas/index.ts`       | Backward-compatible count re-exports | `npm run gen:metadata`           |
+| `src/schemas/annotations.ts` | `ACTION_COUNTS` per-tool breakdown   | `npm run gen:metadata`           |
+| `src/mcp/completions.ts`     | `TOOL_ACTIONS` for autocompletion    | `npm run gen:metadata`           |
+| `server.json`                | Full MCP server metadata             | `npm run gen:metadata`           |
 
 **Input Source (Source of Truth):**
 
@@ -211,10 +211,10 @@ Evidence: <file:line> OR <command → output>
 ✅ **Good:**
 
 ```
-Claim: ServalSheets has 407 actions
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 407
-Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
-Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
+Claim: ServalSheets has 408 actions
+Evidence: docs/generated/facts.json reports counts.actions = 408
+Command: jq '.counts.actions' docs/generated/facts.json
+Output: 408
 ```
 
 ❌ **Bad:**
@@ -258,7 +258,7 @@ npm run verify
 
 ```
 TOOL_COUNT:         25
-ACTION_COUNT:       407
+ACTION_COUNT:       408
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        4.3.5
 SDK_VERSION:        ^1.25.2
@@ -304,11 +304,11 @@ Build Status:
 Q: How many actions does ServalSheets have?
 A: Let me verify...
 
-Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
-Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
+Command: jq '.counts.actions' docs/generated/facts.json
+Output: 408
 
-ServalSheets has 407 actions across 25 tools.
-Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 407
+ServalSheets has 408 actions across 25 tools.
+Evidence: docs/generated/facts.json reports counts.actions = 408
 ```
 
 ---

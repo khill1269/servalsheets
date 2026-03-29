@@ -780,7 +780,7 @@ function buildFlatToolListEntries(): Record<string, unknown>[] {
 
 /**
  * Build the sheets_discover meta-tool entry for flat mode.
- * This is always loaded and serves as the gateway to all 407 actions.
+ * This is always loaded and serves as the gateway to the full action surface.
  */
 function buildDiscoverToolEntry(): Record<string, unknown> {
   return {
@@ -841,7 +841,7 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
       const effectiveMode = getEffectiveToolMode();
 
       // ── FLAT MODE ──────────────────────────────────────────────────────
-      // Return ~407 individual tools (most deferred) + sheets_discover
+      // Return the current flat action surface (most deferred) + sheets_discover
       if (effectiveMode === 'flat') {
         const flatEntries = buildFlatToolListEntries();
         const discoverEntry = buildDiscoverToolEntry();

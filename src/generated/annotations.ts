@@ -9496,6 +9496,40 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'This creates a Workspace Events subscription. notificationEndpoint must be a Pub/Sub topic path.',
     },
   },
+  'sheets_webhook.reactivate_workspace': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse:
+      'Reactivating a suspended Workspace Events subscription after fixing the underlying Google-side issue',
+    commonMistakes: [
+      'Trying to reactivate before resolving the suspension cause in Google Workspace or Pub/Sub',
+      'Using a subscriptionId that is no longer tracked locally by ServalSheets',
+    ],
+
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      QUOTA_EXCEEDED: 'Wait 60s then retry',
+      alternativeActions: [
+        {
+          tool: 'sheets_webhook',
+          action: 'list_workspace_subscriptions',
+          when: 'when confirming the subscription state before reactivation',
+        },
+        {
+          tool: 'sheets_webhook',
+          action: 'subscribe_workspace',
+          when: 'when the remote subscription no longer exists and must be recreated',
+        },
+      ],
+      diagnosticSteps: [
+        'List workspace subscriptions to confirm the subscriptionId and current state',
+        'Verify credentials with sheets_auth.status',
+        'Confirm the Pub/Sub topic and Google-side suspension cause have been fixed before retrying',
+      ],
+      userGuidance:
+        'Reactivate only suspended Workspace Events subscriptions. If Google reports the subscription no longer exists, create a new one.',
+    },
+  },
   'sheets_webhook.unsubscribe_workspace': {
     apiCalls: 1,
     idempotent: true,

@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 25 tools, 407 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 25 tools, 408 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -113,7 +113,7 @@ Historical release snapshots are kept here for upgrade context.
 
 ### Core Capabilities
 
-- **25 Tools, 407 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 408 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
 - **Multiple Transports**: STDIO, Streamable HTTP, and legacy SSE compatibility surface
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -124,7 +124,7 @@ Historical release snapshots are kept here for upgrade context.
 MCP 2025-11-25 server support includes:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
-- ✅ **Tools**: 25 tools with 407 actions using discriminated unions
+- ✅ **Tools**: 25 tools with 408 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -250,7 +250,7 @@ ServalSheets uses deployment-aware OAuth scopes to balance functionality and Goo
 
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
-| **full** (default) | 407/407           | Self-hosted, enterprise | 4-6 weeks                |
+| **full** (default) | 408/408           | Self-hosted, enterprise | 4-6 weeks                |
 | **standard**       | Reduced subset    | SaaS, marketplace apps  | 3-5 days                 |
 | **minimal**        | Basic subset      | Basic operations only   | 3-5 days                 |
 | **readonly**       | Read-only subset  | Analysis/reporting only | 3-5 days                 |
@@ -392,7 +392,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (25 tools, 407 actions)
+### Tool Summary (25 tools, 408 actions)
 
 | Tool                  | Actions | Description                                                        |
 | --------------------- | ------- | ------------------------------------------------------------------ |
@@ -813,11 +813,11 @@ The issued JWT carries `scope='sso'` and is accepted by the same Bearer-token mi
 
 ServalSheets enforces role-based access control (RBAC) **only on HTTP transport**. STDIO transport (used by Claude Desktop and local CLI) trusts the local process by design — it runs under the user's account with their OS-level permissions, so an additional RBAC layer would be redundant.
 
-| Transport  | RBAC enforced? | Notes                                                           |
-| ---------- | -------------- | --------------------------------------------------------------- |
-| STDIO      | No             | Trusted local process (Claude Desktop model)                    |
-| HTTP / Streamable HTTP | Yes | JWT-based RBAC, configurable roles via `SERVAL_RBAC_*` env vars |
-| Remote MCP | Yes            | Per-user JWT claims validated on each request                   |
+| Transport              | RBAC enforced? | Notes                                                           |
+| ---------------------- | -------------- | --------------------------------------------------------------- |
+| STDIO                  | No             | Trusted local process (Claude Desktop model)                    |
+| HTTP / Streamable HTTP | Yes            | JWT-based RBAC, configurable roles via `SERVAL_RBAC_*` env vars |
+| Remote MCP             | Yes            | Per-user JWT claims validated on each request                   |
 
 If you are running ServalSheets as an HTTP server exposed to multiple users, ensure `JWT_SECRET` and `OAUTH_CLIENT_SECRET` are set and all traffic goes through HTTPS.
 
@@ -1292,7 +1292,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 407 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 25 tools and 408 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -2133,7 +2133,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
-| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 407 actions, discriminated unions |
+| **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 408 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
 | **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
@@ -2148,7 +2148,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 
 #### Tools (25 tools ✅)
 
-All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-407-actions) above for current per-tool action counts.
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-408-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 

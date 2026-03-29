@@ -1,13 +1,14 @@
 /**
  * Webhook Handler Tests (Phase 2.4)
  *
- * Comprehensive tests for sheets_webhook handler (7 actions)
+ * Comprehensive tests for sheets_webhook handler
  * Tests webhook registration, management, and statistics
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WebhookHandler, createWebhookHandler } from '../../src/handlers/webhooks.js';
 import type { WebhookEventType } from '../../src/schemas/webhook.js';
+import { SheetsWebhookInputSchema, SheetsWebhookOutputSchema } from '../../src/schemas/webhook.js';
 import { isWebhookRedisConfigured } from '../../src/services/webhook-manager.js';
 
 // Mock webhook manager
@@ -227,6 +228,165 @@ describe('WebhookHandler', () => {
 
       expect(result.response.success).toBe(false);
       expect(result.response.error?.code).toBe('CONFIG_ERROR');
+    });
+  });
+
+  describe('workspace events actions', () => {
+    it('creates a workspace subscription with structured subscription details', async () => {
+      const workspaceEventsService = {
+        createSubscription: vi.fn().mockResolvedValue({
+          id: 'subscriptions/ws-123',
+          spreadsheetId: 'sheet-123',
+          notificationEndpoint: 'projects/demo/topics/workspace-events',
+          expireTime: '2026-03-16T12:00:00.000Z',
+          createdAt: '2026-03-09T12:00:00.000Z',
+          state: 'ACTIVE',
+        }),
+        deleteSubscription: vi.fn(),
+        listSubscriptions: vi.fn(),
+      };
+      handler = createWebhookHandler({ workspaceEventsService: workspaceEventsService as never });
+
+      const result = await handler.handle({
+        request: {
+          action: 'subscribe_workspace',
+          spreadsheetId: 'sheet-123',
+          notificationEndpoint: 'projects/demo/topics/workspace-events',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'subscriptionId' in result.response.data
+      ) {
+        expect(result.response.data.subscriptionId).toBe('subscriptions/ws-123');
+        expect(result.response.data.subscription.state).toBe('ACTIVE');
+      }
+      expect(workspaceEventsService.createSubscription).toHaveBeenCalledWith(
+        'sheet-123',
+        'projects/demo/topics/workspace-events'
+      );
+      expect(SheetsWebhookOutputSchema.parse(result)).toEqual(result);
+    });
+
+    it('lists workspace subscriptions from the workspace events service', async () => {
+      const workspaceEventsService = {
+        createSubscription: vi.fn(),
+        reactivateSubscription: vi.fn(),
+        deleteSubscription: vi.fn(),
+        listSubscriptions: vi.fn().mockReturnValue([
+          {
+            id: 'subscriptions/ws-123',
+            spreadsheetId: 'sheet-123',
+            notificationEndpoint: 'projects/demo/topics/workspace-events',
+            expireTime: '2026-03-16T12:00:00.000Z',
+            createdAt: '2026-03-09T12:00:00.000Z',
+          },
+        ]),
+      };
+      handler = createWebhookHandler({ workspaceEventsService: workspaceEventsService as never });
+
+      const result = await handler.handle({
+        request: {
+          action: 'list_workspace_subscriptions',
+          spreadsheetId: 'sheet-123',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'subscriptions' in result.response.data
+      ) {
+        expect(result.response.data.subscriptions).toHaveLength(1);
+        expect(result.response.data.subscriptions[0]?.id).toBe('subscriptions/ws-123');
+      }
+      expect(workspaceEventsService.listSubscriptions).toHaveBeenCalledWith('sheet-123');
+      expect(SheetsWebhookOutputSchema.parse(result)).toEqual(result);
+    });
+
+    it('reactivates a suspended workspace subscription and returns structured details', async () => {
+      const workspaceEventsService = {
+        createSubscription: vi.fn(),
+        reactivateSubscription: vi.fn().mockResolvedValue({
+          id: 'subscriptions/ws-123',
+          spreadsheetId: 'sheet-123',
+          notificationEndpoint: 'projects/demo/topics/workspace-events',
+          expireTime: '2026-03-16T12:00:00.000Z',
+          createdAt: '2026-03-09T12:00:00.000Z',
+          state: 'ACTIVE',
+        }),
+        deleteSubscription: vi.fn(),
+        listSubscriptions: vi.fn(),
+      };
+      handler = createWebhookHandler({ workspaceEventsService: workspaceEventsService as never });
+
+      const result = await handler.handle({
+        request: {
+          action: 'reactivate_workspace',
+          subscriptionId: 'subscriptions/ws-123',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (
+        result.response.success &&
+        'data' in result.response &&
+        'subscriptionId' in result.response.data
+      ) {
+        expect(result.response.data.subscriptionId).toBe('subscriptions/ws-123');
+        expect(result.response.data.subscription.state).toBe('ACTIVE');
+      }
+      expect(workspaceEventsService.reactivateSubscription).toHaveBeenCalledWith(
+        'subscriptions/ws-123'
+      );
+      expect(SheetsWebhookOutputSchema.parse(result)).toEqual(result);
+    });
+
+    it('fails cleanly when unsubscribe_workspace remote delete fails', async () => {
+      const workspaceEventsService = {
+        createSubscription: vi.fn(),
+        reactivateSubscription: vi.fn(),
+        deleteSubscription: vi.fn().mockRejectedValue(new Error('delete failed')),
+        listSubscriptions: vi.fn(),
+      };
+      handler = createWebhookHandler({ workspaceEventsService: workspaceEventsService as never });
+
+      const result = await handler.handle({
+        request: {
+          action: 'unsubscribe_workspace',
+          subscriptionId: 'subscriptions/ws-123',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.message).toContain('delete failed');
+    });
+
+    it('rejects subscribe_workspace inputs that are not Pub/Sub topic resource names', () => {
+      const parseResult = SheetsWebhookInputSchema.safeParse({
+        request: {
+          action: 'subscribe_workspace',
+          spreadsheetId: 'sheet-123',
+          notificationEndpoint: 'https://example.com/not-a-topic',
+        },
+      });
+
+      expect(parseResult.success).toBe(false);
+    });
+
+    it('accepts reactivate_workspace inputs with a subscription resource name', () => {
+      const parseResult = SheetsWebhookInputSchema.safeParse({
+        request: {
+          action: 'reactivate_workspace',
+          subscriptionId: 'subscriptions/ws-123',
+        },
+      });
+
+      expect(parseResult.success).toBe(true);
     });
   });
 
