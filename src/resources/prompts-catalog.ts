@@ -50,12 +50,7 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
     description: 'Spreadsheet analysis and insight extraction',
     whenToUse: 'When user wants to understand data, get summaries, or compare spreadsheets',
     prompts: [
-      { name: 'analyze_spreadsheet', description: 'Comprehensive analysis of a spreadsheet' },
       { name: 'auto_analyze', description: 'Automated analysis with AI-generated insights' },
-      {
-        name: 'ultimate_analysis',
-        description: 'Deep multi-pass analysis with scoring and recommendations',
-      },
       { name: 'compare_spreadsheets', description: 'Side-by-side comparison of two spreadsheets' },
       {
         name: 'analyze_with_history',
@@ -77,10 +72,6 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         description: 'Fully automated cleaning with AI decisions',
       },
       {
-        name: 'fix_data_quality',
-        description: 'Target and fix specific quality issues (blanks, types, outliers)',
-      },
-      {
         name: 'masterclass_data_quality',
         description: 'Expert-level data quality standards and validation patterns',
       },
@@ -92,7 +83,6 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
       'When moving data into or out of Google Sheets from CSV, Excel, databases, or other sheets',
     prompts: [
       { name: 'import_data', description: 'Import data from CSV, Excel, or external source' },
-      { name: 'bulk_import', description: 'High-volume import with progress tracking' },
       {
         name: 'bulk_import_data',
         description: 'Bulk import with schema validation and error handling',
@@ -101,7 +91,6 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         name: 'advanced_data_migration',
         description: 'Complex migration with transformation rules and mapping',
       },
-      { name: 'migrate_data', description: 'Migrate data between sheets or spreadsheets' },
       {
         name: 'migrate_spreadsheet',
         description: 'Full spreadsheet migration with structure and data',
@@ -141,7 +130,6 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         name: 'recover_from_error',
         description: 'Step-by-step recovery from a specific error code',
       },
-      { name: 'troubleshoot_performance', description: 'Debug slow spreadsheet performance' },
       {
         name: 'undo_changes',
         description: 'Safely undo recent operations with history inspection',
@@ -152,10 +140,6 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
     description: 'Formula generation, optimization, and education',
     whenToUse: 'When working with formulas: creating, debugging, optimizing, or learning',
     prompts: [
-      {
-        name: 'optimize_formulas',
-        description: 'Reduce formula complexity and improve calculation speed',
-      },
       {
         name: 'masterclass_formulas',
         description: 'Advanced formula patterns: LAMBDA, MAP, SCAN, array formulas',
@@ -220,14 +204,6 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         description: 'Set up a budget tracking spreadsheet with formulas and charts',
       },
       {
-        name: 'when_to_confirm',
-        description: 'Learn when to use confirmation before destructive operations',
-      },
-      {
-        name: 'confirmation_examples',
-        description: 'Examples of confirmation workflows for safe mutations',
-      },
-      {
         name: 'scenario_multi_user',
         description: 'Multi-user scenario with concurrent editing patterns',
       },
@@ -235,9 +211,20 @@ const PROMPT_CATALOG: Record<string, PromptBucket> = {
         name: 'challenge_quality_detective',
         description: 'Gamified data quality challenge workflow',
       },
+    ],
+  },
+  connectors: {
+    description: 'External connector setup and connected data pipelines',
+    whenToUse:
+      'When discovering a connector, configuring credentials, or moving external data into a spreadsheet',
+    prompts: [
       {
-        name: 'challenge_performance_profiler',
-        description: 'Performance profiling challenge workflow',
+        name: 'connector_setup',
+        description: 'Discover and configure an external data connector',
+      },
+      {
+        name: 'connector_data_pipeline',
+        description: 'Fetch connector data, transform it, and write it into Sheets',
       },
     ],
   },
