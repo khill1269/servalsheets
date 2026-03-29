@@ -15,8 +15,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  skip-unsupported-dispatch:
+    name: Skip unsupported branch dispatch
+    if: github.event_name == 'workflow_dispatch' && github.ref_name != github.event.repository.default_branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Summarize unsupported dispatch
+        run: |
+          echo "## OpenSSF Scorecard" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- The scorecard action only supports the default branch (${{ github.event.repository.default_branch }})." >> "$GITHUB_STEP_SUMMARY"
+          echo "- This manual dispatch ran on ${GITHUB_REF_NAME}, so analysis was skipped intentionally." >> "$GITHUB_STEP_SUMMARY"
+
   analysis:
     name: Scorecards analysis
+    if: github.event_name != 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
