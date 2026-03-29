@@ -11,11 +11,6 @@ import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { OpenAPIGenerator } from './generate-openapi.js';
 
-interface SDKConfig {
-  language: string;
-  packageName: string;
-  outputDir: string;
-}
 
 interface CompilationResult {
   success: boolean;
@@ -228,7 +223,7 @@ export interface ErrorResponse {
     const schemas = this.spec.components?.schemas ?? {};
     let interfaces = '';
 
-    for (const [name, schema] of Object.entries(schemas)) {
+    for (const [name, _schema] of Object.entries(schemas)) {
       interfaces += `
 export interface ${name} {
   // Generated from OpenAPI schema
@@ -879,10 +874,10 @@ type SheetsDataOutput struct {
     try {
       execSync('npm run build', { cwd: sdkPath, stdio: 'pipe' });
       return { success: true, errors: [], warnings: [] };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        errors: [error.message],
+        errors: [(error as Error).message],
         warnings: [],
       };
     }
@@ -896,10 +891,10 @@ type SheetsDataOutput struct {
     try {
       execSync('python -m py_compile servalsheets/*.py', { cwd: sdkPath, stdio: 'pipe' });
       return { success: true, errors: [], warnings: [] };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        errors: [error.message],
+        errors: [(error as Error).message],
         warnings: [],
       };
     }
@@ -913,10 +908,10 @@ type SheetsDataOutput struct {
     try {
       execSync('go build .', { cwd: sdkPath, stdio: 'pipe' });
       return { success: true, errors: [], warnings: [] };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        errors: [error.message],
+        errors: [(error as Error).message],
         warnings: [],
       };
     }

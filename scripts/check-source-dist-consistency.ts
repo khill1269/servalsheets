@@ -152,12 +152,9 @@ async function main(): Promise<void> {
     checkRuntimeAsset(sourceRelativePath, distRelativePath, errors);
   }
 
-  if (
-    existsSync(resolve('src/ui/tracing-dashboard/dist')) &&
-    !existsSync(resolve('dist/ui/tracing/index.html'))
-  ) {
+  if (existsSync(resolve('ui/tracing-dashboard/dist')) && !existsSync(resolve('dist/ui/tracing/index.html'))) {
     errors.push(
-      'runtime asset missing from dist: dist/ui/tracing/index.html (source: src/ui/tracing-dashboard/dist)'
+      'runtime asset missing from dist: dist/ui/tracing/index.html (source: ui/tracing-dashboard/dist)'
     );
   }
 

@@ -82,7 +82,7 @@ SERVER_PID=$!
 SERVER_READY=0
 
 for _ in 1 2 3 4 5 6 7 8; do
-  if curl -f -s "http://127.0.0.1:${SMOKE_HTTP_PORT}/health" > /dev/null 2>&1; then
+  if curl -f -s "http://127.0.0.1:${SMOKE_HTTP_PORT}/health/ready" > /dev/null 2>&1; then
     SERVER_READY=1
     break
   fi
