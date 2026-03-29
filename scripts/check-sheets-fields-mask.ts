@@ -18,6 +18,13 @@ export interface FieldsMaskViolation {
 const ALLOWLIST_MARKER = 'fields-mask-allowlist';
 const CALL_SNIPPET_MAX_LINES = 40;
 
+function parseArgs(argv: string[]): { all: boolean; advisory: boolean } {
+  return {
+    all: argv.includes('--all'),
+    advisory: argv.includes('--advisory'),
+  };
+}
+
 export function parseAddedSpreadsheetGetCalls(diffText: string): AddedSpreadsheetGetCall[] {
   const calls: AddedSpreadsheetGetCall[] = [];
   let currentFile = '';
@@ -106,6 +113,19 @@ export function hasFieldsMaskOrAllowlist(snippet: string): boolean {
   return /\bfields\s*(?::|,|\n|\r)/.test(snippet) || snippet.includes(ALLOWLIST_MARKER);
 }
 
+export function findSpreadsheetGetCallsInFile(
+  filePath: string,
+  fileContent: string
+): AddedSpreadsheetGetCall[] {
+  return fileContent.split('\n').flatMap((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*')) {
+      return [];
+    }
+    return /\bspreadsheets\.get\s*\(\s*\{/.test(line) ? [{ filePath, lineNumber: index + 1 }] : [];
+  });
+}
+
 export function findFieldsMaskViolations(
   addedCalls: AddedSpreadsheetGetCall[],
   fileReader: (path: string) => string
@@ -163,6 +183,41 @@ export function runFieldsMaskGuard(
   return 1;
 }
 
+export function runRepositoryFieldsMaskScan(options: { advisory?: boolean } = {}): number {
+  const files = execSync(
+    "rg -l '\\bspreadsheets\\.get\\s*\\(\\s*\\{' src --type ts --glob '!src/services/cached-sheets-api.ts'",
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  )
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const violations = findFieldsMaskViolations(
+    files.flatMap((filePath) =>
+      findSpreadsheetGetCallsInFile(filePath, readFileSync(filePath, 'utf8'))
+    ),
+    (path) => readFileSync(path, 'utf8')
+  );
+
+  if (violations.length === 0) {
+    console.log(`Field-mask scan passed (${files.length} file(s) checked).`);
+    return 0;
+  }
+
+  console.error('Field-mask scan found direct spreadsheets.get() call(s) without explicit fields:');
+  for (const violation of violations) {
+    console.error(`- ${violation.filePath}:${violation.lineNumber}`);
+  }
+
+  return options.advisory ? 0 : 1;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  process.exit(runFieldsMaskGuard());
+  const args = parseArgs(process.argv.slice(2));
+  process.exit(
+    args.all ? runRepositoryFieldsMaskScan({ advisory: args.advisory }) : runFieldsMaskGuard()
+  );
 }

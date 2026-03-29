@@ -1,12 +1,12 @@
 ---
-title: ServalSheets — Action Registry (407 Actions, 25 Tools)
+title: ServalSheets — Action Registry (408 Actions, 25 Tools)
 category: development
 last_updated: 2026-03-29
 description: '> Complete action list by tool. Source of truth for counts: src/schemas/action-counts.ts.'
 version: 1.7.0
 ---
 
-# ServalSheets — Action Registry (407 Actions, 25 Tools)
+# ServalSheets — Action Registry (408 Actions, 25 Tools)
 
 > Complete action list by tool. Source of truth for counts: `src/schemas/action-counts.ts`.
 > Load this file only when working on actions, adding features, or verifying action names.
@@ -145,10 +145,10 @@ version: 1.7.0
 
 `call_remote, list_servers, get_server_tools, validate_connection`
 
-## sheets_webhook (10) — Standalone
+## sheets_webhook (11) — Standalone
 
 `register, unregister, list, get, test, get_stats, watch_changes, subscribe_workspace`,
-`unsubscribe_workspace, list_workspace_subscriptions`
+`unsubscribe_workspace, reactivate_workspace, list_workspace_subscriptions`
 
 ## sheets_agent (8) — Standalone
 

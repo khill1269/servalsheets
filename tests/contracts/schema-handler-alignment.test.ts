@@ -187,7 +187,7 @@ describe('Schema-Handler Alignment', () => {
         templates: 8,
         transaction: 6,
         visualize: 18,
-        webhook: 10,
+        webhook: 11,
       };
 
       Object.entries(expectedCounts).forEach(([tool, expectedCount]) => {

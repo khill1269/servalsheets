@@ -80,7 +80,7 @@ describe('@serval/mcp-http createHttpServer', () => {
       redisUrl: 'redis://localhost:6379',
       sessionStoreType: 'redis',
       toolCount: 25,
-      actionCount: 407,
+      actionCount: 408,
       log,
     };
 
@@ -167,7 +167,7 @@ describe('@serval/mcp-http createHttpServer', () => {
       initTelemetry: dependencies.initTelemetry,
       onShutdown: dependencies.onShutdown,
       toolCount: 25,
-      actionCount: 407,
+      actionCount: 408,
       log,
     });
 

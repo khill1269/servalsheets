@@ -27,7 +27,7 @@ describe('@serval/mcp-stdio startStdioTransport', () => {
       getIsShutdown: () => false,
       getProcessBreadcrumbs: () => ({ resourcesRegistered: true }),
       toolCount: 25,
-      actionCount: 407,
+      actionCount: 408,
       log,
     });
 
@@ -38,7 +38,7 @@ describe('@serval/mcp-stdio startStdioTransport', () => {
     );
     expect(log.info).toHaveBeenCalledWith('[Phase 2/3] Creating STDIO transport');
     expect(log.info).toHaveBeenCalledWith(
-      '[Phase 3/3] \u2713 ServalSheets ready (25 tools, 407 actions)',
+      '[Phase 3/3] \u2713 ServalSheets ready (25 tools, 408 actions)',
       expect.objectContaining({
         transport: 'stdio',
         timing: expect.objectContaining({

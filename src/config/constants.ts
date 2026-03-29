@@ -333,7 +333,7 @@ export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] ===
  *   Compatible with existing integrations but violates MCP's 1-tool-1-operation
  *   convention and causes LLM routing confusion.
  *
- * - 'flat': ~407 individual tools, one per action, each with a flat z.object()
+ * - 'flat': ~408 individual tools, one per action, each with a flat z.object()
  *   schema. All but ~15 core tools are marked defer_loading: true for on-demand
  *   discovery via tool_search / sheets_discover. Follows MCP best practices.
  *   Token cost: ~1,500 tokens (vs ~53K bundled).

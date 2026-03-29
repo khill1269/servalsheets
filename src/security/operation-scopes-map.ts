@@ -1695,6 +1695,11 @@ export const OPERATION_SCOPES: Record<
     category: ScopeCategory.DRIVE_FULL,
     description: 'Subscribe to workspace changes',
   },
+  'sheets_webhook.reactivate_workspace': {
+    required: ['https://www.googleapis.com/auth/drive'],
+    category: ScopeCategory.DRIVE_FULL,
+    description: 'Reactivate a suspended workspace subscription',
+  },
   'sheets_webhook.unsubscribe_workspace': {
     required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,

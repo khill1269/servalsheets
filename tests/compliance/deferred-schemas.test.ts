@@ -170,7 +170,7 @@ describe('Deferred Schema Mode', () => {
         totalSize += JSON.stringify(outputJson).length;
       }
 
-      // 25 tools, 407 actions: flat input schemas plus minimal output schemas.
+      // 25 tools, 408 actions: flat input schemas plus minimal output schemas.
       // Keep enough headroom for small inline hint growth while still catching regressions.
       expect(totalSize).toBeLessThan(56_000);
     });

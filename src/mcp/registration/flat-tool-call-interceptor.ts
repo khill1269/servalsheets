@@ -15,12 +15,12 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { isFlatToolName, routeFlatToolCall } from './flat-tool-routing.js';
 import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
+import { getRegisteredToolRuntime } from './registered-tool-runtime.js';
 import { buildToolResponse } from './tool-response.js';
 import { logger } from '../../utils/logger.js';
 
@@ -45,31 +45,6 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
   const protocolServer = server.server as unknown as {
     setRequestHandler: typeof server.server.setRequestHandler;
   };
-
-  // Access the SDK's internal registered tools map so we can delegate
-  // to the original compound tool handler after rewriting.
-  const registeredTools = (
-    server as unknown as {
-      _registeredTools?: Record<
-        string,
-        {
-          enabled: boolean;
-          execution?: { taskSupport?: string };
-          handler: {
-            (args: Record<string, unknown>, extra: unknown): Promise<CallToolResult>;
-            createTask?: unknown;
-          };
-          inputSchema?: unknown;
-          outputSchema?: unknown;
-        }
-      >;
-    }
-  )._registeredTools;
-
-  if (!registeredTools) {
-    logger.warn('Flat tool call interceptor: _registeredTools not found on McpServer');
-    return;
-  }
 
   // Capture the SDK's original tools/call handler by registering our override.
   // The SDK's setRequestHandler replaces the previous handler, so we need to
@@ -119,7 +94,7 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
         });
 
         // Look up the compound tool handler in SDK's registry
-        const compoundTool = registeredTools[routed.compoundToolName];
+        const compoundTool = getRegisteredToolRuntime(routed.compoundToolName);
         if (!compoundTool) {
           return buildToolResponse({
             response: {
@@ -161,7 +136,7 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
       // ── Compound tool passthrough ────────────────────────────────────
       // For compound (bundled) tool names, delegate to the SDK's normal dispatch.
       // We reproduce the core SDK dispatch logic here since we've overridden the handler.
-      const tool = registeredTools[toolName];
+      const tool = getRegisteredToolRuntime(toolName);
       if (!tool) {
         const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
         throw new McpError(ErrorCode.InvalidParams, `Tool ${toolName} not found`);

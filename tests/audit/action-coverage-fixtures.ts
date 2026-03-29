@@ -1567,10 +1567,15 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       },
       requiredFields: ['spreadsheetId', 'notificationEndpoint'],
     },
+    reactivate_workspace: {
+      validInput: { subscriptionId: 'subscriptions/sub-123' },
+      requiredFields: ['subscriptionId'],
+    },
     unsubscribe_workspace: {
       validInput: { subscriptionId: 'sub-123' },
       requiredFields: ['subscriptionId'],
     },
+    list_workspace_subscriptions: { requiredFields: [] },
   },
 
   sheets_dependencies: {

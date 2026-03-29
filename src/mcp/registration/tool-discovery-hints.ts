@@ -173,7 +173,8 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       optional: ['maxConcurrency'],
     },
     discover: {
-      description: 'Auto-discover available connectors and their capabilities. Start here if unsure which connector to use.',
+      description:
+        'Auto-discover available connectors and their capabilities. Start here if unsure which connector to use.',
       required: [],
       optional: ['category', 'searchTerm'],
     },
@@ -218,22 +219,29 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       description: 'Get webhook delivery statistics. Requires the Redis-backed webhook store.',
     },
     watch_changes: {
+      required: ['spreadsheetId', 'webhookUrl'],
       description:
         'Create a native Drive files.watch channel. Does not require Redis, but without Redis the channel is not persisted for renewal or later listing.',
     },
     subscribe_workspace: {
-      required: ['spreadsheetId'],
+      required: ['spreadsheetId', 'notificationEndpoint'],
       description:
-        'Create a Google Workspace Events subscription for real-time change notifications. No Redis required.',
+        'Create a Google Workspace Events subscription backed by a Pub/Sub topic. No Redis required. Spreadsheet subscriptions use the Google Drive Workspace Events v1beta surface.',
+    },
+    reactivate_workspace: {
+      required: ['subscriptionId'],
+      description:
+        'Reactivate a suspended Google Workspace Events subscription after fixing the suspension cause. Requires the subscriptionId from list_workspace_subscriptions.',
     },
     unsubscribe_workspace: {
       required: ['subscriptionId'],
       description:
-        'Remove a Google Workspace Events subscription. Requires the subscriptionId from subscribe_workspace.',
+        'Remove a Google Workspace Events subscription. Requires the subscriptionId from subscribe_workspace or list_workspace_subscriptions.',
     },
     list_workspace_subscriptions: {
       required: [],
-      description: 'List active Google Workspace Events subscriptions. No Redis required.',
+      description:
+        'List active Google Workspace Events subscriptions persisted by ServalSheets. No Redis required.',
     },
   },
   sheets_collaborate: {
@@ -1696,8 +1704,7 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     wizard_step: {
       required: ['wizardId', 'stepId', 'values'],
       optional: ['direction', 'verbosity'],
-      description:
-        'Advance a running wizard with the submitted field values for the current step.',
+      description: 'Advance a running wizard with the submitted field values for the current step.',
     },
     wizard_complete: {
       required: ['wizardId'],
@@ -1814,14 +1821,12 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
     list_plans: {
       required: [],
       optional: ['limit', 'status'],
-      description:
-        'List plans filtered by status with an optional limit.',
+      description: 'List plans filtered by status with an optional limit.',
     },
     observe: {
       required: ['planId'],
       optional: ['spreadsheetId', 'context'],
-      description:
-        'Capture the current plan state as a checkpoint before or during execution.',
+      description: 'Capture the current plan state as a checkpoint before or during execution.',
     },
     rollback: {
       required: ['planId', 'checkpointId'],

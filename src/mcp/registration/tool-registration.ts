@@ -22,6 +22,7 @@ import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { replaceAvailableToolNames } from '../tool-registry-state.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
+import { resetRegisteredToolRuntime, setRegisteredToolRuntime } from './registered-tool-runtime.js';
 import { parseForHandler } from './tool-arg-normalization.js';
 import { assertValidMcpToolNames } from './tool-name-validation.js';
 import {
@@ -159,6 +160,7 @@ export function registerActiveTools(options: {
 }): void {
   const tools = options.tools ?? ACTIVE_TOOL_DEFINITIONS;
   assertValidToolDefinitionNames(tools);
+  resetRegisteredToolRuntime();
 
   for (const tool of tools) {
     // Native Zod schemas are required for live SDK registration. Deferred /
@@ -172,11 +174,21 @@ export function registerActiveTools(options: {
 
     if (supportsTasks) {
       const taskHandler = options.createTaskHandler(tool.name, runTool);
-      const taskSupport = execution?.taskSupport === 'required' ? 'required' : 'optional';
-      const taskExecution = {
+      const taskSupport: 'required' | 'optional' =
+        execution?.taskSupport === 'required' ? 'required' : 'optional';
+      const taskExecution: import('@modelcontextprotocol/sdk/types.js').ToolExecution = {
         ...(execution ?? {}),
         taskSupport,
       };
+      const runtimeHandler = Object.assign(runTool, {
+        createTask: taskHandler.createTask,
+      });
+      setRegisteredToolRuntime(tool.name, {
+        enabled: true,
+        execution: taskExecution,
+        handler:
+          runtimeHandler as unknown as import('./registered-tool-runtime.js').RegisteredToolHandler,
+      });
 
       options.server.experimental.tasks.registerToolTask<AnySchema, AnySchema>(
         tool.name,
@@ -194,6 +206,12 @@ export function registerActiveTools(options: {
       );
       continue;
     }
+
+    setRegisteredToolRuntime(tool.name, {
+      enabled: true,
+      execution,
+      handler: runTool as unknown as import('./registered-tool-runtime.js').RegisteredToolHandler,
+    });
 
     (
       options.server.registerTool as (

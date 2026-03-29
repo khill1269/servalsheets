@@ -3,6 +3,7 @@ import {
   parseAddedSpreadsheetGetCalls,
   hasFieldsMaskOrAllowlist,
   findFieldsMaskViolations,
+  findSpreadsheetGetCallsInFile,
 } from '../../scripts/check-sheets-fields-mask.ts';
 
 describe('sheets fields-mask guard', () => {
@@ -42,5 +43,22 @@ describe('sheets fields-mask guard', () => {
     expect(violations).toHaveLength(1);
     expect(violations[0]?.filePath).toBe('src/example.ts');
     expect(violations[0]?.lineNumber).toBe(1);
+  });
+
+  it('finds direct object-literal spreadsheets.get calls in repository files', () => {
+    const calls = findSpreadsheetGetCallsInFile(
+      'src/example.ts',
+      [
+        'const a = await api.spreadsheets.get({ spreadsheetId, fields: "spreadsheetId" });',
+        'const b = await api.spreadsheets.get({',
+        '  spreadsheetId,',
+        '});',
+      ].join('\n')
+    );
+
+    expect(calls).toEqual([
+      { filePath: 'src/example.ts', lineNumber: 1 },
+      { filePath: 'src/example.ts', lineNumber: 2 },
+    ]);
   });
 });

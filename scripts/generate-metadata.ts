@@ -538,8 +538,14 @@ const toolActionsMap = analyses
   .join('\n');
 
 const toolActionsBlock = `const TOOL_ACTIONS: Record<string, string[]> = {\n${toolActionsMap}\n};`;
+const completionsHeaderLine = ` * Total: ${ACTION_COUNT} actions across ${TOOL_COUNT} tools`;
 
 // Replace existing TOOL_ACTIONS
+completionsContent = completionsContent.replace(
+  / \* Total: \d+ actions across \d+ tools/,
+  completionsHeaderLine
+);
+
 if (completionsContent.includes('const TOOL_ACTIONS')) {
   completionsContent = completionsContent.replace(
     /const TOOL_ACTIONS: Record<string, string\[\]> = \{[\s\S]*?\};/,

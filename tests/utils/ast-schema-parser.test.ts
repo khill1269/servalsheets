@@ -153,10 +153,11 @@ describe('AST Schema Parser', () => {
       const handlerPath = path.join(PROJECT_ROOT, 'src/handlers/webhooks.ts');
       const cases = extractHandlerCases(handlerPath);
 
-      expect(cases.length).toBe(10);
+      expect(cases.length).toBe(11);
       expect(cases).toContain('register');
       expect(cases).toContain('unregister');
       expect(cases).toContain('watch_changes');
+      expect(cases).toContain('reactivate_workspace');
     });
   });
 

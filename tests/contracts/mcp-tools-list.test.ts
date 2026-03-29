@@ -69,4 +69,11 @@ describe('MCP tools/list runtime ownership', () => {
 
     expect(source).not.toContain('_registeredTools');
   });
+
+  it('does not depend on _registeredTools inside the flat tool call interceptor source', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile('src/mcp/registration/flat-tool-call-interceptor.ts', 'utf-8');
+
+    expect(source).not.toContain('_registeredTools');
+  });
 });

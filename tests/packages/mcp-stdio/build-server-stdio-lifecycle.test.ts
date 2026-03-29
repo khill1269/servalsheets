@@ -59,7 +59,7 @@ describe('@serval/mcp-stdio buildServerStdioLifecycle', () => {
       isShutdown: () => false,
       server: { kind: 'server' },
       toolCount: 25,
-      actionCount: 407,
+      actionCount: 408,
       log: {
         info: vi.fn(),
         warn: vi.fn(),
@@ -69,7 +69,7 @@ describe('@serval/mcp-stdio buildServerStdioLifecycle', () => {
     });
 
     expect(options.toolCount).toBe(25);
-    expect(options.actionCount).toBe(407);
+    expect(options.actionCount).toBe(408);
     expect(options.getProcessBreadcrumbs()).toMatchObject({ phase: 'start' });
   });
 });

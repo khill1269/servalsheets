@@ -228,7 +228,7 @@ Cmd+G Cmd+A  → All gates (G0-G4)
 
 **Output (Generated - DO NOT edit manually):**
 
-- `package.json` - Updates description with `"25 tools, 407 actions"`
+- `package.json` - Updates description with `"25 tools, 408 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -250,7 +250,7 @@ npm run gen:metadata
 # 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 25 tools, 407 actions
+# ✅ Total: 25 tools, 408 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -341,7 +341,7 @@ const mismatches = compareActions(actions, handlerActions, deviations);
 ```bash
 # Matches:
 "25 tools"           # Hardcoded count
-"407 actions"        # Hardcoded count
+"408 actions"        # Hardcoded count
 "Currently 25 tools" # Potentially stale
 "All 25 tools"       # Hardcoded count
 
@@ -364,7 +364,7 @@ bash scripts/check-hardcoded-counts.sh
 # ❌ Found hardcoded counts in 3 files:
 #
 # README.md:42
-#   "ServalSheets provides 25 tools with 407 actions"
+#   "ServalSheets provides 25 tools with 408 actions"
 #   → Should reference: src/schemas/index.ts:63
 #
 # docs/guides/QUICKSTART.md:18
@@ -499,7 +499,7 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 407 actions, found 53)
+#   - package.json (expected 408 actions, found 53)
 #   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```

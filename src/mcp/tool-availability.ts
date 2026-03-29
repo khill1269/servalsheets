@@ -13,6 +13,7 @@ export const WEBHOOK_REDIS_REQUIRED_ACTIONS = [
 export const WEBHOOK_NON_REDIS_ACTIONS = [
   'watch_changes',
   'subscribe_workspace',
+  'reactivate_workspace',
   'unsubscribe_workspace',
   'list_workspace_subscriptions',
 ] as const;

@@ -12,6 +12,7 @@ import type {
   CallToolResult,
   RequestInfo,
   ToolAnnotations,
+  ToolExecution,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { randomUUID } from 'crypto';
@@ -109,6 +110,7 @@ import {
 import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
 import { registerFlatToolCallInterceptor } from './flat-tool-call-interceptor.js';
+import { resetRegisteredToolRuntime, setRegisteredToolRuntime } from './registered-tool-runtime.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
 import { buildToolExecutionErrorPayload } from './tool-execution-error.js';
@@ -208,8 +210,9 @@ function pruneSelfCorrectionFailures(nowMs: number): void {
 
   // Phase 2: Enforce size cap — evict oldest entries if over limit (H-6)
   if (recentFailuresByPrincipal.size > SELF_CORRECTION_MAX_ENTRIES) {
-    const sortedEntries = Array.from(recentFailuresByPrincipal.entries())
-      .sort((a, b) => a[1].timestampMs - b[1].timestampMs);
+    const sortedEntries = Array.from(recentFailuresByPrincipal.entries()).sort(
+      (a, b) => a[1].timestampMs - b[1].timestampMs
+    );
     const toRemove = recentFailuresByPrincipal.size - SELF_CORRECTION_MAX_ENTRIES;
     for (let i = 0; i < toRemove; i++) {
       recentFailuresByPrincipal.delete(sortedEntries[i]![0]);
@@ -1184,7 +1187,9 @@ function createToolCallHandler(
                 const reqBody = (normalizedArgs as Record<string, unknown>)['request'] as
                   | Record<string, unknown>
                   | undefined;
-                const rawVerbosity = reqBody?.['verbosity'] ?? (normalizedArgs as Record<string, unknown>)['verbosity'];
+                const rawVerbosity =
+                  reqBody?.['verbosity'] ??
+                  (normalizedArgs as Record<string, unknown>)['verbosity'];
                 if (
                   rawVerbosity === 'minimal' ||
                   rawVerbosity === 'standard' ||
@@ -1216,7 +1221,8 @@ function createToolCallHandler(
                   transport: 'streamable-http',
                   args: normalizedArgs as Record<string, unknown>,
                   sessionContext: requestContext.sessionContext,
-                  localExecute: () => withWriteLock(normalizedArgs, () => handler(normalizedArgs, extra)),
+                  localExecute: () =>
+                    withWriteLock(normalizedArgs, () => handler(normalizedArgs, extra)),
                 });
 
                 // ISSUE-107: Inject protocol version (always) + deprecation warning (if legacy)
@@ -1852,6 +1858,7 @@ export async function registerServalSheetsTools(
       })();
 
   assertValidMcpToolNames(ACTIVE_TOOL_DEFINITIONS);
+  resetRegisteredToolRuntime();
 
   for (const tool of ACTIVE_TOOL_DEFINITIONS) {
     // Live SDK registration must stay on native Zod schemas. tools/list uses a
@@ -1873,11 +1880,21 @@ export async function registerServalSheetsTools(
 
     if (supportsTasks) {
       const taskHandler = createToolTaskHandler(tool.name, runTool);
-      const taskSupport = execution?.taskSupport === 'required' ? 'required' : 'optional';
-      const taskExecution = {
+      const taskSupport: 'required' | 'optional' =
+        execution?.taskSupport === 'required' ? 'required' : 'optional';
+      const taskExecution: ToolExecution = {
         ...(execution ?? {}),
         taskSupport,
       };
+      const runtimeHandler = Object.assign(runTool, {
+        createTask: taskHandler.createTask,
+      });
+      setRegisteredToolRuntime(tool.name, {
+        enabled: true,
+        execution: taskExecution,
+        handler:
+          runtimeHandler as unknown as import('./registered-tool-runtime.js').RegisteredToolHandler,
+      });
 
       server.experimental.tasks.registerToolTask<AnySchema, AnySchema>(
         tool.name,
@@ -1893,6 +1910,12 @@ export async function registerServalSheetsTools(
       );
       continue;
     }
+
+    setRegisteredToolRuntime(tool.name, {
+      enabled: true,
+      execution,
+      handler: runTool as unknown as import('./registered-tool-runtime.js').RegisteredToolHandler,
+    });
 
     (
       server.registerTool as (

@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 25 tools, 407 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 25 tools, 408 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * SHARED CONTEXT (applies to all tools except sheets_auth):
  * - PREREQUISITE: sheets_auth must be authenticated before using any tool.
@@ -905,8 +905,10 @@ Example workflow:
 
 ⚠️ **REDIS REQUIRED for most actions:** Set \`REDIS_URL\` env var. Without it:
 - ❌ UNAVAILABLE (CONFIG_ERROR): register, unregister, list, get, test, get_stats
-- ✅ AVAILABLE without Redis: watch_changes, subscribe_workspace, unsubscribe_workspace, list_workspace_subscriptions
+- ✅ AVAILABLE without Redis: watch_changes, subscribe_workspace, reactivate_workspace, unsubscribe_workspace, list_workspace_subscriptions
 Check server availability in the \`x-servalsheets.availability\` field of tools/list before calling.
+
+**Workspace Events note:** \`subscribe_workspace\` delivers to a Pub/Sub topic (\`projects/{project}/topics/{topic}\`). Spreadsheet subscriptions currently rely on Google Drive Workspace Events, which Google documents on the Workspace Events \`v1beta\` surface. Use \`reactivate_workspace\` after fixing a suspended subscription's underlying Google-side issue.
 
 **Requires (when Redis configured):** HTTPS endpoint returning 200 OK within 10s.
 
@@ -925,6 +927,7 @@ Check server availability in the \`x-servalsheets.availability\` field of tools/
 
 **ACTIONS BY CATEGORY:**
 [Lifecycle] register (create webhook), unregister (remove webhook), get (view details), list (all webhooks), watch_changes (monitor updates)
+[Workspace Events] subscribe_workspace (create Pub/Sub subscription), reactivate_workspace (recover suspended subscription), unsubscribe_workspace, list_workspace_subscriptions
 [Testing] test (send test payload), get_stats (delivery metrics)
 
 **TOP 3 ACTIONS:**

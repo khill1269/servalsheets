@@ -5,10 +5,7 @@
 
 import { validateWebhookUrl, getWebhookManager } from '../../services/webhook-manager.js';
 import type { SheetsWebhookInput } from '../../schemas/webhook.js';
-import type {
-  WebhookWatchChangesInput,
-  WebhookRegisterResponse,
-} from '../../schemas/webhook.js';
+import type { WebhookWatchChangesInput } from '../../schemas/webhook.js';
 import type { WebhookResponse, WebhookHandlerAccess } from './internal.js';
 import { ErrorCodes } from './internal.js';
 import { logger } from '../../utils/logger.js';
@@ -107,7 +104,7 @@ export async function handleSubscribeWorkspace(
       },
     };
   }
-  const subId = await handler.workspaceEventsService.createSubscription(
+  const subscription = await handler.workspaceEventsService.createSubscription(
     req.spreadsheetId,
     req.notificationEndpoint
   );
@@ -115,9 +112,10 @@ export async function handleSubscribeWorkspace(
     success: true as const,
     data: {
       success: true,
-      message: `Subscription created: ${subId}`,
-      subscriptionId: subId,
-    } as unknown as WebhookRegisterResponse,
+      message: `Subscription created: ${subscription.id}`,
+      subscriptionId: subscription.id,
+      subscription,
+    },
   };
 }
 
@@ -141,7 +139,36 @@ export async function handleUnsubscribeWorkspace(
     data: {
       success: true,
       message: `Subscription deleted: ${req.subscriptionId}`,
-    } as unknown as WebhookRegisterResponse,
+    },
+  };
+}
+
+export async function handleReactivateWorkspace(
+  handler: WebhookHandlerAccess,
+  req: Extract<SheetsWebhookInput['request'], { action: 'reactivate_workspace' }>
+): Promise<WebhookResponse> {
+  if (!handler.workspaceEventsService) {
+    return {
+      success: false as const,
+      error: {
+        code: ErrorCodes.NOT_FOUND,
+        message: 'Workspace Events service not available',
+        retryable: false,
+      },
+    };
+  }
+
+  const subscription = await handler.workspaceEventsService.reactivateSubscription(
+    req.subscriptionId
+  );
+  return {
+    success: true as const,
+    data: {
+      success: true,
+      message: `Subscription reactivated: ${subscription.id}`,
+      subscriptionId: subscription.id,
+      subscription,
+    },
   };
 }
 
@@ -164,6 +191,6 @@ export async function handleListWorkspaceSubscriptions(
     success: true as const,
     data: {
       subscriptions: subs,
-    } as unknown as WebhookRegisterResponse,
+    },
   };
 }
