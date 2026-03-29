@@ -31,6 +31,8 @@ jobs:
   build-dashboard:
     name: Build Dashboard
     runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.verify-results.outputs.ready }}
 
     steps:
       - name: Checkout code
@@ -63,7 +65,19 @@ jobs:
         run: |
           npm run audit:full || echo "Audit failed, continuing with what we have"
 
+      - name: Verify audit results are available
+        id: verify-results
+        run: |
+          if [ -f "audit-output/results.json" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Audit results available"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Audit results still missing after attempted generation"
+          fi
+
       - name: Generate dashboard
+        if: steps.verify-results.outputs.ready == 'true'
         run: |
           npm run dashboard:generate
 
@@ -75,6 +89,7 @@ jobs:
           echo "✓ Dashboard generated successfully"
 
       - name: Create deployment directory
+        if: steps.verify-results.outputs.ready == 'true'
         run: |
           mkdir -p _site/audit
           cp -r dashboard/* _site/audit/
@@ -97,13 +112,22 @@ jobs:
           echo "✓ Deployment directory created"
 
       - name: Upload artifact
+        if: steps.verify-results.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: '_site'
 
+      - name: Skip deploy when audit results are unavailable
+        if: steps.verify-results.outputs.ready != 'true'
+        run: |
+          echo "## Dashboard Deployment Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Audit results were not available, so dashboard generation and deployment were skipped." >> $GITHUB_STEP_SUMMARY
+
   deploy:
     name: Deploy to GitHub Pages
     needs: build-dashboard
+    if: needs.build-dashboard.outputs.ready == 'true'
     runs-on: ubuntu-latest
 
     environment:

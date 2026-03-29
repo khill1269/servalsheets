@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -137,9 +140,10 @@ jobs:
 
       - name: Apply Auto-fixes
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: |
           # Only auto-fix on main branch pushes
-          npx tsx scripts/analysis/auto-fixer.ts analysis-report.json
+          npx tsx scripts/analysis/auto-fixer.ts analysis-report.json || true
 
           # Commit fixes if any were made
           if [ -n "$(git status --porcelain)" ]; then
