@@ -64,7 +64,7 @@ describe('servalsheets://index resource', () => {
       payload.promptCatalog.buckets.some(
         (bucket: { id: string; prompts: Array<{ name: string }> }) =>
           bucket.id === 'analyze' &&
-          bucket.prompts.some((prompt) => prompt.name === 'analyze_spreadsheet')
+          bucket.prompts.some((prompt) => prompt.name === 'auto_analyze')
       )
     ).toBe(true);
 

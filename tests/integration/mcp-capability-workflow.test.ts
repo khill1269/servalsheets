@@ -270,7 +270,7 @@ describe('MCP capability workflow integration', () => {
       masterIndex.promptCatalog.buckets.some(
         (bucket) =>
           bucket.id === 'analyze' &&
-          bucket.prompts.some((prompt) => prompt.name === 'analyze_spreadsheet')
+          bucket.prompts.some((prompt) => prompt.name === 'auto_analyze')
       )
     ).toBe(true);
     expect(masterIndex.workflowCatalog.total).toBeGreaterThan(0);
