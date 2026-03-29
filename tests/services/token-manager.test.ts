@@ -496,7 +496,7 @@ describe('TokenManager', () => {
         }),
       };
 
-      tokenManager.setOAuthClient(newMockClient as OAuth2Client);
+      tokenManager.setOAuthClient(newMockClient as unknown as OAuth2Client);
 
       await tokenManager.refreshToken();
 

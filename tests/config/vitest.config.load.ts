@@ -36,9 +36,8 @@ export default defineConfig({
     // Environment
     environment: 'node',
 
-    // Global setup/teardown
+    // Global setup
     globalSetup: [],
-    globalTeardown: [],
 
     // Disable watch mode for load tests
     watch: false,

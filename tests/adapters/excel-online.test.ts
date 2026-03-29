@@ -6,7 +6,7 @@
  * since the backend is a scaffold pending Microsoft Graph credentials.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ExcelOnlineBackend } from '../../src/adapters/excel-online-backend.js';
 import type { GraphClient } from '../../src/adapters/excel-online-backend.js';
 

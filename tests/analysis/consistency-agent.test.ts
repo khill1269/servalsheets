@@ -60,7 +60,7 @@ describe('ConsistencyAgent', () => {
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('calculate_total');
+      expect(report?.issues[0]!.message).toContain('calculate_total');
     });
 
     it('should detect kebab-case variable names', async () => {
@@ -100,8 +100,8 @@ describe('ConsistencyAgent', () => {
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('userService');
-      expect(report?.issues[0].suggestion).toContain('UserService');
+      expect(report?.issues[0]!.message).toContain('userService');
+      expect(report?.issues[0]!.suggestion).toContain('UserService');
     });
 
     it('should allow UPPER_SNAKE_CASE for constants', async () => {
@@ -165,8 +165,8 @@ describe('ConsistencyAgent', () => {
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('not in correct order');
-      expect(report?.issues[0].suggestion).toContain('lint --fix');
+      expect(report?.issues[0]!.message).toContain('not in correct order');
+      expect(report?.issues[0]!.suggestion).toContain('lint --fix');
     });
 
     it('should detect incorrect import order (types before internal)', async () => {
@@ -249,8 +249,8 @@ describe('ConsistencyAgent', () => {
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('generic Error');
-      expect(report?.issues[0].suggestion).toContain('error factory');
+      expect(report?.issues[0]!.message).toContain('generic Error');
+      expect(report?.issues[0]!.suggestion).toContain('error factory');
     });
 
     it('should detect structured errors without ErrorCode enum', async () => {
@@ -264,7 +264,7 @@ describe('ConsistencyAgent', () => {
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('ErrorCode enum not used');
+      expect(report?.issues[0]!.message).toContain('ErrorCode enum not used');
     });
 
     it('should not check error handling in non-critical files', async () => {
@@ -288,8 +288,8 @@ describe('ConsistencyAgent', () => {
       const report = reports.find((r) => r.dimension === 'errorHandling');
 
       expect(report?.metrics).toBeDefined();
-      expect(report?.metrics?.hasStructuredErrors).toBe(1);
-      expect(report?.metrics?.hasErrorCodeEnum).toBe(1);
+      expect(report?.metrics?.['hasStructuredErrors']).toBe(1);
+      expect(report?.metrics?.['hasErrorCodeEnum']).toBe(1);
     });
   });
 
@@ -319,8 +319,8 @@ describe('ConsistencyAgent', () => {
 
       expect(report?.status).toBe('warning');
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('MCP format directly');
-      expect(report?.issues[0].severity).toBe('high');
+      expect(report?.issues[0]!.message).toContain('MCP format directly');
+      expect(report?.issues[0]!.severity).toBe('high');
     });
 
     it('should provide reference to buildToolResponse', async () => {
@@ -383,8 +383,8 @@ describe('ConsistencyAgent', () => {
       const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('calculateTotal');
-      expect(report?.issues[0].suggestion).toContain('JSDoc');
+      expect(report?.issues[0]!.message).toContain('calculateTotal');
+      expect(report?.issues[0]!.suggestion).toContain('JSDoc');
     });
 
     it('should detect public methods without JSDoc', async () => {
@@ -398,7 +398,7 @@ describe('ConsistencyAgent', () => {
       const report = reports.find((r) => r.dimension === 'commentStyle');
 
       expect(report?.issueCount).toBeGreaterThan(0);
-      expect(report?.issues[0].message).toContain('processData');
+      expect(report?.issues[0]!.message).toContain('processData');
     });
 
     it('should not require JSDoc for private methods', async () => {

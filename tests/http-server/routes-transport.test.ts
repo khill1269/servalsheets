@@ -158,7 +158,7 @@ describe('http transport routes', () => {
         mcpServer: { connect: vi.fn() },
         taskStore: { dispose: vi.fn() },
         disposeRuntime: vi.fn(),
-      })),
+      })) as never,
     });
 
     await vi.advanceTimersByTimeAsync(60_000);

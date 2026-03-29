@@ -3,7 +3,7 @@ import {
   parseAddedSpreadsheetGetCalls,
   hasFieldsMaskOrAllowlist,
   findFieldsMaskViolations,
-} from '../../scripts/check-sheets-fields-mask.ts';
+} from '../../scripts/check-sheets-fields-mask.js';
 
 describe('sheets fields-mask guard', () => {
   it('parses added spreadsheets.get calls from git diff hunks', () => {

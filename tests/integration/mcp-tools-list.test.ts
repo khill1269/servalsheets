@@ -11,7 +11,7 @@
  * despite passing unit tests.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
@@ -81,11 +81,11 @@ describeStdio('MCP Protocol tools/list', () => {
 
       const cleanup = () => {
         clearTimeout(timeout);
-        child.stdout.off('data', onData);
+        child.stdout!.off('data', onData);
         child.off('error', onError);
       };
 
-      child.stdout.on('data', onData);
+      child.stdout!.on('data', onData);
       child.on('error', onError);
     });
   };
@@ -128,7 +128,7 @@ describeStdio('MCP Protocol tools/list', () => {
       pending.clear();
     };
 
-    child.stdout.on('data', onData);
+    child.stdout!.on('data', onData);
     child.on('error', onError);
 
     const request = (
@@ -157,16 +157,16 @@ describeStdio('MCP Protocol tools/list', () => {
           },
         });
 
-        child.stdin.write(JSON.stringify(payload) + '\n');
+        child.stdin!.write(JSON.stringify(payload) + '\n');
       });
     };
 
     const notify = (payload: Record<string, unknown>) => {
-      child.stdin.write(JSON.stringify(payload) + '\n');
+      child.stdin!.write(JSON.stringify(payload) + '\n');
     };
 
     const cleanup = () => {
-      child.stdout.off('data', onData);
+      child.stdout!.off('data', onData);
       child.off('error', onError);
     };
 
@@ -207,13 +207,14 @@ describeStdio('MCP Protocol tools/list', () => {
 
     expect(parsed).toBeDefined();
     expect(parsed.result).toBeDefined();
-    expect(parsed.result.tools).toBeDefined();
+    const parsedResult = parsed.result as any;
+    expect(parsedResult['tools']).toBeDefined();
 
     // Verify tool count
-    expect(parsed.result.tools).toHaveLength(TOOL_COUNT);
+    expect(parsedResult['tools']).toHaveLength(TOOL_COUNT);
 
     // Verify each tool
-    for (const tool of parsed.result.tools) {
+    for (const tool of parsedResult['tools']) {
       // Tool must have a name
       expect(tool.name).toBeDefined();
       expect(typeof tool.name).toBe('string');
@@ -294,9 +295,10 @@ describeStdio('MCP Protocol tools/list', () => {
 
     expect(parsed).toBeDefined();
     expect(parsed.result).toBeDefined();
-    expect(parsed.result!.tools).toBeDefined();
+    const parsedResult2 = parsed.result as any;
+    expect(parsedResult2['tools']).toBeDefined();
 
-    const tools = parsed.result!.tools as Array<{
+    const tools = parsedResult2['tools'] as Array<{
       name: string;
       inputSchema: Record<string, unknown>;
     }>;
@@ -307,10 +309,10 @@ describeStdio('MCP Protocol tools/list', () => {
 
       // SDK bug signature: type: 'object' with no properties and no union types
       const isEmpty =
-        schema.type === 'object' &&
-        (!schema.properties || Object.keys(schema.properties as object).length === 0) &&
-        !schema.oneOf &&
-        !schema.anyOf;
+        schema['type'] === 'object' &&
+        (!schema['properties'] || Object.keys(schema['properties'] as object).length === 0) &&
+        !schema['oneOf'] &&
+        !schema['anyOf'];
 
       if (isEmpty) {
         throw new Error(
@@ -419,7 +421,7 @@ describeStdio('MCP Protocol tools/list', () => {
         },
       });
 
-      expect(init.result?.capabilities?.tasks).toBeDefined();
+      expect((init.result as any)?.['capabilities']?.['tasks']).toBeDefined();
 
       rpc.notify({
         jsonrpc: '2.0',
@@ -455,20 +457,21 @@ describeStdio('MCP Protocol tools/list', () => {
         return; // Skip rest of test if call failed
       }
 
-      const taskId = call.result?.task?.taskId as string | undefined;
+      const callResult = call.result as any;
+      const taskId = callResult?.['task']?.['taskId'] as string | undefined;
 
       // If no task was created, skip the rest of the test
-      if (!taskId || !call.result?.task) {
+      if (!taskId || !callResult?.['task']) {
         // Task wasn't created - this may be due to schema validation issues
         expect(call.result).toBeDefined();
         return; // Skip rest of test if no task was created
       }
 
       expect(taskId).toBeDefined();
-      expect(call.result?.task?.status).toBe('working');
+      expect(callResult?.['task']?.['status']).toBe('working');
 
       const deadline = Date.now() + 10000;
-      let taskResult: JsonRpcResponse;
+      let taskResult: JsonRpcResponse | undefined;
       let requestId = 3;
 
       while (Date.now() < deadline) {
@@ -479,22 +482,23 @@ describeStdio('MCP Protocol tools/list', () => {
           params: { taskId },
         });
 
-        if (taskResult?.result?.structuredContent) {
+        if ((taskResult?.result as any)?.['structuredContent']) {
           break;
         }
 
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
-      expect(taskResult?.result).toBeDefined();
+      const tr = taskResult as any;
+      expect(tr?.result).toBeDefined();
       // Authentication errors are non-fatal, so isError is undefined (not true)
       // The error is still indicated by success: false in the response
-      expect(taskResult.result?.isError).toBeUndefined();
-      expect(taskResult.result?.structuredContent?.response?.success).toBe(false);
-      expect(taskResult.result?.structuredContent?.response?.error?.message).toContain(
+      expect(tr?.result?.['isError']).toBeUndefined();
+      expect(tr?.result?.['structuredContent']?.response?.success).toBe(false);
+      expect(tr?.result?.['structuredContent']?.response?.error?.message).toContain(
         'Not authenticated with Google'
       );
-      expect(taskResult.result?.structuredContent?.response?.error?.code).toBe('NOT_AUTHENTICATED');
+      expect(tr?.result?.['structuredContent']?.response?.error?.code).toBe('NOT_AUTHENTICATED');
     } finally {
       rpc.cleanup();
       child.kill();

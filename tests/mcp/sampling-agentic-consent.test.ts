@@ -20,7 +20,7 @@ describe('sampling agentic consent guard', () => {
 
     const createMessage = vi.fn();
     const server: SamplingServer = {
-      getClientCapabilities: () => ({ sampling: { tools: true } }),
+      getClientCapabilities: () => ({ sampling: { tools: {} } }),
       createMessage: createMessage as SamplingServer['createMessage'],
     };
 
@@ -43,7 +43,7 @@ describe('sampling agentic consent guard', () => {
       stopReason: 'endTurn',
     });
     const server: SamplingServer = {
-      getClientCapabilities: () => ({ sampling: { tools: true } }),
+      getClientCapabilities: () => ({ sampling: { tools: {} } }),
       createMessage: createMessage as SamplingServer['createMessage'],
     };
 

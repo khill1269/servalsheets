@@ -281,6 +281,8 @@ describe('FederationHandler', () => {
       const { getFederationConfig } = await import('../../src/config/env.js');
       vi.mocked(getFederationConfig).mockReturnValueOnce({
         enabled: false,
+        timeoutMs: 30000,
+        maxConnections: 10,
         serversJson: '[]',
       });
 
@@ -403,11 +405,13 @@ describe('FederationHandler', () => {
 
       vi.mocked(getFederationConfig).mockReturnValueOnce({
         enabled: true,
+        timeoutMs: 30000,
+        maxConnections: 10,
         serversJson: JSON.stringify([{ name: 'ssrf-test', url: 'http://localhost:22/ssh' }]),
       });
 
       vi.mocked(parseFederationServers).mockReturnValueOnce([
-        { name: 'ssrf-test', url: 'http://localhost:22/ssh' },
+        { name: 'ssrf-test', url: 'http://localhost:22/ssh', transport: 'http' },
       ]);
 
       mockFederationClient.callRemoteTool.mockRejectedValue(new Error('Connection refused'));
@@ -588,6 +592,8 @@ describe('FederationHandler', () => {
       const { getFederationConfig } = await import('../../src/config/env.js');
       vi.mocked(getFederationConfig).mockReturnValueOnce({
         enabled: true,
+        timeoutMs: 30000,
+        maxConnections: 10,
         serversJson: '[]',
       });
 
@@ -613,6 +619,8 @@ describe('FederationHandler', () => {
 
       vi.mocked(getFederationConfig).mockReturnValueOnce({
         enabled: true,
+        timeoutMs: 30000,
+        maxConnections: 10,
         serversJson: '[]',
       });
 

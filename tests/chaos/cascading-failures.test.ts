@@ -452,7 +452,7 @@ describe('Chaos: Cascading Failures', () => {
 
       // Verify event metadata
       const cascadingEvents = events.filter(
-        (e) => e.metadata && 'cascading' in e.metadata && e.metadata.cascading === true
+        (e) => e.metadata && 'cascading' in e.metadata && (e.metadata as Record<string, unknown>)['cascading'] === true
       );
       expect(cascadingEvents.length).toBeGreaterThan(0);
     });

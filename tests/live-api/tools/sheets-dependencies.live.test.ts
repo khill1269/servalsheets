@@ -56,8 +56,8 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(response.data.values![1][2]).toBe('=A2+B2');
-      expect(response.data.values![4][2]).toBe('=SUM(C2:C4)');
+      expect(response.data.values?.[1]?.[2]).toBe('=A2+B2');
+      expect(response.data.values?.[4]?.[2]).toBe('=SUM(C2:C4)');
     });
 
     it('should identify formula cells vs value cells', async () => {
@@ -80,8 +80,8 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(response.data.values![0][2]).toContain('=');
-      expect(response.data.values![0][0]).not.toContain('=');
+      expect(response.data.values?.[0]?.[2]).toContain('=');
+      expect(response.data.values?.[0]?.[0]).not.toContain('=');
     });
   });
 
@@ -148,9 +148,9 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      const formula = response.data.values![0][0];
+      const formula = response.data.values?.[0]?.[0];
       expect(formula).toBe('=L1+M1');
-      const cellRefs = formula.match(/[A-Z]+\d+/g) || [];
+      const cellRefs = (formula as string | undefined)?.match(/[A-Z]+\d+/g) || [];
       expect(cellRefs).toContain('L1');
       expect(cellRefs).toContain('M1');
     });
@@ -169,7 +169,7 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(response.data.values![0][0]).toContain('O1:O4');
+      expect(response.data.values?.[0]?.[0]).toContain('O1:O4');
     });
 
     it('should handle cross-sheet references', async () => {
@@ -199,7 +199,7 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(response.data.values![0][0]).toContain(sheetName);
+      expect(response.data.values?.[0]?.[0]).toContain(sheetName);
     });
   });
 
@@ -218,14 +218,14 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      const formulas = response.data.values![0];
+      const formulas = response.data.values?.[0] ?? [];
       const dependents: string[] = [];
       const cellAddresses = ['Q1', 'R1', 'S1'];
 
       for (let i = 0; i < formulas.length; i++) {
         const formula = formulas[i];
         if (typeof formula === 'string' && formula.includes('Q1') && cellAddresses[i] !== 'Q1') {
-          dependents.push(cellAddresses[i]);
+          dependents.push(cellAddresses[i] as string);
         }
       }
 

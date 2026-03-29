@@ -18,8 +18,6 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
   let client: LiveApiClient;
   let manager: TestSpreadsheetManager;
   let testSpreadsheet: TestSpreadsheet;
-  let sheetId: number;
-
   beforeAll(async () => {
     const credentials = await loadTestCredentials();
     if (!credentials) {
@@ -32,7 +30,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    void meta.data.sheets![0]!.properties!.sheetId;
 
     // Pre-seed all data once
     await client.sheets.spreadsheets.values.update({
@@ -79,7 +77,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.data.sheets![0].properties).toBeDefined();
+      expect(response.data.sheets![0]!.properties).toBeDefined();
     });
   });
 
@@ -116,8 +114,8 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         range: 'TestData!G1:K4',
       });
 
-      expect(response.data.values![1][1]).toBe('');
-      expect(response.data.values![2][2]).toBe('');
+      expect(response.data.values![1]![1]).toBe('');
+      expect(response.data.values![2]![2]).toBe('');
     });
 
     it('should detect duplicates', async () => {
@@ -213,7 +211,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
       const values = response.data.values!.flat().map(Number);
       let isUpwardTrend = true;
       for (let i = 1; i < values.length; i++) {
-        if (values[i] < values[i - 1]) {
+        if (values[i]! < values[i - 1]!) {
           isUpwardTrend = false;
           break;
         }
@@ -378,7 +376,7 @@ describe.skipIf(!runLiveTests)('sheets_analyze Live API Tests', () => {
         largeData.push([
           String(i),
           String(Math.floor(Math.random() * 1000)),
-          ['A', 'B', 'C'][i % 3],
+          ['A', 'B', 'C'][i % 3]!,
         ]);
       }
 

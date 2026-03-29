@@ -61,7 +61,7 @@ describe('createToolHandlerMap metadata cache wiring', () => {
     const requestContext = createRequestContext({});
 
     await runWithRequestContext(requestContext, () =>
-      map['sheets_data']({
+      map['sheets_data']!({
         request: {
           action: 'read',
           spreadsheetId: 'sheet-123',

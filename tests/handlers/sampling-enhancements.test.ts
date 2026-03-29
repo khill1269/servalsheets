@@ -181,12 +181,14 @@ describe('Sampling: data.find_replace (dryRun aiEstimate)', () => {
     const handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
     const result = await handler.handle({
-      action: 'find_replace',
-      spreadsheetId: 'test-id',
-      find: 'Alice',
-      replacement: 'Bob',
-      safety: { dryRun: true },
-    });
+      request: {
+        action: 'find_replace',
+        spreadsheetId: 'test-id',
+        find: 'Alice',
+        replacement: 'Bob',
+        safety: { dryRun: true },
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     // aiEstimate should be present when sampling available and dryRun=true
@@ -200,12 +202,14 @@ describe('Sampling: data.find_replace (dryRun aiEstimate)', () => {
     const handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
     const result = await handler.handle({
-      action: 'find_replace',
-      spreadsheetId: 'test-id',
-      find: 'Alice',
-      replacement: 'Bob',
-      safety: { dryRun: true },
-    });
+      request: {
+        action: 'find_replace',
+        spreadsheetId: 'test-id',
+        find: 'Alice',
+        replacement: 'Bob',
+        safety: { dryRun: true },
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     expect((result.response as any).aiEstimate).toBeUndefined();
@@ -279,10 +283,12 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
     const handler = new FormatHandler(mockContext, mockSheetsApi);
 
     const result = await handler.handle({
-      action: 'suggest_format',
-      spreadsheetId: 'test-id',
-      range: { a1: 'Sheet1!A1:D10' },
-    });
+      request: {
+        action: 'suggest_format',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:D10' },
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -322,10 +328,12 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
     const handler = new FormatHandler(mockContext, mockSheetsApi);
 
     const result = await handler.handle({
-      action: 'suggest_format',
-      spreadsheetId: 'test-id',
-      range: { a1: 'Sheet1!A1:D10' },
-    });
+      request: {
+        action: 'suggest_format',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:D10' },
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -454,11 +462,13 @@ describe('Sampling: history.diff_revisions (aiExplanation)', () => {
     });
 
     const result = await handler.handle({
-      action: 'diff_revisions',
-      spreadsheetId: 'test-spreadsheet-id',
-      revisionId1: 'rev-1',
-      revisionId2: 'rev-2',
-    });
+      request: {
+        action: 'diff_revisions',
+        spreadsheetId: 'test-spreadsheet-id',
+        revisionId1: 'rev-1',
+        revisionId2: 'rev-2',
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -472,11 +482,13 @@ describe('Sampling: history.diff_revisions (aiExplanation)', () => {
     const handler = new HistoryHandler({ driveApi: mockDriveApi as any });
 
     const result = await handler.handle({
-      action: 'diff_revisions',
-      spreadsheetId: 'test-spreadsheet-id',
-      revisionId1: 'rev-1',
-      revisionId2: 'rev-2',
-    });
+      request: {
+        action: 'diff_revisions',
+        spreadsheetId: 'test-spreadsheet-id',
+        revisionId1: 'rev-1',
+        revisionId2: 'rev-2',
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -565,10 +577,12 @@ describe('Sampling: collaborate.comment_add (aiSuggestedReply)', () => {
     const handler = new CollaborateHandler(mockContext, mockDriveApi);
 
     const result = await handler.handle({
-      action: 'comment_add',
-      spreadsheetId: 'test-id',
-      content: 'What is the Q4 target?',
-    });
+      request: {
+        action: 'comment_add',
+        spreadsheetId: 'test-id',
+        content: 'What is the Q4 target?',
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -583,10 +597,12 @@ describe('Sampling: collaborate.comment_add (aiSuggestedReply)', () => {
     const handler = new CollaborateHandler(mockContext, mockDriveApi);
 
     const result = await handler.handle({
-      action: 'comment_add',
-      spreadsheetId: 'test-id',
-      content: 'What is the Q4 target?',
-    });
+      request: {
+        action: 'comment_add',
+        spreadsheetId: 'test-id',
+        content: 'What is the Q4 target?',
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -613,10 +629,12 @@ describe('Sampling: collaborate.comment_add (aiSuggestedReply)', () => {
     });
 
     const result = await handler.handle({
-      action: 'comment_add',
-      spreadsheetId: 'test-id',
-      content: 'Looks good to me.',
-    });
+      request: {
+        action: 'comment_add',
+        spreadsheetId: 'test-id',
+        content: 'Looks good to me.',
+      },
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {

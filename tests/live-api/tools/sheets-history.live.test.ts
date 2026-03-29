@@ -31,7 +31,7 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]?.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -117,7 +117,7 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         requestBody: { requests: [{ addSheet: { properties: { title: sheetName } } }] },
       });
 
-      expect(response.data.replies![0].addSheet?.properties?.sheetId).toBeDefined();
+      expect(response.data.replies![0]?.addSheet?.properties?.sheetId).toBeDefined();
 
       const sheetsResponse = await client.sheets.spreadsheets.get({
         spreadsheetId: testSpreadsheet.id,
@@ -284,7 +284,7 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!H1',
       });
-      expect(current.data.values![0][0]).toBe('Version 5');
+      expect(current.data.values![0]?.[0]).toBe('Version 5');
 
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
@@ -297,7 +297,7 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!H1',
       });
-      expect(current.data.values![0][0]).toBe('Version 2');
+      expect(current.data.values![0]?.[0]).toBe('Version 2');
     });
   });
 

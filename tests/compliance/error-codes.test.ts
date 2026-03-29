@@ -67,7 +67,7 @@ describe('Error Code Compliance', () => {
         if (structured.response?.error) {
           expect(structured.response.error.message).toBeDefined();
           expect(typeof structured.response.error.message).toBe('string');
-          expect(structured.response.error.message.length).toBeGreaterThan(0);
+          expect(structured.response.error.message!.length).toBeGreaterThan(0);
         }
       }
     });

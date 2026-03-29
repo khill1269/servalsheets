@@ -14,7 +14,7 @@ describe('validateSamplingOutput', () => {
       const result = validateSamplingOutput('suggest_format', raw);
       expect(result).not.toBeNull();
       expect(result!.suggestions).toHaveLength(1);
-      expect(result!.suggestions[0].description).toBe('Bold headers');
+      expect(result!.suggestions[0]?.description).toBe('Bold headers');
     });
 
     it('returns null for empty suggestions array', () => {

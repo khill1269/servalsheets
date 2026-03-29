@@ -203,7 +203,7 @@ describe('Composite Handler', () => {
       // Response should have proper structure
       expect(result).toHaveProperty('response');
       expect(result.response).toHaveProperty('action');
-      expect(result.response.action).toBe('import_csv');
+      expect((result.response as any).action).toBe('import_csv');
     });
 
     it('should handle import_csv with custom delimiter', async () => {
@@ -218,7 +218,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result.response).toHaveProperty('action');
-      expect(result.response.action).toBe('import_csv');
+      expect((result.response as any).action).toBe('import_csv');
     });
 
     it('should handle import_csv without header', async () => {
@@ -297,7 +297,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('mutation');
       }
     });
@@ -320,7 +320,7 @@ describe('Composite Handler', () => {
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle smart_append with multiple rows', async () => {
@@ -336,8 +336,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('smart_append');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('smart_append');
     });
 
     it('should handle smart_append with matchHeaders enabled', async () => {
@@ -351,7 +351,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle smart_append with createMissingColumns', async () => {
@@ -365,7 +365,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle smart_append with skipEmptyRows', async () => {
@@ -383,7 +383,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should include columnsMatched in smart_append response', async () => {
@@ -396,7 +396,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('columnsMatched');
       }
     });
@@ -411,7 +411,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('mutation');
       }
     });
@@ -456,7 +456,7 @@ describe('Composite Handler', () => {
       expect(result.response).toBeDefined();
       // Can be error or success response, but should be defined
       if (result.response && 'action' in result.response) {
-        expect(result.response.action).toBe('bulk_update');
+        expect((result.response as any).action).toBe('bulk_update');
       }
     });
 
@@ -472,8 +472,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.rowsUpdated).toBe(0);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).rowsUpdated).toBe(0);
     });
 
     it('should handle bulk_update with createUnmatched option', async () => {
@@ -494,7 +494,7 @@ describe('Composite Handler', () => {
       expect(result.response).toBeDefined();
       // Response can be success or error, both are valid
       if ('action' in result.response) {
-        expect(result.response.action).toBe('bulk_update');
+        expect((result.response as any).action).toBe('bulk_update');
       }
     });
 
@@ -509,7 +509,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('keysNotFound');
       }
     });
@@ -525,7 +525,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('cellsModified');
       }
     });
@@ -548,7 +548,7 @@ describe('Composite Handler', () => {
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle deduplicate with multiple key columns', async () => {
@@ -561,8 +561,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('deduplicate');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('deduplicate');
     });
 
     it('should handle deduplicate with keep: first', async () => {
@@ -576,7 +576,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle deduplicate with keep: last', async () => {
@@ -590,7 +590,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle deduplicate preview mode', async () => {
@@ -604,7 +604,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle deduplicate with dry-run mode', async () => {
@@ -618,8 +618,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.rowsDeleted).toBe(0);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).rowsDeleted).toBe(0);
     });
 
     it('should return deduplication statistics', async () => {
@@ -633,7 +633,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('totalRows');
         expect(result.response).toHaveProperty('uniqueRows');
         expect(result.response).toHaveProperty('duplicatesFound');
@@ -650,7 +650,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success && result.response.rowsDeleted > 0) {
+      if ((result.response as any).success && (result.response as any).rowsDeleted > 0) {
         expect(result.response).toHaveProperty('mutation');
       }
     });
@@ -670,7 +670,7 @@ describe('Composite Handler', () => {
       const result = await handlerWithDrive.handle(input as any);
 
       expect(result.response).toHaveProperty('action');
-      expect(result.response.action).toBe('export_xlsx');
+      expect((result.response as any).action).toBe('export_xlsx');
     });
 
     it('should return file content in base64', async () => {
@@ -681,9 +681,9 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('fileContent');
-        expect(typeof result.response.fileContent).toBe('string');
+        expect(typeof (result.response as any).fileContent).toBe('string');
       }
     });
 
@@ -695,8 +695,8 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
-        expect(result.response.mimeType).toBe(
+      if ((result.response as any).success) {
+        expect((result.response as any).mimeType).toBe(
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         );
       }
@@ -710,7 +710,7 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('filename');
       }
     });
@@ -723,9 +723,9 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('sizeBytes');
-        expect(typeof result.response.sizeBytes).toBe('number');
+        expect(typeof (result.response as any).sizeBytes).toBe('number');
       }
     });
 
@@ -758,7 +758,7 @@ describe('Composite Handler', () => {
       const result = await handlerWithDrive.handle(input as any);
 
       expect(result.response).toHaveProperty('action');
-      expect(result.response.action).toBe('import_xlsx');
+      expect((result.response as any).action).toBe('import_xlsx');
     });
 
     it('should return spreadsheetId for imported file', async () => {
@@ -770,7 +770,7 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('spreadsheetId');
       }
     });
@@ -784,9 +784,9 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('spreadsheetUrl');
-        expect(result.response.spreadsheetUrl).toContain('docs.google.com');
+        expect((result.response as any).spreadsheetUrl).toContain('docs.google.com');
       }
     });
 
@@ -799,9 +799,9 @@ describe('Composite Handler', () => {
 
       const result = await handlerWithDrive.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('sheetNames');
-        expect(Array.isArray(result.response.sheetNames)).toBe(true);
+        expect(Array.isArray((result.response as any).sheetNames)).toBe(true);
       }
     });
 
@@ -846,8 +846,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('get_form_responses');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('get_form_responses');
     });
 
     it('should return response count', async () => {
@@ -858,9 +858,9 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('responseCount');
-        expect(typeof result.response.responseCount).toBe('number');
+        expect(typeof (result.response as any).responseCount).toBe('number');
       }
     });
 
@@ -872,9 +872,9 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('columnHeaders');
-        expect(Array.isArray(result.response.columnHeaders)).toBe(true);
+        expect(Array.isArray((result.response as any).columnHeaders)).toBe(true);
       }
     });
 
@@ -887,7 +887,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should detect form-linked sheets', async () => {
@@ -898,7 +898,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('formLinked');
       }
     });
@@ -911,7 +911,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success && result.response.responseCount > 0) {
+      if ((result.response as any).success && (result.response as any).responseCount > 0) {
         expect(result.response).toHaveProperty('latestResponse');
       }
     });
@@ -924,7 +924,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success && result.response.responseCount > 0) {
+      if ((result.response as any).success && (result.response as any).responseCount > 0) {
         expect(result.response).toHaveProperty('oldestResponse');
       }
     });
@@ -945,8 +945,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('setup_sheet');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('setup_sheet');
     });
 
     it('should return sheetId in setup_sheet response', async () => {
@@ -959,7 +959,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('sheetId');
       }
     });
@@ -978,7 +978,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle setup_sheet with column widths', async () => {
@@ -992,7 +992,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should handle setup_sheet with freezeHeaderRow option', async () => {
@@ -1006,7 +1006,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should include column count in setup_sheet response', async () => {
@@ -1019,8 +1019,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
-        expect(result.response.columnCount).toBe(3);
+      if ((result.response as any).success) {
+        expect((result.response as any).columnCount).toBe(3);
       }
     });
 
@@ -1034,9 +1034,9 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('apiCallsSaved');
-        expect(typeof result.response.apiCallsSaved).toBe('number');
+        expect(typeof (result.response as any).apiCallsSaved).toBe('number');
       }
     });
   });
@@ -1060,7 +1060,7 @@ describe('Composite Handler', () => {
       expect(result.response).toBeDefined();
       // Check for either success or error response
       if ('action' in result.response) {
-        expect(result.response.action).toBe('import_and_format');
+        expect((result.response as any).action).toBe('import_and_format');
       }
     });
 
@@ -1074,7 +1074,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('rowsImported');
         expect(result.response).toHaveProperty('columnsImported');
       }
@@ -1135,7 +1135,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('apiCallsSaved');
       }
     });
@@ -1150,7 +1150,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('mutation');
       }
     });
@@ -1172,7 +1172,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result.response).toHaveProperty('action');
-      expect(result.response.action).toBe('clone_structure');
+      expect((result.response as any).action).toBe('clone_structure');
     });
 
     it('should return newSheetId in clone_structure response', async () => {
@@ -1185,7 +1185,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('newSheetId');
       }
     });
@@ -1270,7 +1270,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('columnCount');
       }
     });
@@ -1285,7 +1285,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('apiCallsSaved');
       }
     });
@@ -1310,7 +1310,7 @@ describe('Composite Handler', () => {
       expect(result.response).toHaveProperty('success');
 
       // Either success or error
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('action');
       } else {
         expect(result.response).toHaveProperty('error');
@@ -1327,7 +1327,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      if (result.response.success) {
+      if ((result.response as any).success) {
         expect(result.response).toHaveProperty('_meta');
       }
     });
@@ -1375,7 +1375,7 @@ describe('Composite Handler', () => {
         } as any)
       );
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockDispatchCompositeOperation).toHaveBeenCalledTimes(2);
       expect(notification).toHaveBeenCalled();
       expect(notification.mock.calls[0]?.[0]).toMatchObject({
@@ -1421,7 +1421,7 @@ describe('Composite Handler', () => {
         } as any)
       );
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(notification).toHaveBeenCalled();
       expect(notification.mock.calls[0]?.[0]).toMatchObject({
         method: 'notifications/progress',
@@ -1463,7 +1463,7 @@ describe('Composite Handler', () => {
         } as any)
       );
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(notification).toHaveBeenCalled();
       expect(notification.mock.calls[0]?.[0]).toMatchObject({
         method: 'notifications/progress',
@@ -1506,7 +1506,7 @@ describe('Composite Handler', () => {
         } as any)
       );
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(notification).toHaveBeenCalled();
       expect(notification.mock.calls[0]?.[0]).toMatchObject({
         method: 'notifications/progress',
@@ -1652,8 +1652,8 @@ describe('Composite Handler', () => {
         expect(result).toHaveProperty('response');
         expect(result.response).toBeDefined();
         // Each action should have proper structure
-        if ('error' in result.response && result.response.error) {
-          expect(result.response.error).toBeDefined();
+        if ('error' in result.response && (result.response as any).error) {
+          expect((result.response as any).error).toBeDefined();
         }
       }
     });
@@ -1780,7 +1780,7 @@ describe('Composite Handler', () => {
         } as any)
       );
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(notification).toHaveBeenCalled();
       expect(notification.mock.calls[0]?.[0]).toMatchObject({
         method: 'notifications/progress',

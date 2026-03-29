@@ -143,10 +143,10 @@ describe('Annotation Compliance Contract', () => {
 
   describe('destructiveHint compliance', () => {
     const destructiveTools = allToolNames.filter(
-      (name) => TOOL_ANNOTATIONS[name].destructiveHint === true
+      (name) => TOOL_ANNOTATIONS[name]?.destructiveHint === true
     );
     const nonDestructiveTools = allToolNames.filter(
-      (name) => TOOL_ANNOTATIONS[name].destructiveHint === false
+      (name) => TOOL_ANNOTATIONS[name]?.destructiveHint === false
     );
 
     // Tools marked destructiveHint:true that legitimately don't call
@@ -190,7 +190,7 @@ describe('Annotation Compliance Contract', () => {
           // either createSnapshotIfNeeded or at least dryRun support
           const files = getHandlerFiles(toolName);
           if (files.length > 0) {
-            const hasAnySafety = handlerFilesContain(toolName, /createSnapshotIfNeeded|dryRun|safety\?\.dryRun/);
+            handlerFilesContain(toolName, /createSnapshotIfNeeded|dryRun|safety\?\.dryRun/);
             // Just document the exemption — not all exempt tools need snapshots
             expect(true).toBe(true);
           }
@@ -224,7 +224,7 @@ describe('Annotation Compliance Contract', () => {
 
   describe('readOnlyHint compliance', () => {
     const readOnlyTools = allToolNames.filter(
-      (name) => TOOL_ANNOTATIONS[name].readOnlyHint === true
+      (name) => TOOL_ANNOTATIONS[name]?.readOnlyHint === true
     );
 
     it('should have at least one read-only tool', () => {
@@ -280,13 +280,13 @@ describe('Annotation Compliance Contract', () => {
         expect(annotation).toHaveProperty('openWorldHint');
 
         // Title should be non-empty
-        expect(annotation.title.length).toBeGreaterThan(0);
+        expect(annotation!.title!.length).toBeGreaterThan(0);
 
         // Boolean fields must be actual booleans
-        expect(typeof annotation.readOnlyHint).toBe('boolean');
-        expect(typeof annotation.destructiveHint).toBe('boolean');
-        expect(typeof annotation.idempotentHint).toBe('boolean');
-        expect(typeof annotation.openWorldHint).toBe('boolean');
+        expect(typeof annotation!.readOnlyHint).toBe('boolean');
+        expect(typeof annotation!.destructiveHint).toBe('boolean');
+        expect(typeof annotation!.idempotentHint).toBe('boolean');
+        expect(typeof annotation!.openWorldHint).toBe('boolean');
       });
     }
   });
@@ -297,7 +297,7 @@ describe('Annotation Compliance Contract', () => {
 
       it(`${toolName}: readOnlyHint and destructiveHint should not both be true`, () => {
         // A tool cannot be both read-only and destructive
-        if (annotation.readOnlyHint) {
+        if (annotation?.readOnlyHint) {
           expect(
             annotation.destructiveHint,
             `${toolName} is marked both readOnlyHint: true AND destructiveHint: true — this is contradictory`

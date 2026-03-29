@@ -34,7 +34,7 @@ describe('CacheInvalidationGraph', () => {
       for (const [action, rule] of Object.entries(rules)) {
         expect(action).toMatch(/^sheets_\w+\.\w+$/);
         expect(rule).toHaveProperty('invalidates');
-        expect(Array.isArray(rule.invalidates)).toBe(true);
+        expect(Array.isArray(rule!.invalidates)).toBe(true);
         // Read-only operations can have empty invalidates arrays
       }
     });

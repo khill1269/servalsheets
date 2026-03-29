@@ -50,10 +50,10 @@ describe('SheetsAppsScriptHandler', () => {
   beforeEach(() => {
     mockGoogleClient = createMockGoogleClient();
 
-    const context: HandlerContext = {
+    const context = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock Google client type
       googleClient: mockGoogleClient as any,
-    };
+    } as unknown as HandlerContext;
 
     handler = new SheetsAppsScriptHandler(context);
 
@@ -90,14 +90,14 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'create',
           title: 'My Script',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('create');
-      expect(result.response.scriptId).toBe('script-123');
-      expect(result.response.project).toBeDefined();
-      expect(result.response.project.scriptId).toBe('script-123');
-      expect(result.response.project.title).toBe('My Script');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('create');
+      expect((result.response as any).scriptId).toBe('script-123');
+      expect((result.response as any).project).toBeDefined();
+      expect((result.response as any).project.scriptId).toBe('script-123');
+      expect((result.response as any).project.title).toBe('My Script');
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
@@ -130,10 +130,10 @@ describe('SheetsAppsScriptHandler', () => {
           title: 'My Script',
           parentId: 'folder-456',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.project.parentId).toBe('folder-456');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).project.parentId).toBe('folder-456');
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
@@ -159,12 +159,12 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'create',
           title: 'My Script',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error.code).toBe('SERVICE_NOT_ENABLED');
-      expect(result.response.error.message).toContain('Apps Script API is not enabled');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error.code).toBe('SERVICE_NOT_ENABLED');
+      expect((result.response as any).error.message).toContain('Apps Script API is not enabled');
     });
   });
 
@@ -188,14 +188,14 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('get');
-      expect(result.response.project).toBeDefined();
-      expect(result.response.project.scriptId).toBe('script-123');
-      expect(result.response.project.creator).toBeDefined();
-      expect(result.response.project.creator.email).toBe('user@example.com');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('get');
+      expect((result.response as any).project).toBeDefined();
+      expect((result.response as any).project.scriptId).toBe('script-123');
+      expect((result.response as any).project.creator).toBeDefined();
+      expect((result.response as any).project.creator.email).toBe('user@example.com');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123',
@@ -218,11 +218,11 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'nonexistent',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error.code).toBe('NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -255,15 +255,15 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get_content',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('get_content');
-      expect(result.response.files).toBeDefined();
-      expect(result.response.files).toHaveLength(2);
-      expect(result.response.files[0].name).toBe('Code.gs');
-      expect(result.response.files[0].type).toBe('SERVER_JS');
-      expect(result.response.files[0].source).toContain('Hello');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('get_content');
+      expect((result.response as any).files).toBeDefined();
+      expect((result.response as any).files).toHaveLength(2);
+      expect((result.response as any).files[0].name).toBe('Code.gs');
+      expect((result.response as any).files[0].type).toBe('SERVER_JS');
+      expect((result.response as any).files[0].source).toContain('Hello');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/content',
@@ -288,9 +288,9 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           versionNumber: 5,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/content?versionNumber=5',
         expect.any(Object)
@@ -313,10 +313,10 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get_content',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.files).toHaveLength(0);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).files).toHaveLength(0);
     });
 
     it('should require scriptId or spreadsheetId', async () => {
@@ -324,11 +324,11 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'get_content',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('INVALID_PARAMS');
-      expect(result.response.error.message).toContain('scriptId or spreadsheetId');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error.message).toContain('scriptId or spreadsheetId');
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
@@ -364,12 +364,12 @@ describe('SheetsAppsScriptHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('update_content');
-      expect(result.response.files).toHaveLength(1);
-      expect(result.response.files[0].source).toContain('Updated');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('update_content');
+      expect((result.response as any).files).toHaveLength(1);
+      expect((result.response as any).files[0].source).toContain('Updated');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/content',
@@ -403,10 +403,10 @@ describe('SheetsAppsScriptHandler', () => {
             { name: 'New.html', type: 'HTML', source: '<html></html>' },
           ],
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.files).toHaveLength(2);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).files).toHaveLength(2);
     });
 
     it('should handle update error', async () => {
@@ -423,10 +423,10 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           files: [{ name: 'Code.gs', type: 'SERVER_JS', source: 'invalid{' }],
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('INVALID_PARAMS');
     });
 
     it('should require scriptId or spreadsheetId', async () => {
@@ -435,11 +435,11 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'update_content',
           files: [{ name: 'Code.gs', type: 'SERVER_JS', source: 'function test() {}' }],
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('INVALID_PARAMS');
-      expect(result.response.error.message).toContain('scriptId or spreadsheetId');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error.message).toContain('scriptId or spreadsheetId');
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
@@ -467,13 +467,13 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           description: 'First version',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('create_version');
-      expect(result.response.version).toBeDefined();
-      expect(result.response.version.versionNumber).toBe(1);
-      expect(result.response.version.description).toBe('First version');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('create_version');
+      expect((result.response as any).version).toBeDefined();
+      expect((result.response as any).version.versionNumber).toBe(1);
+      expect((result.response as any).version.description).toBe('First version');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/versions',
@@ -500,11 +500,11 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'create_version',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.version.versionNumber).toBe(2);
-      expect(result.response.version.description).toBeUndefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).version.versionNumber).toBe(2);
+      expect((result.response as any).version.description).toBeUndefined();
     });
   });
 
@@ -527,12 +527,12 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'list_versions',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('list_versions');
-      expect(result.response.versions).toHaveLength(2);
-      expect(result.response.versions[0].versionNumber).toBe(1);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('list_versions');
+      expect((result.response as any).versions).toHaveLength(2);
+      expect((result.response as any).versions[0].versionNumber).toBe(1);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/versions',
@@ -558,10 +558,10 @@ describe('SheetsAppsScriptHandler', () => {
           pageSize: 1,
           pageToken: 'token-xyz',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.nextPageToken).toBe('token-abc');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).nextPageToken).toBe('token-abc');
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('pageSize=1'),
         expect.any(Object)
@@ -592,11 +592,11 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           versionNumber: 3,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('get_version');
-      expect(result.response.version.versionNumber).toBe(3);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('get_version');
+      expect((result.response as any).version.versionNumber).toBe(3);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/versions/3',
@@ -620,10 +620,10 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           versionNumber: 999,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -667,13 +667,13 @@ describe('SheetsAppsScriptHandler', () => {
           versionNumber: 1,
           description: 'Production',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('deploy');
-      expect(result.response.deployment).toBeDefined();
-      expect(result.response.deployment.deploymentId).toBe('deployment-123');
-      expect(result.response.webAppUrl).toBe('https://script.google.com/macros/s/abc123/exec');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('deploy');
+      expect((result.response as any).deployment).toBeDefined();
+      expect((result.response as any).deployment.deploymentId).toBe('deployment-123');
+      expect((result.response as any).webAppUrl).toBe('https://script.google.com/macros/s/abc123/exec');
 
       const deployRequest = mockFetch.mock.calls[0]?.[1] as { body?: string } | undefined;
       expect(deployRequest?.body).toBeDefined();
@@ -707,10 +707,10 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'deploy',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.deployment.deploymentId).toBe('deployment-456');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).deployment.deploymentId).toBe('deployment-456');
     });
 
     it('should handle deployment error', async () => {
@@ -728,10 +728,10 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'deploy',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('PERMISSION_DENIED');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('PERMISSION_DENIED');
     });
   });
 
@@ -762,12 +762,12 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'list_deployments',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('list_deployments');
-      expect(result.response.deployments).toHaveLength(2);
-      expect(result.response.deployments[0].deploymentId).toBe('deployment-1');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('list_deployments');
+      expect((result.response as any).deployments).toHaveLength(2);
+      expect((result.response as any).deployments[0].deploymentId).toBe('deployment-1');
     });
 
     it('should support pagination', async () => {
@@ -787,10 +787,10 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           pageSize: 10,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.nextPageToken).toBe('token-next');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).nextPageToken).toBe('token-next');
     });
   });
 
@@ -826,12 +826,12 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           deploymentId: 'deployment-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('get_deployment');
-      expect(result.response.deployment.deploymentId).toBe('deployment-123');
-      expect(result.response.deployment.entryPoints).toHaveLength(1);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('get_deployment');
+      expect((result.response as any).deployment.deploymentId).toBe('deployment-123');
+      expect((result.response as any).deployment.entryPoints).toHaveLength(1);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/deployments/deployment-123',
@@ -855,10 +855,10 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           deploymentId: 'nonexistent',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -875,10 +875,10 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           deploymentId: 'deployment-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('undeploy');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('undeploy');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/deployments/deployment-123',
@@ -902,10 +902,10 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           deploymentId: 'nonexistent',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -917,11 +917,11 @@ describe('SheetsAppsScriptHandler', () => {
           spreadsheetId: 'sheet-123',
           callbackUrl: 'javascript:alert(1)',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('VALIDATION_ERROR');
-      expect(result.response.error.message).toContain('callbackUrl must use');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
+      expect((result.response as any).error.message).toContain('callbackUrl must use');
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -932,11 +932,11 @@ describe('SheetsAppsScriptHandler', () => {
           spreadsheetId: 'sheet-123',
           callbackUrl: "https://example.com/o'hai",
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('VALIDATION_ERROR');
-      expect(result.response.error.message).toContain('invalid characters');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
+      expect((result.response as any).error.message).toContain('invalid characters');
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
@@ -962,11 +962,11 @@ describe('SheetsAppsScriptHandler', () => {
               scriptId: 'script-123',
               functionName: 'myFunction',
             },
-          })
+          } as any)
       );
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('CANCELLED');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('CANCELLED');
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -991,12 +991,12 @@ describe('SheetsAppsScriptHandler', () => {
           deploymentId: 'deployment-123',
           functionName: 'myFunction',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('run');
-      expect(result.response.result).toBe('Hello World');
-      expect(result.response.executionError).toBeUndefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('run');
+      expect((result.response as any).result).toBe('Hello World');
+      expect((result.response as any).executionError).toBeUndefined();
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/scripts/deployment-123:run',
@@ -1028,10 +1028,10 @@ describe('SheetsAppsScriptHandler', () => {
           functionName: 'add',
           parameters: [10, 5],
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.result).toEqual({ sum: 15 });
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).result).toEqual({ sum: 15 });
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
@@ -1058,9 +1058,9 @@ describe('SheetsAppsScriptHandler', () => {
           functionName: 'testFunction',
           devMode: true,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
@@ -1076,11 +1076,11 @@ describe('SheetsAppsScriptHandler', () => {
           scriptId: 'script-123',
           functionName: 'myFunction',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('FAILED_PRECONDITION');
-      expect(result.response.error.message).toContain('deploymentId');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('FAILED_PRECONDITION');
+      expect((result.response as any).error.message).toContain('deploymentId');
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
@@ -1118,14 +1118,14 @@ describe('SheetsAppsScriptHandler', () => {
           deploymentId: 'deployment-123',
           functionName: 'myFunction',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true); // Script runs successfully, but has execution error
-      expect(result.response.result).toBeUndefined();
-      expect(result.response.executionError).toBeDefined();
-      expect(result.response.executionError.errorMessage).toBe('ReferenceError: x is not defined');
-      expect(result.response.executionError.errorType).toBe('ScriptError');
-      expect(result.response.executionError.scriptStackTraceElements).toHaveLength(1);
+      expect((result.response as any).success).toBe(true); // Script runs successfully, but has execution error
+      expect((result.response as any).result).toBeUndefined();
+      expect((result.response as any).executionError).toBeDefined();
+      expect((result.response as any).executionError.errorMessage).toBe('ReferenceError: x is not defined');
+      expect((result.response as any).executionError.errorType).toBe('ScriptError');
+      expect((result.response as any).executionError.scriptStackTraceElements).toHaveLength(1);
     });
 
     it('should handle API error (not script error)', async () => {
@@ -1145,12 +1145,12 @@ describe('SheetsAppsScriptHandler', () => {
           deploymentId: 'deployment-123',
           functionName: 'myFunction',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error.code).toBe('UNAVAILABLE');
-      expect(result.response.error.retryable).toBe(true);
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error.code).toBe('UNAVAILABLE');
+      expect((result.response as any).error.retryable).toBe(true);
     });
   });
 
@@ -1189,13 +1189,13 @@ describe('SheetsAppsScriptHandler', () => {
         request: {
           action: 'list_processes',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('list_processes');
-      expect(result.response.processes).toHaveLength(2);
-      expect(result.response.processes[0].processId).toBe('process-1');
-      expect(result.response.processes[0].processStatus).toBe('COMPLETED');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('list_processes');
+      expect((result.response as any).processes).toHaveLength(2);
+      expect((result.response as any).processes[0].processId).toBe('process-1');
+      expect((result.response as any).processes[0].processStatus).toBe('COMPLETED');
     });
 
     it('should filter by scriptId', async () => {
@@ -1213,9 +1213,9 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'list_processes',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       // BUG-5 fix: list_processes now uses project-scoped endpoint instead of query param
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/projects/script-123/processes'),
@@ -1237,9 +1237,9 @@ describe('SheetsAppsScriptHandler', () => {
           functionName: 'myFunction',
           processType: 'WEBAPP',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('scriptProcessFilter.functionName=myFunction'),
         expect.objectContaining({
@@ -1271,10 +1271,10 @@ describe('SheetsAppsScriptHandler', () => {
           pageSize: 50,
           pageToken: 'token-prev',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.nextPageToken).toBe('token-next');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).nextPageToken).toBe('token-next');
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('pageSize=50'),
         expect.objectContaining({
@@ -1302,14 +1302,14 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get_metrics',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('get_metrics');
-      expect(result.response.metrics).toBeDefined();
-      expect(result.response.metrics.activeUsers).toHaveLength(1);
-      expect(result.response.metrics.totalExecutions).toHaveLength(1);
-      expect(result.response.metrics.failedExecutions).toHaveLength(1);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('get_metrics');
+      expect((result.response as any).metrics).toBeDefined();
+      expect((result.response as any).metrics.activeUsers).toHaveLength(1);
+      expect((result.response as any).metrics.totalExecutions).toHaveLength(1);
+      expect((result.response as any).metrics.failedExecutions).toHaveLength(1);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'https://script.googleapis.com/v1/projects/script-123/metrics',
@@ -1335,9 +1335,9 @@ describe('SheetsAppsScriptHandler', () => {
           deploymentId: 'deployment-456',
           granularity: 'DAILY',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('metricsGranularity=DAILY'),
         expect.any(Object)
@@ -1359,10 +1359,10 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get_metrics',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.metrics.activeUsers).toBeUndefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).metrics.activeUsers).toBeUndefined();
     });
   });
 
@@ -1379,16 +1379,16 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'list_triggers',
           spreadsheetId: 'sheet-for-trigger-resolution',
         },
-      });
+      } as any);
 
       expect(mockGoogleClient.drive.files.list).toHaveBeenCalledWith(
         expect.objectContaining({
           q: expect.stringContaining("'sheet-for-trigger-resolution' in parents"),
         })
       );
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_IMPLEMENTED');
-      expect(result.response.error.message).toContain('Trigger management');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('NOT_IMPLEMENTED');
+      expect((result.response as any).error.message).toContain('Trigger management');
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
@@ -1412,17 +1412,17 @@ describe('SheetsAppsScriptHandler', () => {
             action: 'get',
             scriptId: 'script-123',
           },
-        })
+        } as any)
       ).rejects.toThrow();
     });
 
     it('should handle missing access token', async () => {
-      const contextWithoutToken: HandlerContext = {
+      const contextWithoutToken = {
         googleClient: {
           oauth2: { credentials: {} },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client for auth test
         } as any,
-      };
+      } as unknown as HandlerContext;
       const handlerWithoutToken = new SheetsAppsScriptHandler(contextWithoutToken);
 
       mockFetch.mockResolvedValue({
@@ -1435,11 +1435,11 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('AUTH_ERROR');
-      expect(result.response.error.retryable).toBe(true);
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('AUTH_ERROR');
+      expect((result.response as any).error.retryable).toBe(true);
     });
 
     it('should handle 401 unauthorized', async () => {
@@ -1455,12 +1455,12 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('AUTH_ERROR');
-      expect(result.response.error.retryable).toBe(true);
-      expect(result.response.error.message).toContain('Authentication failed');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('AUTH_ERROR');
+      expect((result.response as any).error.retryable).toBe(true);
+      expect((result.response as any).error.message).toContain('Authentication failed');
     });
   });
 
@@ -1482,13 +1482,13 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'create',
           title: 'Test',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('SERVICE_NOT_ENABLED');
-      expect(result.response.error.message).toContain('Apps Script API is not enabled');
-      expect(result.response.error.message).toContain('has not been used');
-      expect(result.response.error.retryable).toBe(false);
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('SERVICE_NOT_ENABLED');
+      expect((result.response as any).error.message).toContain('Apps Script API is not enabled');
+      expect((result.response as any).error.message).toContain('has not been used');
+      expect((result.response as any).error.retryable).toBe(false);
     });
 
     it('should handle insufficient permissions (403)', async () => {
@@ -1508,13 +1508,13 @@ describe('SheetsAppsScriptHandler', () => {
           deploymentId: 'deployment-123',
           functionName: 'test',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('PERMISSION_DENIED');
-      expect(result.response.error.message).toContain('Insufficient OAuth permissions');
-      expect(result.response.error.message).toContain('Insufficient Permission');
-      expect(result.response.error.retryable).toBe(true);
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('PERMISSION_DENIED');
+      expect((result.response as any).error.message).toContain('Insufficient OAuth permissions');
+      expect((result.response as any).error.message).toContain('Insufficient Permission');
+      expect((result.response as any).error.retryable).toBe(true);
     });
 
     it('should handle 429 rate limit with Retry-After header', async () => {
@@ -1535,12 +1535,12 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('UNAVAILABLE');
-      expect(result.response.error.retryable).toBe(true);
-      expect(result.response.error.message).toContain('rate limit');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('UNAVAILABLE');
+      expect((result.response as any).error.retryable).toBe(true);
+      expect((result.response as any).error.message).toContain('rate limit');
     });
 
     it('should handle server errors (500+)', async () => {
@@ -1556,11 +1556,11 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('UNAVAILABLE');
-      expect(result.response.error.retryable).toBe(true);
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error.code).toBe('UNAVAILABLE');
+      expect((result.response as any).error.retryable).toBe(true);
     });
   });
 
@@ -1581,7 +1581,7 @@ describe('SheetsAppsScriptHandler', () => {
           action: 'get',
           scriptId: 'script-123',
         },
-      });
+      } as any);
 
       const parseResult = SheetsAppsScriptOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);

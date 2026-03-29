@@ -17,7 +17,7 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
         initialize: vi.fn(async () => undefined),
         shutdown: vi.fn(async () => undefined),
         getProcessBreadcrumbs: () => ({ phase: 'start' }),
-        server: { kind: 'server' },
+        server: { connect: vi.fn(async () => undefined) } as unknown as import('../../../packages/mcp-stdio/src/start-stdio-transport.js').StdioConnectableServer<import('@modelcontextprotocol/sdk/server/stdio.js').StdioServerTransport>,
         ensureResourcesRegistered: vi.fn(async () => undefined),
         getIsShutdown: vi.fn(() => false),
         toolCount: 25,
@@ -26,7 +26,6 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
           info: vi.fn(),
           warn: vi.fn(),
           error: vi.fn(),
-          debug: vi.fn(),
         },
       },
       {

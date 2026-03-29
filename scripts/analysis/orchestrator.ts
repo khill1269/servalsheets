@@ -21,7 +21,6 @@ import {
   AnalysisContext,
   AnalysisIssue,
   DimensionReport,
-  MultiAgentReport,
 } from './multi-agent-analysis.js';
 import { PatternRecognitionAgent } from './agents/pattern-recognition-agent.js';
 import { CodeQualityAgent } from './agents/code-quality-agent.js';
@@ -418,7 +417,7 @@ export class AnalysisOrchestrator {
     }
 
     // Resolve each conflict group
-    for (const [key, conflictingFindings] of conflictGroups) {
+    for (const [_key, conflictingFindings] of conflictGroups) {
       const resolution = this.resolveConflictGroup(conflictingFindings);
       if (resolution) {
         resolutions.push(resolution);
@@ -447,8 +446,8 @@ export class AnalysisOrchestrator {
 
     // Sort by priority and confidence
     const sorted = [...findings].sort((a, b) => {
-      const aPriority = priorityOrder.indexOf(a.validatedBy[0]);
-      const bPriority = priorityOrder.indexOf(b.validatedBy[0]);
+      const aPriority = priorityOrder.indexOf(a.validatedBy[0] ?? '');
+      const bPriority = priorityOrder.indexOf(b.validatedBy[0] ?? '');
 
       if (aPriority !== bPriority) {
         return aPriority - bPriority;
@@ -459,15 +458,15 @@ export class AnalysisOrchestrator {
       return confidenceOrder[a.confidence] - confidenceOrder[b.confidence];
     });
 
-    const winner = sorted[0];
+    const winner = sorted[0]!;
     const issues = findings.map((f) => f.issue);
 
     return {
       conflictType: 'pattern',
       issues,
       resolution: winner.issue.suggestion || 'Use highest priority finding',
-      reasoning: `${winner.validatedBy[0]} has higher priority (${winner.confidence} confidence)`,
-      winner: winner.validatedBy[0],
+      reasoning: `${winner.validatedBy[0] ?? ''} has higher priority (${winner.confidence} confidence)`,
+      winner: winner.validatedBy[0] ?? '',
     };
   }
 
@@ -603,7 +602,7 @@ export class AnalysisOrchestrator {
    * Build analysis context
    */
   private async buildContext(files: string[]): Promise<AnalysisContext> {
-    const projectRoot = this.findProjectRoot(files[0]);
+    const projectRoot = this.findProjectRoot(files[0] ?? '');
 
     // Find all project files
     const projectFiles = this.findAllFiles(projectRoot, '**/*.ts', ['node_modules', 'dist']);

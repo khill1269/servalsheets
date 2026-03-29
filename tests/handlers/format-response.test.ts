@@ -57,12 +57,15 @@ describe('FormatHandler Responses', () => {
 
   it('returns an exact set_format response for a 2x2 range', async () => {
     const result = await handler.handle({
-      action: 'set_format',
-      spreadsheetId: 'test-id',
-      range: { a1: 'Sheet1!A1:B2' },
-      format: {
-        backgroundColor: { red: 1, green: 0, blue: 0 },
-        textFormat: { bold: true },
+      request: {
+        action: 'set_format',
+        verbosity: 'standard',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:B2' },
+        format: {
+          backgroundColor: { red: 1, green: 0, blue: 0, alpha: 1 },
+          textFormat: { bold: true },
+        },
       },
     });
 

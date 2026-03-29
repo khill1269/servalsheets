@@ -179,7 +179,7 @@ describe('Prompt workflow integration', () => {
     it(`prompts/get "${promptName}" returns a valid MCP message`, async () => {
       const result = await harness.client.getPrompt({
         name: promptName,
-        arguments: PROMPT_MINIMAL_ARGS[promptName] ?? {},
+        arguments: (PROMPT_MINIMAL_ARGS[promptName] ?? {}) as Record<string, string>,
       });
 
       expect(Array.isArray(result.messages)).toBe(true);
@@ -261,7 +261,7 @@ describe('Prompt workflow integration', () => {
     const results = await Promise.allSettled(
       prompts.map((p) => {
         const args = PROMPT_MINIMAL_ARGS[p.name] ?? { spreadsheetId: TEST_SPREADSHEET_ID };
-        return harness.client.getPrompt({ name: p.name, arguments: args });
+        return harness.client.getPrompt({ name: p.name, arguments: args as Record<string, string> });
       })
     );
 

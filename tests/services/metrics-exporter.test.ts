@@ -381,7 +381,7 @@ describe('MetricsExporter', () => {
 
   describe('edge cases', () => {
     it('should handle empty cache stats', () => {
-      mockCacheManager.getStats.mockReturnValue({});
+      (mockCacheManager.getStats as ReturnType<typeof vi.fn>).mockReturnValue({});
       const exporter = new MetricsExporter(
         mockMetricsService as MetricsService,
         mockCacheManager as CacheManager
@@ -395,7 +395,7 @@ describe('MetricsExporter', () => {
     });
 
     it('should handle empty API method stats', () => {
-      mockMetricsService.getSummary.mockReturnValue({
+      (mockMetricsService.getSummary as ReturnType<typeof vi.fn>).mockReturnValue({
         totalOperations: 0,
         api: {
           calls: 0,
@@ -414,7 +414,7 @@ describe('MetricsExporter', () => {
     });
 
     it('should handle empty feature flag stats', () => {
-      mockMetricsService.getSummary.mockReturnValue({
+      (mockMetricsService.getSummary as ReturnType<typeof vi.fn>).mockReturnValue({
         totalOperations: 0,
         api: { calls: 0, errors: 0, byMethod: {} },
         featureFlags: { totalBlocks: 0, byFlag: {}, byAction: {} },

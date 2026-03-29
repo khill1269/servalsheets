@@ -18,7 +18,7 @@
  * MCP Protocol: 2025-11-25
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QuotaCircuitBreaker, CircuitBreakerError } from '../../src/utils/circuit-breaker.js';
 import { PerSpreadsheetThrottle } from '../../src/services/per-spreadsheet-throttle.js';
 import { CacheManager } from '../../src/utils/cache-manager.js';
@@ -98,7 +98,7 @@ describe('X.2: Rate limiting — QuotaCircuitBreaker trips after 3 consecutive 4
 
   beforeEach(() => {
     breaker = new QuotaCircuitBreaker(
-      { failureThreshold: 5, timeout: 100 },
+      { failureThreshold: 5, successThreshold: 1, timeout: 100 },
       { quotaThreshold: 3, quotaBlockMs: 200 }
     );
   });
@@ -268,7 +268,7 @@ describe('X.4: Circuit breaker states — closed → open → half-open → clos
 
   beforeEach(() => {
     breaker = new QuotaCircuitBreaker(
-      { failureThreshold: 2, timeout: 100 },
+      { failureThreshold: 2, successThreshold: 1, timeout: 100 },
       { quotaThreshold: 1, quotaBlockMs: 150 }
     );
   });
@@ -368,7 +368,6 @@ describe('X.5: Retry with exponential backoff — delays increase correctly', ()
   });
 
   it('X.5.2: Jitter adds randomness (0-10%)', () => {
-    const baseDelay = 100;
     const jitterRatio = 0.1;
 
     const baseBackoff = 200;
@@ -617,7 +616,7 @@ describe('X.9: Field mask reduction — aggressive masks reduce payload 80-95%',
 
 describe('X.10: Memory bounds — all caches have max size limits', () => {
   it('X.10.1: CacheManager respects max size in bytes', () => {
-    const cache = new CacheManager({ maxSizeMB: 100 });
+    new CacheManager({ maxSizeMB: 100 });
     const maxBytes = 100 * 1024 * 1024; // 100MB
 
     // Note: This is a property of the implementation; we're verifying it's bounded
@@ -633,7 +632,7 @@ describe('X.10: Memory bounds — all caches have max size limits', () => {
   });
 
   it('X.10.3: Per-spreadsheet throttle capped at 500 buckets', () => {
-    const throttle = new PerSpreadsheetThrottle(500);
+    new PerSpreadsheetThrottle(500);
 
     // After 500 unique spreadsheetIds, new ones evict oldest
     const ssIds = Array.from({ length: 510 }, (_, i) => `ss-${i}`);
@@ -643,6 +642,7 @@ describe('X.10: Memory bounds — all caches have max size limits', () => {
   it('X.10.4: Circuit breaker stats tracked without unbounded growth', () => {
     const breaker = new QuotaCircuitBreaker({
       failureThreshold: 5,
+      successThreshold: 1,
       timeout: 100,
     });
 

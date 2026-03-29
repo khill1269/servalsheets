@@ -385,7 +385,7 @@ describeOrSkip('Action-Level Performance Benchmarks', () => {
   let testSpreadsheet: TestSpreadsheet;
   let benchHarness: BenchmarkHarness;
   let reporter: BenchmarkReporter;
-  let actionConfigs: Map<string, ActionConfig[]>;
+  let actionConfigs: Map<string, ActionConfig[]> = new Map();
 
   beforeAll(async () => {
     // Initialize live API client

@@ -102,7 +102,7 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
         },
       ];
       expect(webhooks.length).toBe(2);
-      expect(webhooks[0].active).toBe(true);
+      expect(webhooks[0]!.active).toBe(true);
     });
 
     it('should filter by spreadsheet ID', () => {
@@ -210,7 +210,7 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
         range: 'TestData!A1',
       });
 
-      expect(response.data.values![0][0]).toBe('Changed');
+      expect(response.data.values![0]![0]).toBe('Changed');
     });
 
     it('should detect structural changes', async () => {
@@ -221,7 +221,7 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.data.replies![0].addSheet?.properties?.sheetId).toBeDefined();
+      expect(response.data.replies![0]!.addSheet?.properties?.sheetId).toBeDefined();
     });
   });
 
@@ -276,7 +276,7 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           },
         });
 
-        const sheetId = addResponse.data.replies![0].addSheet!.properties!.sheetId!;
+        const sheetId = addResponse.data.replies![0]!.addSheet!.properties!.sheetId!;
 
         await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
@@ -302,7 +302,7 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           },
         });
 
-        const sheetId = addResponse.data.replies![0].addSheet!.properties!.sheetId!;
+        const sheetId = addResponse.data.replies![0]!.addSheet!.properties!.sheetId!;
 
         await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
@@ -395,9 +395,9 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
         };
 
         expect(dashboardResponse.totalWebhooks).toBeGreaterThan(0);
-        expect(dashboardResponse.webhooks[0].p95DeliveryTimeMs).toBeGreaterThan(0);
-        expect(dashboardResponse.webhooks[0].p99DeliveryTimeMs).toBeGreaterThan(
-          dashboardResponse.webhooks[0].p95DeliveryTimeMs
+        expect(dashboardResponse.webhooks[0]!.p95DeliveryTimeMs).toBeGreaterThan(0);
+        expect(dashboardResponse.webhooks[0]!.p99DeliveryTimeMs).toBeGreaterThan(
+          dashboardResponse.webhooks[0]!.p95DeliveryTimeMs
         );
       });
     });
@@ -412,8 +412,8 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
         const p95Index = Math.floor(sorted.length * 0.95);
         const p99Index = Math.floor(sorted.length * 0.99);
 
-        const p95 = sorted[p95Index];
-        const p99 = sorted[p99Index];
+        const p95 = sorted[p95Index]!;
+        const p99 = sorted[p99Index]!;
 
         expect(p95).toBeLessThanOrEqual(p99);
         expect(p95).toBeGreaterThan(0);

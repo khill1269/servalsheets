@@ -199,7 +199,7 @@ function generateTestCases(
         'add_sheet',
         () => ({ action: 'add_sheet', spreadsheetId: ctx.spreadsheetId, title: 'NewTestSheet' }),
       ],
-    ])
+    ] as Array<[string, () => Record<string, unknown>]>)
   );
 
   tests.set(
@@ -240,7 +240,7 @@ function generateTestCases(
           note: 'Test note',
         }),
       ],
-    ])
+    ] as Array<[string, () => Record<string, unknown>]>)
   );
 
   tests.set(
@@ -269,7 +269,7 @@ function generateTestCases(
           },
         }),
       ],
-    ])
+    ] as Array<[string, () => Record<string, unknown>]>)
   );
 
   tests.set(
@@ -295,7 +295,7 @@ function generateTestCases(
           sortSpecs: [{ columnIndex: 0, ascending: true }],
         }),
       ],
-    ])
+    ] as Array<[string, () => Record<string, unknown>]>)
   );
 
   tests.set(
@@ -418,7 +418,7 @@ async function runTests(): Promise<void> {
       results,
       issues
     );
-    if (!authResult || !(authResult as Record<string, unknown>).response?.['authenticated']) {
+    if (!authResult || !((authResult as Record<string, unknown>)['response'] as Record<string, unknown>)?.['authenticated']) {
       console.log('  ⚠️  Not authenticated, attempting login...');
       await runSingleTest(client, 'sheets_auth', 'login', { action: 'login' }, results, issues);
     }
@@ -439,16 +439,17 @@ async function runTests(): Promise<void> {
     );
 
     if (createResult) {
-      const response = (createResult as Record<string, unknown>).response as Record<
+      const response = (createResult as Record<string, unknown>)['response'] as Record<
         string,
         unknown
       >;
+      const spreadsheet = response?.['spreadsheet'] as Record<string, unknown> | undefined;
       ctx.spreadsheetId =
-        response?.spreadsheet?.['spreadsheetId'] || (response?.newSpreadsheetId as string);
-      const sheets = response?.spreadsheet?.['sheets'] as Array<Record<string, unknown>>;
+        (spreadsheet?.['spreadsheetId'] as string) || (response?.['newSpreadsheetId'] as string);
+      const sheets = spreadsheet?.['sheets'] as Array<Record<string, unknown>> | undefined;
       if (sheets?.[0]) {
-        ctx.sheetId = sheets[0].sheetId as number;
-        ctx.sheetTitle = sheets[0].title as string;
+        ctx.sheetId = sheets[0]['sheetId'] as number;
+        ctx.sheetTitle = sheets[0]['title'] as string;
       }
       console.log(`  ✅ Created spreadsheet: ${ctx.spreadsheetId}`);
       console.log(`  ✅ Sheet ID: ${ctx.sheetId}, Title: ${ctx.sheetTitle}`);
@@ -474,11 +475,11 @@ async function runTests(): Promise<void> {
           if (tool === 'sheets_transaction' && action === 'begin') {
             const txResult = await runSingleTest(client, tool, action, params, results, issues);
             if (txResult) {
-              const txResponse = (txResult as Record<string, unknown>).response as Record<
+              const txResponse = (txResult as Record<string, unknown>)['response'] as Record<
                 string,
                 unknown
               >;
-              ctx.transactionId = txResponse?.transactionId as string;
+              ctx.transactionId = txResponse?.['transactionId'] as string;
             }
             continue;
           }
@@ -557,8 +558,8 @@ async function runSingleTest(
     const duration = Date.now() - start;
 
     const response = result as Record<string, unknown>;
-    const content = response?.content as Array<Record<string, unknown>>;
-    const text = content?.[0]?.text as string;
+    const content = response?.['content'] as Array<Record<string, unknown>>;
+    const text = content?.[0]?.['text'] as string;
 
     let parsed: Record<string, unknown> | null = null;
     try {
@@ -567,20 +568,21 @@ async function runSingleTest(
       // Not JSON
     }
 
-    const success = parsed?.response?.['success'] === true;
-    const error = parsed?.response?.['error'];
+    const parsedResponse = parsed?.['response'] as Record<string, unknown> | undefined;
+    const success = parsedResponse?.['success'] === true;
+    const error = parsedResponse?.['error'] as Record<string, unknown> | undefined;
 
     if (success) {
       console.log(`    ✅ ${action} (${duration}ms)`);
       results.push({ tool, action, status: 'pass', duration, response: parsed });
     } else {
-      console.log(`    ❌ ${action}: ${error?.['message'] || 'Unknown error'}`);
+      console.log(`    ❌ ${action}: ${(error?.['message'] as string) || 'Unknown error'}`);
       results.push({
         tool,
         action,
         status: 'fail',
         duration,
-        error: error?.['message'],
+        error: error?.['message'] as string | undefined,
         response: parsed,
       });
 
@@ -589,14 +591,14 @@ async function runSingleTest(
         severity:
           error?.['severity'] === 'critical'
             ? 'critical'
-            : error?.['code']?.includes('INTERNAL')
+            : (error?.['code'] as string | undefined)?.includes('INTERNAL')
               ? 'high'
               : 'medium',
         tool,
         action,
-        description: error?.['message'] || 'Unknown error',
+        description: (error?.['message'] as string) || 'Unknown error',
         actualBehavior: JSON.stringify(error),
-        recommendation: error?.['resolution'],
+        recommendation: error?.['resolution'] as string | undefined,
       });
     }
 

@@ -7,7 +7,7 @@
  * MCP Protocol: 2025-11-25 (SEP-1686)
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { InMemoryTaskStore } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
 import { waitFor } from '../helpers/wait-for.js';

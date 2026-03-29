@@ -70,7 +70,7 @@ describe('getTimeline', () => {
     });
 
     expect(result.items).toHaveLength(1);
-    expect(result.items[0].revisionId).toBe('rev-2');
+    expect(result.items[0]?.revisionId).toBe('rev-2');
     expect(result.totalFetched).toBe(3);
   });
 

@@ -156,6 +156,7 @@ const createMockContext = (overrides?: Partial<HandlerContext>): HandlerContext 
       sheetName: 'Sheet1',
     }),
   } as any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test-only fields not in HandlerContext
   sheetsApi: createMockSheetsApi() as unknown as sheets_v4.Sheets,
   driveApi: undefined,
   sessionId: 'test-session',
@@ -181,7 +182,7 @@ const createMockContext = (overrides?: Partial<HandlerContext>): HandlerContext 
   elicitationServer: undefined,
   snapshotService: undefined,
   ...overrides,
-});
+} as unknown as HandlerContext);
 
 describe('VisualizeHandler', () => {
   let handler: VisualizeHandler;
@@ -218,10 +219,10 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }],
         },
         position: { anchorCell: 'D1', width: 600, height: 400 },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.chartId).toBe(456);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).chartId).toBe(456);
       const parseResult = SheetsVisualizeOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
     });
@@ -238,9 +239,9 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }, { column: 2 }],
         },
         position: { anchorCell: 'E1' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('respects position.sheetId when anchorCell omits the sheet prefix', async () => {
@@ -278,9 +279,9 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }],
         },
         position: { anchorCell: 'E2', sheetId: 88964099 },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
@@ -316,13 +317,13 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }],
         },
         position: { anchorCell: 'AA1' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      if (!result.response.success) {
-        expect(result.response.error.code).toBe('INVALID_PARAMS');
-        expect(result.response.error.message).toContain('outside the grid bounds');
-        expect(result.response.error.details).toMatchObject({
+      expect((result.response as any).success).toBe(false);
+      if (!(result.response as any).success) {
+        expect((result.response as any).error.code).toBe('INVALID_PARAMS');
+        expect((result.response as any).error.message).toContain('outside the grid bounds');
+        expect((result.response as any).error.details).toMatchObject({
           reasonCode: 'ANCHOR_OUT_OF_BOUNDS',
           anchorCell: 'AA1',
           suggestedAnchor: 'A1',
@@ -343,9 +344,9 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }, { column: 2 }, { column: 3 }],
         },
         position: { anchorCell: 'A15' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create a PIE chart', async () => {
@@ -361,9 +362,9 @@ describe('VisualizeHandler', () => {
         },
         position: { anchorCell: 'F1' },
         options: { title: 'Distribution Chart', is3D: true },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create a DOUGHNUT chart', async () => {
@@ -379,9 +380,9 @@ describe('VisualizeHandler', () => {
         },
         position: { anchorCell: 'G1' },
         options: { pieHole: 0.4 },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create an AREA chart', async () => {
@@ -397,9 +398,9 @@ describe('VisualizeHandler', () => {
         },
         position: { anchorCell: 'H1' },
         options: { stacked: true },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create a SCATTER chart', async () => {
@@ -414,9 +415,9 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }, { column: 2 }],
         },
         position: { anchorCell: 'I1' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create a HISTOGRAM chart', async () => {
@@ -431,9 +432,9 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }],
         },
         position: { anchorCell: 'J1' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create a chart with title and legend options', async () => {
@@ -452,9 +453,9 @@ describe('VisualizeHandler', () => {
           title: 'Quarterly Performance',
           legendPosition: 'TOP',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
   });
 
@@ -469,9 +470,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         options: { title: 'Updated Title' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -481,9 +482,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         chartType: 'COLUMN',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should update chart position', async () => {
@@ -492,9 +493,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         position: { anchorCell: 'F1', width: 800, height: 500 },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should update multiple chart properties at once', async () => {
@@ -505,9 +506,9 @@ describe('VisualizeHandler', () => {
         chartType: 'BAR',
         options: { title: 'Sales by Region' },
         position: { anchorCell: 'E5' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should return error when chart not found on update', async () => {
@@ -527,10 +528,10 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 999,
         options: { title: 'New Title' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('RANGE_NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('RANGE_NOT_FOUND');
     });
 
     it('should handle update with no changes', async () => {
@@ -538,9 +539,9 @@ describe('VisualizeHandler', () => {
         action: 'chart_update',
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
   });
 
@@ -555,9 +556,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         position: { anchorCell: 'L1', offsetX: 50, offsetY: 100 },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -567,9 +568,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         position: { anchorCell: 'M1', offsetX: 100, offsetY: 200 },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
   });
 
@@ -581,9 +582,9 @@ describe('VisualizeHandler', () => {
         chartId: 123,
         width: 800,
         height: 600,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -594,9 +595,9 @@ describe('VisualizeHandler', () => {
         chartId: 123,
         width: 300,
         height: 200,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
   });
 
@@ -615,9 +616,9 @@ describe('VisualizeHandler', () => {
           categories: 0,
           series: [{ column: 1 }, { column: 2 }, { column: 3 }],
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should update data range with dry run', async () => {
@@ -631,10 +632,10 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }, { column: 2 }],
         },
         safety: { dryRun: true },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
     });
   });
 
@@ -655,9 +656,9 @@ describe('VisualizeHandler', () => {
           showRSquared: true,
           showEquation: true,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -673,9 +674,9 @@ describe('VisualizeHandler', () => {
           showRSquared: true,
           polynomialDegree: 3,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should add exponential trendline', async () => {
@@ -689,9 +690,9 @@ describe('VisualizeHandler', () => {
           label: 'Exponential',
           showRSquared: false,
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should add trendline with custom color', async () => {
@@ -704,9 +705,9 @@ describe('VisualizeHandler', () => {
           type: 'LINEAR',
           color: { red: 1, green: 0, blue: 0, alpha: 1 },
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should error when adding trendline to unsupported chart type', async () => {
@@ -735,10 +736,10 @@ describe('VisualizeHandler', () => {
         trendline: {
           type: 'LINEAR',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should surface FEATURE_UNAVAILABLE when the Sheets API rejects trendline updates', async () => {
@@ -776,10 +777,10 @@ describe('VisualizeHandler', () => {
         trendline: {
           type: 'LINEAR',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('FEATURE_UNAVAILABLE');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('FEATURE_UNAVAILABLE');
     });
 
     it('should error when series index out of range', async () => {
@@ -791,10 +792,10 @@ describe('VisualizeHandler', () => {
         trendline: {
           type: 'LINEAR',
         },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 
@@ -833,9 +834,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         seriesIndex: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should error when removing trendline that does not exist', async () => {
@@ -869,10 +870,10 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         seriesIndex: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('NOT_FOUND');
     });
 
     it('should error with invalid series index on remove', async () => {
@@ -881,10 +882,10 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         seriesIndex: 99,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 
@@ -897,11 +898,11 @@ describe('VisualizeHandler', () => {
       const result = await handler.handle({
         action: 'chart_list',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.charts).toBeDefined();
-      expect(Array.isArray(result.response.charts)).toBe(true);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).charts).toBeDefined();
+      expect(Array.isArray((result.response as any).charts)).toBe(true);
     });
 
     it('should list charts filtered by sheet ID', async () => {
@@ -909,9 +910,9 @@ describe('VisualizeHandler', () => {
         action: 'chart_list',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should return empty list when no charts exist', async () => {
@@ -929,10 +930,10 @@ describe('VisualizeHandler', () => {
       const result = await handler.handle({
         action: 'chart_list',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.charts?.length).toBe(0);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).charts?.length).toBe(0);
     });
   });
 
@@ -942,11 +943,11 @@ describe('VisualizeHandler', () => {
         action: 'chart_get',
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.charts).toBeDefined();
-      expect(result.response.charts?.[0]?.chartId).toBe(123);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).charts).toBeDefined();
+      expect((result.response as any).charts?.[0]?.chartId).toBe(123);
     });
 
     it('should return error when chart not found', async () => {
@@ -965,10 +966,10 @@ describe('VisualizeHandler', () => {
         action: 'chart_get',
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 999,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('SHEET_NOT_FOUND');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('SHEET_NOT_FOUND');
     });
   });
 
@@ -982,9 +983,9 @@ describe('VisualizeHandler', () => {
         action: 'chart_delete',
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -994,10 +995,10 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         chartId: 123,
         safety: { dryRun: true },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       // Should not call batchUpdate in dry run
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
@@ -1013,10 +1014,10 @@ describe('VisualizeHandler', () => {
         action: 'suggest_chart',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:D100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.suggestions).toBeDefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).suggestions).toBeDefined();
     });
 
     it('should suggest charts with max suggestions limit', async () => {
@@ -1025,9 +1026,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:D100' },
         maxSuggestions: 5,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should error when range is missing', async () => {
@@ -1036,8 +1037,8 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
       } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should error when range has no data', async () => {
@@ -1049,10 +1050,10 @@ describe('VisualizeHandler', () => {
         action: 'suggest_chart',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:D100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('falls back to heuristic suggestions when AI support is unavailable', async () => {
@@ -1070,12 +1071,12 @@ describe('VisualizeHandler', () => {
         action: 'suggest_chart',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:D100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      if (result.response.success) {
-        expect(result.response.suggestions?.length).toBeGreaterThan(0);
-        expect(result.response.suggestions?.[0]?.type).toBe('chart');
+      expect((result.response as any).success).toBe(true);
+      if ((result.response as any).success) {
+        expect((result.response as any).suggestions?.length).toBeGreaterThan(0);
+        expect((result.response as any).suggestions?.[0]?.type).toBe('chart');
       }
     });
 
@@ -1092,11 +1093,11 @@ describe('VisualizeHandler', () => {
         action: 'suggest_chart',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:D100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      if (result.response.success) {
-        expect(result.response.suggestions?.length).toBeGreaterThan(0);
+      expect((result.response as any).success).toBe(true);
+      if ((result.response as any).success) {
+        expect((result.response as any).suggestions?.length).toBeGreaterThan(0);
       }
     });
   });
@@ -1113,10 +1114,10 @@ describe('VisualizeHandler', () => {
         sourceRange: { a1: 'Sheet1!A1:E100' },
         rows: [{ sourceColumnOffset: 0 }],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.pivotTable).toBeDefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).pivotTable).toBeDefined();
     });
 
     it('should create pivot with multiple row and column groups', async () => {
@@ -1133,9 +1134,9 @@ describe('VisualizeHandler', () => {
           { sourceColumnOffset: 3, summarizeFunction: 'SUM', name: 'Total Sales' },
           { sourceColumnOffset: 4, summarizeFunction: 'AVERAGE', name: 'Avg Cost' },
         ],
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create pivot with filters', async () => {
@@ -1153,9 +1154,9 @@ describe('VisualizeHandler', () => {
             },
           },
         ],
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create pivot at specific destination', async () => {
@@ -1166,9 +1167,9 @@ describe('VisualizeHandler', () => {
         rows: [{ sourceColumnOffset: 0 }],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
         destinationCell: 'H1',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create pivot on specific sheet', async () => {
@@ -1179,9 +1180,9 @@ describe('VisualizeHandler', () => {
         rows: [{ sourceColumnOffset: 0 }],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
         destinationSheetId: 1,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should create pivot with histogram grouping', async () => {
@@ -1198,9 +1199,9 @@ describe('VisualizeHandler', () => {
           },
         ],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
   });
 
@@ -1217,9 +1218,9 @@ describe('VisualizeHandler', () => {
         rows: [{ sourceColumnOffset: 1 }],
         columns: [{ sourceColumnOffset: 2 }],
         values: [{ sourceColumnOffset: 3, summarizeFunction: 'AVERAGE' }],
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should update pivot with dry run', async () => {
@@ -1230,10 +1231,10 @@ describe('VisualizeHandler', () => {
         rows: [{ sourceColumnOffset: 0 }],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
         safety: { dryRun: true },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
     });
 
     it('should error when pivot not found on update', async () => {
@@ -1254,9 +1255,9 @@ describe('VisualizeHandler', () => {
         sheetId: 0,
         rows: [{ sourceColumnOffset: 0 }],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
+      expect((result.response as any).success).toBe(false);
     });
   });
 
@@ -1270,9 +1271,9 @@ describe('VisualizeHandler', () => {
         action: 'pivot_delete',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -1282,10 +1283,10 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
         safety: { dryRun: true },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       // Should not call batchUpdate in dry run
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
@@ -1300,10 +1301,10 @@ describe('VisualizeHandler', () => {
       const result = await handler.handle({
         action: 'pivot_list',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.pivotTables).toBeDefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).pivotTables).toBeDefined();
     });
 
     it('should return empty list when no pivots exist', async () => {
@@ -1321,10 +1322,10 @@ describe('VisualizeHandler', () => {
       const result = await handler.handle({
         action: 'pivot_list',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.pivotTables?.length).toBe(0);
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).pivotTables?.length).toBe(0);
     });
   });
 
@@ -1334,10 +1335,10 @@ describe('VisualizeHandler', () => {
         action: 'pivot_get',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.pivotTable).toBeDefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).pivotTable).toBeDefined();
     });
 
     it('should successfully get a pivot table by sheet ID', async () => {
@@ -1346,10 +1347,10 @@ describe('VisualizeHandler', () => {
         action: 'pivot_get',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.pivotTable).toBeDefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).pivotTable).toBeDefined();
     });
   });
 
@@ -1363,11 +1364,11 @@ describe('VisualizeHandler', () => {
         action: 'pivot_refresh',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       // Pivot tables auto-refresh; no API call needed
-      expect(result.response.message).toContain('automatically');
+      expect((result.response as any).message).toContain('automatically');
     });
 
     it('should handle pivot refresh with validateGridDataSize check', async () => {
@@ -1375,9 +1376,9 @@ describe('VisualizeHandler', () => {
         action: 'pivot_refresh',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
   });
 
@@ -1391,10 +1392,10 @@ describe('VisualizeHandler', () => {
         action: 'suggest_pivot',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:F100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.suggestions).toBeDefined();
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).suggestions).toBeDefined();
     });
 
     it('should suggest pivots with max suggestions limit', async () => {
@@ -1403,9 +1404,9 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:F100' },
         maxSuggestions: 3,
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
     });
 
     it('should error when range is missing', async () => {
@@ -1414,8 +1415,8 @@ describe('VisualizeHandler', () => {
         spreadsheetId: 'test-spreadsheet-id',
       } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should error when range has no data', async () => {
@@ -1427,10 +1428,10 @@ describe('VisualizeHandler', () => {
         action: 'suggest_pivot',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:F100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('falls back to heuristic suggestions when AI support is unavailable', async () => {
@@ -1441,11 +1442,11 @@ describe('VisualizeHandler', () => {
         action: 'suggest_pivot',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:F100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.suggestions?.length).toBeGreaterThan(0);
-      expect(result.response.suggestions?.[0]?.type).toBe('pivot');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).suggestions?.length).toBeGreaterThan(0);
+      expect((result.response as any).suggestions?.[0]?.type).toBe('pivot');
     });
 
     it('falls back to heuristic suggestions when AI returns invalid JSON', async () => {
@@ -1465,11 +1466,11 @@ describe('VisualizeHandler', () => {
         action: 'suggest_pivot',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:F100' },
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.suggestions?.length).toBeGreaterThan(0);
-      expect(result.response.suggestions?.[0]?.type).toBe('pivot');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).suggestions?.length).toBeGreaterThan(0);
+      expect((result.response as any).suggestions?.[0]?.type).toBe('pivot');
     });
   });
 
@@ -1490,7 +1491,7 @@ describe('VisualizeHandler', () => {
           series: [{ column: 1 }],
         },
         position: { anchorCell: 'D1' },
-      });
+      } as any);
 
       const parseResult = SheetsVisualizeOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -1503,7 +1504,7 @@ describe('VisualizeHandler', () => {
         sourceRange: { a1: 'Sheet1!A1:E100' },
         rows: [{ sourceColumnOffset: 0 }],
         values: [{ sourceColumnOffset: 2, summarizeFunction: 'SUM' }],
-      });
+      } as any);
 
       const parseResult = SheetsVisualizeOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);

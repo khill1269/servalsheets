@@ -90,7 +90,7 @@ describe('FormatHandler', () => {
           backgroundColor: { red: 1, green: 0, blue: 0 },
           textFormat: { bold: true },
         },
-      });
+      } as any);
 
       expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
@@ -109,10 +109,10 @@ describe('FormatHandler', () => {
         range: { a1: 'Sheet1!A1:B2' },
         format: { backgroundColor: { red: 1, green: 0, blue: 0 } },
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
@@ -130,10 +130,10 @@ describe('FormatHandler', () => {
           verticalAlignment: 'MIDDLE',
           wrapStrategy: 'WRAP',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].repeatCell.fields).toContain('backgroundColor');
       expect(call.requestBody.requests[0].repeatCell.fields).toContain('textFormat');
     });
@@ -165,7 +165,7 @@ describe('FormatHandler', () => {
         format: {
           backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -183,13 +183,13 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         color: { red: 1, green: 1, blue: 0 },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('cellsFormatted');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].repeatCell.fields).toBe(
         'userEnteredFormat.backgroundColor'
       );
@@ -210,12 +210,12 @@ describe('FormatHandler', () => {
           fontSize: 14,
           fontFamily: 'Arial',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(
         call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.textFormat
       ).toMatchObject({
@@ -238,12 +238,12 @@ describe('FormatHandler', () => {
           type: 'CURRENCY',
           pattern: '$#,##0.00',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(
         call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.numberFormat
       ).toMatchObject({
@@ -263,7 +263,7 @@ describe('FormatHandler', () => {
         range: { a1: 'Sheet1!A1:B2' },
         horizontal: 'CENTER',
         vertical: 'MIDDLE',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -277,7 +277,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         wrapStrategy: 'WRAP',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -287,10 +287,10 @@ describe('FormatHandler', () => {
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 
@@ -311,12 +311,12 @@ describe('FormatHandler', () => {
         bottom: borderStyle,
         left: borderStyle,
         right: borderStyle,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0]).toHaveProperty('updateBorders');
     });
 
@@ -334,7 +334,7 @@ describe('FormatHandler', () => {
         range: { a1: 'Sheet1!A1:C5' },
         innerHorizontal: borderStyle,
         innerVertical: borderStyle,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -348,12 +348,12 @@ describe('FormatHandler', () => {
         action: 'clear_format',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].repeatCell.fields).toBe('userEnteredFormat');
     });
 
@@ -363,10 +363,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
@@ -380,12 +380,12 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:Z1' },
         preset: 'header_row',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       const request = call.requestBody.requests[0].repeatCell;
       expect(request.cell.userEnteredFormat.textFormat.bold).toBe(true);
     });
@@ -398,10 +398,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A2:Z100' },
         preset: 'alternating_rows',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0]).toHaveProperty('addBanding');
     });
 
@@ -440,14 +440,14 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A2:Z100' },
         preset: 'alternating_rows',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response._idempotent).toBe(true);
       }
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0]).toEqual({
         deleteBanding: { bandedRangeId: 42 },
       });
@@ -462,10 +462,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!B2:B100' },
         preset: 'currency',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       const format = call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.numberFormat;
       expect(format.type).toBe('CURRENCY');
     });
@@ -478,10 +478,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!C2:C100' },
         preset: 'percentage',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       const format = call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.numberFormat;
       expect(format.type).toBe('PERCENT');
     });
@@ -494,10 +494,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A2:A100' },
         preset: 'date',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       const format = call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.numberFormat;
       expect(format.type).toBe('DATE');
     });
@@ -510,10 +510,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!D2:D100' },
         preset: 'highlight_positive',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0]).toHaveProperty('addConditionalFormatRule');
     });
   });
@@ -527,12 +527,12 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:C10' },
         dimension: 'BOTH',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests).toHaveLength(2); // One for rows, one for columns
     });
 
@@ -544,10 +544,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:C10' },
         dimension: 'ROWS',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests).toHaveLength(1);
       expect(call.requestBody.requests[0].autoResizeDimensions.dimensions.dimension).toBe('ROWS');
     });
@@ -560,10 +560,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:C10' },
         dimension: 'COLUMNS',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].autoResizeDimensions.dimensions.dimension).toBe(
         'COLUMNS'
       );
@@ -581,10 +581,10 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         color: { red: 1, green: 0, blue: 0 },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeDefined();
+      expect((result.response as any).error?.code).toBeDefined();
     });
 
     it('should handle sheet not found', async () => {
@@ -597,7 +597,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'NonExistent!A1:B2' },
         color: { red: 1, green: 0, blue: 0 },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
     });
@@ -610,7 +610,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         color: { red: 1, green: 0, blue: 0 },
-      });
+      } as any);
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -630,7 +630,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { sheetName: 'Sheet1', range: 'A1:Z1' },
         color: { red: 1, green: 0, blue: 0 },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockContext.rangeResolver.resolve).toHaveBeenCalled();
@@ -685,7 +685,7 @@ describe('FormatHandler', () => {
         action: 'suggest_format',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:D10' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -885,7 +885,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         targetCell: 'Sheet1!E1',
         dataRange: { a1: 'Sheet1!A1:D1' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'sparkline_add');
@@ -917,7 +917,7 @@ describe('FormatHandler', () => {
           type: 'BAR',
           color: { red: 0.2, green: 0.6, blue: 0.8 },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -933,7 +933,7 @@ describe('FormatHandler', () => {
         targetCell: 'Sheet1!E1',
         dataRange: { a1: 'Sheet1!A1:D1' },
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -957,7 +957,7 @@ describe('FormatHandler', () => {
         action: 'sparkline_get',
         spreadsheetId: 'test-id',
         cell: 'Sheet1!E1',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'sparkline_get');
@@ -979,7 +979,7 @@ describe('FormatHandler', () => {
         action: 'sparkline_get',
         spreadsheetId: 'test-id',
         cell: 'Sheet1!A1',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -996,7 +996,7 @@ describe('FormatHandler', () => {
         action: 'sparkline_get',
         spreadsheetId: 'test-id',
         cell: 'Sheet1!A1',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
     });
@@ -1014,7 +1014,7 @@ describe('FormatHandler', () => {
         action: 'sparkline_clear',
         spreadsheetId: 'test-id',
         cell: 'Sheet1!E1',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'sparkline_clear');
@@ -1053,7 +1053,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         cell: 'Sheet1!E1',
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1079,7 +1079,7 @@ describe('FormatHandler', () => {
           format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
         },
         index: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'rule_add_conditional_format');
@@ -1118,7 +1118,7 @@ describe('FormatHandler', () => {
           },
           format: { backgroundColor: { red: 0.8, green: 1, blue: 0.8 } },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -1161,7 +1161,7 @@ describe('FormatHandler', () => {
           format: { backgroundColor: { red: 1, green: 1, blue: 0.8 } },
         },
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1204,7 +1204,7 @@ describe('FormatHandler', () => {
           condition: { type: 'NUMBER_GREATER', values: ['200'] },
           format: { backgroundColor: { red: 1, green: 0.9, blue: 0.9 } },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'rule_update_conditional_format');
@@ -1231,7 +1231,7 @@ describe('FormatHandler', () => {
           condition: { type: 'BLANK' },
           format: { backgroundColor: { red: 1, green: 1, blue: 0.8 } },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -1246,7 +1246,7 @@ describe('FormatHandler', () => {
         sheetId: 0,
         ruleIndex: 0,
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1266,7 +1266,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         sheetId: 0,
         ruleIndex: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'rule_delete_conditional_format');
@@ -1289,7 +1289,7 @@ describe('FormatHandler', () => {
         sheetId: 0,
         ruleIndex: 0,
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1332,15 +1332,15 @@ describe('FormatHandler', () => {
         action: 'rule_list_conditional_formats',
         spreadsheetId: 'test-id',
         sheetId: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'rule_list_conditional_formats');
       if (result.response.success) {
         expect(result.response.rules).toHaveLength(2);
         expect(result.response.totalCount).toBe(2);
-        expect(result.response.rules?.[0].type).toBe('boolean');
-        expect(result.response.rules?.[1].type).toBe('gradient');
+        expect((result.response as any).rules?.[0].type).toBe('boolean');
+        expect((result.response as any).rules?.[1].type).toBe('gradient');
       }
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
@@ -1358,7 +1358,7 @@ describe('FormatHandler', () => {
         action: 'rule_list_conditional_formats',
         spreadsheetId: 'test-id',
         sheetId: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -1383,7 +1383,7 @@ describe('FormatHandler', () => {
         showDropdown: true,
         strict: true,
         inputMessage: 'Select a value from the list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'set_data_validation');
@@ -1419,10 +1419,10 @@ describe('FormatHandler', () => {
         range: { a1: 'Sheet1!B1:B50' },
         condition: { type: 'NUMBER_BETWEEN', values: ['1', '100'] },
         strict: false,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].setDataValidation.rule.condition.type).toBe(
         'NUMBER_BETWEEN'
       );
@@ -1441,7 +1441,7 @@ describe('FormatHandler', () => {
         action: 'clear_data_validation',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:A100' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'clear_data_validation');
@@ -1470,7 +1470,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:A100' },
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1522,13 +1522,13 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         sheetId: 0,
         range: { a1: 'Sheet1!A1:J100' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'list_data_validations');
       if (result.response.success) {
         expect(result.response.totalCount).toBe(1);
-        expect(result.response.validations?.[0].condition.type).toBe('ONE_OF_LIST');
+        expect((result.response as any).validations?.[0].condition.type).toBe('ONE_OF_LIST');
       }
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
@@ -1554,7 +1554,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         sheetId: 0,
         // No range - triggers the size check error
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -1576,7 +1576,7 @@ describe('FormatHandler', () => {
         spreadsheetId: 'test-id',
         sheetId: 999,
         range: { a1: 'Sheet1!A1:J10' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -1599,7 +1599,7 @@ describe('FormatHandler', () => {
         sheetId: 0,
         range: { a1: 'Sheet1!A1:A100' },
         rulePreset: 'highlight_duplicates',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'add_conditional_format_rule');
@@ -1628,7 +1628,7 @@ describe('FormatHandler', () => {
         sheetId: 0,
         range: { a1: 'Sheet1!A1:D100' },
         rulePreset: 'highlight_blanks',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -1642,11 +1642,11 @@ describe('FormatHandler', () => {
         sheetId: 0,
         range: { a1: 'Sheet1!B1:B50' },
         rulePreset: 'color_scale_green_red',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       // Gradient rules use gradientRule not booleanRule
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].addConditionalFormatRule.rule.gradientRule).toBeDefined();
     });
 
@@ -1659,7 +1659,7 @@ describe('FormatHandler', () => {
         sheetId: 0,
         range: { a1: 'Sheet1!A1:A100' },
         rulePreset: 'top_10_percent',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });

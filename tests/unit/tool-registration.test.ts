@@ -78,7 +78,7 @@ describe('tool registration helpers', () => {
       'sheets_session',
     ]);
 
-    const sessionResult = await handlerMap['sheets_session']({
+    const sessionResult = await handlerMap['sheets_session']!({
       request: { action: 'get_active' },
     });
 
@@ -89,7 +89,7 @@ describe('tool registration helpers', () => {
       },
     });
 
-    const previewResult = await handlerMap['sheets_composite']({
+    const previewResult = await handlerMap['sheets_composite']!({
       request: {
         action: 'preview_generation',
         description: 'Create a department budget tracker',
@@ -153,25 +153,28 @@ describe('tool registration helpers', () => {
       },
     ] as const satisfies readonly ToolDefinition[];
 
-    const createRunTool = vi.fn<ToolExecutionHandler, [ToolDefinition]>(() =>
+    const createRunTool = vi.fn<(tool: ToolDefinition) => ToolExecutionHandler>(() =>
       vi.fn(async () => ({
         content: [],
         structuredContent: {},
       }))
     );
-    const createTaskHandler = vi.fn<ToolTaskHandler<AnySchema>, [string, ToolExecutionHandler]>(
-      () => ({
-        createTask: vi.fn(),
-        getTask: vi.fn(),
-        getTaskResult: vi.fn(),
-      })
-    );
+    const createTaskHandler = vi.fn<
+      (toolName: string, runTool: ToolExecutionHandler) => ToolTaskHandler<AnySchema>
+    >(() => ({
+      createTask: vi.fn(),
+      getTask: vi.fn(),
+      getTaskResult: vi.fn(),
+    }));
 
     registerActiveTools({
       server,
       tools,
-      createRunTool,
-      createTaskHandler,
+      createRunTool: createRunTool as (tool: ToolDefinition) => ToolExecutionHandler,
+      createTaskHandler: createTaskHandler as (
+        toolName: string,
+        runTool: ToolExecutionHandler
+      ) => ToolTaskHandler<AnySchema>,
     });
 
     expect(server.registerTool).toHaveBeenCalledTimes(1);

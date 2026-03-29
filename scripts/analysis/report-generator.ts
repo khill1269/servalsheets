@@ -415,13 +415,13 @@ async function main() {
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--input') {
-      inputFile = args[i + 1];
+      inputFile = args[i + 1] ?? inputFile;
       i++;
     } else if (args[i] === '--format') {
-      format = args[i + 1] as ReportFormat;
+      format = (args[i + 1] ?? format) as ReportFormat;
       i++;
     } else if (args[i] === '--output') {
-      outputFile = args[i + 1];
+      outputFile = args[i + 1] ?? outputFile;
       i++;
     }
   }

@@ -40,7 +40,7 @@ describe('tool-handlers validation enhancements', () => {
 
     let thrown: unknown;
     try {
-      await handlerMap.sheets_core({
+      await handlerMap['sheets_core']!({
         action: 'not_a_real_action',
         spreadsheetId: 'test-spreadsheet-id',
       });
@@ -61,7 +61,7 @@ describe('tool-handlers validation enhancements', () => {
 
     let thrown: unknown;
     try {
-      await handlerMap.sheets_core({
+      await handlerMap['sheets_core']!({
         request: {
           action: 'not_a_real_action',
           spreadsheetId: 'test-spreadsheet-id',
@@ -83,7 +83,7 @@ describe('tool-handlers validation enhancements', () => {
 
     let thrown: unknown;
     try {
-      await handlerMap.sheets_core({
+      await handlerMap['sheets_core']!({
         action: 'rename_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,

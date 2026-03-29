@@ -34,7 +34,7 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -159,8 +159,8 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
       });
 
       expect(response.status).toBe(200);
-      const newSheetId = response.data.replies![0].addSheet?.properties?.sheetId;
-      const newSheetTitle = response.data.replies![0].addSheet?.properties?.title;
+      const newSheetId = response.data.replies![0]!.addSheet?.properties?.sheetId;
+      const newSheetTitle = response.data.replies![0]!.addSheet?.properties?.title;
       expect(newSheetId).toBeDefined();
 
       // Write data to the new sheet
@@ -281,7 +281,7 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!I1',
       });
-      expect(read1.data.values![0][0]).toBe('Initial Value');
+      expect(read1.data.values![0]![0]).toBe('Initial Value');
 
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
@@ -294,7 +294,7 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!I1',
       });
-      expect(read2.data.values![0][0]).toBe('Updated Value');
+      expect(read2.data.values![0]![0]).toBe('Updated Value');
     });
 
     it('should handle concurrent-safe batch updates', async () => {
@@ -414,7 +414,7 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
       expect(response.status).toBe(200);
       expect(response.data.valueRanges).toBeDefined();
       expect(response.data.valueRanges!.length).toBe(2);
-      expect(response.data.valueRanges![0].values).toBeDefined();
+      expect(response.data.valueRanges![0]!.values).toBeDefined();
     });
 
     it('should reject invalid batch operations', async () => {
@@ -501,8 +501,8 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
         valueRenderOption: 'FORMATTED_VALUE',
       });
 
-      expect(readResponse.data.values![0][0]).toBe('Product');
-      expect(readResponse.data.values![1][3]).toBeDefined();
+      expect(readResponse.data.values![0]![0]).toBe('Product');
+      expect(readResponse.data.values![1]![3]).toBeDefined();
     });
 
     it('should handle bulk data import workflow', async () => {

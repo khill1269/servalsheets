@@ -29,7 +29,7 @@ const TEST_CONFIG = {
   serverPort: 3010, // Use dedicated port for load testing
   rampUpSeconds: 30, // Gradual ramp-up to avoid thundering herd
   coolDownSeconds: 10, // Cool down between tests
-  spreadsheetId: process.env.TEST_SPREADSHEET_ID || 'test-sheet-id',
+  spreadsheetId: process.env['TEST_SPREADSHEET_ID'] || 'test-sheet-id',
 } as const;
 
 interface LoadTestMetrics {
@@ -196,7 +196,7 @@ class LoadTestExecutor {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.TEST_TOKEN || 'test-token'}`,
+            Authorization: `Bearer ${process.env['TEST_TOKEN'] || 'test-token'}`,
           },
           body: JSON.stringify({
             name: 'sheets_data',
@@ -229,7 +229,7 @@ class LoadTestExecutor {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.TEST_TOKEN || 'test-token'}`,
+            Authorization: `Bearer ${process.env['TEST_TOKEN'] || 'test-token'}`,
           },
           body: JSON.stringify({
             name: 'sheets_data',
@@ -265,7 +265,7 @@ class LoadTestExecutor {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.TEST_TOKEN || 'test-token'}`,
+            Authorization: `Bearer ${process.env['TEST_TOKEN'] || 'test-token'}`,
           },
           body: JSON.stringify({
             name: 'sheets_data',
@@ -298,7 +298,7 @@ class LoadTestExecutor {
  * Test Suite
  */
 // Load tests require a real server — skip when not in CI with full infra
-const ENABLE_LOAD = process.env.LOAD_TEST === 'true';
+const ENABLE_LOAD = process.env['LOAD_TEST'] === 'true';
 
 describe.skipIf(!ENABLE_LOAD)('Load Testing - 1000+ Concurrent Requests', () => {
   let server: ServerProcess;

@@ -6,7 +6,7 @@
  */
 
 import { TEST_CONFIG } from '../setup/config.js';
-import { getQuotaManager, type QuotaVerification } from '../setup/quota-manager.js';
+import { getQuotaManager } from '../setup/quota-manager.js';
 import { getTestRateLimiter } from '../setup/test-rate-limiter.js';
 import { shouldRunIntegrationTests, loadTestCredentials } from '../../helpers/credential-loader.js';
 

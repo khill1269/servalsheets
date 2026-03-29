@@ -113,7 +113,7 @@ describe('@serval/mcp-stdio shutdownStdioServer', () => {
     vi.stubGlobal('setTimeout', ((fn: (...args: unknown[]) => void) => {
       fn();
       return 0;
-    }) as typeof setTimeout);
+    }) as unknown as typeof setTimeout);
 
     try {
       const clear = vi.fn();

@@ -25,7 +25,7 @@ describe('@serval/mcp-stdio buildServerStdioInfrastructure', () => {
       }),
       afterServerCreated,
       maxConcurrentRequests: 4,
-      createConnectionHealthCheck: (input) => ({ kind: 'connection', input }),
+      createConnectionHealthCheck: (input) => ({ kind: 'connection', input } as never),
       disconnectThresholdMs: 120000,
       warnThresholdMs: 60000,
       createHeapHealthCheck: (input) => ({ kind: 'heap', input }),

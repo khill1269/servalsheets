@@ -132,13 +132,13 @@ describe('Tool Discovery Contract', () => {
         it('should have a non-empty title in annotations', () => {
           const annotation = TOOL_ANNOTATIONS[def.name];
           expect(annotation, `No annotation for ${def.name}`).toBeDefined();
-          expect(annotation.title.length).toBeGreaterThan(0);
+          expect(annotation!.title!.length).toBeGreaterThan(0);
         });
 
         it('should have a description', () => {
           const desc = TOOL_DESCRIPTIONS[def.name];
           expect(desc, `No description for ${def.name}`).toBeDefined();
-          expect(desc.length).toBeGreaterThan(10);
+          expect(desc!.length).toBeGreaterThan(10);
         });
 
         it('should have a valid inputSchema', () => {

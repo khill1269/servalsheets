@@ -10,14 +10,13 @@
  *   4.13-4.19: Handler-level tests (with mocking, using analyze/fix patterns)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { generateResponseHints } from '../../src/services/response-hints-engine.js';
 import {
   detectEmptyRequiredCells,
   detectMixedTypes,
   detectDuplicateRows,
   detectOutliers,
-  scanResponseQualitySync,
 } from '../../src/services/lightweight-quality-scanner.js';
 import type { CellValue } from '../../src/schemas/shared.js';
 
@@ -452,7 +451,7 @@ describe('Category 4: Analysis & Intelligence', () => {
       // Need at least 7 rows for time series detection
       for (let i = 0; i < 8; i++) {
         const date = new Date(today.getTime() + i * 86400000);
-        data.push([date.toISOString().split('T')[0], 100 + i * 10]);
+        data.push([date.toISOString().split('T')[0] ?? '', 100 + i * 10]);
       }
 
       const hints = generateResponseHints(data);
@@ -468,7 +467,7 @@ describe('Category 4: Analysis & Intelligence', () => {
       // Need at least 7 rows for time series detection, spaced weekly
       for (let i = 0; i < 8; i++) {
         const date = new Date(startDate.getTime() + i * 7 * 86400000);
-        data.push([date.toISOString().split('T')[0], 1000 + i * 100]);
+        data.push([date.toISOString().split('T')[0] ?? '', 1000 + i * 100]);
       }
 
       const hints = generateResponseHints(data);

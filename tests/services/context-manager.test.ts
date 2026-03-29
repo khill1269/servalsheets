@@ -121,7 +121,7 @@ describe('ContextManager', () => {
     it('should infer spreadsheetId', () => {
       manager.updateContext({ spreadsheetId: 'test-id' });
 
-      const params = manager.inferParameters({ action: 'read' });
+      const params = manager.inferParameters({ action: 'read' }) as any;
 
       expect(params.spreadsheetId).toBe('test-id');
       const stats = manager.getStats() as { spreadsheetIdInferences: number };
@@ -131,7 +131,7 @@ describe('ContextManager', () => {
     it('should infer sheetId', () => {
       manager.updateContext({ sheetId: 456 });
 
-      const params = manager.inferParameters({ action: 'write' });
+      const params = manager.inferParameters({ action: 'write' }) as any;
 
       expect(params.sheetId).toBe(456);
       const stats = manager.getStats() as { sheetIdInferences: number };
@@ -141,7 +141,7 @@ describe('ContextManager', () => {
     it('should infer range', () => {
       manager.updateContext({ range: 'Sheet1!A1:Z10' });
 
-      const params = manager.inferParameters({ action: 'read' });
+      const params = manager.inferParameters({ action: 'read' }) as any;
 
       expect(params.range).toBe('Sheet1!A1:Z10');
       const stats = manager.getStats() as { rangeInferences: number };
@@ -154,7 +154,7 @@ describe('ContextManager', () => {
       const params = manager.inferParameters({
         spreadsheetId: 'new-id',
         action: 'read',
-      });
+      }) as any;
 
       expect(params.spreadsheetId).toBe('new-id');
       expect(params.sheetId).toBe(123); // Inferred
@@ -167,7 +167,7 @@ describe('ContextManager', () => {
         range: 'Sheet1!A1:B10',
       });
 
-      const params = manager.inferParameters({ action: 'write' });
+      const params = manager.inferParameters({ action: 'write' }) as any;
 
       expect(params.spreadsheetId).toBe('test-id');
       expect(params.sheetId).toBe(789);
@@ -186,7 +186,7 @@ describe('ContextManager', () => {
       // Wait for context to become stale
       return new Promise<void>((resolve) => {
         setTimeout(() => {
-          const params = shortTTL.inferParameters({ action: 'read' });
+          const params = shortTTL.inferParameters({ action: 'read' }) as any;
           expect(params.spreadsheetId).toBeUndefined();
           resolve();
         }, 150);
@@ -445,7 +445,7 @@ describe('ContextManager', () => {
     it('should handle inferParameters with empty object', () => {
       manager.updateContext({ spreadsheetId: 'test-id' });
 
-      const params = manager.inferParameters({});
+      const params = manager.inferParameters({}) as any;
 
       expect(params.spreadsheetId).toBe('test-id');
     });
@@ -462,7 +462,7 @@ describe('ContextManager', () => {
     it('should handle sheetId value of 0', () => {
       manager.updateContext({ sheetId: 0 });
 
-      const params = manager.inferParameters({ action: 'read' });
+      const params = manager.inferParameters({ action: 'read' }) as any;
       expect(params.sheetId).toBe(0);
     });
   });

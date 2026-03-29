@@ -90,9 +90,9 @@ describeOrSkip('Parallel Execution Live Verification', () => {
 
       const results = await Promise.all(operations);
 
-      expect(results[0].data.values).toBeDefined();
-      expect(results[1].data.updatedCells).toBeGreaterThan(0);
-      expect(results[2].data.values).toBeDefined();
+      expect((results[0] as any).data.values).toBeDefined();
+      expect((results[1] as any).data.updatedCells).toBeGreaterThan(0);
+      expect((results[2] as any).data.values).toBeDefined();
     });
   });
 
@@ -116,9 +116,9 @@ describeOrSkip('Parallel Execution Live Verification', () => {
       const results = await Promise.all(operations);
       const duration = performance.now() - startTime;
 
-      expect(results[0].data.spreadsheetId).toBe(testSpreadsheet.id);
-      expect(results[1].data.values).toBeDefined();
-      expect(results[2].data.spreadsheetId).toBe(testSpreadsheet.id);
+      expect((results[0] as any).data.spreadsheetId).toBe(testSpreadsheet.id);
+      expect((results[1] as any).data.values).toBeDefined();
+      expect((results[2] as any).data.spreadsheetId).toBe(testSpreadsheet.id);
 
       console.log(`3 concurrent multi-endpoint ops completed in ${duration.toFixed(2)}ms`);
     });

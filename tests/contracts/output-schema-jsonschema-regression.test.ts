@@ -1,5 +1,9 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
+import type { Ajv as AjvType } from 'ajv';
+import * as _Ajv2020Mod from 'ajv/dist/2020.js';
+import * as _addFormatsMod from 'ajv-formats';
+// NodeNext + esModuleInterop: access the CJS default via .default
+const Ajv2020 = (_Ajv2020Mod as unknown as { default: new (opts?: Record<string, unknown>) => AjvType }).default;
+const addFormats = (_addFormatsMod as unknown as { default: (ajv: AjvType) => AjvType }).default;
 import { describe, expect, it } from 'vitest';
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
 import { buildToolResponse } from '../../src/mcp/registration/tool-response.js';

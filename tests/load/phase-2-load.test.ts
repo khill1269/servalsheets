@@ -118,9 +118,6 @@ class LoadMetrics {
 describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
   let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
   let requestMerger: RequestMerger;
-  let prefetchPredictor: PrefetchPredictor;
-  let workerPool: WorkerPool;
-
   beforeAll(() => {
     mockSheetsApi = createMockSheetsApi({
       spreadsheets: {
@@ -136,8 +133,8 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
     });
 
     requestMerger = new RequestMerger({ enabled: true, windowMs: 50 });
-    prefetchPredictor = new PrefetchPredictor({ minConfidence: 0.7 });
-    workerPool = new WorkerPool({ poolSize: 8 });
+    void new PrefetchPredictor({ minConfidence: 0.7 });
+    void new WorkerPool({ poolSize: 8 });
   });
 
   afterAll(async () => {
@@ -340,7 +337,7 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
               SPREADSHEET_ID,
               range
             );
-            graph.trackRead(SPREADSHEET_ID, range);
+            (graph as any).trackRead(SPREADSHEET_ID, range);
             metrics.recordOperation(Date.now() - opStart);
 
             // Simulate cache hit/miss tracking
@@ -355,7 +352,7 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
         } else {
           // 20% writes (invalidate cache)
           const range = `Sheet1!A${i * 5 + 1}:B${i * 5 + 2}`;
-          graph.invalidateWrite(SPREADSHEET_ID, range);
+          (graph as any).invalidateWrite(SPREADSHEET_ID, range);
           metrics.recordOperation(Date.now() - opStart);
         }
 
@@ -430,8 +427,8 @@ describe.skipIf(!LOAD_TEST_ENABLED)('Phase 2 Load Testing', () => {
             if (pred.tool === 'sheets_data' && pred.action === 'read') {
               await mergerWithPrefetch.mergeRead(
                 mockSheetsApi as unknown as sheets_v4.Sheets,
-                pred.params.spreadsheetId as string,
-                pred.params.range as string
+                pred.params['spreadsheetId'] as string,
+                pred.params['range'] as string
               );
             }
           });

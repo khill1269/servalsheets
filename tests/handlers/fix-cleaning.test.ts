@@ -20,7 +20,7 @@ import {
 // Mock factories (no vi.mock calls - created per test)
 // ---------------------------------------------------------------------------
 
-const createMockSheetsApi = (): sheets_v4.Sheets => ({
+const createMockSheetsApi = () => ({
   spreadsheets: {
     get: vi.fn(),
     values: {
@@ -34,17 +34,17 @@ const createMockSheetsApi = (): sheets_v4.Sheets => ({
     },
     batchUpdate: vi.fn(),
   } as any,
-});
+}) as unknown as sheets_v4.Sheets;
 
-const createMockContext = (): HandlerContext => ({
-  spreadsheetId: 'test-spreadsheet-id',
-  userId: 'test-user-id',
+const createMockContext = () => ({
   cachedApi: {} as any,
   googleClient: {} as any,
   samplingServer: undefined,
   elicitationServer: undefined,
   backend: undefined,
-});
+  batchCompiler: {} as any,
+  rangeResolver: {} as any,
+}) as unknown as HandlerContext;
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -105,9 +105,9 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         mode: 'preview' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
-      expect(response.response.action).toBe('clean');
+      expect((response.response as any).action).toBe('clean');
     });
 
     it('should apply cleaning in apply mode', async () => {
@@ -125,7 +125,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         mode: 'apply' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
 
@@ -141,7 +141,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         mode: 'preview' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
   });
@@ -163,9 +163,9 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         columns: [{ column: 'C', targetFormat: 'YYYY-MM-DD' }],
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
-      expect(response.response.action).toBe('standardize_formats');
+      expect((response.response as any).action).toBe('standardize_formats');
     });
 
     it('should standardize email formats (lowercase)', async () => {
@@ -180,7 +180,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         columns: [{ column: 'D', targetFormat: 'email' }],
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
   });
@@ -202,9 +202,9 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         strategy: 'forward' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
-      expect(response.response.action).toBe('fill_missing');
+      expect((response.response as any).action).toBe('fill_missing');
     });
 
     it('should fill missing values using constant strategy', async () => {
@@ -223,7 +223,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         constantValue: 0,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
   });
@@ -247,9 +247,9 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         method: 'iqr' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
-      expect(response.response.action).toBe('detect_anomalies');
+      expect((response.response as any).action).toBe('detect_anomalies');
     });
 
     it('should detect outliers using zscore method', async () => {
@@ -261,7 +261,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         threshold: 2,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
   });
@@ -282,9 +282,9 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         range: { a1: 'Sheet1!A1:E6' },
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
-      expect(response.response.action).toBe('suggest_cleaning');
+      expect((response.response as any).action).toBe('suggest_cleaning');
     });
 
     it('should rank suggestions by impact', async () => {
@@ -298,7 +298,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         range: { a1: 'Sheet1!A1:E6' },
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
 
@@ -318,7 +318,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         action: 'suggest_cleaning',
         spreadsheetId: 'test-spreadsheet-id',
         range: { a1: 'Sheet1!A1:B4' },
-      });
+      } as any);
 
       expect(response.response.success).toBe(true);
       if (response.response.success) {
@@ -332,9 +332,9 @@ describe('FixHandler (F3 Data Cleaning)', () => {
 
   describe('fix_names acronym protection', () => {
     it('should preserve common business acronyms', () => {
-      expect(BUILT_IN_RULES.fix_names.detect('SMB')).toBe(false);
-      expect(BUILT_IN_RULES.fix_names.fix('api integration')).toBe('API Integration');
-      expect(BUILT_IN_RULES.fix_names.fix('CEO dashboard')).toBe('CEO Dashboard');
+      expect(BUILT_IN_RULES['fix_names']!.detect('SMB')).toBe(false);
+      expect(BUILT_IN_RULES['fix_names']!.fix('api integration')).toBe('API Integration');
+      expect(BUILT_IN_RULES['fix_names']!.fix('CEO dashboard')).toBe('CEO Dashboard');
     });
   });
 
@@ -356,7 +356,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
       };
 
       try {
-        const response = await handler.handle(input);
+        const response = await handler.handle(input as any);
         // Handler returns an error response (success:false) rather than throwing
         expect(response.response.success).toBe(false);
       } catch (err) {
@@ -377,7 +377,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         mode: 'preview' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       // Either success with fallback or error handling
       expect(response.response).toBeDefined();
     });
@@ -401,7 +401,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         method: 'iqr' as const,
       };
 
-      const detectResponse = await handler.handle(detectInput);
+      const detectResponse = await handler.handle(detectInput as any);
       expect(detectResponse.response.success).toBe(true);
 
       // Then: suggest cleaning
@@ -411,7 +411,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         range: { a1: 'Sheet1!A1:E6' },
       };
 
-      const suggestResponse = await handler.handle(suggestInput);
+      const suggestResponse = await handler.handle(suggestInput as any);
       expect(suggestResponse.response.success).toBe(true);
     });
 
@@ -434,7 +434,7 @@ describe('FixHandler (F3 Data Cleaning)', () => {
         mode: 'preview' as const,
       };
 
-      const response = await handler.handle(input);
+      const response = await handler.handle(input as any);
       expect(response.response.success).toBe(true);
     });
   });

@@ -7,15 +7,13 @@
  * OPTIMIZED: Uses a single spreadsheet for all tests.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
 import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
-// Helper to add delay between tests to avoid quota limits
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
   let client: LiveApiClient;
@@ -36,7 +34,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -83,7 +81,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         },
       });
 
-      const newSheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
+      const newSheetId = addResponse.data.replies![0]!.addSheet?.properties?.sheetId;
       expect(newSheetId).toBeDefined();
 
       const csvData = [
@@ -166,9 +164,9 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         range: 'TestData!M1:O4',
       });
 
-      expect(readResponse.data.values![1][2]).toBe('complete');
-      expect(readResponse.data.values![2][2]).toBe('pending');
-      expect(readResponse.data.values![3][2]).toBe('complete');
+      expect(readResponse.data.values![1]![2]).toBe('complete');
+      expect(readResponse.data.values![2]![2]).toBe('pending');
+      expect(readResponse.data.values![3]![2]).toBe('complete');
     });
   });
 
@@ -248,7 +246,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         },
       });
 
-      const newSheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId!;
+      const newSheetId = addResponse.data.replies![0]!.addSheet?.properties?.sheetId!;
 
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
@@ -324,7 +322,7 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
         },
       });
 
-      expect(duplicateResponse.data.replies![0].duplicateSheet?.properties?.sheetId).toBeDefined();
+      expect(duplicateResponse.data.replies![0]!.duplicateSheet?.properties?.sheetId).toBeDefined();
 
       await client.sheets.spreadsheets.values.clear({
         spreadsheetId: testSpreadsheet.id,

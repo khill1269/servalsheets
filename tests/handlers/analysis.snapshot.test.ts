@@ -83,9 +83,12 @@ describe('AnalyzeHandler Snapshots', () => {
     });
 
     const result = await handler.handle({
-      action: 'analyze_data',
-      spreadsheetId: 'test-sheet-id',
-      analysisTypes: ['summary'],
+      request: {
+        action: 'analyze_data',
+        verbosity: 'standard',
+        spreadsheetId: 'test-sheet-id',
+        analysisTypes: ['summary'],
+      },
     });
 
     expect(result.response).toMatchSnapshot();

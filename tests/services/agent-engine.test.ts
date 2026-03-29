@@ -11,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFile } from 'fs/promises';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync } from 'fs';
 import path from 'path';
 import {
   clearAllPlans,
@@ -235,7 +235,7 @@ describe('executePlan dryRun', () => {
     const result = await executePlan(plan.planId, true, makeHandler());
 
     for (const r of result.results) {
-      expect((r.result as Record<string, unknown>)?.dryRunPreview).toBe(true);
+      expect((r.result as Record<string, unknown>)?.['dryRunPreview']).toBe(true);
     }
   });
 });

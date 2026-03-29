@@ -18,7 +18,7 @@ class MockConnector implements SpreadsheetConnector {
   id = 'test_mock';
   name = 'Mock Test Connector';
   description = 'Test connector';
-  authType = 'api_key';
+  readonly authType: 'api_key' | 'oauth2' | 'none' = 'api_key';
   private isConfig = false;
 
   isConfigured(): boolean {
@@ -29,6 +29,10 @@ class MockConnector implements SpreadsheetConnector {
     return { requestsPerMinute: 60, requestsPerDay: 10000 };
   }
 
+  getQuotaUsage() {
+    return { used: 0, limit: 10000, resetAt: new Date().toISOString(), unit: 'requests' as const };
+  }
+
   async configure(credentials: ConnectorCredentials): Promise<void> {
     if (!credentials.apiKey) {
       throw new Error('API key required');
@@ -36,16 +40,20 @@ class MockConnector implements SpreadsheetConnector {
     this.isConfig = true;
   }
 
-  async query() {
-    return { headers: ['col1'], rows: [['val1']], metadata: { rowCount: 1 } };
+  async query(_endpoint: string, _params: unknown) {
+    return {
+      headers: ['col1'],
+      rows: [['val1']],
+      metadata: { source: 'mock', endpoint: _endpoint, fetchedAt: new Date().toISOString(), rowCount: 1, cached: false, quotaUsed: 0 },
+    };
   }
 
   async listEndpoints() {
     return [];
   }
 
-  async getSchema() {
-    return { fields: [] };
+  async getSchema(_endpoint: string) {
+    return { endpoint: _endpoint, columns: [] };
   }
 
   async healthCheck() {
@@ -88,9 +96,9 @@ describe('P5.1: Persistent Connector Configuration', () => {
   it('should persist connector configuration to disk', async () => {
     manager = new ConnectorManager(configDir);
     const connector = new MockConnector();
-    manager.register(connector);
+    manager.register(connector as unknown as any);
 
-    const credentials: ConnectorCredentials = { apiKey: 'test-key-123' };
+    const credentials: ConnectorCredentials = { type: 'api_key', apiKey: 'test-key-123' };
     const result = await manager.configure('test_mock', credentials);
 
     expect(result.success).toBe(true);
@@ -105,42 +113,42 @@ describe('P5.1: Persistent Connector Configuration', () => {
     expect(content.iv).toBeDefined();
     expect(content.tag).toBeDefined();
     // Verify the connector was actually configured (proves persistence worked)
-    expect(manager.listConnectors().connectors[0].configured).toBe(true);
+    expect(manager.listConnectors().connectors[0]!.configured).toBe(true);
   });
 
   it('should restore persisted configurations on initialize', async () => {
     // First manager: configure and save
     manager = new ConnectorManager(configDir);
     const connector1 = new MockConnector();
-    manager.register(connector1);
+    manager.register(connector1 as unknown as any);
 
-    await manager.configure('test_mock', { apiKey: 'persisted-key' });
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'persisted-key' });
     await manager.dispose();
 
     // Second manager: should restore
     manager = new ConnectorManager(configDir);
     const connector2 = new MockConnector();
-    manager.register(connector2);
+    manager.register(connector2 as unknown as any);
 
     const before = manager.listConnectors();
-    expect(before.connectors[0].configured).toBe(false); // Not yet restored
+    expect(before.connectors[0]!.configured).toBe(false); // Not yet restored
 
     await manager.initialize();
 
     const after = manager.listConnectors();
-    expect(after.connectors[0].configured).toBe(true); // Restored!
+    expect(after.connectors[0]!.configured).toBe(true); // Restored!
   });
 
   it('should handle missing configuration directory', async () => {
     manager = new ConnectorManager(configDir);
     const connector = new MockConnector();
-    manager.register(connector);
+    manager.register(connector as unknown as any);
 
     // Directory doesn't exist yet
     expect(fs.existsSync(configDir)).toBe(false);
 
     // Should create directory and save config
-    await manager.configure('test_mock', { apiKey: 'key' });
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     expect(fs.existsSync(configDir)).toBe(true);
   });
@@ -167,8 +175,8 @@ describe('P5.2: Persistent Subscriptions', () => {
   it('should persist subscriptions to disk', async () => {
     manager = new ConnectorManager(configDir);
     const connector = new MockConnector();
-    manager.register(connector);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     const sub = manager.subscribe(
       'test_mock',
@@ -198,8 +206,8 @@ describe('P5.2: Persistent Subscriptions', () => {
     // First manager: create subscription
     manager = new ConnectorManager(configDir);
     const connector1 = new MockConnector();
-    manager.register(connector1);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector1 as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     const subId = manager.subscribe(
       'test_mock',
@@ -219,8 +227,8 @@ describe('P5.2: Persistent Subscriptions', () => {
     // Second manager: should restore
     manager = new ConnectorManager(configDir);
     const connector2 = new MockConnector();
-    manager.register(connector2);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector2 as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     const before = manager.listSubscriptions();
     expect(before).toHaveLength(0); // Not yet restored
@@ -229,16 +237,16 @@ describe('P5.2: Persistent Subscriptions', () => {
 
     const after = manager.listSubscriptions();
     expect(after).toHaveLength(1);
-    expect(after[0].id).toBe(subId);
-    expect(after[0].endpoint).toBe('endpoint');
-    expect(after[0].status).toBe('active');
+    expect(after[0]!.id).toBe(subId);
+    expect(after[0]!.endpoint).toBe('endpoint');
+    expect(after[0]!.status).toBe('active');
   });
 
   it('should delete persisted subscription when unsubscribed', async () => {
     manager = new ConnectorManager(configDir);
     const connector = new MockConnector();
-    manager.register(connector);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     const sub = manager.subscribe(
       'test_mock',
@@ -269,8 +277,8 @@ describe('P5.2: Persistent Subscriptions', () => {
   it('should preserve nextId to prevent subscription ID collisions', async () => {
     manager = new ConnectorManager(configDir);
     const connector = new MockConnector();
-    manager.register(connector);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     // Create first subscription
     const sub1 = manager.subscribe(
@@ -291,8 +299,8 @@ describe('P5.2: Persistent Subscriptions', () => {
 
     // Restore and create new subscription
     manager = new ConnectorManager(configDir);
-    manager.register(new MockConnector());
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(new MockConnector() as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
     await manager.initialize();
 
     const sub2 = manager.subscribe(
@@ -333,8 +341,8 @@ describe('P5.3: Cron subscription restore on startup', () => {
     // Session 1: create a custom cron subscription
     manager = new ConnectorManager(configDir);
     const connector1 = new MockConnector();
-    manager.register(connector1);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector1 as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     const sub = manager.subscribe(
       'test_mock',
@@ -350,17 +358,17 @@ describe('P5.3: Cron subscription restore on startup', () => {
     // Session 2: restore and verify the subscription exists with cron schedule
     manager = new ConnectorManager(configDir);
     const connector2 = new MockConnector();
-    manager.register(connector2);
-    await manager.configure('test_mock', { apiKey: 'key' });
+    manager.register(connector2 as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'key' });
 
     await manager.initialize();
 
     const subs = manager.listSubscriptions();
     expect(subs).toHaveLength(1);
-    expect(subs[0].id).toBe(sub.id);
-    expect(subs[0].schedule.interval).toBe('custom');
-    expect(subs[0].schedule.customCronExpression).toBe('0 */6 * * *');
-    expect(subs[0].status).toBe('active');
+    expect(subs[0]!.id).toBe(sub.id);
+    expect(subs[0]!.schedule.interval).toBe('custom');
+    expect(subs[0]!.schedule.customCronExpression).toBe('0 */6 * * *');
+    expect(subs[0]!.status).toBe('active');
   });
 });
 
@@ -388,8 +396,8 @@ describe('Integration: Config + Subscriptions together', () => {
     // Session 1: Set up connector with subscription
     manager = new ConnectorManager(configDir);
     const connector1 = new MockConnector();
-    manager.register(connector1);
-    await manager.configure('test_mock', { apiKey: 'production-key' });
+    manager.register(connector1 as unknown as any);
+    await manager.configure('test_mock', { type: 'api_key', apiKey: 'production-key' });
 
     const sub1 = manager.subscribe(
       'test_mock',
@@ -410,19 +418,19 @@ describe('Integration: Config + Subscriptions together', () => {
     // Session 2: Verify everything is restored
     manager = new ConnectorManager(configDir);
     const connector2 = new MockConnector();
-    manager.register(connector2);
+    manager.register(connector2 as unknown as any);
 
     // Before initialize: nothing restored
-    expect(manager.listConnectors().connectors[0].configured).toBe(false);
+    expect(manager.listConnectors().connectors[0]!.configured).toBe(false);
     expect(manager.listSubscriptions()).toHaveLength(0);
 
     // After initialize: everything restored
     await manager.initialize();
 
-    expect(manager.listConnectors().connectors[0].configured).toBe(true);
+    expect(manager.listConnectors().connectors[0]!.configured).toBe(true);
     const subs = manager.listSubscriptions();
     expect(subs).toHaveLength(1);
-    expect(subs[0].id).toBe(sub1.id);
-    expect(subs[0].destination.range).toBe('Sheet1!A1:C100');
+    expect(subs[0]!.id).toBe(sub1.id);
+    expect(subs[0]!.destination.range).toBe('Sheet1!A1:C100');
   });
 });

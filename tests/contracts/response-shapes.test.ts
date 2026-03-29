@@ -20,13 +20,6 @@ const BaseResponseSchema = z
   })
   .passthrough();
 
-// Success response with data
-const SuccessResponseSchema = z
-  .object({
-    success: z.literal(true),
-  })
-  .passthrough();
-
 // Error schema
 const ErrorSchema = z
   .object({

@@ -9,7 +9,6 @@ import { ConfirmHandler } from '../../src/handlers/confirm.js';
 import { VisualizeHandler } from '../../src/handlers/visualize.js';
 import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
-import { WebhookHandler } from '../../src/handlers/webhooks.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -56,11 +55,8 @@ const createMockContext = (): HandlerContext => ({
     recordElicitationRejection: vi.fn(),
     wasRecentlyRejected: vi.fn().mockResolvedValue(false),
   } as any,
-  confirmDestructiveAction: vi.fn().mockResolvedValue(undefined),
-  createSnapshotIfNeeded: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
-  sendProgress: vi.fn(),
   cachedApi: {} as any,
-});
+}) as unknown as HandlerContext;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Category 13: Elicitation & Wizards
@@ -101,9 +97,9 @@ describe('Category 13: Elicitation & Wizards', () => {
           data: {
             sourceRange: 'Sheet1!A1:C10',
           },
-          position: { sheetId: 0, rowIndex: 5, columnIndex: 0 },
+          position: { anchorCell: 'Sheet1!E5', offsetX: 0, offsetY: 0, width: 600, height: 400 },
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -126,9 +122,9 @@ describe('Category 13: Elicitation & Wizards', () => {
           options: {
             title: 'Revenue by Month',
           },
-          position: { sheetId: 0, rowIndex: 0, columnIndex: 0 },
+          position: { anchorCell: 'Sheet1!E1', offsetX: 0, offsetY: 0, width: 600, height: 400 },
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -159,7 +155,7 @@ describe('Category 13: Elicitation & Wizards', () => {
           action: 'create',
           title: 'My Budget Tracker',
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -173,7 +169,7 @@ describe('Category 13: Elicitation & Wizards', () => {
         request: {
           action: 'create',
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -212,7 +208,7 @@ describe('Category 13: Elicitation & Wizards', () => {
     let handler: ConfirmHandler;
 
     beforeEach(() => {
-      handler = new ConfirmHandler(mockContext);
+      handler = new ConfirmHandler({ context: mockContext });
     });
 
     it('13.7 wizard_start creates session and returns sessionId', async () => {
@@ -222,11 +218,11 @@ describe('Category 13: Elicitation & Wizards', () => {
           title: 'Import Data',
           description: 'Step-by-step import guide',
           steps: [
-            { id: 'step1', title: 'Select File', description: 'Choose CSV file' },
-            { id: 'step2', title: 'Map Columns', description: 'Match columns to sheet' },
+            { stepId: 'step1', title: 'Select File', description: 'Choose CSV file', fields: [] },
+            { stepId: 'step2', title: 'Map Columns', description: 'Match columns to sheet', fields: [] },
           ],
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -244,7 +240,7 @@ describe('Category 13: Elicitation & Wizards', () => {
 
     beforeEach(() => {
       mockContext.samplingServer = undefined; // Simulate no elicitation support
-      handler = new ConfirmHandler(mockContext);
+      handler = new ConfirmHandler({ context: mockContext });
     });
 
     it('13.8 graceful degradation when elicitation unavailable', async () => {
@@ -254,7 +250,7 @@ describe('Category 13: Elicitation & Wizards', () => {
           title: 'Setup',
           steps: [],
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -263,8 +259,6 @@ describe('Category 13: Elicitation & Wizards', () => {
   });
 
   describe('13.9 Sampling Consent', () => {
-    let handler: any;
-
     beforeEach(() => {
       // Handler setup
     });
@@ -282,8 +276,6 @@ describe('Category 13: Elicitation & Wizards', () => {
   });
 
   describe('13.10 OAuth URL-Mode (Not Form-Mode)', () => {
-    let handler: any;
-
     beforeEach(() => {
       // Auth handler setup
     });
@@ -318,7 +310,7 @@ describe('Category 13: Elicitation & Wizards', () => {
 
   describe('13.x Edge Cases', () => {
     it('should handle wizard step validation', async () => {
-      const handler = new ConfirmHandler(mockContext);
+      const handler = new ConfirmHandler({ context: mockContext });
 
       const result = await handler.handle({
         request: {
@@ -327,21 +319,21 @@ describe('Category 13: Elicitation & Wizards', () => {
           stepId: 'step1',
           values: { input: 'test' },
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
 
     it('should handle wizard completion', async () => {
-      const handler = new ConfirmHandler(mockContext);
+      const handler = new ConfirmHandler({ context: mockContext });
 
       const result = await handler.handle({
         request: {
           action: 'wizard_complete',
           wizardId: 'test-wizard',
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();

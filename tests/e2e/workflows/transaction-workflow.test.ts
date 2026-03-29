@@ -12,7 +12,7 @@
  * Note: This test requires TEST_REAL_API=true and valid credentials.
  */
 
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { it, expect, afterEach, beforeEach } from 'vitest';
 import { createTestOrchestrator, describeE2E } from '../setup/test-orchestrator.js';
 
 describeE2E('E2E: Transaction Workflow', () => {
@@ -263,13 +263,13 @@ describeE2E('E2E: Transaction Workflow', () => {
     // Verify history order
     const context = orchestrator.getContext();
     expect(context.history).toHaveLength(3);
-    expect(context.history[0].step).toBe('Operation 1: Write');
-    expect(context.history[1].step).toBe('Operation 2: Read');
-    expect(context.history[2].step).toBe('Operation 3: Update');
+    expect(context.history[0]!.step).toBe('Operation 1: Write');
+    expect(context.history[1]!.step).toBe('Operation 2: Read');
+    expect(context.history[2]!.step).toBe('Operation 3: Update');
 
     // Verify timestamps are sequential
-    expect(context.history[1].timestamp).toBeGreaterThan(context.history[0].timestamp);
-    expect(context.history[2].timestamp).toBeGreaterThan(context.history[1].timestamp);
+    expect(context.history[1]!.timestamp).toBeGreaterThan(context.history[0]!.timestamp);
+    expect(context.history[2]!.timestamp).toBeGreaterThan(context.history[1]!.timestamp);
   }, 60000);
 });
 
@@ -326,8 +326,8 @@ describeE2E('E2E: Error Recovery in Transactions', () => {
     // Verify history shows 1 success, 1 failure
     const context = orchestrator.getContext();
     expect(context.history).toHaveLength(2);
-    expect(context.history[0].success).toBe(true);
-    expect(context.history[1].success).toBe(false);
+    expect(context.history[0]!.success).toBe(true);
+    expect(context.history[1]!.success).toBe(false);
   }, 60000);
 
   it('should allow recovery after failed operations', async () => {
@@ -379,8 +379,8 @@ describeE2E('E2E: Error Recovery in Transactions', () => {
 
     const context = orchestrator.getContext();
     expect(context.history).toHaveLength(3);
-    expect(context.history[0].success).toBe(false);
-    expect(context.history[1].success).toBe(true);
-    expect(context.history[2].success).toBe(true);
+    expect(context.history[0]!.success).toBe(false);
+    expect(context.history[1]!.success).toBe(true);
+    expect(context.history[2]!.success).toBe(true);
   }, 60000);
 });

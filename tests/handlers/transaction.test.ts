@@ -66,16 +66,16 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'begin',
         spreadsheetId: 'test-sheet-id-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('begin');
-        expect(result.response.transactionId).toBe(mockTxId);
-        expect(result.response.status).toBe('pending');
-        expect(result.response.operationsQueued).toBe(0);
-        expect(result.response.message).toContain('Transaction');
-        expect(result.response.message).toContain('started');
+        expect((result.response as any).transactionId).toBe(mockTxId);
+        expect((result.response as any).status).toBe('pending');
+        expect((result.response as any).operationsQueued).toBe(0);
+        expect((result.response as any).message).toContain('Transaction');
+        expect((result.response as any).message).toContain('started');
       }
 
       expect(mockTransactionManager.begin).toHaveBeenCalledWith('test-sheet-id-123', {
@@ -99,7 +99,7 @@ describe('TransactionHandler', () => {
         spreadsheetId: 'test-sheet-id-456',
         isolationLevel: 'serializable',
         autoRollback: false,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockTransactionManager.begin).toHaveBeenCalledWith('test-sheet-id-456', {
@@ -118,12 +118,12 @@ describe('TransactionHandler', () => {
         action: 'begin',
         spreadsheetId: 'test-sheet-id-789',
         autoSnapshot: true,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.message).toContain('Snapshots are metadata-only');
-        expect(result.response.message).toContain('>50MB metadata');
+        expect((result.response as any).message).toContain('Snapshots are metadata-only');
+        expect((result.response as any).message).toContain('>50MB metadata');
       }
     });
 
@@ -135,7 +135,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'begin',
         spreadsheetId: 'test-sheet-id-error',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -169,14 +169,14 @@ describe('TransactionHandler', () => {
           action: 'write',
           params: { range: 'A1:B2', values: [[1, 2]] },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('queue');
-        expect(result.response.transactionId).toBe(mockTxId);
-        expect(result.response.operationsQueued).toBe(1);
-        expect(result.response.message).toContain('1 operation(s)');
+        expect((result.response as any).transactionId).toBe(mockTxId);
+        expect((result.response as any).operationsQueued).toBe(1);
+        expect((result.response as any).message).toContain('1 operation(s)');
       }
 
       expect(mockTransactionManager.queue).toHaveBeenCalledWith(mockTxId, {
@@ -213,13 +213,13 @@ describe('TransactionHandler', () => {
           action: 'set_background',
           params: { range: 'C1:D2' },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && result.response._meta?.warnings) {
-        expect(result.response._meta.warnings.length).toBeGreaterThan(0);
-        expect(result.response._meta.warnings[0]).toContain('Transaction size is growing');
-        expect(result.response._meta.warnings[0]).toContain('25 operations');
+      if (result.response.success && (result.response as any)._meta?.warnings) {
+        expect((result.response as any)._meta.warnings.length).toBeGreaterThan(0);
+        expect((result.response as any)._meta.warnings[0]).toContain('Transaction size is growing');
+        expect((result.response as any)._meta.warnings[0]).toContain('25 operations');
       }
     });
 
@@ -247,13 +247,13 @@ describe('TransactionHandler', () => {
           action: 'append',
           params: {},
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      if (result.response.success && result.response._meta?.warnings) {
-        expect(result.response._meta.warnings[0]).toContain('Large transaction');
-        expect(result.response._meta.warnings[0]).toContain('55 operations');
-        expect(result.response._meta.warnings[0]).toContain(
+      if (result.response.success && (result.response as any)._meta?.warnings) {
+        expect((result.response as any)._meta.warnings[0]).toContain('Large transaction');
+        expect((result.response as any)._meta.warnings[0]).toContain('55 operations');
+        expect((result.response as any)._meta.warnings[0]).toContain(
           'splitting into multiple smaller transactions'
         );
       }
@@ -282,18 +282,18 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'commit',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('commit');
-        expect(result.response.transactionId).toBe(mockTxId);
-        expect(result.response.status).toBe('committed');
-        expect(result.response.operationsExecuted).toBe(2);
-        expect(result.response.apiCallsSaved).toBe(1);
-        expect(result.response.duration).toBe(250);
-        expect(result.response.message).toContain('committed successfully');
-        expect(result.response.message).toContain('2 operation(s) executed');
+        expect((result.response as any).transactionId).toBe(mockTxId);
+        expect((result.response as any).status).toBe('committed');
+        expect((result.response as any).operationsExecuted).toBe(2);
+        expect((result.response as any).apiCallsSaved).toBe(1);
+        expect((result.response as any).duration).toBe(250);
+        expect((result.response as any).message).toContain('committed successfully');
+        expect((result.response as any).message).toContain('2 operation(s) executed');
       }
 
       expect(mockTransactionManager.commit).toHaveBeenCalledWith(mockTxId);
@@ -322,7 +322,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'commit',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -353,7 +353,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'commit',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -384,7 +384,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'commit',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -410,14 +410,14 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'rollback',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('rollback');
-        expect(result.response.transactionId).toBe(mockTxId);
-        expect(result.response.status).toBe('rolled_back');
-        expect(result.response.message).toContain('rolled back successfully');
+        expect((result.response as any).transactionId).toBe(mockTxId);
+        expect((result.response as any).status).toBe('rolled_back');
+        expect((result.response as any).message).toContain('rolled back successfully');
       }
 
       expect(mockTransactionManager.rollback).toHaveBeenCalledWith(mockTxId);
@@ -437,7 +437,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'rollback',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -467,16 +467,16 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'status',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('status');
-        expect(result.response.transactionId).toBe(mockTxId);
-        expect(result.response.status).toBe('queued');
-        expect(result.response.operationsQueued).toBe(3);
-        expect(result.response.snapshotId).toBe('snapshot-001');
-        expect(result.response.message).toContain('queued with 3 operation(s)');
+        expect((result.response as any).transactionId).toBe(mockTxId);
+        expect((result.response as any).status).toBe('queued');
+        expect((result.response as any).operationsQueued).toBe(3);
+        expect((result.response as any).snapshotId).toBe('snapshot-001');
+        expect((result.response as any).message).toContain('queued with 3 operation(s)');
       }
 
       // Validate schema compliance
@@ -498,13 +498,13 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'status',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.status).toBe('pending');
-        expect(result.response.operationsQueued).toBe(0);
-        expect(result.response.snapshotId).toBeUndefined();
+        expect((result.response as any).status).toBe('pending');
+        expect((result.response as any).operationsQueued).toBe(0);
+        expect((result.response as any).snapshotId).toBeUndefined();
       }
     });
 
@@ -518,7 +518,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'status',
         transactionId: mockTxId,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -557,16 +557,16 @@ describe('TransactionHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('list');
-        expect(result.response.transactions).toBeDefined();
-        expect(result.response.transactions?.length).toBe(2);
+        expect((result.response as any).transactions).toBeDefined();
+        expect((result.response as any).transactions?.length).toBe(2);
 
         // Verify first transaction details
-        expect(result.response.transactions?.[0]).toMatchObject({
+        expect((result.response as any).transactions?.[0]).toMatchObject({
           id: 'txn-002', // Should be sorted newest first
           spreadsheetId: 'sheet-2',
           status: 'queued',
@@ -576,7 +576,7 @@ describe('TransactionHandler', () => {
         });
 
         // Verify second transaction details
-        expect(result.response.transactions?.[1]).toMatchObject({
+        expect((result.response as any).transactions?.[1]).toMatchObject({
           id: 'txn-001',
           spreadsheetId: 'sheet-1',
           status: 'pending',
@@ -586,15 +586,16 @@ describe('TransactionHandler', () => {
         });
 
         // Verify timestamps are ISO strings
-        expect(result.response.transactions?.[0].created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+        expect((result.response as any).transactions?.[0].created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
         // Verify summary metadata
-        expect(result.response._meta?.summary).toBeDefined();
-        expect(result.response._meta?.summary.total).toBe(2);
-        expect(result.response._meta?.summary.byStatus.pending).toBe(1);
-        expect(result.response._meta?.summary.byStatus.queued).toBe(1);
+        const meta = (result.response as any)._meta;
+        expect(meta?.summary).toBeDefined();
+        expect(meta?.summary?.total).toBe(2);
+        expect(meta?.summary?.byStatus?.['pending']).toBe(1);
+        expect(meta?.summary?.byStatus?.['queued']).toBe(1);
 
-        expect(result.response.message).toContain('2 active transaction(s)');
+        expect((result.response as any).message).toContain('2 active transaction(s)');
       }
 
       // Validate schema compliance
@@ -607,13 +608,13 @@ describe('TransactionHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.transactions?.length).toBe(0);
-        expect(result.response.message).toContain('0 active transaction(s)');
-        expect(result.response._meta).toBeUndefined(); // No summary for empty list
+        expect((result.response as any).transactions?.length).toBe(0);
+        expect((result.response as any).message).toContain('0 active transaction(s)');
+        expect((result.response as any)._meta).toBeUndefined(); // No summary for empty list
       }
 
       // Validate schema compliance
@@ -654,23 +655,24 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'list',
         spreadsheetId: 'sheet-1',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.transactions?.length).toBe(2);
-        expect(result.response.transactions?.every((tx) => tx.spreadsheetId === 'sheet-1')).toBe(
-          true
-        );
+        expect((result.response as any).transactions?.length).toBe(2);
+        expect(
+          (result.response as any).transactions?.every((tx: any) => tx.spreadsheetId === 'sheet-1')
+        ).toBe(true);
 
         // Should be sorted by creation time (newest first)
-        expect(result.response.transactions?.[0].id).toBe('txn-003');
-        expect(result.response.transactions?.[1].id).toBe('txn-001');
+        expect((result.response as any).transactions?.[0].id).toBe('txn-003');
+        expect((result.response as any).transactions?.[1].id).toBe('txn-001');
 
         // Verify summary counts
-        expect(result.response._meta?.summary.total).toBe(2);
-        expect(result.response._meta?.summary.byStatus.pending).toBe(1);
-        expect(result.response._meta?.summary.byStatus.executing).toBe(1);
+        const meta = (result.response as any)._meta;
+        expect(meta?.summary?.total).toBe(2);
+        expect(meta?.summary?.byStatus?.['pending']).toBe(1);
+        expect(meta?.summary?.byStatus?.['executing']).toBe(1);
       }
 
       // Validate schema compliance
@@ -708,13 +710,13 @@ describe('TransactionHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        const transactions = result.response.transactions || [];
-        const active = transactions.find((tx) => tx.id === 'txn-active');
-        const completed = transactions.find((tx) => tx.id === 'txn-completed');
+        const transactions = (result.response as any).transactions || [];
+        const active = transactions.find((tx: any) => tx.id === 'txn-active');
+        const completed = transactions.find((tx: any) => tx.id === 'txn-completed');
 
         // Active transaction should have calculated duration (current time - start time)
         expect(active?.duration).toBeGreaterThan(0);
@@ -767,11 +769,12 @@ describe('TransactionHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response._meta?.summary).toEqual({
+        const meta = (result.response as any)._meta;
+        expect(meta?.summary).toEqual({
           total: 4,
           byStatus: {
             pending: 2,
@@ -795,7 +798,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'begin',
         spreadsheetId: 'test-error-sheet',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -817,7 +820,7 @@ describe('TransactionHandler', () => {
       const result = await handler.handle({
         action: 'commit',
         transactionId: 'txn-string-error',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -833,19 +836,19 @@ describe('TransactionHandler', () => {
       const beginResult = await handler.handle({
         action: 'begin',
         spreadsheetId: 'test-sheet',
-      });
+      } as any);
       expect(SheetsTransactionOutputSchema.safeParse(beginResult).success).toBe(true);
 
       // Test queue
       mockTransactionManager.queue = vi.fn().mockResolvedValue('op_1');
       mockTransactionManager.getTransaction = vi.fn().mockReturnValue({
         operations: [{ id: 'op_1' }],
-      } as Transaction);
+      } as unknown as Transaction);
       const queueResult = await handler.handle({
         action: 'queue',
         transactionId: 'txn-1',
         operation: { tool: 'sheets_data', action: 'write', params: {} },
-      });
+      } as any);
       expect(SheetsTransactionOutputSchema.safeParse(queueResult).success).toBe(true);
 
       // Test commit
@@ -860,7 +863,7 @@ describe('TransactionHandler', () => {
       const commitResult = await handler.handle({
         action: 'commit',
         transactionId: 'txn-1',
-      });
+      } as any);
       expect(SheetsTransactionOutputSchema.safeParse(commitResult).success).toBe(true);
 
       // Test rollback
@@ -874,7 +877,7 @@ describe('TransactionHandler', () => {
       const rollbackResult = await handler.handle({
         action: 'rollback',
         transactionId: 'txn-1',
-      });
+      } as any);
       expect(SheetsTransactionOutputSchema.safeParse(rollbackResult).success).toBe(true);
 
       // Test status
@@ -882,17 +885,17 @@ describe('TransactionHandler', () => {
         id: 'txn-1',
         status: 'pending',
         operations: [],
-      } as Transaction);
+      } as unknown as Transaction);
       const statusResult = await handler.handle({
         action: 'status',
         transactionId: 'txn-1',
-      });
+      } as any);
       expect(SheetsTransactionOutputSchema.safeParse(statusResult).success).toBe(true);
 
       // Test list
       const listResult = await handler.handle({
         action: 'list',
-      });
+      } as any);
       expect(SheetsTransactionOutputSchema.safeParse(listResult).success).toBe(true);
     });
   });

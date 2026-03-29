@@ -63,6 +63,14 @@ export interface MCPClientConfig {
    * Timeout for requests (ms)
    */
   timeout?: number;
+
+  /**
+   * Rate limit retry configuration
+   */
+  rateLimitRetry?: {
+    maxRetries: number;
+    defaultDelayMs: number;
+  };
 }
 
 type ServerRequestHandler = (request: JSONRPCRequest) => unknown | Promise<unknown>;
@@ -609,7 +617,8 @@ export class MCPClientSimulator extends EventEmitter {
       await this.sendMessage({
         jsonrpc: '2.0',
         id: request.id,
-        result,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        result: result as any,
       });
     } catch (error) {
       await this.sendMessage({
@@ -732,7 +741,8 @@ export class MCPClientSimulator extends EventEmitter {
    *
    * This is a stub implementation - subclasses should implement transport-specific logic.
    */
-  protected async sendRequest(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected async sendRequest(request: JSONRPCRequest): Promise<any> {
     throw new Error('sendRequest must be implemented by transport-specific subclass');
   }
 
@@ -778,7 +788,8 @@ export class MCPHttpClient extends MCPClientSimulator {
     this.authToken = config.authToken;
   }
 
-  protected async sendRequest(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected async sendRequest(request: JSONRPCRequest): Promise<any> {
     const response = await this.sendMessage(request);
 
     if (!response.ok) {

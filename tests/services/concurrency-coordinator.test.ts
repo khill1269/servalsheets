@@ -298,7 +298,7 @@ describe('ConcurrencyCoordinator', () => {
     });
 
     it('should respect environment variable for max concurrent', () => {
-      process.env.GOOGLE_API_MAX_CONCURRENT = '10';
+      process.env['GOOGLE_API_MAX_CONCURRENT'] = '10';
 
       resetConcurrencyCoordinator();
       const coordinator = getConcurrencyCoordinator();
@@ -306,7 +306,7 @@ describe('ConcurrencyCoordinator', () => {
 
       expect(status.limit).toBe(10);
 
-      delete process.env.GOOGLE_API_MAX_CONCURRENT;
+      delete process.env['GOOGLE_API_MAX_CONCURRENT'];
     });
 
     it('should reset singleton with resetConcurrencyCoordinator', () => {

@@ -189,11 +189,12 @@ describe('WebhookWorker', () => {
         deliveryId: 'delivery-start-stop',
         webhookId: 'webhook-start-stop',
         webhookUrl: 'https://example.com/webhook',
-        eventType: 'spreadsheet.updated',
+        eventType: 'cell.update' as const,
         payload: { spreadsheetId: 'test-id' },
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: 1704067200000,
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -220,12 +221,13 @@ describe('WebhookWorker', () => {
         deliveryId: 'delivery-1',
         webhookId: 'webhook-1',
         webhookUrl: 'https://example.com/webhook',
-        eventType: 'spreadsheet.updated',
+        eventType: 'cell.update' as const,
         payload: { spreadsheetId: 'test-id', action: 'update' },
         secret: 'test-secret',
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: 1704067200000,
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
     });
 
@@ -239,7 +241,7 @@ describe('WebhookWorker', () => {
       await invokeProcessDelivery(worker, mockJob);
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
-      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       const headers = fetchCall[1].headers;
 
       // Signature format should include sha256 prefix and actual digest
@@ -258,7 +260,7 @@ describe('WebhookWorker', () => {
 
       await invokeProcessDelivery(worker, jobWithoutSecret);
 
-      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       expect(fetchCall[1].headers['X-Webhook-Signature']).toBe('none');
     });
 
@@ -271,11 +273,11 @@ describe('WebhookWorker', () => {
 
       await invokeProcessDelivery(worker, mockJob);
 
-      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       const headers = fetchCall[1].headers;
 
       expect(headers['X-Webhook-Delivery']).toBe('delivery-1');
-      expect(headers['X-Webhook-Event']).toBe('spreadsheet.updated');
+      expect(headers['X-Webhook-Event']).toBe('cell.update');
     });
 
     it('should mark delivery as success on 2xx response', async () => {
@@ -360,7 +362,7 @@ describe('WebhookWorker', () => {
 
       await invokeProcessDelivery(worker, mockJob);
 
-      const failureCall = mockWebhookQueue.markFailure.mock.calls[0];
+      const failureCall = mockWebhookQueue.markFailure.mock.calls[0]!;
       const errorMessage = failureCall[1] as string;
       expect(errorMessage.length).toBeLessThan(250); // HTTP 400: + 200 chars max
     });
@@ -389,14 +391,14 @@ describe('WebhookWorker', () => {
 
       await invokeProcessDelivery(worker, mockJob);
 
-      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       const payloadStr = fetchCall[1].body;
       const payload = JSON.parse(payloadStr);
 
       expect(payload).toMatchObject({
         deliveryId: 'delivery-1',
         webhookId: 'webhook-1',
-        eventType: 'spreadsheet.updated',
+        eventType: 'cell.update',
         data: { spreadsheetId: 'test-id', action: 'update' },
       });
       expect(payload.timestamp).toBeDefined();
@@ -472,22 +474,24 @@ describe('WebhookWorker', () => {
         deliveryId: 'delivery-1',
         webhookId: 'webhook-1',
         webhookUrl: 'https://example.com/webhook1',
-        eventType: 'test',
+        eventType: 'cell.update' as const,
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: 1704067200000,
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       const job2: WebhookDeliveryJob = {
         deliveryId: 'delivery-2',
         webhookId: 'webhook-2',
         webhookUrl: 'https://example.com/webhook2',
-        eventType: 'test',
+        eventType: 'cell.update' as const,
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: 1704067200000,
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -538,11 +542,12 @@ describe('WebhookWorker', () => {
         deliveryId: 'delivery-1',
         webhookId: 'webhook-1',
         webhookUrl: 'invalid-url', // Invalid URL
-        eventType: 'test',
+        eventType: 'cell.update' as const,
         payload: {},
         attemptCount: 0,
         maxAttempts: 3,
-        queuedAt: 1704067200000,
+        createdAt: 1704067200000,
+        scheduledAt: 1704067200000,
       };
 
       (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Invalid URL'));

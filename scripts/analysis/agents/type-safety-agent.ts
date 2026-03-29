@@ -347,7 +347,7 @@ export class TypeSafetyAgent extends AnalysisAgent {
       const line = lines[i];
 
       // Match @ts-ignore with optional reason (after //)
-      const match = line.match(/\/\/\s*@ts-ignore(?:\s+([^\r\n]+))?/);
+      const match = line?.match(/\/\/\s*@ts-ignore(?:\s+([^\r\n]+))?/);
       if (match) {
         const reason = match[1]?.trim();
 

@@ -24,7 +24,6 @@ import { createMockSheetsApi } from '../helpers/google-api-mocks.js';
 
 // Benchmark configuration
 const SPREADSHEET_ID = 'bench-spreadsheet-id';
-const ITERATIONS = 1000;
 
 // Shared state
 let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
@@ -184,8 +183,8 @@ describe('Prefetch Prediction Performance', () => {
       if (pred.tool === 'sheets_data' && pred.action === 'read') {
         await requestMerger.mergeRead(
           mockSheetsApi as unknown as sheets_v4.Sheets,
-          pred.params.spreadsheetId as string,
-          pred.params.range as string
+          pred.params['spreadsheetId'] as string,
+          pred.params['range'] as string
         );
       }
     });
@@ -208,14 +207,16 @@ describe('Prefetch Prediction Performance', () => {
  */
 describe('Cache Invalidation Graph Performance', () => {
   bench('track 100 read dependencies', () => {
-    const graph = getCacheInvalidationGraph();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- benchmark uses extended API not in type
+    const graph = getCacheInvalidationGraph() as any;
     for (let i = 0; i < 100; i++) {
       graph.trackRead(SPREADSHEET_ID, `Sheet1!A${i + 1}:D${i + 10}`);
     }
   });
 
   bench('invalidate single range (10 dependencies)', () => {
-    const graph = getCacheInvalidationGraph();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- benchmark uses extended API not in type
+    const graph = getCacheInvalidationGraph() as any;
     // Setup dependencies
     for (let i = 0; i < 10; i++) {
       graph.trackRead(SPREADSHEET_ID, `Sheet1!A${i + 1}:D${i + 10}`);
@@ -225,7 +226,8 @@ describe('Cache Invalidation Graph Performance', () => {
   });
 
   bench('invalidate entire sheet (100 dependencies)', () => {
-    const graph = getCacheInvalidationGraph();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- benchmark uses extended API not in type
+    const graph = getCacheInvalidationGraph() as any;
     // Setup many dependencies
     for (let i = 0; i < 100; i++) {
       graph.trackRead(SPREADSHEET_ID, `Sheet1!A${i + 1}:D${i + 10}`);
@@ -235,7 +237,8 @@ describe('Cache Invalidation Graph Performance', () => {
   });
 
   bench('query overlapping ranges', () => {
-    const graph = getCacheInvalidationGraph();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- benchmark uses extended API not in type
+    const graph = getCacheInvalidationGraph() as any;
     // Setup dependencies
     for (let i = 0; i < 50; i++) {
       graph.trackRead(SPREADSHEET_ID, `Sheet1!A${i + 1}:D${i + 10}`);
@@ -308,7 +311,8 @@ describe('Combined Features Performance', () => {
   bench('realistic mixed workload (100 ops)', async () => {
     const merger = new RequestMerger({ enabled: true, windowMs: 50 });
     const predictor = new PrefetchPredictor({ minConfidence: 0.7 });
-    const graph = getCacheInvalidationGraph();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- benchmark uses extended API not in type
+    const graph = getCacheInvalidationGraph() as any;
 
     try {
       for (let i = 0; i < 100; i++) {
@@ -334,8 +338,8 @@ describe('Combined Features Performance', () => {
             if (pred.tool === 'sheets_data' && pred.action === 'read') {
               await merger.mergeRead(
                 mockSheetsApi as unknown as sheets_v4.Sheets,
-                pred.params.spreadsheetId as string,
-                pred.params.range as string
+                pred.params['spreadsheetId'] as string,
+                pred.params['range'] as string
               );
             }
           });
@@ -347,7 +351,8 @@ describe('Combined Features Performance', () => {
   });
 
   bench('memory efficiency (1000 tracked ranges)', () => {
-    const graph = getCacheInvalidationGraph();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- benchmark uses extended API not in type
+    const graph = getCacheInvalidationGraph() as any;
     for (let i = 0; i < 1000; i++) {
       graph.trackRead(SPREADSHEET_ID, `Sheet1!A${i + 1}:D${i + 10}`);
     }

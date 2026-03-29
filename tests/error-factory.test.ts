@@ -316,7 +316,7 @@ describe('Error Factory', () => {
 
     it('should detect auth expiry pattern', () => {
       const errors: ErrorDetail[] = Array.from({ length: 3 }, () => ({
-        code: 'UNAUTHORIZED',
+        code: 'UNAUTHORIZED' as ErrorDetail['code'],
         message: 'Authentication token expired',
         category: 'auth',
         severity: 'critical',
@@ -332,7 +332,7 @@ describe('Error Factory', () => {
 
     it('should detect network pattern', () => {
       const errors: ErrorDetail[] = Array.from({ length: 4 }, () => ({
-        code: 'NETWORK_ERROR',
+        code: 'NETWORK_ERROR' as ErrorDetail['code'],
         message: 'Network timeout',
         category: 'network',
         severity: 'high',

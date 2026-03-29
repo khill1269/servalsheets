@@ -72,7 +72,7 @@ describe('B1: agent error classification', () => {
 
     const handler: ExecuteHandlerFn = async () => {
       const err = new Error('Quota exceeded');
-      (err as Record<string, unknown>)['errorDetail'] = {
+      (err as unknown as Record<string, unknown>)['errorDetail'] = {
         code: 'QUOTA_EXCEEDED',
         message: 'Quota exceeded',
         retryable: true,
@@ -103,7 +103,7 @@ describe('B1: agent error classification', () => {
       callCount++;
       const err = new Error('Rate limit exceeded');
       // Mark as retryable via errorDetail property
-      (err as Record<string, unknown>)['errorDetail'] = {
+      (err as unknown as Record<string, unknown>)['errorDetail'] = {
         code: 'RATE_LIMIT_EXCEEDED',
         message: 'Rate limit exceeded',
         retryable: true,
@@ -128,7 +128,7 @@ describe('B1: agent error classification', () => {
     const handler: ExecuteHandlerFn = async () => {
       callCount++;
       const err = new Error('Spreadsheet not found');
-      (err as Record<string, unknown>)['errorDetail'] = {
+      (err as unknown as Record<string, unknown>)['errorDetail'] = {
         code: 'SPREADSHEET_NOT_FOUND',
         message: 'Spreadsheet not found',
         retryable: false,
@@ -149,7 +149,7 @@ describe('B1: agent error classification', () => {
 
     const handler: ExecuteHandlerFn = async () => {
       const err = new Error('Auth required');
-      (err as Record<string, unknown>)['errorDetail'] = {
+      (err as unknown as Record<string, unknown>)['errorDetail'] = {
         code: 'AUTH_REQUIRED',
         message: 'Auth required',
         retryable: false,
@@ -182,7 +182,7 @@ describe('B1: agent error classification', () => {
 
     const handler: ExecuteHandlerFn = async () => {
       const err = new Error('Unknown error');
-      (err as Record<string, unknown>)['errorDetail'] = {
+      (err as unknown as Record<string, unknown>)['errorDetail'] = {
         code: 'INTERNAL_ERROR',
         message: 'Unknown error',
         retryable: false,

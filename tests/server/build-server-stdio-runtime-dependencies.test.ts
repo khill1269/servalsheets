@@ -37,7 +37,7 @@ describe('buildServerStdioRuntimeDependencies', () => {
       registerTools: vi.fn(),
       registerResources: vi.fn(async () => undefined),
       handleToolCall: vi.fn(async () => ({ content: [] })),
-      log,
+      log: log as never,
     });
 
     dependencies.registerCompletions();

@@ -13,6 +13,7 @@
 
 import { google, sheets_v4, drive_v3 } from 'googleapis';
 import type { GaxiosResponse } from 'gaxios';
+import type { GaxiosResponseWithHTTP2 } from 'googleapis-common';
 import {
   loadTestCredentials,
   shouldRunIntegrationTests,
@@ -22,7 +23,6 @@ import { executeWithTestRetry, type TestRetryOptions } from './test-retry-manage
 import { getTestRateLimiter, type TestRateLimiter } from './test-rate-limiter.js';
 import { getQuotaManager, type QuotaManager } from './quota-manager.js';
 import { getMetricsCollector, recordApiCallMetric } from './metrics-collector.js';
-import { TEST_CONFIG } from './config.js';
 
 export interface LiveApiClientOptions {
   /** Log all requests to console */
@@ -146,13 +146,13 @@ export class LiveApiClient {
   async trackOperation<T>(
     operation: string,
     method: string,
-    fn: () => Promise<GaxiosResponse<T>>
+    fn: () => Promise<GaxiosResponse<T> | GaxiosResponseWithHTTP2<T>>
   ): Promise<GaxiosResponse<T>> {
     const startTime = performance.now();
     const type = this.classifyOperation(method);
 
     try {
-      const response = await fn();
+      const response = await fn() as GaxiosResponse<T>;
       const duration = performance.now() - startTime;
 
       const metric: RequestMetrics = {
@@ -208,7 +208,7 @@ export class LiveApiClient {
   async executeWithRetry<T>(
     operation: string,
     method: string,
-    fn: () => Promise<GaxiosResponse<T>>,
+    fn: () => Promise<GaxiosResponse<T> | GaxiosResponseWithHTTP2<T>>,
     retryOptions?: TestRetryOptions
   ): Promise<GaxiosResponse<T>> {
     const type = this.classifyOperation(method);
@@ -236,7 +236,7 @@ export class LiveApiClient {
    */
   async executeRead<T>(
     operation: string,
-    fn: () => Promise<GaxiosResponse<T>>,
+    fn: () => Promise<GaxiosResponse<T> | GaxiosResponseWithHTTP2<T>>,
     retryOptions?: TestRetryOptions
   ): Promise<GaxiosResponse<T>> {
     return this.executeWithRetry(operation, 'GET', fn, retryOptions);
@@ -247,7 +247,7 @@ export class LiveApiClient {
    */
   async executeWrite<T>(
     operation: string,
-    fn: () => Promise<GaxiosResponse<T>>,
+    fn: () => Promise<GaxiosResponse<T> | GaxiosResponseWithHTTP2<T>>,
     retryOptions?: TestRetryOptions
   ): Promise<GaxiosResponse<T>> {
     return this.executeWithRetry(operation, 'POST', fn, retryOptions);
@@ -324,12 +324,12 @@ export class LiveApiClient {
       if (!byOperation[metric.operation]) {
         byOperation[metric.operation] = { count: 0, avgDuration: 0 };
       }
-      byOperation[metric.operation].count++;
-      byOperation[metric.operation].avgDuration += metric.duration;
+      byOperation[metric.operation]!.count++;
+      byOperation[metric.operation]!.avgDuration += metric.duration;
     }
 
     for (const op of Object.keys(byOperation)) {
-      byOperation[op].avgDuration /= byOperation[op].count;
+      byOperation[op]!.avgDuration /= byOperation[op]!.count;
     }
 
     return {

@@ -17,7 +17,7 @@
 import { bench, describe } from 'vitest';
 import { z } from 'zod';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
-import { ACTION_COUNT, TOOL_COUNT } from '../../src/schemas/action-counts.js';
+import { TOOL_COUNT } from '../../src/schemas/action-counts.js';
 import { generateAllFixtures } from './action-coverage-fixtures.js';
 
 // ─── Schema Registry (same as action-coverage.test.ts) ────
@@ -85,7 +85,7 @@ const broadSampleFixtures = toolNames.flatMap((tool) => {
   const toolFixtures = allFixtures.filter((f) => f.tool === tool);
   // Take first, middle, last action
   const indices = [0, Math.floor(toolFixtures.length / 2), toolFixtures.length - 1];
-  return [...new Set(indices)].map((i) => toolFixtures[i]).filter(Boolean);
+  return ([...new Set(indices)].map((i) => toolFixtures[i]).filter(Boolean)) as typeof allFixtures;
 });
 
 // ─── Benchmark 1: Fixture Generation ─────────────────────────
@@ -171,9 +171,6 @@ describe(`Full Action Sweep — all ${allFixtures.length} actions`, () => {
 // ─── Benchmark 6: Response Building ──────────────────────────
 
 describe('Response Building — buildToolResponse()', () => {
-  // Dynamic import to avoid pulling in server dependencies at module level
-  let buildToolResponse: (result: unknown, toolName?: string) => unknown;
-
   const successResult = {
     response: {
       success: true,

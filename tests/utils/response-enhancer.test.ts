@@ -35,10 +35,10 @@ describe('Response Enhancer - Quick Win #1', () => {
 
       // Should have quality fix as first suggestion (HIGH priority)
       expect(suggestions.length).toBeGreaterThan(0);
-      expect(suggestions[0].priority).toBe('high');
-      expect(suggestions[0].tool).toBe('sheets_quality');
-      expect(suggestions[0].action).toBe('fix');
-      expect(suggestions[0].message).toContain('2 quality issues'); // 2 items in issues array
+      expect(suggestions[0]!.priority).toBe('high');
+      expect(suggestions[0]!.tool).toBe('sheets_quality');
+      expect(suggestions[0]!.action).toBe('fix');
+      expect(suggestions[0]!.message).toContain('2 quality issues'); // 2 items in issues array
     });
 
     it('should flag destructive operations without dryRun as HIGH priority', () => {
@@ -309,7 +309,7 @@ describe('Response Enhancer - Quick Win #1', () => {
       expect(meta.relatedTools).toBeDefined();
 
       // First suggestion should be HIGH priority (quality issue)
-      expect(meta.suggestions![0].priority).toBe('high');
+      expect(meta.suggestions![0]!.priority).toBe('high');
     });
 
     it('should include next steps for common workflows', () => {

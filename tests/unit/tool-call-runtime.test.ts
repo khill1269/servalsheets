@@ -129,7 +129,7 @@ describe('executeToolCallRuntime', () => {
         success: true,
         source: 'remote',
       },
-    }));
+    })) as any;
 
     const result = await executeToolCallRuntime(
       createInput({

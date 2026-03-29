@@ -125,7 +125,7 @@ describe('tools/list Schema Serialization', () => {
       expect(tool, `Tool ${toolName} should be registered`).toBeDefined();
       expect(tool!.inputSchema.properties).toBeDefined();
 
-      const propertyCount = Object.keys(tool!.inputSchema.properties).length;
+      const propertyCount = Object.keys(tool!.inputSchema.properties!).length;
       expect(propertyCount, `Tool ${toolName} should have non-empty schema`).toBeGreaterThan(0);
     }
   });
@@ -136,12 +136,12 @@ describe('tools/list Schema Serialization', () => {
     // All ServalSheets tools use { request: ... } pattern
     for (const tool of response.tools) {
       expect(
-        tool.inputSchema.properties.request,
+        tool.inputSchema.properties!['request'],
         `Tool ${tool.name} should have request property`
       ).toBeDefined();
 
       // Request should have oneOf or properties
-      const request = tool.inputSchema.properties.request as Record<string, unknown>;
+      const request = tool.inputSchema.properties!['request'] as Record<string, unknown>;
       const hasOneOf = 'oneOf' in request;
       const hasProperties = 'properties' in request;
 
@@ -376,7 +376,7 @@ describe('tools/list Schema Serialization', () => {
       const webhookTool = response.tools.find((tool) => tool.name === 'sheets_webhook');
 
       expect(webhookTool).toBeDefined();
-      expect(String(webhookTool!.description ?? '')).toContain(
+      expect(String((webhookTool as any)?.description ?? '')).toContain(
         'Redis is not configured in this server process'
       );
 
@@ -415,7 +415,7 @@ describe('tools/list Schema Serialization', () => {
     const appsscriptTool = response.tools.find((tool) => tool.name === 'sheets_appsscript');
 
     expect(appsscriptTool).toBeDefined();
-    expect(String(appsscriptTool!.description ?? '')).toContain(
+    expect(String((appsscriptTool as any)?.description ?? '')).toContain(
       'Apps Script trigger compatibility actions are hidden by default'
     );
 

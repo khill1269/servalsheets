@@ -6,7 +6,7 @@
  * classification edge cases.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { PipelineExecutor, type PipelineStep, type ToolDispatch } from '../../src/services/pipeline-executor.js';
 import { registerPipelineDispatch, getPipelineDispatch } from '../../src/services/pipeline-registry.js';
 

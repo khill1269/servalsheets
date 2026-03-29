@@ -19,7 +19,7 @@
  * No real Google API calls.  All runs < 5s.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildToolResponse } from '../../src/mcp/registration/tool-handlers.js';
 import {
   createRequestContext,

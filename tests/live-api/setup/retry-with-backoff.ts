@@ -43,11 +43,11 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
   maxRetries: TEST_CONFIG.retry.maxRetries,
   baseDelayMs: TEST_CONFIG.retry.baseDelayMs,
   maxDelayMs: TEST_CONFIG.retry.maxDelayMs,
-  jitterFactor: TEST_CONFIG.retry.jitterFactor,
+  jitterFactor: TEST_CONFIG.retry.jitterRatio,
   retryOnRateLimit: true,
   rateLimitDelayMs: 60000,
   operationName: 'operation',
-  verbose: process.env.VERBOSE_TESTS === 'true',
+  verbose: process.env['VERBOSE_TESTS'] === 'true',
 };
 
 /**

@@ -9,7 +9,7 @@
  * - GOAWAY connection errors
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createChaosEngine, type ChaosEngine } from './chaos-framework.js';
 import { CircuitBreaker } from '../../src/utils/circuit-breaker.js';
 import { executeWithRetry } from '../../src/utils/retry.js';

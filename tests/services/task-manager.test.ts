@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TaskManager } from '../../src/services/task-manager';
+import { TaskManager } from '../../src/services/task-manager.js';
 
 describe('TaskManager', () => {
   let taskManager: TaskManager;
@@ -102,8 +102,8 @@ describe('TaskManager', () => {
       });
 
       const status = taskManager.getTaskStatus(taskId);
-      expect(status?.metadata.customField).toBe('custom-value');
-      expect(status?.metadata.userId).toBe('user-123');
+      expect(status?.metadata['customField']).toBe('custom-value');
+      expect(status?.metadata['userId']).toBe('user-123');
     });
   });
 
@@ -346,9 +346,9 @@ describe('TaskManager', () => {
       const activeTasks = taskManager.listActiveTasks();
 
       expect(activeTasks).toHaveLength(2);
-      expect(activeTasks.map((t) => t.taskId)).toContain('task-1');
-      expect(activeTasks.map((t) => t.taskId)).toContain('task-2');
-      expect(activeTasks.map((t) => t.taskId)).not.toContain('task-3');
+      expect(activeTasks.map((t: { taskId: string }) => t.taskId)).toContain('task-1');
+      expect(activeTasks.map((t: { taskId: string }) => t.taskId)).toContain('task-2');
+      expect(activeTasks.map((t: { taskId: string }) => t.taskId)).not.toContain('task-3');
     });
 
     it('should not include failed tasks in active list', () => {
@@ -359,7 +359,7 @@ describe('TaskManager', () => {
       const activeTasks = taskManager.listActiveTasks();
 
       expect(activeTasks).toHaveLength(1);
-      expect(activeTasks[0].taskId).toBe('task-1');
+      expect(activeTasks[0]?.taskId).toBe('task-1');
     });
 
     it('should not include cancelled tasks in active list', () => {
@@ -370,7 +370,7 @@ describe('TaskManager', () => {
       const activeTasks = taskManager.listActiveTasks();
 
       expect(activeTasks).toHaveLength(1);
-      expect(activeTasks[0].taskId).toBe('task-1');
+      expect(activeTasks[0]?.taskId).toBe('task-1');
     });
 
     it('should return empty array when no active tasks', () => {
@@ -387,9 +387,9 @@ describe('TaskManager', () => {
       const allTasks = taskManager.getAllTasks();
 
       expect(allTasks).toHaveLength(3);
-      expect(allTasks.map((t) => t.taskId)).toContain('task-1');
-      expect(allTasks.map((t) => t.taskId)).toContain('task-2');
-      expect(allTasks.map((t) => t.taskId)).toContain('task-3');
+      expect(allTasks.map((t: { taskId: string }) => t.taskId)).toContain('task-1');
+      expect(allTasks.map((t: { taskId: string }) => t.taskId)).toContain('task-2');
+      expect(allTasks.map((t: { taskId: string }) => t.taskId)).toContain('task-3');
     });
   });
 

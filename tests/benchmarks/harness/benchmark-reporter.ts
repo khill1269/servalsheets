@@ -309,7 +309,7 @@ export class BenchmarkReporter {
         };
       }
 
-      const cat = categories[result.category];
+      const cat = categories[result.category]!;
       cat.count++;
       cat.avgP50 += result.statistics.p50;
       cat.avgP95 += result.statistics.p95;

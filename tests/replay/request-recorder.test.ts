@@ -29,7 +29,7 @@ type RecordedRequest = import('../../src/services/request-recorder.js').Recorded
 const TEST_DB_PATH = resolve(process.cwd(), '.data', 'test-requests.db');
 
 describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
-  let recorder: RequestRecorder;
+  let recorder: InstanceType<typeof RequestRecorder>;
   let originalRecordRequests: string | undefined;
 
   beforeEach(() => {
@@ -223,7 +223,7 @@ describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
     it('filters by tool name', () => {
       const results = recorder.query({ tool_name: 'sheets_data' });
       expect(results.length).toBe(2);
-      expect(results.every((r) => r.tool_name === 'sheets_data')).toBe(true);
+      expect(results.every((r: RecordedRequest) => r.tool_name === 'sheets_data')).toBe(true);
     });
 
     it('filters by action', () => {
@@ -235,7 +235,7 @@ describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
     it('filters by spreadsheet ID', () => {
       const results = recorder.query({ spreadsheet_id: 'test-1' });
       expect(results.length).toBe(2);
-      expect(results.every((r) => r.spreadsheet_id === 'test-1')).toBe(true);
+      expect(results.every((r: RecordedRequest) => r.spreadsheet_id === 'test-1')).toBe(true);
     });
 
     it('filters by status code', () => {

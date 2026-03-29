@@ -94,7 +94,7 @@ describe('QualityHandler', () => {
         action: 'validate',
         value: { name: 'Alice', age: 30 },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1:B2' },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -141,7 +141,7 @@ describe('QualityHandler', () => {
         action: 'validate',
         value: { name: null, age: 'invalid' },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1:B2' },
-      });
+      } as any);
 
       // ISSUE-136 fix: success:false when validation finds errors (eliminates dual-success pattern)
       expect(result.response.success).toBe(false);
@@ -158,7 +158,7 @@ describe('QualityHandler', () => {
         value: { name: 'Bob', age: 25 },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1:B2' },
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('dryRun', true);
@@ -171,7 +171,7 @@ describe('QualityHandler', () => {
         value: { name: 'Carol', age: 28 },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1:B2' },
         verbosity: 'minimal',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).not.toHaveProperty('_meta');
@@ -193,7 +193,7 @@ describe('QualityHandler', () => {
             message: 'Unit Price must exceed COGS',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('valid', true);
@@ -216,7 +216,7 @@ describe('QualityHandler', () => {
             message: 'Unit Price must exceed COGS',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       expect((result.response as any).error.code).toBe('VALIDATION_ERROR');
@@ -239,7 +239,7 @@ describe('QualityHandler', () => {
             userId: 'user1',
           },
         ],
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -261,7 +261,7 @@ describe('QualityHandler', () => {
         spreadsheetId: 'test123',
         conflictId: 'conflict-123',
         strategy: 'keep_local',
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -284,7 +284,7 @@ describe('QualityHandler', () => {
           spreadsheetId: 'test123',
           conflictId: 'conflict-123',
           strategy,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
       }
@@ -300,7 +300,7 @@ describe('QualityHandler', () => {
           type: 'delete',
           range: 'Sheet1!A1:B10',
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
@@ -353,7 +353,7 @@ describe('QualityHandler', () => {
           type: 'delete',
           range: 'Sheet1!A1:J100',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect((result.response as any).impact).toBeDefined();
@@ -381,7 +381,7 @@ describe('QualityHandler', () => {
         value: { test: 'data' },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1' },
         verbosity: 'minimal',
-      });
+      } as any);
 
       expect(result.response).not.toHaveProperty('_meta');
     });
@@ -392,7 +392,7 @@ describe('QualityHandler', () => {
         value: { test: 'data' },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1' },
         verbosity: 'standard',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       // Standard verbosity doesn't filter anything
@@ -404,7 +404,7 @@ describe('QualityHandler', () => {
         value: { test: 'data' },
         context: { spreadsheetId: 'test123', range: 'Sheet1!A1' },
         verbosity: 'detailed',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       // Detailed verbosity doesn't filter anything

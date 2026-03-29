@@ -19,12 +19,11 @@
  * @category Integration Testing
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
 import { RequestMerger } from '../../src/services/request-merger.js';
 import { PrefetchPredictor } from '../../src/services/prefetch-predictor.js';
 import { getWorkerPool, shutdownWorkerPool } from '../../src/services/worker-pool.js';
-import { getCachedSheetsApi } from '../../src/services/cached-sheets-api.js';
 import { getCacheInvalidationGraph } from '../../src/services/cache-invalidation-graph.js';
 import { getHistoryService } from '../../src/services/history-service.js';
 import { createMockSheetsApi } from '../helpers/google-api-mocks.js';
@@ -120,7 +119,6 @@ describe('Phase 2 Feature Integration', () => {
   let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
   let metrics: MetricsTracker;
   let requestMerger: RequestMerger;
-  let prefetchPredictor: PrefetchPredictor;
 
   beforeEach(() => {
     // Create mock Google Sheets API
@@ -145,7 +143,6 @@ describe('Phase 2 Feature Integration', () => {
 
     metrics = new MetricsTracker();
     requestMerger = new RequestMerger({ enabled: true, windowMs: 50 });
-    prefetchPredictor = new PrefetchPredictor({ minConfidence: 0.7 });
   });
 
   afterEach(async () => {
@@ -268,14 +265,14 @@ describe('Phase 2 Feature Integration', () => {
     expect(predictions.length).toBeGreaterThan(0);
 
     // Step 4: Execute prefetch in background
-    const prefetchResults = await lowConfidencePredictor.prefetchInBackground(
+    await lowConfidencePredictor.prefetchInBackground(
       predictions,
       async (prediction) => {
         if (prediction.tool === 'sheets_data' && prediction.action === 'read') {
           await requestMerger.mergeRead(
             mockSheetsApi as unknown as sheets_v4.Sheets,
-            prediction.params.spreadsheetId as string,
-            prediction.params.range as string
+            prediction.params['spreadsheetId'] as string,
+            prediction.params['range'] as string
           );
         }
       }

@@ -112,7 +112,7 @@ describe('executeTracedToolCall', () => {
           request: { action: 'read', spreadsheetId: 'sheet-456' },
         }),
         detectMutationSafety: vi.fn().mockReturnValue(null),
-        executeWithWriteLock: lockWrapper,
+        executeWithWriteLock: lockWrapper as any,
         logLegacyInvocation: vi.fn(),
       }
     );
@@ -123,7 +123,7 @@ describe('executeTracedToolCall', () => {
       undefined
     );
     expect(result).toBe(handlerResult);
-    expect(handlerResult.response['_meta']).toMatchObject({
+    expect((handlerResult.response as any)['_meta']).toMatchObject({
       protocolVersion: '2025-11-25',
     });
     expect(requestContext.traceId).toBe('trace-root');
@@ -160,7 +160,7 @@ describe('executeTracedToolCall', () => {
       }
     );
 
-    expect(handlerResult.response['_meta']).toMatchObject({
+    expect((handlerResult.response as any)['_meta']).toMatchObject({
       protocolVersion: '2025-11-25',
       deprecationWarning: expect.any(String),
     });

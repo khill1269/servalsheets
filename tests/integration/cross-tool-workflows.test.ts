@@ -5,12 +5,7 @@
  * Validates that tools can be composed together correctly.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import {
-  createMockSheetsApi,
-  createMockDriveApi,
-  type MockSpreadsheetData,
-} from '../helpers/google-api-mocks.js';
+import { describe, it, expect } from 'vitest';
 
 // Import schemas for validation
 import {
@@ -38,7 +33,6 @@ import {
  * 4. Add borders
  */
 describe('Cross-Tool Schema Validation: Create Formatted Spreadsheet', () => {
-  const mockApi = createMockSheetsApi();
   let createdSpreadsheetId: string;
 
   it('Step 1: Create new spreadsheet', () => {

@@ -74,7 +74,7 @@ describe('ResourceIndicatorValidator', () => {
     validator = new ResourceIndicatorValidator({
       resourceIdentifier: 'https://servalsheets.example.com',
       allowedIssuers: ['https://accounts.google.com'],
-    });
+    } as any);
   });
 
   describe('constructor', () => {
@@ -87,7 +87,7 @@ describe('ResourceIndicatorValidator', () => {
         resourceIdentifier: 'https://servalsheets.example.com',
         allowedIssuers: ['https://accounts.google.com'],
         tokenInfoEndpoint: 'https://custom.example.com/tokeninfo',
-      });
+      } as any);
 
       expect(customValidator).toBeDefined();
     });
@@ -148,7 +148,7 @@ describe('ResourceIndicatorValidator', () => {
         resourceIdentifier: 'https://servalsheets.example.com',
         allowedIssuers: ['https://accounts.google.com'],
         tokenInfoEndpoint: 'https://oauth2.googleapis.com/tokeninfo',
-      });
+      } as any);
 
       const result = await validatorWithEndpoint.introspectToken('some-token');
 
@@ -163,7 +163,7 @@ describe('ResourceIndicatorValidator', () => {
         resourceIdentifier: 'https://servalsheets.example.com',
         allowedIssuers: ['https://accounts.google.com'],
         tokenInfoEndpoint: 'https://oauth2.googleapis.com/tokeninfo',
-      });
+      } as any);
 
       const result = await validatorWithEndpoint.introspectToken('some-token');
 
@@ -182,7 +182,7 @@ describe('ResourceIndicatorValidator', () => {
         resourceIdentifier: 'https://servalsheets.example.com',
         allowedIssuers: ['https://accounts.google.com'],
         tokenInfoEndpoint: 'https://oauth2.googleapis.com/tokeninfo',
-      });
+      } as any);
 
       const result = await validatorWithEndpoint.introspectToken('invalid-token');
 
@@ -203,7 +203,7 @@ describe('ResourceIndicatorValidator', () => {
         resourceIdentifier: 'https://servalsheets.example.com',
         allowedIssuers: ['https://accounts.google.com'],
         tokenInfoEndpoint: 'https://oauth2.googleapis.com/tokeninfo',
-      });
+      } as any);
 
       const result = await validatorWithEndpoint.introspectToken('expired-token');
 
@@ -246,7 +246,7 @@ describe('ResourceIndicatorValidator', () => {
           'https://login.microsoftonline.com',
           'https://cognito-idp.us-east-1.amazonaws.com',
         ],
-      });
+      } as any);
 
       expect(multiIssuerValidator).toBeDefined();
     });

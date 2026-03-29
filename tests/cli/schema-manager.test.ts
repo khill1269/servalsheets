@@ -46,9 +46,9 @@ describe('SchemaManagerCli', () => {
 
   beforeEach(() => {
     // Enable Discovery API for tests
-    process.env.DISCOVERY_API_ENABLED = 'true';
+    process.env['DISCOVERY_API_ENABLED'] = 'true';
     testRootDir = mkdtempSync(join(tmpdir(), 'servalsheets-schema-manager-test-'));
-    process.env.SERVALSHEETS_SCHEMA_CACHE_DIR = join(testRootDir, '.discovery-cache');
+    process.env['SERVALSHEETS_SCHEMA_CACHE_DIR'] = join(testRootDir, '.discovery-cache');
 
     resetSchemaCache();
     cli = new SchemaManagerCli();
@@ -67,8 +67,8 @@ describe('SchemaManagerCli', () => {
     } catch {
       // EPERM in sandboxed environments — safe to ignore
     }
-    delete process.env.DISCOVERY_API_ENABLED;
-    delete process.env.SERVALSHEETS_SCHEMA_CACHE_DIR;
+    delete process.env['DISCOVERY_API_ENABLED'];
+    delete process.env['SERVALSHEETS_SCHEMA_CACHE_DIR'];
     resetDiscoveryApiClient();
     resetSchemaCache();
     resetSchemaValidator();
@@ -200,7 +200,7 @@ describe('SchemaManagerCli', () => {
   describe('compare command', () => {
     it('should compare schemas', async () => {
       // Mock Discovery API enabled
-      process.env.DISCOVERY_API_ENABLED = 'true';
+      process.env['DISCOVERY_API_ENABLED'] = 'true';
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -236,7 +236,7 @@ describe('SchemaManagerCli', () => {
 
   describe('migration-report command', () => {
     it('should generate migration report', async () => {
-      process.env.DISCOVERY_API_ENABLED = 'true';
+      process.env['DISCOVERY_API_ENABLED'] = 'true';
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -253,7 +253,7 @@ describe('SchemaManagerCli', () => {
     });
 
     it('should handle no changes', async () => {
-      process.env.DISCOVERY_API_ENABLED = 'true';
+      process.env['DISCOVERY_API_ENABLED'] = 'true';
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -349,7 +349,7 @@ describe('SchemaManagerCli', () => {
     });
 
     it('should display issue icons by severity', async () => {
-      process.env.DISCOVERY_API_ENABLED = 'true';
+      process.env['DISCOVERY_API_ENABLED'] = 'true';
 
       const schemaWithDeprecation = {
         ...mockSheetsSchema,

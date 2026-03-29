@@ -225,7 +225,7 @@ describeOrSkip('Tool-Level Performance Benchmarks', () => {
               request: {
                 action: 'insert',
                 spreadsheetId: testSpreadsheet.id,
-                sheetId: testSpreadsheet.sheets[1].sheetId,
+                sheetId: testSpreadsheet.sheets[1]!.sheetId,
                 dimension: 'ROWS',
                 startIndex: 0,
                 endIndex: 5,

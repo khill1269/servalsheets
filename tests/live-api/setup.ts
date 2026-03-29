@@ -18,7 +18,7 @@ import {
   spreadsheetPool,
 } from './setup/index.js';
 import { validatePreTestConditions, getTestIsolationGuard } from './guards/index.js';
-import { shouldRunIntegrationTests, loadTestCredentials } from '../helpers/credential-loader.js';
+import { shouldRunIntegrationTests } from '../helpers/credential-loader.js';
 
 /**
  * Global state for test run
@@ -100,7 +100,7 @@ beforeAll(async () => {
   console.log(
     `   Rate Limits: ${TEST_CONFIG.quota.maxReadsPerMinute} reads/min, ${TEST_CONFIG.quota.maxWritesPerMinute} writes/min`
   );
-  console.log(`   Timeout: ${TEST_CONFIG.timeout.live}ms for live tests`);
+  console.log(`   Timeout: ${TEST_CONFIG.timeout.liveApi}ms for live tests`);
   console.log('');
 
   isInitialized = true;
@@ -137,18 +137,18 @@ afterAll(async () => {
   // Display quota usage
   const quotaStats = quota.getStats();
   console.log('📈 Quota Usage:');
-  console.log(`   Total Reads: ${quotaStats.totalReadsConsumed}`);
-  console.log(`   Total Writes: ${quotaStats.totalWritesConsumed}`);
-  console.log(`   Throttle Events: ${quotaStats.throttleEvents}`);
+  console.log(`   Total Reads: ${quotaStats.totalReads}`);
+  console.log(`   Total Writes: ${quotaStats.totalWrites}`);
+  console.log(`   Quota Violations: ${quotaStats.quotaViolations}`);
   console.log(`   Delays Applied: ${quotaStats.delaysApplied}`);
   console.log('');
 
   // Display rate limiter stats
   const rateLimiterStats = rateLimiter.getStats();
   console.log('🚦 Rate Limiter:');
-  console.log(`   Tokens Consumed: ${rateLimiterStats.tokensConsumed}`);
-  console.log(`   Tokens Rejected: ${rateLimiterStats.tokensRejected}`);
-  console.log(`   Max Wait Time: ${rateLimiterStats.maxWaitMs}ms`);
+  console.log(`   Total Reads Acquired: ${rateLimiterStats.totalReadsAcquired}`);
+  console.log(`   Total Writes Acquired: ${rateLimiterStats.totalWritesAcquired}`);
+  console.log(`   Total Wait Time: ${rateLimiterStats.totalWaitTimeMs}ms`);
   console.log('');
 
   // Check for resource leaks

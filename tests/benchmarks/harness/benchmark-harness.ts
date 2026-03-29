@@ -204,8 +204,8 @@ export class BenchmarkHarness {
       mean: filteredMean,
       median: this.percentile(sorted, 50),
       stdDev,
-      min: sorted[0],
-      max: sorted[count - 1],
+      min: sorted[0] as number,
+      max: sorted[count - 1] as number,
       p50: this.percentile(sorted, 50),
       p75: this.percentile(sorted, 75),
       p90: this.percentile(sorted, 90),
@@ -222,7 +222,7 @@ export class BenchmarkHarness {
   private percentile(sorted: number[], p: number): number {
     if (sorted.length === 0) return 0;
     const index = Math.ceil((p / 100) * sorted.length) - 1;
-    return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
+    return sorted[Math.max(0, Math.min(index, sorted.length - 1))] as number;
   }
 
   /**

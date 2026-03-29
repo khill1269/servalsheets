@@ -92,8 +92,8 @@ async function main() {
       const url = parse(req.url || '', true);
 
       if (url.pathname === '/callback') {
-        const code = url.query.code as string;
-        const error = url.query.error as string;
+        const code = url.query['code'] as string;
+        const error = url.query['error'] as string;
 
         if (error) {
           res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -165,7 +165,7 @@ async function main() {
   console.log('📊 Creating test spreadsheet...\n');
 
   const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
-  const drive = google.drive({ version: 'v3', auth: oauth2Client });
+  google.drive({ version: 'v3', auth: oauth2Client });
 
   const spreadsheet = await sheets.spreadsheets.create({
     requestBody: {

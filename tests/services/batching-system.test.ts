@@ -9,7 +9,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   BatchingSystem,
   AdaptiveBatchWindow,
-  type BatchableOperationType,
 } from '../../src/services/batching-system.js';
 import type { sheets_v4 } from 'googleapis';
 
@@ -306,9 +305,10 @@ describe('BatchingSystem', () => {
       expect(batchCall.requestBody.requests[2].appendCells.sheetId).toBe(1);
 
       // Assert - results should be in UpdateValuesResponse format
-      expect(results[0]).toHaveProperty('updates');
-      expect(results[0].updates.updatedRows).toBe(1);
-      expect(results[0].updates.updatedColumns).toBe(2);
+      const r0 = results[0] as any;
+      expect(r0).toHaveProperty('updates');
+      expect(r0.updates.updatedRows).toBe(1);
+      expect(r0.updates.updatedColumns).toBe(2);
     });
 
     it('should batch tableId appends without metadata lookup', async () => {
@@ -377,15 +377,17 @@ describe('BatchingSystem', () => {
 
       await vi.advanceTimersByTimeAsync(50);
       const [result1, result2] = await Promise.all([promise1, promise2]);
+      const r1 = result1 as any;
+      const r2 = result2 as any;
 
       // Assert - each result should reflect its own operation
-      expect(result1.updates.updatedRows).toBe(1);
-      expect(result1.updates.updatedColumns).toBe(3);
-      expect(result1.updates.updatedCells).toBe(3);
+      expect(r1.updates.updatedRows).toBe(1);
+      expect(r1.updates.updatedColumns).toBe(3);
+      expect(r1.updates.updatedCells).toBe(3);
 
-      expect(result2.updates.updatedRows).toBe(2);
-      expect(result2.updates.updatedColumns).toBe(1);
-      expect(result2.updates.updatedCells).toBe(2);
+      expect(r2.updates.updatedRows).toBe(2);
+      expect(r2.updates.updatedColumns).toBe(1);
+      expect(r2.updates.updatedCells).toBe(2);
     });
 
     it('should handle formulas and different value types in appends', async () => {
@@ -577,10 +579,12 @@ describe('BatchingSystem', () => {
 
       await vi.advanceTimersByTimeAsync(50);
       const [result1, result2] = await Promise.all([promise1, promise2]);
+      const r1 = result1 as any;
+      const r2 = result2 as any;
 
       // Assert - each operation gets its corresponding reply
-      expect(result1.addSheet.properties.sheetId).toBe(123);
-      expect(result2.addSheet.properties.sheetId).toBe(456);
+      expect(r1.addSheet.properties.sheetId).toBe(123);
+      expect(r2.addSheet.properties.sheetId).toBe(456);
     });
   });
 
@@ -871,8 +875,8 @@ describe('BatchingSystem', () => {
       ];
 
       // Catch to avoid unhandled rejection warnings
-      promises[0].catch(() => {});
-      promises[1].catch(() => {});
+      promises[0]!.catch(() => {});
+      promises[1]!.catch(() => {});
 
       await vi.advanceTimersByTimeAsync(50);
 

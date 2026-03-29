@@ -248,33 +248,31 @@ describe('Prometheus Metrics', () => {
 
   describe('Prometheus Naming Conventions', () => {
     it('should follow counter naming convention (_total suffix)', async () => {
-      const metrics = await register.metrics();
-
       // Counters should end with _total
-      expect(errorsByType.name).toContain('_total');
-      expect(cacheEvictions.name).toContain('_total');
+      expect((errorsByType as any).name).toContain('_total');
+      expect((cacheEvictions as any).name).toContain('_total');
     });
 
     it('should follow gauge naming convention (no _total)', async () => {
       // Gauges should NOT end with _total
-      expect(batchEfficiencyRatio.name).not.toContain('_total');
-      expect(requestQueueDepth.name).not.toContain('_total');
+      expect((batchEfficiencyRatio as any).name).not.toContain('_total');
+      expect((requestQueueDepth as any).name).not.toContain('_total');
     });
 
     it('should use snake_case for metric names', async () => {
-      expect(errorsByType.name).toMatch(/^[a-z_][a-z0-9_]*$/);
-      expect(toolCallLatencySummary.name).toMatch(/^[a-z_][a-z0-9_]*$/);
-      expect(batchEfficiencyRatio.name).toMatch(/^[a-z_][a-z0-9_]*$/);
-      expect(requestQueueDepth.name).toMatch(/^[a-z_][a-z0-9_]*$/);
-      expect(cacheEvictions.name).toMatch(/^[a-z_][a-z0-9_]*$/);
+      expect((errorsByType as any).name).toMatch(/^[a-z_][a-z0-9_]*$/);
+      expect((toolCallLatencySummary as any).name).toMatch(/^[a-z_][a-z0-9_]*$/);
+      expect((batchEfficiencyRatio as any).name).toMatch(/^[a-z_][a-z0-9_]*$/);
+      expect((requestQueueDepth as any).name).toMatch(/^[a-z_][a-z0-9_]*$/);
+      expect((cacheEvictions as any).name).toMatch(/^[a-z_][a-z0-9_]*$/);
     });
 
     it('should use consistent namespace prefix', async () => {
-      expect(errorsByType.name).toContain('servalsheets_');
-      expect(toolCallLatencySummary.name).toContain('servalsheets_');
-      expect(batchEfficiencyRatio.name).toContain('servalsheets_');
-      expect(requestQueueDepth.name).toContain('servalsheets_');
-      expect(cacheEvictions.name).toContain('servalsheets_');
+      expect((errorsByType as any).name).toContain('servalsheets_');
+      expect((toolCallLatencySummary as any).name).toContain('servalsheets_');
+      expect((batchEfficiencyRatio as any).name).toContain('servalsheets_');
+      expect((requestQueueDepth as any).name).toContain('servalsheets_');
+      expect((cacheEvictions as any).name).toContain('servalsheets_');
     });
   });
 

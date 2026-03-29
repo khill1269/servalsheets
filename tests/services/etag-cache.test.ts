@@ -561,9 +561,9 @@ describe('ETagCache', () => {
 
       const stats = cache.getStats();
       expect(stats.entries.length).toBe(1);
-      expect(stats.entries[0].key).toContain('1:metadata');
-      expect(typeof stats.entries[0].age).toBe('number');
-      expect(stats.entries[0].age).toBeGreaterThanOrEqual(0);
+      expect(stats.entries[0]!.key).toContain('1:metadata');
+      expect(typeof stats.entries[0]!.age).toBe('number');
+      expect(stats.entries[0]!.age).toBeGreaterThanOrEqual(0);
     });
   });
 

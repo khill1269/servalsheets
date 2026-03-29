@@ -23,7 +23,7 @@ describe('GraphQL resolvers', () => {
       },
     } as any;
 
-    const result = await (resolvers.Query as Record<string, Function>)['spreadsheet'](
+    const result = await (resolvers.Query as Record<string, Function>)['spreadsheet']!(
       null,
       { spreadsheetId: 'sheet-123' },
       context

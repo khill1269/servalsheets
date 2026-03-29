@@ -163,7 +163,7 @@ describe('Cache Hit Rate Improvement', () => {
       const row = Math.floor(i / 10) + 1;
       const col = String.fromCharCode(65 + (i % 10));
       return cache.has(`cache-${row}-${col}`, 'test') ? 1 : 0;
-    }).reduce((a, b) => a + b, 0);
+    }).reduce((a: number, b) => a + b, 0);
 
     expect(preservedRanges).toBe(99);
 

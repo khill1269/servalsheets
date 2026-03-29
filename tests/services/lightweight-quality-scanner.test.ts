@@ -55,9 +55,9 @@ describe('detectEmptyRequiredCells', () => {
     // Amount col: 2 of 4 = 50% empty → warning
     const warnings = detectEmptyRequiredCells(values);
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].type).toBe('empty_required_cells');
-    expect(warnings[0].severity).toBe('warning');
-    expect(warnings[0].fix).toBeTruthy();
+    expect(warnings[0]!.type).toBe('empty_required_cells');
+    expect(warnings[0]!.severity).toBe('warning');
+    expect(warnings[0]!.fix).toBeTruthy();
   });
 
   it('skips row 0 (header row)', () => {
@@ -121,8 +121,8 @@ describe('detectMixedTypes', () => {
     ];
     const warnings = detectMixedTypes(values);
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].type).toBe('mixed_types');
-    expect(warnings[0].severity).toBe('warning');
+    expect(warnings[0]!.type).toBe('mixed_types');
+    expect(warnings[0]!.severity).toBe('warning');
   });
 
   it('returns no warning when only 1 string and 3 numbers (not enough of each)', () => {
@@ -162,8 +162,8 @@ describe('detectDuplicateRows', () => {
     ];
     const warnings = detectDuplicateRows(values);
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].type).toBe('duplicate_rows');
-    expect(warnings[0].detail).toContain('1');
+    expect(warnings[0]!.type).toBe('duplicate_rows');
+    expect(warnings[0]!.detail).toContain('1');
   });
 
   it('returns a warning with correct count when 2 duplicate rows exist', () => {
@@ -176,9 +176,9 @@ describe('detectDuplicateRows', () => {
     ];
     const warnings = detectDuplicateRows(values);
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].type).toBe('duplicate_rows');
+    expect(warnings[0]!.type).toBe('duplicate_rows');
     // Duplicate count should mention 2 or more
-    expect(warnings[0].detail).toMatch(/2/);
+    expect(warnings[0]!.detail).toMatch(/2/);
   });
 });
 
@@ -226,8 +226,8 @@ describe('detectOutliers', () => {
     ];
     const warnings = detectOutliers(values);
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].type).toBe('outliers');
-    expect(warnings[0].severity).toBe('info');
+    expect(warnings[0]!.type).toBe('outliers');
+    expect(warnings[0]!.severity).toBe('info');
   });
 });
 
@@ -255,8 +255,8 @@ describe('detectInconsistentFormats', () => {
     ];
     const warnings = detectInconsistentFormats(values);
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].type).toBe('inconsistent_formats');
-    expect(warnings[0].severity).toBe('info');
+    expect(warnings[0]!.type).toBe('inconsistent_formats');
+    expect(warnings[0]!.severity).toBe('info');
   });
 });
 

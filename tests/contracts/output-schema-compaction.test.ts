@@ -116,18 +116,18 @@ describe('Output Schema Compaction Contracts', () => {
         expect(typeof compacted.response[field]).toBe('object');
         expect(compacted.response[field]).not.toBe('[object truncated]');
         // Verify the object content is intact
-        expect((compacted.response[field] as Record<string, unknown>).id).toBe('test-id-12345');
+        expect((compacted.response[field] as Record<string, unknown>)['id']).toBe('test-id-12345');
       });
     }
 
     it('non-preserved field >500 bytes stays an object after compaction', () => {
       const response = buildLargeObjectResponse('someRandomField');
-      expect(JSON.stringify(response.response.someRandomField).length).toBeGreaterThan(500);
+      expect(JSON.stringify(response.response['someRandomField']).length).toBeGreaterThan(500);
 
       const compacted = compactResponse(response) as ResponseWrapper;
 
-      expect(typeof compacted.response.someRandomField).toBe('object');
-      expect(compacted.response.someRandomField).not.toBe('[object truncated]');
+      expect(typeof compacted.response['someRandomField']).toBe('object');
+      expect(compacted.response['someRandomField']).not.toBe('[object truncated]');
     });
   });
 
@@ -188,8 +188,8 @@ describe('Output Schema Compaction Contracts', () => {
       };
 
       const compacted = compactResponse(response) as ResponseWrapper;
-      expect(Array.isArray(compacted.response.values)).toBe(true);
-      expect((compacted.response.values as unknown[]).length).toBeLessThan(largeValues.length);
+      expect(Array.isArray(compacted.response['values'])).toBe(true);
+      expect((compacted.response['values'] as unknown[]).length).toBeLessThan(largeValues.length);
     });
   });
 
@@ -470,10 +470,10 @@ describe('Output Schema Compaction Contracts', () => {
       };
       const compacted = compactResponse(response) as ResponseWrapper;
       // _meta should be stripped
-      expect(compacted.response._meta).toBeUndefined();
+      expect(compacted.response['_meta']).toBeUndefined();
       // Essential fields preserved
-      expect(compacted.response.success).toBe(true);
-      expect(compacted.response.action).toBe('test');
+      expect(compacted.response['success']).toBe(true);
+      expect(compacted.response['action']).toBe('test');
     });
   });
 });

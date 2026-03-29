@@ -13,7 +13,6 @@ import { describe, it, expect } from 'vitest';
 import * as ts from 'typescript';
 import {
   CodeQualityAgent,
-  DEFAULT_THRESHOLDS,
   type QualityThresholds,
 } from '../../scripts/analysis/agents/code-quality-agent.js';
 import type { AnalysisContext } from '../../scripts/analysis/multi-agent-analysis.js';
@@ -59,7 +58,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
 
     expect(complexityReport).toBeDefined();
     expect(complexityReport?.status).toBe('pass');
-    expect(complexityReport?.metrics?.maxComplexity).toBe(1);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(1);
   });
 
   it('should calculate complexity = 2 for single if statement', async () => {
@@ -75,7 +74,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const reports = await analyzeCode(code);
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
-    expect(complexityReport?.metrics?.maxComplexity).toBe(2);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(2);
     expect(complexityReport?.status).toBe('pass');
   });
 
@@ -94,7 +93,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const reports = await analyzeCode(code);
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
-    expect(complexityReport?.metrics?.maxComplexity).toBe(3);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(3);
   });
 
   it('should count && and || operators', async () => {
@@ -111,7 +110,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (if) + 1 (&&) + 1 (||) = 4
-    expect(complexityReport?.metrics?.maxComplexity).toBe(4);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(4);
   });
 
   it('should count ternary operators', async () => {
@@ -125,7 +124,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (first ?) + 1 (second ?) = 3
-    expect(complexityReport?.metrics?.maxComplexity).toBe(3);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(3);
   });
 
   it('should count loops (for, while, do-while)', async () => {
@@ -147,7 +146,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (for) + 1 (while) + 1 (do-while) = 4
-    expect(complexityReport?.metrics?.maxComplexity).toBe(4);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(4);
   });
 
   it('should count switch cases', async () => {
@@ -170,7 +169,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 3 (cases, default not counted separately) = 4
-    expect(complexityReport?.metrics?.maxComplexity).toBe(4);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(4);
   });
 
   it('should count catch clauses', async () => {
@@ -188,7 +187,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     // 1 (base) + 1 (catch) = 2
-    expect(complexityReport?.metrics?.maxComplexity).toBe(2);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBe(2);
   });
 
   it('should warn when complexity > 10', async () => {
@@ -224,7 +223,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
 
     expect(complexityReport?.status).toBe('warning');
     expect(complexityReport?.issueCount).toBeGreaterThan(0);
-    expect(complexityReport?.metrics?.maxComplexity).toBeGreaterThan(10);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBeGreaterThan(10);
   });
 
   it('should fail when complexity > 20', async () => {
@@ -280,7 +279,7 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
     expect(complexityReport?.status).toBe('fail');
-    expect(complexityReport?.metrics?.maxComplexity).toBeGreaterThan(20);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBeGreaterThan(20);
   });
 
   it('should calculate average complexity across multiple functions', async () => {
@@ -296,8 +295,8 @@ describe('CodeQualityAgent - Cyclomatic Complexity', () => {
     const reports = await analyzeCode(code);
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
-    expect(complexityReport?.metrics?.functionCount).toBe(3);
-    expect(complexityReport?.metrics?.avgComplexity).toBeGreaterThan(0);
+    expect(complexityReport?.metrics?.['functionCount']).toBe(3);
+    expect(complexityReport?.metrics?.['avgComplexity']).toBeGreaterThan(0);
   });
 });
 
@@ -324,7 +323,7 @@ describe('CodeQualityAgent - File Size', () => {
 
     expect(fileSizeReport?.status).toBe('warning');
     expect(fileSizeReport?.issueCount).toBe(1);
-    expect(fileSizeReport?.metrics?.lineCount).toBeGreaterThan(500);
+    expect(fileSizeReport?.metrics?.['lineCount']).toBeGreaterThan(500);
   });
 
   it('should fail for large files (>1000 lines)', async () => {
@@ -335,7 +334,7 @@ describe('CodeQualityAgent - File Size', () => {
 
     expect(fileSizeReport?.status).toBe('fail');
     expect(fileSizeReport?.issueCount).toBe(1);
-    expect(fileSizeReport?.metrics?.lineCount).toBeGreaterThan(1000);
+    expect(fileSizeReport?.metrics?.['lineCount']).toBeGreaterThan(1000);
   });
 
   it('should respect custom thresholds', async () => {
@@ -390,7 +389,7 @@ describe('CodeQualityAgent - Function Length', () => {
 
     expect(lengthReport?.status).toBe('warning');
     expect(lengthReport?.issueCount).toBe(1);
-    expect(lengthReport?.metrics?.maxLength).toBeGreaterThan(50);
+    expect(lengthReport?.metrics?.['maxLength']).toBeGreaterThan(50);
   });
 
   it('should calculate average function length', async () => {
@@ -410,8 +409,8 @@ describe('CodeQualityAgent - Function Length', () => {
     const reports = await analyzeCode(code);
     const lengthReport = reports.find((r) => r.dimension === 'functionLength');
 
-    expect(lengthReport?.metrics?.functionCount).toBe(3);
-    expect(lengthReport?.metrics?.avgLength).toBeGreaterThan(0);
+    expect(lengthReport?.metrics?.['functionCount']).toBe(3);
+    expect(lengthReport?.metrics?.['avgLength']).toBeGreaterThan(0);
   });
 
   it('should respect custom threshold', async () => {
@@ -493,8 +492,8 @@ describe('CodeQualityAgent - Nesting Depth', () => {
 
     // Actual depth includes function body block, so it may be > 5
     // Just verify it detected nesting
-    expect(depthReport?.metrics?.maxDepth).toBeGreaterThan(0);
-    expect(depthReport?.metrics?.maxDepth).toBeLessThanOrEqual(10);
+    expect(depthReport?.metrics?.['maxDepth']).toBeGreaterThan(0);
+    expect(depthReport?.metrics?.['maxDepth']).toBeLessThanOrEqual(10);
   });
 
   it('should warn for deep nesting (>5)', async () => {
@@ -522,7 +521,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
 
     expect(depthReport?.status).toBe('warning');
     expect(depthReport?.issueCount).toBeGreaterThan(0);
-    expect(depthReport?.metrics?.maxDepth).toBeGreaterThan(5);
+    expect(depthReport?.metrics?.['maxDepth']).toBeGreaterThan(5);
   });
 
   it('should count loops and switch statements', async () => {
@@ -543,7 +542,7 @@ describe('CodeQualityAgent - Nesting Depth', () => {
     const reports = await analyzeCode(code);
     const depthReport = reports.find((r) => r.dimension === 'nestingDepth');
 
-    expect(depthReport?.metrics?.maxDepth).toBeGreaterThan(0);
+    expect(depthReport?.metrics?.['maxDepth']).toBeGreaterThan(0);
   });
 });
 
@@ -599,7 +598,7 @@ describe('CodeQualityAgent - Code Duplication', () => {
 
     // Should detect high similarity
     expect(dupReport).toBeDefined();
-    expect(dupReport?.metrics?.blocksAnalyzed).toBeGreaterThan(0);
+    expect(dupReport?.metrics?.['blocksAnalyzed']).toBeGreaterThan(0);
   });
 
   it('should ignore small code blocks', async () => {
@@ -714,8 +713,8 @@ describe('CodeQualityAgent - Integration', () => {
     const reports = await analyzeCode(code);
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
-    expect(complexityReport?.metrics?.functionCount).toBe(1);
-    expect(complexityReport?.metrics?.maxComplexity).toBeGreaterThan(1);
+    expect(complexityReport?.metrics?.['functionCount']).toBe(1);
+    expect(complexityReport?.metrics?.['maxComplexity']).toBeGreaterThan(1);
   });
 
   it('should handle class methods', async () => {
@@ -737,7 +736,7 @@ describe('CodeQualityAgent - Integration', () => {
     const reports = await analyzeCode(code);
     const complexityReport = reports.find((r) => r.dimension === 'cyclomaticComplexity');
 
-    expect(complexityReport?.metrics?.functionCount).toBe(2);
+    expect(complexityReport?.metrics?.['functionCount']).toBe(2);
   });
 
   it('should provide actionable suggestions', async () => {

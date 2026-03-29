@@ -71,7 +71,7 @@ describe('CollaborateHandler rate limiter integration', () => {
       type: 'user',
       role: 'reader',
       emailAddress: 'alice@example.com',
-    });
+    } as any);
 
     expect(result.response.success).toBe(true);
     expect(acquireSpy).toHaveBeenCalledTimes(1);
@@ -84,7 +84,7 @@ describe('CollaborateHandler rate limiter integration', () => {
     const result = await handler.handle({
       action: 'share_list',
       spreadsheetId: 'spreadsheet-id',
-    });
+    } as any);
 
     expect(result.response.success).toBe(true);
     expect(acquireSpy).not.toHaveBeenCalled();
@@ -102,7 +102,7 @@ describe('CollaborateHandler rate limiter integration', () => {
       type: 'user',
       role: 'reader',
       emailAddress: 'alice@example.com',
-    });
+    } as any);
 
     // Handler must catch and return error response, not crash
     expect(result.response.success).toBe(false);
@@ -125,7 +125,7 @@ describe('CollaborateHandler rate limiter integration', () => {
       type: 'user',
       role: 'reader',
       emailAddress: 'bob@example.com',
-    });
+    } as any);
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
@@ -147,7 +147,7 @@ describe('CollaborateHandler rate limiter integration', () => {
       type: 'user',
       role: 'reader',
       emailAddress: 'missing-user@example.com',
-    });
+    } as any);
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
@@ -174,7 +174,7 @@ describe('CollaborateHandler rate limiter integration', () => {
       type: 'user',
       role: 'reader',
       emailAddress: 'slow-user@example.com',
-    });
+    } as any);
 
     await vi.advanceTimersByTimeAsync(15_000);
     const result = await pendingResult;

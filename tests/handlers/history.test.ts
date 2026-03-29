@@ -93,7 +93,7 @@ describe('HistoryHandler', () => {
     vi.clearAllMocks();
 
     // Import to get the mock
-    const { getHistoryService, setHistoryService } =
+    const { setHistoryService } =
       await import('../../src/services/history-service.js');
 
     // Create fresh mocks
@@ -123,14 +123,15 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.operations).toHaveLength(2);
-        expect(result.response.operations![0].id).toBe('op-1');
-        expect(result.response.operations![1].id).toBe('op-2');
-        expect(result.response.message).toContain('Retrieved 2 operation(s)');
+        const resp1 = result.response as any;
+        expect(resp1.operations).toHaveLength(2);
+        expect(resp1.operations[0].id).toBe('op-1');
+        expect(resp1.operations[1].id).toBe('op-2');
+        expect(resp1.message).toContain('Retrieved 2 operation(s)');
       }
       expect(mockHistoryService.getRecent).toHaveBeenCalledWith(10);
 
@@ -151,7 +152,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'list',
         count: 25,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -172,12 +173,13 @@ describe('HistoryHandler', () => {
         action: 'list',
         spreadsheetId: 'sheet-123',
         count: 20,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.operations).toHaveLength(2);
-        expect(result.response.operations![0].spreadsheetId).toBe('sheet-123');
+        const resp3 = result.response as any;
+        expect(resp3.operations).toHaveLength(2);
+        expect(resp3.operations[0].spreadsheetId).toBe('sheet-123');
       }
       expect(mockHistoryService.getBySpreadsheet).toHaveBeenCalledWith('sheet-123', 20);
     });
@@ -202,13 +204,14 @@ describe('HistoryHandler', () => {
         action: 'list',
         failuresOnly: true,
         count: 5,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.operations).toHaveLength(2);
-        expect(result.response.operations![0].success).toBe(false);
-        expect(result.response.operations![0].error).toBe('Permission denied');
+        const resp4 = result.response as any;
+        expect(resp4.operations).toHaveLength(2);
+        expect(resp4.operations[0].success).toBe(false);
+        expect(resp4.operations[0].error).toBe('Permission denied');
       }
       expect(mockHistoryService.getFailures).toHaveBeenCalledWith(5);
     });
@@ -225,12 +228,13 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(typeof result.response.operations![0].timestamp).toBe('number');
-        expect(result.response.operations![0].timestamp).toBeGreaterThan(0);
+        const resp5 = result.response as any;
+        expect(typeof resp5.operations[0].timestamp).toBe('number');
+        expect(resp5.operations[0].timestamp).toBeGreaterThan(0);
       }
     });
   });
@@ -253,7 +257,7 @@ describe('HistoryHandler', () => {
       const result = await timelineHandler.handle({
         action: 'timeline',
         spreadsheetId: 'sheet-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(sessionContext.getPendingOperation()).toMatchObject({
@@ -282,7 +286,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'get',
         operationId: 'op-456',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -305,7 +309,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'get',
         operationId: 'nonexistent-op',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -331,7 +335,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'get',
         operationId: 'op-fail',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -360,7 +364,7 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'stats',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -395,7 +399,7 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'stats',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -423,7 +427,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'undo',
         spreadsheetId: 'sheet-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -450,7 +454,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'undo',
         spreadsheetId: 'sheet-456',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -472,7 +476,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'undo',
         spreadsheetId: 'sheet-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -496,7 +500,7 @@ describe('HistoryHandler', () => {
       const result = await handlerWithoutSnapshot.handle({
         action: 'undo',
         spreadsheetId: 'sheet-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -517,7 +521,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'undo',
         spreadsheetId: 'sheet-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -540,7 +544,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'redo',
         spreadsheetId: 'sheet-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -561,7 +565,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'redo',
         spreadsheetId: 'sheet-789',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -587,7 +591,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'revert_to',
         operationId: 'op-revert-target',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -613,7 +617,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'revert_to',
         operationId: 'nonexistent',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -634,7 +638,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'revert_to',
         operationId: 'op-no-snap',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -655,7 +659,7 @@ describe('HistoryHandler', () => {
       const result = await handlerWithoutSnapshot.handle({
         action: 'revert_to',
         operationId: 'op-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -674,7 +678,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'revert_to',
         operationId: 'op-123',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -692,7 +696,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'clear',
         spreadsheetId: 'sheet-clear-me',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -714,7 +718,7 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'clear',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -732,7 +736,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'clear',
         spreadsheetId: 'empty-sheet',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -766,7 +770,7 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -786,7 +790,7 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'stats',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -803,12 +807,12 @@ describe('HistoryHandler', () => {
 
       const result = await handler.handle({
         action: 'list',
-      });
+      } as any);
 
       const parseResult = SheetsHistoryOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
       if (!parseResult.success) {
-        console.error('Schema validation errors:', parseResult.error.errors);
+        console.error('Schema validation errors:', (parseResult.error as any).errors);
       }
     });
 
@@ -818,7 +822,7 @@ describe('HistoryHandler', () => {
       const result = await handler.handle({
         action: 'get',
         operationId: 'missing',
-      });
+      } as any);
 
       const parseResult = SheetsHistoryOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -859,7 +863,7 @@ describe('HistoryHandler', () => {
         handlerWithDrive.handle({
           action: 'timeline',
           spreadsheetId: 'test-sheet',
-        })
+        } as any)
       );
 
       expect(result.response.success).toBe(true);

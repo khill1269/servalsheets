@@ -136,7 +136,7 @@ describe('Cross-Map Consistency', () => {
       for (const [toolName, expectedCount] of Object.entries(ACTION_COUNTS)) {
         const actualActions = TOOL_ACTIONS[toolName];
         expect(actualActions).toBeDefined();
-        expect(actualActions.length).toBe(expectedCount);
+        expect(actualActions!.length).toBe(expectedCount);
       }
     });
 
@@ -179,7 +179,7 @@ describe('Cross-Map Consistency', () => {
     it('every tool in TOOL_DEFINITIONS has entry in TOOL_ACTIONS', () => {
       for (const toolDef of TOOL_DEFINITIONS) {
         expect(TOOL_ACTIONS[toolDef.name]).toBeDefined();
-        expect(TOOL_ACTIONS[toolDef.name].length).toBeGreaterThan(0);
+        expect(TOOL_ACTIONS[toolDef.name]!.length).toBeGreaterThan(0);
       }
     });
 
@@ -195,7 +195,7 @@ describe('Cross-Map Consistency', () => {
         expect(TOOL_ANNOTATIONS[toolDef.name]).toBeDefined();
         // Check that at least one hint field exists (they're at top level, not nested)
         const annotation = TOOL_ANNOTATIONS[toolDef.name];
-        expect(annotation.readOnlyHint !== undefined).toBe(true);
+        expect(annotation!.readOnlyHint !== undefined).toBe(true);
       }
     });
 

@@ -14,7 +14,7 @@
  * - Smart Chips (4): add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
 import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
@@ -40,7 +40,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -73,7 +73,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         expect(response.status).toBe(200);
-        const namedRangeId = response.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+        const namedRangeId = response.data.replies![0]!.addNamedRange?.namedRange?.namedRangeId;
         expect(namedRangeId).toBeDefined();
       });
 
@@ -170,7 +170,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const namedRangeId =
-          createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+          createResponse.data.replies![0]!.addNamedRange?.namedRange?.namedRangeId;
 
         // Update the name
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -225,7 +225,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const namedRangeId =
-          createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+          createResponse.data.replies![0]!.addNamedRange?.namedRange?.namedRangeId;
 
         // Update the range extent
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -282,7 +282,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const namedRangeId =
-          createResponse.data.replies![0].addNamedRange?.namedRange?.namedRangeId;
+          createResponse.data.replies![0]!.addNamedRange?.namedRange?.namedRangeId;
 
         // Delete it
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -342,7 +342,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
 
         expect(response.status).toBe(200);
         const protectedRangeId =
-          response.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+          response.data.replies![0]!.addProtectedRange?.protectedRange?.protectedRangeId;
         expect(protectedRangeId).toBeDefined();
       });
 
@@ -439,7 +439,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const protectedRangeId =
-          createResponse.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+          createResponse.data.replies![0]!.addProtectedRange?.protectedRange?.protectedRangeId;
 
         // Update the description
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -497,7 +497,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const protectedRangeId =
-          createResponse.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+          createResponse.data.replies![0]!.addProtectedRange?.protectedRange?.protectedRangeId;
 
         // Delete protection
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -543,7 +543,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
 
         expect(response.status).toBe(200);
         const metadataId =
-          response.data.replies![0].createDeveloperMetadata?.developerMetadata?.metadataId;
+          response.data.replies![0]!.createDeveloperMetadata?.developerMetadata?.metadataId;
         expect(metadataId).toBeDefined();
       });
 
@@ -635,7 +635,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const metadataId =
-          createResponse.data.replies![0].createDeveloperMetadata?.developerMetadata?.metadataId;
+          createResponse.data.replies![0]!.createDeveloperMetadata?.developerMetadata?.metadataId;
 
         // Delete it
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -690,7 +690,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         expect(response.status).toBe(200);
-        const bandedRangeId = response.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
+        const bandedRangeId = response.data.replies![0]!.addBanding?.bandedRange?.bandedRangeId;
         expect(bandedRangeId).toBeDefined();
       });
 
@@ -794,7 +794,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const bandedRangeId =
-          createResponse.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
+          createResponse.data.replies![0]!.addBanding?.bandedRange?.bandedRangeId;
 
         // Update colors
         const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -857,7 +857,7 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
         });
 
         const bandedRangeId =
-          createResponse.data.replies![0].addBanding?.bandedRange?.bandedRangeId;
+          createResponse.data.replies![0]!.addBanding?.bandedRange?.bandedRangeId;
 
         // Delete banding
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -1246,14 +1246,14 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
               },
             ],
           },
-        })
+        }) as any
       );
 
       await client.trackOperation('get', 'GET', () =>
         client.sheets.spreadsheets.get({
           spreadsheetId: testSpreadsheet.id,
           fields: 'namedRanges',
-        })
+        }) as any
       );
 
       const stats = client.getStats();

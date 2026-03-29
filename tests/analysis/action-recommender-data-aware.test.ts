@@ -16,8 +16,8 @@ describe('getRecommendedActions (existing static rules)', () => {
     const suggestions = getRecommendedActions('sheets_data', 'read');
     expect(Array.isArray(suggestions)).toBe(true);
     expect(suggestions.length).toBeGreaterThan(0);
-    expect(suggestions[0].tool).toBeTruthy();
-    expect(suggestions[0].action).toBeTruthy();
+    expect(suggestions[0]!.tool).toBeTruthy();
+    expect(suggestions[0]!.action).toBeTruthy();
   });
 
   it('returns empty array for unknown tool+action', () => {

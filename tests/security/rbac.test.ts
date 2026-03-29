@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { RbacManager, type RbacManagerOptions } from '../../src/services/rbac-manager.js';
-import type { RoleDefinition, UserRoleAssignment, ApiKeyScope } from '../../src/schemas/rbac.js';
+import { RbacManager } from '../../src/services/rbac-manager.js';
+import type { RoleDefinition } from '../../src/schemas/rbac.js';
 
 // Mock logger
 vi.mock('../../src/utils/logger.js', () => ({

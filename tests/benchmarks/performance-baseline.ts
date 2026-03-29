@@ -124,7 +124,7 @@ export async function storeBaseline(metrics: PerformanceMetrics[]): Promise<stri
   initializeBaselineStorage();
 
   const gitInfo = getGitInfo();
-  const systemInfo = getSystemInfo();
+  const systemInfo = await getSystemInfo();
 
   const baseline: PerformanceBaseline = {
     timestamp: new Date().toISOString(),

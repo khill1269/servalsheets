@@ -169,8 +169,7 @@ describe('PrefetchingSystem', () => {
       );
 
       // Initial stats
-      const statsBefore = prefetchingSystem.getStats();
-      const totalBefore = statsBefore.totalPrefetches;
+      prefetchingSystem.getStats();
 
       await prefetchingSystem.prefetch({
         spreadsheetId: 'test-sheet-123',
@@ -179,7 +178,6 @@ describe('PrefetchingSystem', () => {
 
       await vi.advanceTimersByTimeAsync(100);
 
-      const statsAfter = prefetchingSystem.getStats();
       // Some predictions may be generated for other ranges, but not for cached range
       // We just check it didn't prefetch the cached range by checking API wasn't called with it
       const cachedRangeCalls = mockValuesGet.mock.calls.filter(
@@ -274,7 +272,6 @@ describe('PrefetchingSystem', () => {
   describe('Background Refresh', () => {
     it('should identify expiring cache entries', async () => {
       // Add cache entry that will expire soon
-      const now = Date.now();
       cacheManager.set(
         'test-cache-key',
         { data: 'test' },
@@ -471,7 +468,6 @@ describe('PrefetchingSystem', () => {
       await vi.advanceTimersByTimeAsync(100);
 
       // Cache should be populated (either from predictions or from access)
-      const cacheStats = cacheManager.getStats();
       // May be 0 if predictions don't generate, so we check API was called instead
       expect(mockValuesGet).toHaveBeenCalled();
     });
@@ -538,7 +534,6 @@ describe('PrefetchingSystem', () => {
       expect(comprehensiveCall).toBeDefined();
 
       // Verify cache was populated with the response
-      const cacheStats = cacheManager.getStats();
       // Cache should have entries from prefetch operations
       expect(mockSpreadsheetsGet).toHaveBeenCalled();
     });

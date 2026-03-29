@@ -436,11 +436,11 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(response.status).toBe(200);
 
       const body = response.body as Record<string, any>;
-      expect(body.issuer).toBe('https://registry.example.com');
-      expect(body.authorization_endpoint).toBe('https://registry.example.com/oauth/authorize');
-      expect(body.response_types_supported).toContain('code');
-      expect(body.grant_types_supported).toContain('authorization_code');
-      expect(body.code_challenge_methods_supported).toContain('S256');
+      expect(body['issuer']).toBe('https://registry.example.com');
+      expect(body['authorization_endpoint']).toBe('https://registry.example.com/oauth/authorize');
+      expect(body['response_types_supported']).toContain('code');
+      expect(body['grant_types_supported']).toContain('authorization_code');
+      expect(body['code_challenge_methods_supported']).toContain('S256');
     });
 
     it('publishes protected resource metadata bound to request host', async () => {
@@ -455,9 +455,9 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(response.status).toBe(200);
 
       const body = response.body as Record<string, any>;
-      expect(body.resource).toBe('https://registry.example.com');
-      expect(body.authorization_servers).toContain('https://registry.example.com');
-      expect(body.bearer_methods_supported).toContain('header');
+      expect(body['resource']).toBe('https://registry.example.com');
+      expect(body['authorization_servers']).toContain('https://registry.example.com');
+      expect(body['bearer_methods_supported']).toContain('header');
     });
 
     it('publishes server card with transport, auth, and TLS security metadata', async () => {
@@ -472,16 +472,16 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(response.status).toBe(200);
 
       const body = response.body as Record<string, any>;
-      expect(body.mcp_version).toBe('2025-11-25');
-      expect(body.endpoints.streamable_http).toBe('https://registry.example.com/mcp');
-      expect(body.authentication.required).toBe(false);
-      expect(body.authentication.methods).toContain('oauth2');
-      expect(body.capabilities.resources).toEqual({
+      expect(body['mcp_version']).toBe('2025-11-25');
+      expect(body['endpoints'].streamable_http).toBe('https://registry.example.com/mcp');
+      expect(body['authentication'].required).toBe(false);
+      expect(body['authentication'].methods).toContain('oauth2');
+      expect(body['capabilities'].resources).toEqual({
         templates: true,
         subscriptions: true,
       });
-      expect(body.security.tls_required).toBe(true);
-      expect(body.security.min_tls_version).toBe('1.2');
+      expect(body['security'].tls_required).toBe(true);
+      expect(body['security'].min_tls_version).toBe('1.2');
     });
 
     it('publishes tool hash manifest for integrity discovery', async () => {
@@ -496,10 +496,10 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect(response.status).toBe(200);
 
       const body = response.body as Record<string, any>;
-      expect(typeof body.generated).toBe('string');
-      expect(typeof body.version).toBe('string');
-      expect(body.tools).toBeDefined();
-      expect(Object.keys(body.tools).length).toBeGreaterThan(0);
+      expect(typeof body['generated']).toBe('string');
+      expect(typeof body['version']).toBe('string');
+      expect(body['tools']).toBeDefined();
+      expect(Object.keys(body['tools']).length).toBeGreaterThan(0);
       expect(response.headers['etag']).toBeTruthy();
     });
 
@@ -616,7 +616,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         ...TEST_SERVER_OPTIONS,
         corsOrigins: ['http://allowed-origin.example.com'],
       });
-      originApp = originServer.app;
+      originApp = originServer.app as Express;
     });
 
     afterAll(async () => {

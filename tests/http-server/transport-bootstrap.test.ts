@@ -40,7 +40,8 @@ describe('http transport bootstrap helper', () => {
     expect(result.cleanupSessions).toBe(cleanupSessions);
     expect(registerHttpTransportRoutes).toHaveBeenCalledOnce();
 
-    const transportArgs = registerHttpTransportRoutes.mock.calls[0]?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const transportArgs = (registerHttpTransportRoutes.mock.calls as unknown as [any[]])[0]?.[0];
     expect(transportArgs.sessions).toBe(result.sessions);
     expect(transportArgs.enableOAuth).toBe(true);
     expect(transportArgs.oauth).toEqual({ kind: 'oauth' });

@@ -175,7 +175,7 @@ describe('Redaction Utility', () => {
 
       expect(result.message).toContain('Bearer [REDACTED]');
       expect(result.message).not.toContain('ya29');
-      expect((result.data as Record<string, string>).info).toContain('AIza[REDACTED]');
+      expect((result.data as Record<string, string>)['info']).toContain('AIza[REDACTED]');
     });
 
     it('should handle arrays', () => {
@@ -199,9 +199,9 @@ describe('Redaction Utility', () => {
 
       const result = redactObject(input);
 
-      expect(result.name).toBe('test');
-      expect(result.access_token).toBe('[REDACTED]');
-      expect(result.self).toBe('[Circular]');
+      expect(result['name']).toBe('test');
+      expect(result['access_token']).toBe('[REDACTED]');
+      expect(result['self']).toBe('[Circular]');
     });
 
     it('should handle Error objects', () => {
@@ -255,10 +255,10 @@ describe('Redaction Utility', () => {
       expect(
         (
           (
-            ((result.level1 as Record<string, unknown>).level2 as Record<string, unknown>)
-              .level3 as Record<string, unknown>
-          ).level4 as Record<string, unknown>
-        ).level5
+            ((result.level1 as Record<string, unknown>)['level2'] as Record<string, unknown>)
+              ['level3'] as Record<string, unknown>
+          )['level4'] as Record<string, unknown>
+        )['level5']
       ).toEqual({
         password: '[REDACTED]',
         public: 'visible',
@@ -288,11 +288,11 @@ describe('Redaction Utility', () => {
 
       const result = redactObject(input);
 
-      expect((result.users as Array<Record<string, string>>)[0]).toEqual({
+      expect((result.users as unknown as Array<Record<string, string>>)[0]).toEqual({
         name: 'alice',
         token: 'Bearer [REDACTED]',
       });
-      expect((result.users as Array<Record<string, string>>)[1]).toEqual({
+      expect((result.users as unknown as Array<Record<string, string>>)[1]).toEqual({
         name: 'bob',
         api_key: '[REDACTED]',
       });
@@ -360,11 +360,11 @@ describe('Redaction Utility', () => {
       const result = redactObject(log);
 
       expect(result.method).toBe('POST');
-      expect((result.headers as Record<string, string>).authorization).toContain('[REDACTED]');
-      expect((result.body as Record<string, string>).refresh_token).toBe('[REDACTED]');
-      expect((result.body as Record<string, string>).client_secret).toBe('[REDACTED]');
-      expect((result.response as Record<string, string>).access_token).toBe('[REDACTED]');
-      expect((result.response as Record<string, number>).expires_in).toBe(3600);
+      expect((result.headers as Record<string, string>)['authorization']).toContain('[REDACTED]');
+      expect((result.body as Record<string, string>)['refresh_token']).toBe('[REDACTED]');
+      expect((result.body as Record<string, string>)['client_secret']).toBe('[REDACTED]');
+      expect((result.response as unknown as Record<string, string>)['access_token']).toBe('[REDACTED]');
+      expect((result.response as unknown as Record<string, number>)['expires_in']).toBe(3600);
     });
 
     it('should redact error messages with embedded tokens', () => {
@@ -382,8 +382,8 @@ describe('Redaction Utility', () => {
       expect(result.message).not.toContain('ya29');
       expect(result.message).toContain('[REDACTED]');
       expect(result.stack).toBe(error.stack); // Stack preserved
-      expect((result.context as Record<string, string>).url).toContain('[REDACTED]');
-      expect((result.context as Record<string, string>).token).toContain('[REDACTED]');
+      expect((result.context as Record<string, string>)['url']).toContain('[REDACTED]');
+      expect((result.context as Record<string, string>)['token']).toContain('[REDACTED]');
     });
 
     it('should handle MCP tool error responses', () => {
@@ -407,24 +407,14 @@ describe('Redaction Utility', () => {
 
       const result = redactObject(mcpError);
 
-      expect((result.content as Array<{ text: string }>)[0].text).not.toContain('ya29.abc123');
-      expect((result.content as Array<{ text: string }>)[0].text).toContain('[REDACTED]');
-      expect(
-        (
-          (result._meta as Record<string, unknown>).request as Record<
-            string,
-            Record<string, string>
-          >
-        ).auth.access_token
-      ).toBe('[REDACTED]');
-      expect(
-        (
-          (result._meta as Record<string, unknown>).request as Record<
-            string,
-            Record<string, string>
-          >
-        ).auth.refresh_token
-      ).toBe('[REDACTED]');
+      expect((result.content as Array<{ text: string }>)[0]!.text).not.toContain('ya29.abc123');
+      expect((result.content as Array<{ text: string }>)[0]!.text).toContain('[REDACTED]');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resultAny = result as any;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect(resultAny._meta.request.auth.access_token).toBe('[REDACTED]');
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect(resultAny._meta.request.auth.refresh_token).toBe('[REDACTED]');
     });
   });
 

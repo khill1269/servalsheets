@@ -146,9 +146,9 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1:A3');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.chinese);
-      expect(result.values[1][0]).toBe(UNICODE_SAMPLES.japanese);
-      expect(result.values[2][0]).toBe(UNICODE_SAMPLES.korean);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.chinese);
+      expect(result.values[1]![0]).toBe(UNICODE_SAMPLES.japanese);
+      expect(result.values[2]![0]).toBe(UNICODE_SAMPLES.korean);
     }, 60000);
 
     it('should handle RTL scripts (Arabic, Hebrew)', async () => {
@@ -167,8 +167,8 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1:A2');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.arabic);
-      expect(result.values[1][0]).toBe(UNICODE_SAMPLES.hebrew);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.arabic);
+      expect(result.values[1]![0]).toBe(UNICODE_SAMPLES.hebrew);
     }, 60000);
 
     it('should handle South Asian scripts', async () => {
@@ -192,10 +192,10 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1:A4');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.hindi);
-      expect(result.values[1][0]).toBe(UNICODE_SAMPLES.bengali);
-      expect(result.values[2][0]).toBe(UNICODE_SAMPLES.tamil);
-      expect(result.values[3][0]).toBe(UNICODE_SAMPLES.thai);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.hindi);
+      expect(result.values[1]![0]).toBe(UNICODE_SAMPLES.bengali);
+      expect(result.values[2]![0]).toBe(UNICODE_SAMPLES.tamil);
+      expect(result.values[3]![0]).toBe(UNICODE_SAMPLES.thai);
     }, 60000);
   });
 
@@ -214,7 +214,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.emoji_basic);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.emoji_basic);
     }, 60000);
 
     it('should handle ZWJ emoji sequences (family, flag, etc.)', async () => {
@@ -232,7 +232,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
       // ZWJ sequences should be preserved
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.emoji_zwj);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.emoji_zwj);
     }, 60000);
 
     it('should handle emoji with skin tone modifiers', async () => {
@@ -249,7 +249,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.emoji_skin);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.emoji_skin);
     }, 60000);
   });
 
@@ -268,7 +268,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.mixed);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.mixed);
     }, 60000);
 
     it('should handle bidirectional text', async () => {
@@ -285,7 +285,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.bidi);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.bidi);
     }, 60000);
 
     it('should handle special whitespace characters', async () => {
@@ -303,7 +303,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
       // Note: Google Sheets may normalize some whitespace
-      expect(result.values[0][0]).toBeDefined();
+      expect(result.values[0]![0]).toBeDefined();
     }, 60000);
 
     it('should handle surrogate pairs (characters outside BMP)', async () => {
@@ -320,7 +320,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.surrogate);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.surrogate);
     }, 60000);
 
     it('should handle combining characters', async () => {
@@ -338,8 +338,8 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
       // The combining characters should be preserved
-      expect(result.values[0][0]).toBeDefined();
-      expect(result.values[0][0].length).toBeGreaterThan(0);
+      expect(result.values[0]![0]).toBeDefined();
+      expect(result.values[0]![0]!.length).toBeGreaterThan(0);
     }, 60000);
   });
 
@@ -360,7 +360,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       await applyQuotaDelay();
 
       const expectedRows = templateData.length;
-      const expectedCols = templateData[0].length;
+      const expectedCols = templateData[0]!.length;
 
       const result = await client.readData(
         testSpreadsheetId,
@@ -371,8 +371,8 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       expect(result.values.length).toBe(expectedRows);
 
       // Check headers preserved: ['Language', 'Greeting', 'Sample Text', 'Numbers', 'Special']
-      expect(result.values[0][0]).toBe('Language');
-      expect(result.values[0][2]).toBe('Sample Text');
+      expect(result.values[0]![0]).toBe('Language');
+      expect(result.values[0]![2]).toBe('Sample Text');
     }, 120000);
   });
 
@@ -402,7 +402,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
           // Read back
           const readResult = await client.readData(testSpreadsheetId, `'${sheetName}'!A1`);
-          expect(readResult.values[0][0]).toBe('Test');
+          expect(readResult.values[0]![0]).toBe('Test');
 
           await applyQuotaDelay();
         } catch (error) {
@@ -434,8 +434,8 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1:A2');
 
       // Both should be readable (Google Sheets may normalize)
-      expect(result.values[0][0]).toBeDefined();
-      expect(result.values[1][0]).toBeDefined();
+      expect(result.values[0]![0]).toBeDefined();
+      expect(result.values[1]![0]).toBeDefined();
 
       // They should look the same when displayed (both are "é")
       // Note: Google Sheets typically normalizes to NFC
@@ -457,7 +457,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.math);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.math);
     }, 60000);
 
     it('should handle currency symbols', async () => {
@@ -474,7 +474,7 @@ describe.skipIf(skipTests)('Unicode & Internationalization Tests', () => {
 
       const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
 
-      expect(result.values[0][0]).toBe(UNICODE_SAMPLES.currency);
+      expect(result.values[0]![0]).toBe(UNICODE_SAMPLES.currency);
     }, 60000);
   });
 });

@@ -320,7 +320,7 @@ describe('SamplingAnalysisService', () => {
       // Parse JSON from prompt to verify truncation
       const jsonMatch = promptText.match(/```json\n([\s\S]*?)\n```/);
       expect(jsonMatch).toBeDefined();
-      const parsedData = JSON.parse(jsonMatch![1]);
+      const parsedData = JSON.parse(jsonMatch![1]!);
 
       expect(parsedData).toHaveLength(20); // Max 20 rows
       expect(parsedData[0]).toHaveLength(10); // Max 10 columns

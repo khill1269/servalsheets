@@ -74,7 +74,7 @@ describe('Schema-Handler Alignment', () => {
 
         // Extract actions from schema using shared parser
         const schemaActions = extractSchemaActions(schemaPath);
-        expect(schemaActions.length).toBeGreaterThan(0, `Schema ${tool}.ts has no actions defined`);
+        expect(schemaActions.length, `Schema ${tool}.ts has no actions defined`).toBeGreaterThan(0);
 
         // Extract cases from handler using shared parser
         const handlerCases = extractHandlerCases(handlerPath);
@@ -86,7 +86,7 @@ describe('Schema-Handler Alignment', () => {
           return; // Single-action tool - alignment verified
         }
 
-        expect(handlerCases.length).toBeGreaterThan(0, `Handler ${tool}.ts has no switch cases`);
+        expect(handlerCases.length, `Handler ${tool}.ts has no switch cases`).toBeGreaterThan(0);
 
         // Check alignment
         const extra = handlerCases.filter((c) => !schemaActions.includes(c));
@@ -226,10 +226,7 @@ describe('Schema-Handler Alignment', () => {
 
     it('should have justifications for all deviations', () => {
       ACCEPTABLE_DEVIATIONS.forEach((deviation) => {
-        expect(deviation.justification.length).toBeGreaterThan(
-          50,
-          `Justification for ${deviation.tool} is too short`
-        );
+        expect(deviation.justification.length, `Justification for ${deviation.tool} is too short`).toBeGreaterThan(50);
       });
     });
   });

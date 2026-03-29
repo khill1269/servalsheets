@@ -35,7 +35,7 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
         request: {
           action: 'list_connectors',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -56,7 +56,7 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
         request: {
           action: 'list_connectors',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -75,7 +75,7 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
       // Get connector IDs first
       const listResult = await handler.handle({
         request: { action: 'list_connectors' },
-      });
+      } as any);
 
       if (!listResult.response.success) {
         // If list_connectors fails, skip status test
@@ -91,7 +91,7 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
           action: 'status',
           connectorId: firstConnectorId,
         },
-      });
+      } as any);
 
       // Status should return either success (if configured) or a well-structured error
       // It must not throw an exception
@@ -104,7 +104,7 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
       // Get a real connector ID first
       const listResult = await handler.handle({
         request: { action: 'list_connectors' },
-      });
+      } as any);
       if (!listResult.response.success) return;
       const resp = listResult.response as { connectors: { id: string }[] };
       if (resp.connectors.length === 0) return;
@@ -116,7 +116,7 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
           connectorId,
           endpoint: 'invalid-endpoint-that-does-not-exist',
         },
-      });
+      } as any);
 
       // Must not throw — should return structured error or success: false
       expect(typeof result.response.success).toBe('boolean');

@@ -11,8 +11,6 @@ import {
   SheetsDataInputSchema,
   SheetsCoreInputSchema,
   SheetsFormatInputSchema,
-  SheetsVisualizeInputSchema,
-  SheetsAnalyzeInputSchema,
   SheetsTemplatesInputSchema,
   SheetsBigQueryInputSchema,
   SheetsAppsScriptInputSchema,

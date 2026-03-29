@@ -11,8 +11,6 @@ import {
   extractSchemaActions,
   extractHandlerCases,
   isSingleActionTool,
-  unwrapExpression,
-  isInsideOutputSchema,
 } from '../../src/utils/ast-schema-parser.js';
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');

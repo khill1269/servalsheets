@@ -21,7 +21,8 @@ import {
 } from '../../src/services/session-context.js';
 
 describe('SessionHandler', () => {
-  let handler: SessionHandler;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let handler: any;
 
   beforeEach(() => {
     resetSessionContext();
@@ -57,7 +58,8 @@ describe('SessionHandler', () => {
       });
 
       const scopedContext = new SessionContextManager();
-      const scopedHandler = new SessionHandler(scopedContext);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const scopedHandler: any = new SessionHandler(scopedContext);
 
       await scopedHandler.handle({
         action: 'set_active',
@@ -366,7 +368,7 @@ describe('SessionHandler', () => {
 
       const alerts = session.getAlerts({ onlyUnacknowledged: true });
       expect(alerts.length).toBeGreaterThan(0);
-      const alertId = alerts[0].id;
+      const alertId = alerts[0]!.id;
 
       const result = await handler.handle({
         action: 'acknowledge_alert',

@@ -425,7 +425,7 @@ describe('ResponseValidator', () => {
             updateSpreadsheetProperties: {
               properties: { title: 'Updated Title' },
             },
-          },
+          } as any,
         ],
       };
 

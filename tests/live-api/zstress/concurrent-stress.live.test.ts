@@ -8,7 +8,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import {
   getLiveApiClient,
-  getQuotaManager,
   getTestRateLimiter,
   applyQuotaDelay,
   generateTestId,
@@ -140,7 +139,7 @@ describe.skipIf(skipTests)('Concurrent Stress Tests', () => {
         console.log(`${parallelCount} parallel reads to same range: ${formatDuration(duration)}`);
 
         // All should return identical data
-        const firstResult = JSON.stringify(results[0].values);
+        const firstResult = JSON.stringify(results[0]!.values);
         results.forEach((result) => {
           expect(JSON.stringify(result.values)).toBe(firstResult);
         });
@@ -218,7 +217,7 @@ describe.skipIf(skipTests)('Concurrent Stress Tests', () => {
 
         // Read final value (last writer wins)
         const finalResult = await client.readData(testSpreadsheetId, 'Sheet1!A1');
-        expect(finalResult.values[0][0]).toMatch(/^Writer_\d$/);
+        expect(finalResult.values[0]![0]).toMatch(/^Writer_\d$/);
 
         // Most writes should complete (some may fail due to contention)
         const succeeded = results.filter((r) => r.status === 'fulfilled').length;
@@ -350,14 +349,14 @@ describe.skipIf(skipTests)('Concurrent Stress Tests', () => {
         const startTime = Date.now();
 
         const operationA = (async () => {
-          const data = await client.readData(spreadsheet1, 'Sheet1!A1');
+          await client.readData(spreadsheet1, 'Sheet1!A1');
           await sleep(10); // Simulate processing
           await client.writeData(spreadsheet2, 'Sheet1!A1', [['From_A']]);
           return 'A';
         })();
 
         const operationB = (async () => {
-          const data = await client.readData(spreadsheet2, 'Sheet1!A1');
+          await client.readData(spreadsheet2, 'Sheet1!A1');
           await sleep(10); // Simulate processing
           await client.writeData(spreadsheet1, 'Sheet1!A1', [['From_B']]);
           return 'B';
@@ -408,7 +407,7 @@ describe.skipIf(skipTests)('Concurrent Stress Tests', () => {
         const startTime = Date.now();
 
         // This should complete normally
-        const result = await client.readData(testSpreadsheetId, 'Sheet1!A1:Z100');
+        await client.readData(testSpreadsheetId, 'Sheet1!A1:Z100');
         const duration = Date.now() - startTime;
 
         console.log(`Read with timeout: ${formatDuration(duration)}`);

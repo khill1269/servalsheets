@@ -34,9 +34,10 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.chartType).toBe('LINE');
-    expect(result.data.request.data.sourceRange).toEqual({ a1: 'Sheet1!A1:B10' });
-    expect(result.data.request.options).toMatchObject({
+    const req0 = result.data.request as any;
+    expect(req0.chartType).toBe('LINE');
+    expect(req0.data.sourceRange).toEqual({ a1: 'Sheet1!A1:B10' });
+    expect(req0.options).toMatchObject({
       title: 'Revenue',
       legendPosition: 'RIGHT_LEGEND',
     });
@@ -58,7 +59,7 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.position).toMatchObject({
+    expect((result.data.request as any).position).toMatchObject({
       anchorCell: 'A11',
       sheetId: TEST_SHEET_ID,
     });
@@ -85,7 +86,7 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.position).toMatchObject({
+    expect((result.data.request as any).position).toMatchObject({
       anchorCell: 'A11',
       sheetId: TEST_SHEET_ID,
     });
@@ -139,8 +140,8 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.operations[0]?.type).toBe('text_format');
-    expect(result.data.request.operations[1]?.type).toBe('borders');
+    expect((result.data.request as any).operations[0]?.type).toBe('text_format');
+    expect((result.data.request as any).operations[1]?.type).toBe('borders');
   });
 
   it('rejects ambiguous batch_format operations without an explicit type', () => {
@@ -183,7 +184,7 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.range).toEqual({ a1: "'Revenue Data'!A1:Z50" });
+    expect((result.data.request as any).range).toEqual({ a1: "'Revenue Data'!A1:Z50" });
   });
 
   it('normalizes single-range Google-style conditional format payloads', () => {
@@ -217,8 +218,9 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.sheetId).toBe(0);
-    expect(result.data.request.range).toEqual({
+    const reqCf = result.data.request as any;
+    expect(reqCf.sheetId).toBe(0);
+    expect(reqCf.range).toEqual({
       grid: {
         sheetId: 0,
         startRowIndex: 1,
@@ -227,7 +229,7 @@ describe('Claude-facing request normalization regressions', () => {
         endColumnIndex: 2,
       },
     });
-    expect(result.data.request.rule).toMatchObject({
+    expect(reqCf.rule).toMatchObject({
       type: 'boolean',
       condition: {
         type: 'NUMBER_GREATER',
@@ -264,7 +266,7 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.steps[0]?.fields[0]?.type).toBe('text');
+    expect((result.data.request as any).steps[0]?.fields[0]?.type).toBe('text');
   });
 
   it('rejects multi-range Google-style conditional format payloads with a targeted message', () => {
@@ -325,7 +327,7 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.rightToLeft).toBeUndefined();
+    expect((result.data.request as any).rightToLeft).toBeUndefined();
   });
 
   it('accepts flat transaction queue params and normalizes them into operation.params', () => {
@@ -347,7 +349,7 @@ describe('Claude-facing request normalization regressions', () => {
       return;
     }
 
-    expect(result.data.request.operation).toEqual({
+    expect((result.data.request as any).operation).toEqual({
       tool: 'sheets_data',
       action: 'write',
       params: {

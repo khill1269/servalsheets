@@ -13,7 +13,8 @@ import {
 } from '../../src/handlers/dependencies.js';
 import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
-const unwrapResponse = <T extends { response?: unknown }>(result: T) =>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const unwrapResponse = <T extends { response?: unknown }>(result: T): any =>
   'response' in result ? (result as { response?: unknown }).response : result;
 
 describe('DependenciesHandler', () => {

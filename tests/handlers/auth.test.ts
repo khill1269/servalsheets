@@ -146,10 +146,10 @@ const createMockGoogleClient = (
 async function startManualLoginAndGetState(handler: AuthHandler): Promise<string> {
   process.env['OAUTH_USE_CALLBACK_SERVER'] = 'false';
 
-  const loginResult = await handler.handle({ action: 'login' });
+  const loginResult = await handler.handle({ action: 'login' } as any);
   expect(loginResult.response.success).toBe(true);
 
-  const state = new URL(loginResult.response.authUrl!).searchParams.get('state');
+  const state = new URL((loginResult.response as any).authUrl!).searchParams.get('state');
   expect(state).toBeTruthy();
 
   return state!;
@@ -173,7 +173,7 @@ describe('AuthHandler', () => {
       const mockClient = createMockGoogleClient('service_account', true);
       const handler = new AuthHandler({ googleClient: mockClient });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
@@ -190,7 +190,7 @@ describe('AuthHandler', () => {
       const mockClient = createMockGoogleClient('oauth', true);
       const handler = new AuthHandler({ googleClient: mockClient });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', true);
@@ -202,11 +202,11 @@ describe('AuthHandler', () => {
       const mockClient = createMockGoogleClient('oauth', false);
       const handler = new AuthHandler({ googleClient: mockClient });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
-      expect(result.response.message).toContain('Not authenticated');
+      expect((result.response as any).message).toContain('Not authenticated');
       expect(result.response).toHaveProperty('blockingIssues.0.code', 'AUTHENTICATION_REQUIRED');
       expect(result.response).toHaveProperty('readiness.googleAuth.configured', true);
     });
@@ -214,7 +214,7 @@ describe('AuthHandler', () => {
     it('should return unconfigured when no OAuth credentials', async () => {
       const handler = new AuthHandler({ googleClient: null });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
@@ -228,7 +228,7 @@ describe('AuthHandler', () => {
         oauthClientSecret: 'test-secret',
       });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
@@ -257,7 +257,7 @@ describe('AuthHandler', () => {
       await tokenManager.refreshToken();
       await tokenManager.refreshToken();
 
-      const reauthStatus = await handler.handle({ action: 'status' });
+      const reauthStatus = await handler.handle({ action: 'status' } as any);
 
       expect(reauthStatus.response.success).toBe(false);
       if (!reauthStatus.response.success) {
@@ -278,11 +278,11 @@ describe('AuthHandler', () => {
 
       await tokenManager.refreshToken();
 
-      const recoveredStatus = await handler.handle({ action: 'status' });
+      const recoveredStatus = await handler.handle({ action: 'status' } as any);
 
       expect(recoveredStatus.response.success).toBe(true);
       if (recoveredStatus.response.success) {
-        expect(recoveredStatus.response.authenticated).toBe(true);
+        expect((recoveredStatus.response as any).authenticated).toBe(true);
       }
     });
   });
@@ -291,11 +291,11 @@ describe('AuthHandler', () => {
     it('should return error when OAuth not configured', async () => {
       const handler = new AuthHandler({ googleClient: null });
 
-      const result = await handler.handle({ action: 'login' });
+      const result = await handler.handle({ action: 'login' } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('CONFIG_ERROR');
-      expect(result.response.error?.message).toContain('not configured');
+      expect((result.response as any).error?.code).toBe('CONFIG_ERROR');
+      expect((result.response as any).error?.message).toContain('not configured');
     });
 
     it('should generate auth URL for manual flow', async () => {
@@ -309,13 +309,13 @@ describe('AuthHandler', () => {
       process.env['OAUTH_USE_CALLBACK_SERVER'] = 'false';
       process.env['OAUTH_AUTO_OPEN_BROWSER'] = 'false';
 
-      const result = await handler.handle({ action: 'login' });
+      const result = await handler.handle({ action: 'login' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authUrl');
-      expect(result.response.authUrl).toContain('https://accounts.google.com/o/oauth2/v2/auth');
+      expect((result.response as any).authUrl).toContain('https://accounts.google.com/o/oauth2/v2/auth');
       expect(result.response).toHaveProperty('instructions');
-      expect(result.response.instructions).toBeInstanceOf(Array);
+      expect((result.response as any).instructions).toBeInstanceOf(Array);
     });
 
     it('should request additional scopes when provided', async () => {
@@ -331,10 +331,10 @@ describe('AuthHandler', () => {
       const result = await handler.handle({
         action: 'login',
         scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.scopes).toContain('https://www.googleapis.com/auth/drive.readonly');
+      expect((result.response as any).scopes).toContain('https://www.googleapis.com/auth/drive.readonly');
     });
 
     it('should handle callback server timeout gracefully', async () => {
@@ -348,7 +348,7 @@ describe('AuthHandler', () => {
       // For simplicity, we test the manual flow which is the fallback
       process.env['OAUTH_USE_CALLBACK_SERVER'] = 'false';
 
-      const result = await handler.handle({ action: 'login' });
+      const result = await handler.handle({ action: 'login' } as any);
 
       // Should fall back to manual flow
       expect(result.response.success).toBe(true);
@@ -364,7 +364,7 @@ describe('AuthHandler', () => {
         redirectUri: 'http://localhost:3000/callback',
       });
 
-      const result = await handler.handle({ action: 'login' });
+      const result = await handler.handle({ action: 'login' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', true);
@@ -388,7 +388,7 @@ describe('AuthHandler', () => {
         action: 'callback',
         code: 'test-auth-code',
         state,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', true);
@@ -401,10 +401,10 @@ describe('AuthHandler', () => {
       const result = await handler.handle({
         action: 'callback',
         code: 'test-code',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('CONFIG_ERROR');
+      expect((result.response as any).error?.code).toBe('CONFIG_ERROR');
     });
 
     it('should warn when encryption key not set', async () => {
@@ -419,11 +419,11 @@ describe('AuthHandler', () => {
         action: 'callback',
         code: 'test-code',
         state,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.message).toContain('ENCRYPTION_KEY');
+        expect((result.response as any).message).toContain('ENCRYPTION_KEY');
       }
     });
 
@@ -437,10 +437,10 @@ describe('AuthHandler', () => {
         action: 'callback',
         code: 'test-code',
         state: 'invalid-state',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.message).toContain('state verification failed');
+      expect((result.response as any).error?.message).toContain('state verification failed');
       expect(oauthClientMocks.getToken).not.toHaveBeenCalled();
       expect(mockSessionContext.importState).not.toHaveBeenCalled();
     });
@@ -452,16 +452,16 @@ describe('AuthHandler', () => {
         oauthClientSecret: 'test-secret',
       });
 
-      const loginResult = await handler.handle({ action: 'login' });
+      const loginResult = await handler.handle({ action: 'login' } as any);
       expect(loginResult.response.success).toBe(true);
-      const state = new URL(loginResult.response.authUrl!).searchParams.get('state');
+      const state = new URL((loginResult.response as any).authUrl!).searchParams.get('state');
       expect(state).toBeTruthy();
 
       const callbackResult = await handler.handle({
         action: 'callback',
         code: 'test-code',
         state: state!,
-      });
+      } as any);
 
       expect(callbackResult.response.success).toBe(true);
       expect(mockSessionContext.importState).toHaveBeenCalledWith('mock-session-state');
@@ -474,16 +474,16 @@ describe('AuthHandler', () => {
         oauthClientSecret: 'test-secret',
       });
 
-      const loginResult = await handler.handle({ action: 'login' });
+      const loginResult = await handler.handle({ action: 'login' } as any);
       expect(loginResult.response.success).toBe(true);
 
       const callbackResult = await handler.handle({
         action: 'callback',
         code: 'test-code',
-      });
+      } as any);
 
       expect(callbackResult.response.success).toBe(false);
-      expect(callbackResult.response.error?.message).toContain('state verification failed');
+      expect((callbackResult.response as any).error?.message).toContain('state verification failed');
       expect(mockSessionContext.importState).not.toHaveBeenCalled();
     });
 
@@ -500,7 +500,7 @@ describe('AuthHandler', () => {
         action: 'callback',
         code: 'test-code',
         state,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockClient.setScopes).not.toHaveBeenCalled();
@@ -512,7 +512,7 @@ describe('AuthHandler', () => {
       const mockClient = createMockGoogleClient('oauth', true);
       const handler = new AuthHandler({ googleClient: mockClient });
 
-      const result = await handler.handle({ action: 'logout' });
+      const result = await handler.handle({ action: 'logout' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
@@ -527,7 +527,7 @@ describe('AuthHandler', () => {
       mockClient.revokeAccess = vi.fn().mockRejectedValue(new Error('Revoke failed'));
       const handler = new AuthHandler({ googleClient: mockClient });
 
-      const result = await handler.handle({ action: 'logout' });
+      const result = await handler.handle({ action: 'logout' } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', false);
@@ -539,7 +539,7 @@ describe('AuthHandler', () => {
         tokenStoreKey: 'test-key',
       });
 
-      const result = await handler.handle({ action: 'logout' });
+      const result = await handler.handle({ action: 'logout' } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -553,10 +553,10 @@ describe('AuthHandler', () => {
       });
       const handler = new AuthHandler({ googleClient: mockClient });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error?.code).toBe('INTERNAL_ERROR');
     });
 
     it('should validate output against schema', async () => {
@@ -565,7 +565,7 @@ describe('AuthHandler', () => {
         oauthClientSecret: 'test-secret',
       });
 
-      const result = await handler.handle({ action: 'status' });
+      const result = await handler.handle({ action: 'status' } as any);
 
       const parseResult = SheetsAuthOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -587,11 +587,11 @@ describe('AuthHandler', () => {
       const result = await handler.handle({
         action: 'setup_feature',
         feature: 'webhooks',
-      });
+      } as any);
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.message).toMatch(/Provide a Redis URL/i);
-        expect(result.response.instructions).toEqual(
+        expect((result.response as any).message).toMatch(/Provide a Redis URL/i);
+        expect((result.response as any).instructions).toEqual(
           expect.arrayContaining([expect.stringMatching(/upstash|redis\.com/i)])
         );
       }
@@ -610,14 +610,14 @@ describe('AuthHandler', () => {
         action: 'setup_feature',
         feature: 'webhooks',
         redisUrl: 'redis://localhost:6379',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         // URL was persisted even if hot-wire failed
         expect(process.env['REDIS_URL']).toBe('redis://localhost:6379');
         // Message indicates restart path
-        expect(result.response.message).toMatch(/saved|restart/i);
+        expect((result.response as any).message).toMatch(/saved|restart/i);
       }
     });
 
@@ -633,7 +633,7 @@ describe('AuthHandler', () => {
         action: 'setup_feature',
         feature: 'webhooks',
         apiKey: 'redis://legacy:6379',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(process.env['REDIS_URL']).toBe('redis://legacy:6379');
@@ -644,7 +644,7 @@ describe('AuthHandler', () => {
       const result = await handler.handle({
         action: 'setup_feature',
         feature: 'webhooks',
-      });
+      } as any);
       expect(SheetsAuthOutputSchema.safeParse(result).success).toBe(true);
     });
   });
@@ -661,7 +661,7 @@ describe('AuthHandler', () => {
         action: 'callback',
         code: 'test-code',
         state,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -671,7 +671,7 @@ describe('AuthHandler', () => {
       const handler = new AuthHandler({ googleClient: mockClient });
 
       // First logout
-      const result = await handler.handle({ action: 'logout' });
+      const result = await handler.handle({ action: 'logout' } as any);
 
       expect(result.response.success).toBe(true);
     });

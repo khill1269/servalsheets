@@ -177,7 +177,7 @@ export const requestApp = async (
       }
     });
 
-    app.handle(req, res, (err) => {
+    (app as unknown as { handle: (req: unknown, res: unknown, next: (err?: unknown) => void) => void }).handle(req, res, (err) => {
       if (err) reject(err);
     });
 

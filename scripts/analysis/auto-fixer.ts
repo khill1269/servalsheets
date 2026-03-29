@@ -14,7 +14,6 @@
 
 import * as ts from 'typescript';
 import * as fs from 'fs';
-import * as path from 'path';
 import type { AnalysisIssue } from './multi-agent-analysis.js';
 
 // ============================================================================
@@ -64,7 +63,7 @@ export class AutoFixer {
     // Group issues by file for batch processing
     const issuesByFile = this.groupIssuesByFile(issues);
 
-    for (const [file, fileIssues] of issuesByFile) {
+    for (const [_file, fileIssues] of issuesByFile) {
       // Filter auto-fixable issues
       const fixableIssues = fileIssues.filter((i) => i.autoFixable);
 
@@ -184,7 +183,7 @@ export class AutoFixer {
     const lines = content.split('\n');
 
     // Find the assertion line
-    const line = lines[issue.line - 1];
+    const line = lines[issue.line - 1] ?? '';
 
     // Try to replace with safer alternative
     const fixed = this.replaceTypeAssertion(line, issue);
@@ -362,7 +361,7 @@ export class AutoFixer {
 
   private importsAreSorted(original: ImportInfo[], sorted: ImportInfo[]): boolean {
     for (let i = 0; i < original.length; i++) {
-      if (original[i].module !== sorted[i].module) {
+      if (original[i]!.module !== sorted[i]!.module) {
         return false;
       }
     }
@@ -373,8 +372,8 @@ export class AutoFixer {
     if (original.length === 0) return content;
 
     // Find the import block range
-    const firstImport = original[0];
-    const lastImport = original[original.length - 1];
+    const firstImport = original[0]!;
+    const lastImport = original[original.length - 1]!;
 
     const before = content.substring(0, firstImport.start);
     const after = content.substring(lastImport.end);
@@ -384,7 +383,7 @@ export class AutoFixer {
     return before + sortedText + after;
   }
 
-  private replaceTypeAssertion(line: string, issue: AnalysisIssue): string | null {
+  private replaceTypeAssertion(line: string, _issue: AnalysisIssue): string | null {
     // Simple patterns we can safely replace
     const patterns = [
       // (value as string) → typeof value === 'string' ? value : ''
@@ -469,7 +468,6 @@ export class AutoFixer {
     let result = content;
     for (const imp of sorted) {
       // Remove the entire import line including newline
-      const lines = result.split('\n');
       const lineStart = result.substring(0, imp.start).lastIndexOf('\n');
       const lineEnd = result.substring(imp.end).indexOf('\n') + imp.end;
 
@@ -533,7 +531,7 @@ export class AutoFixer {
 
       // Remove all but first
       for (let i = 1; i < sorted.length; i++) {
-        const imp = sorted[i];
+        const imp = sorted[i]!;
         const start = imp.getStart();
         const end = imp.getEnd();
         const lineStart = result.substring(0, start).lastIndexOf('\n');
@@ -543,7 +541,7 @@ export class AutoFixer {
       }
 
       // Replace first with merged
-      const first = sorted[0];
+      const first = sorted[0]!;
       const start = first.getStart();
       const end = first.getEnd();
 
@@ -591,7 +589,7 @@ async function main() {
     process.exit(1);
   }
 
-  const issuesFile = args[0];
+  const issuesFile = args[0]!;
 
   // Read issues from JSON file
   const issuesData = JSON.parse(fs.readFileSync(issuesFile, 'utf-8'));

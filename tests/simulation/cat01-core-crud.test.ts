@@ -16,7 +16,7 @@
  * MCP Protocol: 2025-11-25
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { AuthHandler } from '../../src/handlers/auth.js';
 import { SheetsCoreOutputSchema } from '../../src/schemas/core.js';
@@ -240,7 +240,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'create',
         title: 'New Spreadsheet',
-      });
+      } as any);
 
       expect(result.response).toMatchObject({
         success: true,
@@ -256,7 +256,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
     it('should create spreadsheet with default title if not provided', async () => {
       const result = await handler.handle({
         action: 'create',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect((result.response as any).spreadsheet).toBeDefined();
@@ -272,7 +272,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'describe_workbook',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
 
@@ -288,12 +288,12 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result1 = await handler.handle({
         action: 'workbook_fingerprint',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
       const result2 = await handler.handle({
         action: 'workbook_fingerprint',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
       // Both calls should succeed
       expect(result1.response.success).toBe(true);
@@ -320,7 +320,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'add_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'NewSheet',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const newSheet = (result.response as any).sheet;
@@ -335,7 +335,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'Sheet1',
         safety: { allowDuplicate: false },
-      });
+      } as any);
 
       // When duplicates not allowed, should fail or warn
       if (!firstCall.response.success) {
@@ -353,7 +353,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'delete_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 1,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -363,7 +363,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'duplicate_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const duplicated = (result.response as any).sheet;
@@ -381,9 +381,10 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
   describe('1.4 Batch Operations', () => {
     it('should execute batch operations with progress notifications', async () => {
       const progressCalls: any[] = [];
-      const originalSendProgress = mockContext.sendProgress;
+      const ctxAny = mockContext as any;
+      const originalSendProgress = ctxAny.sendProgress;
       if (originalSendProgress) {
-        mockContext.sendProgress = vi.fn((update) => {
+        ctxAny.sendProgress = vi.fn((update: any) => {
           progressCalls.push(update);
         });
       }
@@ -395,7 +396,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
           { sheetId: 0, newTitle: 'Renamed1' },
           { sheetId: 1, newTitle: 'Renamed2' },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -411,7 +412,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
           { sheetId: 0, newTitle: 'Sheet1Renamed' },
           { sheetId: 999, newTitle: 'InvalidSheet' },
         ],
-      });
+      } as any);
 
       if (!result.response.success) {
         expect(result.response).toMatchObject({
@@ -435,7 +436,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
         destinationSpreadsheetId: 'other-spreadsheet-id',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const copiedSheet = (result.response as any).sheet;
@@ -454,7 +455,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
         destinationSpreadsheetId: 'nonexistent-id',
-      });
+      } as any);
 
       if (!result.response.success) {
         expect(result.response.error).toBeDefined();
@@ -474,7 +475,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 1,
         newIndex: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -485,7 +486,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetId: 0,
         newIndex: 999,
-      });
+      } as any);
 
       // Implementation choice: either clamp or error
       if (!result.response.success) {
@@ -570,15 +571,16 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'get',
         spreadsheetId: 'nonexistent-id',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error!.code).toBe('SPREADSHEET_NOT_FOUND');
+      const errResp1 = result.response as any;
+      expect(errResp1.success).toBe(false);
+      expect(errResp1.error).toBeDefined();
+      expect(errResp1.error?.code).toBe('SPREADSHEET_NOT_FOUND');
 
       // fixableVia should suggest sheets_core.list to find the correct ID
-      if (result.response.error!.fixableVia) {
-        expect(result.response.error!.fixableVia).toMatchObject({
+      if (errResp1.error?.fixableVia) {
+        expect(errResp1.error?.fixableVia).toMatchObject({
           tool: 'sheets_core',
           action: 'list',
         });
@@ -596,7 +598,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'get_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'Sheet📊',
-      });
+      } as any);
 
       // Sheet with emoji should not be found
       if (!result.response.success) {
@@ -610,7 +612,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'get_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: ' Sheet1 ',
-      });
+      } as any);
 
       // Sheet with whitespace should not be found (different from exact name)
       if (!result.response.success) {
@@ -624,7 +626,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'get_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'sheet1', // lowercase vs 'Sheet1'
-      });
+      } as any);
 
       // Case mismatch should result in a sheet not found error
       if (!result.response.success) {
@@ -645,14 +647,14 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'Sheet1',
         safety: { allowDuplicate: false },
-      });
+      } as any);
 
       const secondCall = await handler.handle({
         action: 'add_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'Sheet1',
         safety: { allowDuplicate: false },
-      });
+      } as any);
 
       // If the second call returns the existing sheet instead of creating a new one:
       if (secondCall.response.success && !firstCall.response.success) {
@@ -672,7 +674,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         action: 'add_sheet',
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'UniqueSheet123',
-      });
+      } as any);
 
       expect(create1.response.success).toBe(true);
 
@@ -682,7 +684,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
         spreadsheetId: 'test-spreadsheet-id',
         sheetName: 'UniqueSheet123',
         safety: { allowDuplicate: false },
-      });
+      } as any);
 
       // Either both succeed (idempotent) or second fails appropriately
       if (create2.response.success) {
@@ -707,7 +709,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
       const validation = SheetsCoreOutputSchema.safeParse(result);
       expect(validation.success).toBe(true);
@@ -717,10 +719,11 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'invalid_action' as any,
         spreadsheetId: 'test-spreadsheet-id',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      const errResp2 = result.response as any;
+      expect(errResp2.success).toBe(false);
+      expect(errResp2.error).toBeDefined();
     });
   });
 
@@ -735,7 +738,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'get',
         spreadsheetId: 'bad-id',
-      });
+      } as any);
 
       if (!result.response.success) {
         expect(result.response.error!.code).toBeDefined();
@@ -752,7 +755,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'get',
         spreadsheetId: 'restricted-id',
-      });
+      } as any);
 
       if (!result.response.success) {
         expect(result.response.error!.message).toBeDefined();
@@ -768,7 +771,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       const result = await handler.handle({
         action: 'get',
         spreadsheetId: 'nonexistent-id',
-      });
+      } as any);
 
       if (!result.response.success && result.response.error!.fixableVia) {
         expect(result.response.error!.fixableVia).toMatchObject({

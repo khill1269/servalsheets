@@ -15,17 +15,16 @@
  * @category Chaos Engineering
  */
 
-import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
+import { describe, it, beforeAll, afterAll, expect } from 'vitest';
 import { spawn, ChildProcess } from 'child_process';
 import { createInterface } from 'readline';
 import { waitFor } from '../helpers/wait-for.js';
-import { EventEmitter } from 'events';
 
 // Test configuration
 const CHAOS_CONFIG = {
   serverPort: 3020, // Dedicated port for chaos testing
-  spreadsheetId: process.env.TEST_SPREADSHEET_ID || 'test-sheet-id',
-  token: process.env.TEST_TOKEN || 'test-token',
+  spreadsheetId: process.env['TEST_SPREADSHEET_ID'] || 'test-sheet-id',
+  token: process.env['TEST_TOKEN'] || 'test-token',
 } as const;
 
 /**
@@ -283,13 +282,10 @@ class ChaosTestExecutor {
   private baseUrl: string;
   private networkChaos: NetworkChaos;
   private apiChaos: GoogleApiChaos;
-  private systemChaos: SystemChaos;
-
   constructor(port: number) {
     this.baseUrl = `http://localhost:${port}`;
     this.networkChaos = new NetworkChaos();
     this.apiChaos = new GoogleApiChaos();
-    this.systemChaos = new SystemChaos();
   }
 
   /**
@@ -386,8 +382,6 @@ class ChaosTestExecutor {
     let eventualSuccess = false;
 
     for (let i = 0; i < 5; i++) {
-      const start = Date.now();
-
       try {
         // Simulate rate limiting for first 3 attempts
         const response =
@@ -461,8 +455,8 @@ class ChaosTestExecutor {
 
         // Server should return cached data or error with guidance
         if (errorResponse.status >= 500) {
-          const body = await errorResponse.json();
-          if (body.error && body.error.message) {
+          const body = await errorResponse.json() as Record<string, any>;
+          if (body['error'] && body['error'].message) {
             gracefulDegradation = true;
           }
         }
@@ -512,7 +506,7 @@ class ChaosTestExecutor {
  * Test Suite
  */
 // Chaos tests require a real server — skip when not in CI with full infra
-const ENABLE_CHAOS = process.env.CHAOS_TEST === 'true';
+const ENABLE_CHAOS = process.env['CHAOS_TEST'] === 'true';
 
 describe.skipIf(!ENABLE_CHAOS)('Chaos Engineering - Resilience Testing', () => {
   let server: ChaosServerProcess;

@@ -5,7 +5,7 @@
  * Covers 21 actions including read, write, clear, cut, copy, notes, hyperlinks, merge, etc.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsDataHandler } from '../../src/handlers/data.js';
 import { SheetsDataOutputSchema } from '../../src/schemas/data.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -265,7 +265,7 @@ describe('SheetsDataHandler', () => {
           action: 'read',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -292,7 +292,7 @@ describe('SheetsDataHandler', () => {
           action: 'read',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).values).toEqual([]);
@@ -304,7 +304,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
           valueRenderOption: 'FORMULA',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.get).toHaveBeenCalledWith(
@@ -331,7 +331,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:O40',
           response_format: 'preview',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         const response = result.response as any;
@@ -346,7 +346,7 @@ describe('SheetsDataHandler', () => {
       });
 
       it('should auto paginate large ranges to respect 10k cell limit', async () => {
-        mockContext.rangeResolver.resolve.mockResolvedValueOnce({
+        (mockContext.rangeResolver.resolve as any).mockResolvedValueOnce({
           a1Notation: 'Sheet1!A1:Z1000',
           sheetId: 0,
           sheetName: 'Sheet1',
@@ -375,7 +375,7 @@ describe('SheetsDataHandler', () => {
           action: 'read',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:Z1000',
-        });
+        } as any);
 
         expect(mockApi.spreadsheets.values.get).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -397,7 +397,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
           cursor: 'not-a-valid-cursor',
-        });
+        } as any);
 
         expect(result.response.success).toBe(false);
         expect((result.response as any).error.code).toBe('INVALID_PARAMS');
@@ -415,7 +415,7 @@ describe('SheetsDataHandler', () => {
             ['Name', 'Age'],
             ['Bob', '25'],
           ],
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -434,7 +434,7 @@ describe('SheetsDataHandler', () => {
           cell: 'Sheet1!A1',
           values: [['=SUM(A2:A10)']],
           valueInputOption: 'USER_ENTERED',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.update).toHaveBeenCalledWith(
@@ -463,7 +463,7 @@ describe('SheetsDataHandler', () => {
             ['Alice', '30'],
             ['Bob', '25'],
           ],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).updatedRange).toBe('Sheet1!A1:B3');
@@ -482,7 +482,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           range: 'Sheet1!A:B',
           values: [['Carol', '28']],
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -501,7 +501,7 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A:B',
           values: [['Dave', '35']],
           insertDataOption: 'INSERT_ROWS',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.append).toHaveBeenCalledWith(
@@ -517,7 +517,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           tableId: 'table-123',
           values: [['Eve', '42']],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -548,7 +548,7 @@ describe('SheetsDataHandler', () => {
               },
             },
           ],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.batchGetByDataFilter).toHaveBeenCalled();
@@ -556,7 +556,7 @@ describe('SheetsDataHandler', () => {
 
       it('should apply compact response_format for batch_read range values', async () => {
         const largeValues = Array.from({ length: 260 }, (_, rowIdx) => [`row-${rowIdx + 1}`]);
-        mockContext.rangeResolver.resolve.mockResolvedValueOnce({
+        (mockContext.rangeResolver.resolve as any).mockResolvedValueOnce({
           a1Notation: 'Sheet1!A1:A260',
           sheetId: 0,
           sheetName: 'Sheet1',
@@ -591,7 +591,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           ranges: ['Sheet1!A1:A260'],
           response_format: 'compact',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         const response = result.response as any;
@@ -612,7 +612,7 @@ describe('SheetsDataHandler', () => {
               values: [['Name', 'Age']],
             },
           ],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.batchUpdateByDataFilter).toHaveBeenCalled();
@@ -623,7 +623,7 @@ describe('SheetsDataHandler', () => {
           action: 'batch_clear',
           spreadsheetId: 'test-id',
           dataFilters: [{ a1Range: 'Sheet1!A1:B2' }],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.batchClearByDataFilter).toHaveBeenCalled();
@@ -659,7 +659,7 @@ describe('SheetsDataHandler', () => {
           action: 'clear',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:Z10',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -692,7 +692,7 @@ describe('SheetsDataHandler', () => {
           safety: {
             createSnapshot: true,
           },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(snapshotService.create).not.toHaveBeenCalled();
@@ -739,7 +739,7 @@ describe('SheetsDataHandler', () => {
           action: 'clear',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:Z10',
-        });
+        } as any);
 
         // With destructive confirmation wired, cancellation should be respected
         expect(result.response.success).toBe(true);
@@ -755,7 +755,7 @@ describe('SheetsDataHandler', () => {
           safety: {
             dryRun: true,
           },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).dryRun).toBe(true);
@@ -933,7 +933,7 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:B3',
           find: 'pending',
           replacement: 'completed',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -952,7 +952,7 @@ describe('SheetsDataHandler', () => {
           find: 'old',
           replacement: 'new',
           allSheets: true,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).replacementsCount).toBeGreaterThanOrEqual(0);
@@ -975,7 +975,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           find: 'pending',
           replacement: 'completed',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         const findReplaceRequest = (mockApi.spreadsheets.batchUpdate as any).mock.calls[0][0]
@@ -996,7 +996,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           cell: 'Sheet1!A1',
           note: 'This is a note',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1014,7 +1014,7 @@ describe('SheetsDataHandler', () => {
           action: 'clear_note',
           spreadsheetId: 'test-id',
           cell: 'Sheet1!A1',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1033,7 +1033,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           cell: 'Sheet1!A1',
           url: 'https://example.com',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1050,7 +1050,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           cell: 'Sheet1!A1',
           url: 'invalid-url',
-        });
+        } as any);
 
         expect(result.response.success).toBe(false);
         expect((result.response as any).error).toBeDefined();
@@ -1063,7 +1063,7 @@ describe('SheetsDataHandler', () => {
           action: 'clear_hyperlink',
           spreadsheetId: 'test-id',
           cell: 'Sheet1!A1',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1082,7 +1082,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
           mergeType: 'MERGE_ALL',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1102,7 +1102,7 @@ describe('SheetsDataHandler', () => {
             spreadsheetId: 'test-id',
             range: 'Sheet1!A1:B2',
             mergeType,
-          });
+          } as any);
 
           expect(result.response.success).toBe(true);
         }
@@ -1115,7 +1115,7 @@ describe('SheetsDataHandler', () => {
           action: 'unmerge_cells',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1135,7 +1135,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1:B2',
           destination: 'Sheet1!D1',
-        });
+        } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
@@ -1168,7 +1168,7 @@ describe('SheetsDataHandler', () => {
           safety: {
             createSnapshot: true,
           },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(snapshotService.create).not.toHaveBeenCalled();
@@ -1184,7 +1184,7 @@ describe('SheetsDataHandler', () => {
           safety: {
             dryRun: true,
           },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).dryRun).toBe(true);
@@ -1192,7 +1192,7 @@ describe('SheetsDataHandler', () => {
       });
 
       it('should skip confirmation for small operations', async () => {
-        mockContext.impactAnalyzer = {
+        (mockContext as any).impactAnalyzer = {
           analyzeOperation: vi.fn().mockResolvedValue({
             severity: 'low',
             cellsAffected: 2, // Small operation
@@ -1209,7 +1209,7 @@ describe('SheetsDataHandler', () => {
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1',
           destination: 'Sheet1!B1',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         // Confirmation may still be called, but not required for small operations
@@ -1266,7 +1266,7 @@ describe('SheetsDataHandler', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       expect((result.response as any).error.message).toContain('API Error');
@@ -1279,7 +1279,7 @@ describe('SheetsDataHandler', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'InvalidRange',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
     });
@@ -1292,7 +1292,7 @@ describe('SheetsDataHandler', () => {
         action: 'clear',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B2',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       expect((result.response as any).error.message).toContain('Clear operation failed');

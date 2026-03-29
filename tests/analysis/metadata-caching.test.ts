@@ -57,7 +57,7 @@ describe('Metadata Fetch Optimization', () => {
         },
       };
 
-      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse);
+      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse as any);
 
       const analyzer = new ComprehensiveAnalyzer(mockSheetsApi, {
         includeFormulas: false,
@@ -83,7 +83,7 @@ describe('Metadata Fetch Optimization', () => {
         },
       };
 
-      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse);
+      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse as any);
 
       const analyzer = new ComprehensiveAnalyzer(mockSheetsApi);
       await (analyzer as unknown as ComprehensiveAnalyzerPrivate).getSpreadsheetInfo(spreadsheetId);
@@ -139,7 +139,7 @@ describe('Metadata Fetch Optimization', () => {
         },
       };
 
-      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse);
+      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse as any);
 
       const analyzer = new ComprehensiveAnalyzer(mockSheetsApi, {
         includeFormulas: true,
@@ -181,7 +181,7 @@ describe('Metadata Fetch Optimization', () => {
         },
       };
 
-      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse);
+      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse as any);
 
       const analyzer = new ComprehensiveAnalyzer(mockSheetsApi, {
         includeFormulas: true,
@@ -234,7 +234,7 @@ describe('Metadata Fetch Optimization', () => {
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
 
       // Formula data should not be added on error
-      expect(sheetAnalyses[0]!.formulas).toBeUndefined();
+      expect((sheetAnalyses[0] as any).formulas).toBeUndefined();
     });
   });
 
@@ -248,12 +248,12 @@ describe('Metadata Fetch Optimization', () => {
         },
       };
 
-      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse);
+      vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValue(mockResponse as any);
 
       const analyzer = new ComprehensiveAnalyzer(mockSheetsApi);
       await (analyzer as unknown as ComprehensiveAnalyzerPrivate).getSpreadsheetInfo(spreadsheetId);
 
-      const call = vi.mocked(mockSheetsApi.spreadsheets.get).mock.calls[0]![0];
+      const call = vi.mocked(mockSheetsApi.spreadsheets.get).mock.calls[0]![0] as any;
 
       // Field mask should only fetch properties and namedRanges
       // This excludes sheets.data (largest payload component)
@@ -271,14 +271,14 @@ describe('Metadata Fetch Optimization', () => {
           properties: { locale: 'en_US' },
           namedRanges: [],
         },
-      });
+      } as any);
 
       // Mock for enrichWithFormulas
       vi.mocked(mockSheetsApi.spreadsheets.get).mockResolvedValueOnce({
         data: {
           sheets: [{ properties: { sheetId: 0 }, data: [{ rowData: [] }] }],
         },
-      });
+      } as any);
 
       const analyzer = new ComprehensiveAnalyzer(mockSheetsApi, {
         includeFormulas: true,
@@ -286,7 +286,7 @@ describe('Metadata Fetch Optimization', () => {
 
       // Call getSpreadsheetInfo
       await (analyzer as unknown as ComprehensiveAnalyzerPrivate).getSpreadsheetInfo(spreadsheetId);
-      const infoCall = vi.mocked(mockSheetsApi.spreadsheets.get).mock.calls[0]![0];
+      const infoCall = vi.mocked(mockSheetsApi.spreadsheets.get).mock.calls[0]![0] as any;
       expect(infoCall.fields).toBe('properties,namedRanges');
 
       // Call enrichWithFormulas
@@ -294,7 +294,7 @@ describe('Metadata Fetch Optimization', () => {
         spreadsheetId,
         []
       );
-      const formulaCall = vi.mocked(mockSheetsApi.spreadsheets.get).mock.calls[1]![0];
+      const formulaCall = vi.mocked(mockSheetsApi.spreadsheets.get).mock.calls[1]![0] as any;
       expect(formulaCall.fields).toBe(
         'sheets(properties.sheetId,data.rowData.values.userEnteredValue.formulaValue)'
       );

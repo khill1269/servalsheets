@@ -68,7 +68,7 @@ describe('Response Format Compliance (JSON-RPC)', () => {
       };
 
       // Send request
-      clientTransport.send(request);
+      clientTransport.send(request as Parameters<typeof clientTransport.send>[0]);
     });
   }
 

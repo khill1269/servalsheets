@@ -414,10 +414,8 @@ describe('BatchingSystem with Adaptive Window', () => {
     });
 
     it('should reset adaptive window with stats', () => {
-      const _initialWindow = batchingSystem.getStats().currentWindowMs!;
-
       // Execute operation to change window
-      const _promise = batchingSystem.execute({
+      void batchingSystem.execute({
         id: 'test-1',
         type: 'values:update',
         spreadsheetId: 'test-sheet',

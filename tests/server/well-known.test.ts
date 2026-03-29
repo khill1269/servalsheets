@@ -215,7 +215,7 @@ describe('handleMcpConfiguration', () => {
     expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/json');
     expect(res.json).toHaveBeenCalled();
 
-    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(jsonArg.name).toBe('servalsheets');
     expect(jsonArg.capabilities).toBeDefined();
   });
@@ -240,7 +240,7 @@ describe('handleOAuthAuthorizationServer', () => {
     expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/json');
     expect(res.json).toHaveBeenCalled();
 
-    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(jsonArg.issuer).toBeDefined();
     expect(jsonArg.authorization_endpoint).toBeDefined();
     expect(jsonArg.token_endpoint).toBeDefined();
@@ -257,7 +257,7 @@ describe('handleOAuthProtectedResource', () => {
     expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/json');
     expect(res.json).toHaveBeenCalled();
 
-    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(jsonArg.resource).toBeDefined();
     expect(jsonArg.authorization_servers).toBeDefined();
   });
@@ -274,7 +274,7 @@ describe('handleToolHashManifest', () => {
     expect(res.set).toHaveBeenCalledWith('Content-Type', 'application/json');
     expect(res.json).toHaveBeenCalled();
 
-    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [jsonArg] = (res.json as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(jsonArg.version).toBe('1.6.0');
     expect(jsonArg.tools.sheets_auth.sha256).toBe('abc123');
   });
@@ -327,8 +327,8 @@ describe('registerWellKnownHandlers', () => {
     primaryHandler?.(primaryReq, primaryRes);
     aliasHandler?.(aliasReq, aliasRes);
 
-    const [primaryJson] = (primaryRes.json as ReturnType<typeof vi.fn>).mock.calls[0];
-    const [aliasJson] = (aliasRes.json as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [primaryJson] = (primaryRes.json as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const [aliasJson] = (aliasRes.json as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(aliasJson).toEqual(primaryJson);
   });
 

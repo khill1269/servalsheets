@@ -31,11 +31,11 @@ const makeConnector = (baseUrl: string) =>
 describe('GenericRestConnector SSRF protection', () => {
   it('should reject configure() when baseUrl is a localhost URL', async () => {
     const connector = makeConnector('http://localhost:3000');
-    await expect(connector.configure({})).rejects.toThrow('HTTPS');
+    await expect(connector.configure({ type: 'none' })).rejects.toThrow('HTTPS');
   });
 
   it('should allow configure() with a valid HTTPS baseUrl', async () => {
     const connector = makeConnector('https://api.example.com');
-    await expect(connector.configure({})).resolves.not.toThrow();
+    await expect(connector.configure({ type: 'none' })).resolves.not.toThrow();
   });
 });

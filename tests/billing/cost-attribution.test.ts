@@ -4,10 +4,9 @@
  * Comprehensive tests for cost tracking, billing integration, and cost dashboard
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { CostTracker, getCostTracker } from '../../src/services/cost-tracker.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CostTracker } from '../../src/services/cost-tracker.js';
 import {
-  BillingIntegration,
   createBillingIntegration,
 } from '../../src/services/billing-integration.js';
 
@@ -201,34 +200,38 @@ describe('CostTracker', () => {
       expect(budgetStatus.percentUsed).toBe(50);
     });
 
-    it('should emit budget warning alert at 80%', (done) => {
-      costTracker.setBudget(testTenantId, 100);
-      costTracker.setTier(testTenantId, 'starter');
+    it('should emit budget warning alert at 80%', () => {
+      return new Promise<void>((resolve) => {
+        costTracker.setBudget(testTenantId, 100);
+        costTracker.setTier(testTenantId, 'starter');
 
-      costTracker.on('alert', (alert) => {
-        if (alert.type === 'budget_warning') {
-          expect(alert.tenantId).toBe(testTenantId);
-          expect(alert.currentCost).toBeGreaterThanOrEqual(80);
-          done();
-        }
+        costTracker.on('alert', (alert) => {
+          if (alert.type === 'budget_warning') {
+            expect(alert.tenantId).toBe(testTenantId);
+            expect(alert.currentCost).toBeGreaterThanOrEqual(80);
+            resolve();
+          }
+        });
+
+        costTracker.trackUserSeats(testTenantId, 10, 10); // $100
       });
-
-      costTracker.trackUserSeats(testTenantId, 10, 10); // $100
     });
 
-    it('should emit budget exceeded alert', (done) => {
-      costTracker.setBudget(testTenantId, 50);
-      costTracker.setTier(testTenantId, 'starter');
+    it('should emit budget exceeded alert', () => {
+      return new Promise<void>((resolve) => {
+        costTracker.setBudget(testTenantId, 50);
+        costTracker.setTier(testTenantId, 'starter');
 
-      costTracker.on('alert', (alert) => {
-        if (alert.type === 'budget_exceeded') {
-          expect(alert.tenantId).toBe(testTenantId);
-          expect(alert.currentCost).toBeGreaterThan(50);
-          done();
-        }
+        costTracker.on('alert', (alert) => {
+          if (alert.type === 'budget_exceeded') {
+            expect(alert.tenantId).toBe(testTenantId);
+            expect(alert.currentCost).toBeGreaterThan(50);
+            resolve();
+          }
+        });
+
+        costTracker.trackUserSeats(testTenantId, 10, 10); // $100
       });
-
-      costTracker.trackUserSeats(testTenantId, 10, 10); // $100
     });
   });
 

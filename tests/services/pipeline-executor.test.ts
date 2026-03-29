@@ -8,7 +8,7 @@
  *   4. error handling and cycle detection
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   PipelineExecutor,
   type PipelineStep,

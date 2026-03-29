@@ -6,9 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { ImpactAnalyzer } from '../../src/services/impact-analyzer';
-import type { GoogleApiClient } from '../../src/services/google-api';
-import type { ImpactSeverity } from '../../src/types/impact';
+import { ImpactAnalyzer } from '../../src/services/impact-analyzer.js';
+import type { GoogleApiClient } from '../../src/services/google-api.js';
 
 describe('ImpactAnalyzer', () => {
   let impactAnalyzer: ImpactAnalyzer;
@@ -134,7 +133,7 @@ describe('ImpactAnalyzer', () => {
       expect(impact.warnings.length).toBeGreaterThan(0);
       // Check for either cells or formulas warning (cells warning only if >1000)
       const hasRelevantWarning = impact.warnings.some(
-        (w) => w.resourceType === 'cells' || w.resourceType === 'formulas'
+        (w: any) => w.resourceType === 'cells' || w.resourceType === 'formulas'
       );
       expect(hasRelevantWarning).toBe(true);
     });
@@ -292,7 +291,7 @@ describe('ImpactAnalyzer', () => {
         expect(impact.chartsAffected.length).toBeGreaterThanOrEqual(3);
       }
       expect(
-        impact.warnings.some((w) => w.resourceType === 'formulas' && w.severity === 'high')
+        impact.warnings.some((w: any) => w.resourceType === 'formulas' && w.severity === 'high')
       ).toBe(true);
     });
 
@@ -348,11 +347,11 @@ describe('ImpactAnalyzer', () => {
       expect(impact.cellsAffected).toBeGreaterThan(10000);
       // If protected ranges are detected (depends on string overlap logic)
       if (impact.protectedRangesAffected.length > 0) {
-        expect(impact.protectedRangesAffected[0].impactType).toBe('permission_required');
-        expect(impact.protectedRangesAffected[0].editors).toContain('admin@example.com');
+        expect(impact.protectedRangesAffected[0]!.impactType).toBe('permission_required');
+        expect(impact.protectedRangesAffected[0]!.editors).toContain('admin@example.com');
         expect(
           impact.warnings.some(
-            (w) => w.resourceType === 'protected_ranges' && w.severity === 'critical'
+            (w: any) => w.resourceType === 'protected_ranges' && w.severity === 'critical'
           )
         ).toBe(true);
       }
@@ -389,9 +388,9 @@ describe('ImpactAnalyzer', () => {
       expect(impact.severity).toBe('critical');
       expect(impact.cellsAffected).toBeGreaterThan(10000);
       expect(
-        impact.warnings.some((w) => w.resourceType === 'cells' && w.severity === 'critical')
+        impact.warnings.some((w: any) => w.resourceType === 'cells' && w.severity === 'critical')
       ).toBe(true);
-      const cellWarning = impact.warnings.find((w) => w.resourceType === 'cells');
+      const cellWarning = impact.warnings.find((w: any) => w.resourceType === 'cells');
       expect(cellWarning?.suggestedAction).toContain('smaller operations');
     });
   });
@@ -457,7 +456,7 @@ describe('ImpactAnalyzer', () => {
 
       // Assert
       expect(impact.formulasAffected.length).toBeGreaterThan(0);
-      impact.formulasAffected.forEach((formula) => {
+      impact.formulasAffected.forEach((formula: any) => {
         expect(formula.impactType).toBe('references_affected_range');
         expect(formula.formula).toContain('Sheet1!A1:A10');
         expect(formula.sheetName).toBe('Sheet1');
@@ -465,7 +464,7 @@ describe('ImpactAnalyzer', () => {
         expect(formula.description).toContain('affected range');
       });
 
-      const formulaWarning = impact.warnings.find((w) => w.resourceType === 'formulas');
+      const formulaWarning = impact.warnings.find((w: any) => w.resourceType === 'formulas');
       expect(formulaWarning).toBeDefined();
       expect(formulaWarning?.affectedCount).toBeGreaterThan(0);
       expect(formulaWarning?.suggestedAction).toContain('Review formulas');
@@ -519,7 +518,7 @@ describe('ImpactAnalyzer', () => {
       // charts without explicit source ranges. The test validates the logic works
       // when charts are detected.
       if (impact.chartsAffected.length > 0) {
-        const chart = impact.chartsAffected[0];
+        const chart = impact.chartsAffected[0]!;
         expect(chart.chartId).toBeDefined();
         expect(typeof chart.title).toBe('string');
         expect(chart.title.length).toBeGreaterThan(0);
@@ -529,7 +528,7 @@ describe('ImpactAnalyzer', () => {
         expect(chart.impactType).toBe('data_source_affected');
         expect(chart.description).toContain('affected range');
 
-        const chartWarning = impact.warnings.find((w) => w.resourceType === 'charts');
+        const chartWarning = impact.warnings.find((w: any) => w.resourceType === 'charts');
         expect(chartWarning).toBeDefined();
         expect(chartWarning?.suggestedAction).toContain('Charts may need');
       }
@@ -580,7 +579,7 @@ describe('ImpactAnalyzer', () => {
       // Pivot table range conversion: gridRange (0,0)-(101,5) becomes A1:E101
       // This should overlap with A1:D100 via string inclusion
       if (impact.pivotTablesAffected.length > 0) {
-        const pivot = impact.pivotTablesAffected[0];
+        const pivot = impact.pivotTablesAffected[0]!;
         expect(pivot.pivotTableId).toBe(789);
         expect(pivot.sheetName).toBe('Sheet1');
         expect(typeof pivot.sourceRange).toBe('string');
@@ -635,7 +634,7 @@ describe('ImpactAnalyzer', () => {
 
       // Assert
       expect(impact.validationRulesAffected.length).toBeGreaterThan(0);
-      const validation = impact.validationRulesAffected[0];
+      const validation = impact.validationRulesAffected[0]!;
       expect(validation.ruleId).toBeDefined();
       expect(typeof validation.range).toBe('string');
       expect(validation.range.length).toBeGreaterThan(0);
@@ -726,21 +725,21 @@ describe('ImpactAnalyzer', () => {
       // Should detect formulas referencing DataSheet (if they match the range check)
       // The simple string-based overlap may not always detect cross-sheet references
       if (impact.formulasAffected.length > 0) {
-        impact.formulasAffected.forEach((formula) => {
+        impact.formulasAffected.forEach((formula: any) => {
           expect(formula.formula).toContain('DataSheet');
         });
       }
 
       // Should detect named ranges (if overlap is detected)
       if (impact.namedRangesAffected.length > 0) {
-        const namedRange = impact.namedRangesAffected[0];
+        const namedRange = impact.namedRangesAffected[0]!;
         expect(namedRange.name).toBe('SalesData');
         expect(namedRange.impactType).toBe('will_be_affected');
       }
 
       // At minimum, we should have analyzed the operation
       expect(impact.cellsAffected).toBeGreaterThan(0);
-      expect(impact.operation.params.range).toContain('DataSheet');
+      expect(impact.operation.params['range']).toContain('DataSheet');
     });
 
     it('should calculate transitive dependencies through named ranges', async () => {
@@ -808,12 +807,12 @@ describe('ImpactAnalyzer', () => {
       // Assert
       // Should detect named range affected (may not always detect overlap due to simple range check)
       if (impact.namedRangesAffected.length > 0) {
-        expect(impact.namedRangesAffected[0].name).toBe('MyRange');
+        expect(impact.namedRangesAffected[0]!.name).toBe('MyRange');
       }
 
       // Should detect formulas using the named range
       if (impact.formulasAffected.length > 0) {
-        const formulasWithNamedRange = impact.formulasAffected.filter((f) =>
+        const formulasWithNamedRange = impact.formulasAffected.filter((f: any) =>
           f.formula.includes('MyRange')
         );
         // Formulas with named ranges should be present
@@ -1123,7 +1122,7 @@ describe('ImpactAnalyzer', () => {
       expect(impact.recommendations).toContain('Review all warnings carefully before proceeding');
       expect(impact.recommendations).toContain('Consider creating a backup snapshot');
       expect(
-        impact.recommendations.some((r) => r.includes('transaction') || r.includes('batches'))
+        impact.recommendations.some((r: any) => r.includes('transaction') || r.includes('batches'))
       ).toBe(true);
     });
   });

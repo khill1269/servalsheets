@@ -9,7 +9,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
 import {
   BatchCompiler,
-  type ExecutionResult,
   type CompiledBatch,
 } from '../../src/core/batch-compiler.js';
 import type { RateLimiter } from '../../src/core/rate-limiter.js';
@@ -37,7 +36,7 @@ describe('BatchCompiler - Error Handling', () => {
         rowCount: 100,
         columnCount: 26,
         checksum: 'abc123',
-      } as SpreadsheetState),
+      } as unknown as SpreadsheetState),
       diff: vi.fn().mockResolvedValue({
         tier: 'FULL',
         summary: {
@@ -372,7 +371,7 @@ describe('BatchCompiler - Error Handling', () => {
 
         const result = await compiler.execute(batch);
 
-        expect(result.error?.code).toBe(expectedCode, `Failed to classify: ${error.message}`);
+        expect(result.error?.code, `Failed to classify: ${error.message}`).toBe(expectedCode);
       }
     });
 
@@ -487,7 +486,7 @@ describe('BatchCompiler - Error Handling', () => {
       const result = await compiler.executeWithSafety({
         spreadsheetId: 'test-sheet-id',
         operation,
-        safety: { dryRun: false },
+        safety: { dryRun: false, autoSnapshot: true, sanitizeFormulas: true },
       });
 
       expect(result.success).toBe(false);

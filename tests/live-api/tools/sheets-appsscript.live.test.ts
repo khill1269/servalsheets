@@ -60,7 +60,7 @@ describe.skipIf(!runLiveTests)('sheets_appsscript Live API Tests', () => {
         },
       ];
       expect(files.length).toBe(2);
-      expect(files[0].type).toBe('SERVER_JS');
+      expect(files[0]!.type).toBe('SERVER_JS');
     });
   });
 
@@ -75,7 +75,7 @@ describe.skipIf(!runLiveTests)('sheets_appsscript Live API Tests', () => {
         { versionNumber: 1, description: 'Initial', createTime: '2024-01-01T00:00:00Z' },
         { versionNumber: 2, description: 'Bug fixes', createTime: '2024-01-15T00:00:00Z' },
       ];
-      expect(versions[versions.length - 1].versionNumber).toBe(2);
+      expect(versions[versions.length - 1]!.versionNumber).toBe(2);
     });
   });
 
@@ -106,7 +106,7 @@ describe.skipIf(!runLiveTests)('sheets_appsscript Live API Tests', () => {
           ],
         },
       ];
-      expect(deployments[0].entryPoints[0].webApp?.url).toContain('script.google.com');
+      expect(deployments[0]!.entryPoints[0]!.webApp?.url).toContain('script.google.com');
     });
   });
 

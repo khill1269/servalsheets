@@ -6,8 +6,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
 import { CompositeHandler } from '../../src/handlers/composite.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import { SheetResolver } from '../../src/services/sheet-resolver.js';
-import type { CompositeExportLargeDatasetInput } from '../../src/schemas/composite.js';
 
 describe('CompositeHandler - Streaming Export', () => {
   let handler: CompositeHandler;
@@ -65,24 +63,24 @@ describe('CompositeHandler - Streaming Export', () => {
         data: { values: smallData },
       } as any);
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:C',
         format: 'json',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('export_large_dataset');
-        expect(result.response.totalRows).toBe(100);
-        expect(result.response.streamed).toBe(false);
-        expect(result.response.chunksProcessed).toBe(1);
+        expect((result.response as any).totalRows).toBe(100);
+        expect((result.response as any).streamed).toBe(false);
+        expect((result.response as any).chunksProcessed).toBe(1);
 
         // Verify data is JSON
-        const parsedData = JSON.parse(result.response.data);
+        const parsedData = JSON.parse((result.response as any).data);
         expect(parsedData).toHaveLength(100);
         expect(parsedData[0]).toEqual(['Row 0', 'Value 0', 0]);
       }
@@ -117,8 +115,8 @@ describe('CompositeHandler - Streaming Export', () => {
           return { data: { values: [] } } as any;
         }
 
-        const startRow = parseInt(match[1]);
-        const endRow = parseInt(match[2]);
+        const startRow = parseInt(match[1]!);
+        const endRow = parseInt(match[2]!);
         const chunkSize = endRow - startRow + 1;
 
         // Generate chunk data
@@ -135,7 +133,7 @@ describe('CompositeHandler - Streaming Export', () => {
         } as any;
       });
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:C',
@@ -143,17 +141,17 @@ describe('CompositeHandler - Streaming Export', () => {
         format: 'json',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         expect(result.response.action).toBe('export_large_dataset');
-        expect(result.response.totalRows).toBe(totalRows);
-        expect(result.response.streamed).toBe(true);
-        expect(result.response.chunksProcessed).toBeGreaterThan(10); // Should process multiple chunks
+        expect((result.response as any).totalRows).toBe(totalRows);
+        expect((result.response as any).streamed).toBe(true);
+        expect((result.response as any).chunksProcessed).toBeGreaterThan(10); // Should process multiple chunks
 
         // Verify data integrity
-        const parsedData = JSON.parse(result.response.data);
+        const parsedData = JSON.parse((result.response as any).data);
         expect(parsedData).toHaveLength(totalRows);
         expect(parsedData[0]).toEqual(['Row 0', 'Value 0', 0]);
         expect(parsedData[totalRows - 1]).toEqual([
@@ -192,21 +190,21 @@ describe('CompositeHandler - Streaming Export', () => {
         data: { values: testData },
       } as any);
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:C',
         format: 'csv',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.format).toBe('csv');
+        expect((result.response as any).format).toBe('csv');
 
         // Verify CSV formatting
-        const csvLines = result.response.data.split('\n');
+        const csvLines = (result.response as any).data.split('\n');
         expect(csvLines).toHaveLength(4);
         expect(csvLines[0]).toBe('Name,Age,City');
         expect(csvLines[1]).toBe('John,30,NYC');
@@ -238,7 +236,7 @@ describe('CompositeHandler - Streaming Export', () => {
         return { data: { values: chunkData } } as any;
       });
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:B',
@@ -246,11 +244,11 @@ describe('CompositeHandler - Streaming Export', () => {
         format: 'json',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.chunkSize).toBe(500);
+        expect((result.response as any).chunkSize).toBe(500);
         // Should use smaller chunks
         expect(callCount).toBeGreaterThanOrEqual(10);
       }
@@ -277,19 +275,19 @@ describe('CompositeHandler - Streaming Export', () => {
         return { data: { values: chunkData } } as any;
       });
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:C',
         format: 'json',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.bytesProcessed).toBeGreaterThan(0);
-        expect(result.response.durationMs).toBeGreaterThan(0);
+        expect((result.response as any).bytesProcessed).toBeGreaterThan(0);
+        expect((result.response as any).durationMs).toBeGreaterThan(0);
       }
     });
 
@@ -311,19 +309,19 @@ describe('CompositeHandler - Streaming Export', () => {
         data: { values: [] },
       } as any);
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:Z',
         format: 'json',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.totalRows).toBe(0);
-        expect(result.response.data).toBe('[]');
+        expect((result.response as any).totalRows).toBe(0);
+        expect((result.response as any).data).toBe('[]');
       }
     });
 
@@ -332,14 +330,14 @@ describe('CompositeHandler - Streaming Export', () => {
         new Error('Spreadsheet not found')
       );
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'invalid-id',
         range: 'Sheet1!A:Z',
         format: 'json',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -367,7 +365,7 @@ describe('CompositeHandler - Streaming Export', () => {
         data: { values: testData },
       } as any);
 
-      const input: CompositeExportLargeDatasetInput = {
+      const input: any = {
         action: 'export_large_dataset',
         spreadsheetId: 'test-spreadsheet-id',
         range: 'Sheet1!A:B',
@@ -375,7 +373,7 @@ describe('CompositeHandler - Streaming Export', () => {
         verbosity: 'minimal',
       };
 
-      const result = await handler.handle({ request: input });
+      const result = await handler.handle({ request: input } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {

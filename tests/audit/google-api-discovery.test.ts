@@ -52,8 +52,6 @@ const bigquerySnap = loadSnapshot('bigquery-v2.snapshot.json');
 const scriptSnap = loadSnapshot('script-v1.snapshot.json');
 
 const allSnapshotsAvailable = !!(sheetsSnap && driveSnap && bigquerySnap && scriptSnap);
-const sheetsAvailable = !!sheetsSnap;
-const driveAvailable = !!driveSnap;
 
 // Build combined scope inventory from all snapshots
 function getAllDiscoveryScopes(): Set<string> {
@@ -68,22 +66,9 @@ function getAllDiscoveryScopes(): Set<string> {
   return scopes;
 }
 
-// Build combined method inventory from all snapshots
-function getAllMethods(): Map<string, { scopes: string[]; deprecated: boolean }> {
-  const map = new Map<string, { scopes: string[]; deprecated: boolean }>();
-  for (const snap of [sheetsSnap, driveSnap, bigquerySnap, scriptSnap]) {
-    if (!snap) continue;
-    for (const [id, method] of Object.entries(snap.methods)) {
-      map.set(id, { scopes: method.scopes, deprecated: method.deprecated });
-    }
-  }
-  return map;
-}
-
 // ─── Suite 1: OAuth Scopes vs Discovery ───────────────────────────────────
 
 describe('Suite 1: OAuth Scopes vs Discovery', () => {
-  const skipMsg = 'Snapshots not populated — run --update-snapshots';
 
   it('every scope in FULL_ACCESS_SCOPES matches at least one inventory method or API scope', () => {
     if (!allSnapshotsAvailable) return; // graceful skip when placeholders
@@ -209,11 +194,11 @@ describe('Suite 3: Field Mask Paths vs Discovery Schemas', () => {
 
   it('FIELD_MASKS.SPREADSHEET_BASIC top-level segments resolve in Spreadsheet schema', () => {
     if (!spreadsheetSchema?.properties) return;
-    const mask = FIELD_MASKS.SPREADSHEET_BASIC;
+    const mask: string = FIELD_MASKS.SPREADSHEET_BASIC;
     // Strip all nested sub-fields (handle multiple nesting levels) before splitting
-    let stripped = mask;
+    let stripped: string = mask;
     while (stripped.includes('(')) stripped = stripped.replace(/\([^()]*\)/g, '');
-    const segments = stripped.split(',').map((s) => s.trim().split('/')[0].split('.')[0]);
+    const segments = stripped.split(',').map((s) => s.trim().split('/')[0]?.split('.')[0] ?? '');
 
     const knownValidSegments = new Set([
       'spreadsheetId', 'properties', 'spreadsheetUrl', 'sheets', 'namedRanges',
@@ -262,11 +247,11 @@ describe('Suite 3: Field Mask Paths vs Discovery Schemas', () => {
       // Strip nested parenthetical sub-fields (handles multiple nesting levels)
       // Then extract only the root segment from each comma-separated item
       // e.g. "sheets.conditionalFormats" → "sheets", "sheets(props)" → "sheets"
-      let stripped = entry.fieldMask;
+      let stripped: string = entry.fieldMask;
       while (stripped.includes('(')) stripped = stripped.replace(/\([^()]*\)/g, '');
-      const topSegments = stripped
+      const topSegments: string[] = stripped
         .split(',')
-        .map((s) => s.trim().split('/')[0].split('.')[0])
+        .map((s) => s.trim().split('/')[0]?.split('.')[0] ?? '')
         .filter(Boolean);
 
       for (const seg of topSegments) {

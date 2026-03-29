@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
 import {
   SheetsDataInputSchema,
-  SheetsCoreInputSchema,
+  SheetsCoreInputSchema as _SheetsCoreInputSchema,
   RangeInputSchema,
 } from '../../src/schemas/index.js';
 

@@ -8,7 +8,7 @@
  * (because unit tests bypass the MCP protocol layer).
  */
 
-import { describe, it, expect, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { spawn, type ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
 import { resolve } from 'path';

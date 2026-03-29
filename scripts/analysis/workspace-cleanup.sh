@@ -13,7 +13,7 @@ SAFE_TARGETS=(
 )
 
 OPTIONAL_TARGETS=(
-  "src/ui/tracing-dashboard/node_modules"
+  "ui/tracing-dashboard/node_modules"
   ".claude/worktrees"
 )
 

@@ -43,20 +43,20 @@ describe('tool response normalization', () => {
     sanitizeErrorPayload(normalized);
 
     const response = getResponseRecord(normalized);
-    expect(response?.error).toMatchObject({
+    expect(response?.['error']).toMatchObject({
       code: 'INTERNAL_ERROR',
       details: {
         file: '[REDACTED_PATH]',
         safe: 'keep me',
       },
     });
-    const error = response?.error as Record<string, unknown>;
+    const error = response?.['error'] as Record<string, unknown>;
     expect(error['stackTrace']).toBeUndefined();
     expect((error['details'] as Record<string, unknown>)['stack']).toBeUndefined();
   });
 
   it('injects standardized pagination metadata from token-based fields', () => {
-    const response = {
+    const response: Record<string, unknown> = {
       success: true,
       items: [{ id: 1 }, { id: 2 }],
       nextPageToken: 'cursor-1',
@@ -65,7 +65,7 @@ describe('tool response normalization', () => {
 
     injectStandardPaginationMeta(response);
 
-    expect(response._meta).toMatchObject({
+    expect(response['_meta']).toMatchObject({
       pagination: {
         hasMore: true,
         nextCursor: 'cursor-1',
@@ -73,7 +73,7 @@ describe('tool response normalization', () => {
         count: 2,
       },
     });
-    expect(response.pagination).toMatchObject({
+    expect(response['pagination']).toMatchObject({
       hasMore: true,
       nextCursor: 'cursor-1',
     });

@@ -26,7 +26,7 @@ describe('Formula Parser Property Tests', () => {
           fc.string({ minLength: 1, maxLength: 100 }),
           fc.constantFrom('a', 'b', 'c', '1', '2', ' ', '-', '+', '*'),
           (content, firstChar) => {
-            fc.pre(firstChar !== '=');
+            fc.pre((firstChar as string) !== '=');
             const notFormula = `${firstChar}${content}`;
             return !notFormula.startsWith('=');
           }

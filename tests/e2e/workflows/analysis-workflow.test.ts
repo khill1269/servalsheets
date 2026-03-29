@@ -15,11 +15,10 @@
  * Note: This test requires TEST_REAL_API=true and valid credentials.
  */
 
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { it, expect, afterEach, beforeEach } from 'vitest';
 import {
   createTestOrchestrator,
   describeE2E,
-  type WorkflowContext,
 } from '../setup/test-orchestrator.js';
 
 /**
@@ -216,16 +215,16 @@ describeE2E('E2E: Analysis Workflow', () => {
     // Verify history tracking
     const context = orchestrator.getContext();
     expect(context.history).toHaveLength(2);
-    expect(context.history[0].step).toBe('Write data');
-    expect(context.history[0].tool).toBe('sheets_data');
-    expect(context.history[0].action).toBe('write');
-    expect(context.history[0].success).toBe(true);
-    expect(context.history[0].timestamp).toBeGreaterThan(0);
+    expect(context.history[0]?.step).toBe('Write data');
+    expect(context.history[0]?.tool).toBe('sheets_data');
+    expect(context.history[0]?.action).toBe('write');
+    expect(context.history[0]?.success).toBe(true);
+    expect(context.history[0]?.timestamp).toBeGreaterThan(0);
 
-    expect(context.history[1].step).toBe('Read data');
-    expect(context.history[1].tool).toBe('sheets_data');
-    expect(context.history[1].action).toBe('read');
-    expect(context.history[1].success).toBe(true);
+    expect(context.history[1]?.step).toBe('Read data');
+    expect(context.history[1]?.tool).toBe('sheets_data');
+    expect(context.history[1]?.action).toBe('read');
+    expect(context.history[1]?.success).toBe(true);
   }, 30000);
 
   it('should handle step validation failures', async () => {
@@ -252,7 +251,7 @@ describeE2E('E2E: Analysis Workflow', () => {
     // Verify failure is tracked in history
     const context = orchestrator.getContext();
     expect(context.history).toHaveLength(1);
-    expect(context.history[0].success).toBe(false);
+    expect(context.history[0]?.success).toBe(false);
   }, 30000);
 });
 

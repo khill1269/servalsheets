@@ -30,14 +30,6 @@ const getZodShape = (schema: any): Record<string, unknown> | undefined => {
   return shape;
 };
 
-const hasField = (shape: Record<string, unknown> | undefined, field: string): boolean => {
-  if (!shape) return false;
-  const fieldSchema = shape[field] as any;
-  if (!fieldSchema) return false;
-  // Field exists - may be wrapped in ZodDefault, ZodOptional, etc.
-  return true;
-};
-
 describe('Schema Transformation', () => {
   describe('Schema Structure (Refactored)', () => {
     for (const tool of TOOL_DEFINITIONS) {

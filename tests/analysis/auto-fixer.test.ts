@@ -58,8 +58,8 @@ export function test() {}
       // always sees them as equal — the fix always reports success with
       // "already sorted" rather than actually reordering
       expect(result.fixed).toBe(1);
-      expect(result.results[0].success).toBe(true);
-      expect(result.results[0].message).toContain('Imports already sorted correctly');
+      expect(result.results[0]!.success).toBe(true);
+      expect(result.results[0]!.message).toContain('Imports already sorted correctly');
     });
 
     it('should handle already sorted imports', async () => {
@@ -88,7 +88,7 @@ export function test() {}
       const result = await fixer.applyFixes([issue]);
 
       expect(result.fixed).toBe(1);
-      expect(result.results[0].message).toContain('Imports already sorted correctly');
+      expect(result.results[0]!.message).toContain('Imports already sorted correctly');
     });
 
     it('should handle files with no imports', async () => {
@@ -113,7 +113,7 @@ export function test() {
       const result = await fixer.applyFixes([issue]);
 
       expect(result.failed).toBe(1);
-      expect(result.results[0].reason).toContain('No imports found');
+      expect(result.results[0]!.reason).toContain('No imports found');
     });
   });
 
@@ -233,7 +233,7 @@ export function test() {
       // TypeScript AST visit sees all identifiers including those in import declarations,
       // so findUnusedImports considers all imports "used" and returns success with no changes
       expect(result.fixed).toBe(1);
-      expect(result.results[0].message).toContain('No unused imports found');
+      expect(result.results[0]!.message).toContain('No unused imports found');
     });
 
     it('should handle files with no unused imports', async () => {
@@ -260,7 +260,7 @@ export function test() {
       const result = await fixer.applyFixes([issue]);
 
       expect(result.fixed).toBe(1);
-      expect(result.results[0].message).toContain('No unused imports found');
+      expect(result.results[0]!.message).toContain('No unused imports found');
     });
   });
 
@@ -326,7 +326,7 @@ export function test() {
       const result = await fixer.applyFixes([issue]);
 
       expect(result.fixed).toBe(1);
-      expect(result.results[0].message).toContain('No duplicate imports found');
+      expect(result.results[0]!.message).toContain('No duplicate imports found');
     });
   });
 
@@ -439,8 +439,8 @@ export function test() {}
       const result = await fixer.applyFixes([issue]);
 
       expect(result.failed).toBe(1);
-      expect(result.results[0].success).toBe(false);
-      expect(result.results[0].reason).toBeDefined();
+      expect(result.results[0]!.success).toBe(false);
+      expect(result.results[0]!.reason).toBeDefined();
     });
 
     it('should skip non-auto-fixable issues by default', async () => {

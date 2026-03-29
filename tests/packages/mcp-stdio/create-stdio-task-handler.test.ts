@@ -24,12 +24,14 @@ describe('@serval/mcp-stdio createStdioTaskHandler', () => {
       taskWatchdogTimers: new Map(),
       taskWatchdogMs: 1000,
       runTool: vi.fn(async () => ({
-        content: [{ type: 'text', text: 'ok' }],
-      })),
+        content: [{ type: 'text' as const, text: 'ok' }],
+      })) as any,
       buildCancelledTaskResult: (message) => ({
+        content: [],
         structuredContent: { response: { success: false, error: { code: 'TASK_CANCELLED', message } } },
       }),
       buildInternalErrorResult: (error) => ({
+        content: [],
         structuredContent: {
           response: {
             success: false,
@@ -79,11 +81,13 @@ describe('@serval/mcp-stdio createStdioTaskHandler', () => {
         const error = new Error(String(extra?.abortSignal?.reason ?? 'aborted'));
         error.name = 'AbortError';
         throw error;
-      }),
+      }) as any,
       buildCancelledTaskResult: (message) => ({
+        content: [],
         structuredContent: { response: { success: false, error: { code: 'TASK_CANCELLED', message } } },
       }),
       buildInternalErrorResult: (error) => ({
+        content: [],
         structuredContent: {
           response: {
             success: false,

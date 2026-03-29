@@ -39,7 +39,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -91,7 +91,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         range: 'TestData!A7:A8',
       });
 
-      expect(verifyResponse.data.values![0][0]).toBe('ID');
+      expect(verifyResponse.data.values![0]![0]).toBe('ID');
     });
 
     it('should resize row height', async () => {
@@ -118,7 +118,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         includeGridData: true,
       });
 
-      const rowMetadata = verifyResponse.data.sheets![0].data![0].rowMetadata![10];
+      const rowMetadata = verifyResponse.data.sheets![0]!.data![0]!.rowMetadata![10]!;
       expect(rowMetadata.pixelSize).toBe(50);
     });
 
@@ -165,7 +165,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         includeGridData: true,
       });
 
-      expect(verifyResponse.data.sheets![0].data![0].rowMetadata![20].hiddenByUser).toBe(true);
+      expect(verifyResponse.data.sheets![0]!.data![0]!.rowMetadata![20]!.hiddenByUser).toBe(true);
 
       // Unhide rows
       const unhideResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -238,7 +238,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         includeGridData: true,
       });
 
-      const colMetadata = verifyResponse.data.sheets![0].data![0].columnMetadata![10];
+      const colMetadata = verifyResponse.data.sheets![0]!.data![0]!.columnMetadata![10]!;
       expect(colMetadata.pixelSize).toBe(200);
     });
 
@@ -301,7 +301,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
       });
 
-      const gridProps = verifyResponse.data.sheets![0].properties!.gridProperties;
+      const gridProps = verifyResponse.data.sheets![0]!.properties!.gridProperties;
       expect(gridProps!.frozenRowCount).toBe(1);
     });
 
@@ -326,7 +326,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
       });
 
-      const gridProps = verifyResponse.data.sheets![0].properties!.gridProperties;
+      const gridProps = verifyResponse.data.sheets![0]!.properties!.gridProperties;
       expect(gridProps!.frozenColumnCount).toBe(1);
     });
 
@@ -452,7 +452,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         },
       });
 
-      testSheet2Id = response.data.replies![0].addSheet?.properties?.sheetId!;
+      testSheet2Id = response.data.replies![0]!.addSheet?.properties?.sheetId!;
       expect(testSheet2Id).toBeDefined();
     });
 
@@ -487,10 +487,10 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         range: `${testSheet2Name}!A1:A7`,
       });
 
-      expect(afterInsert.data.values![0][0]).toBe('ID');
-      expect(afterInsert.data.values![1][0]).toBe('1');
+      expect(afterInsert.data.values![0]![0]).toBe('ID');
+      expect(afterInsert.data.values![1]![0]).toBe('1');
       // Rows 3-4 are inserted (empty or inherited)
-      expect(afterInsert.data.values![4][0]).toBe('2');
+      expect(afterInsert.data.values![4]![0]).toBe('2');
 
       // Delete those inserted rows
       await client.sheets.spreadsheets.batchUpdate({
@@ -543,8 +543,8 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
         range: `${testSheet2Name}!A1:G1`,
       });
 
-      expect(afterInsert.data.values![0][0]).toBe('Col1');
-      expect(afterInsert.data.values![0][3]).toBe('Col2');
+      expect(afterInsert.data.values![0]![0]).toBe('Col1');
+      expect(afterInsert.data.values![0]![3]).toBe('Col2');
 
       // Delete the inserted columns
       await client.sheets.spreadsheets.batchUpdate({
@@ -593,6 +593,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
     it('should track batch dimension operations', async () => {
       client.resetMetrics();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GaxiosResponseWithHTTP2 vs GaxiosResponse variance
       await client.trackOperation('batchUpdate', 'POST', () =>
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
@@ -607,7 +608,7 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
               },
             ],
           },
-        })
+        }) as any
       );
 
       const stats = client.getStats();

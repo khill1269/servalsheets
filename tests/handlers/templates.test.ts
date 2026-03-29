@@ -105,21 +105,11 @@ describe('SheetsTemplatesHandler', () => {
       },
     };
 
-    // Create mock context
+    // Create mock context — cast to HandlerContext so excess-property checks
+    // don't fire for fields not used by the templates handler at test time.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock cast
     mockContext = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: {} as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      sheetsApi: mockSheetsApi as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      driveApi: mockDriveApi as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock auth type
-      authClient: { credentials: { access_token: 'test-token' } } as any,
-      authService: {
-        isAuthenticated: vi.fn().mockReturnValue(true),
-        getClient: vi.fn().mockResolvedValue({}),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock service type
-      } as any,
       auth: {
         hasElevatedAccess: true,
         scopes: [
@@ -146,9 +136,8 @@ describe('SheetsTemplatesHandler', () => {
             path: '',
           },
         }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
-      } as any,
-    };
+      },
+    } as unknown as HandlerContext;
 
     handler = new SheetsTemplatesHandler(mockContext, mockSheetsApi, mockDriveApi);
   });
@@ -200,7 +189,7 @@ describe('SheetsTemplatesHandler', () => {
         const builtins =
           result.response.templates?.filter((template) => template.id.startsWith('builtin:')) ?? [];
         // In test environment, builtin templates may not be available on disk
-        if (result.response.builtinCount > 0) {
+        if ((result.response.builtinCount ?? 0) > 0) {
           expect(builtins).toEqual(
             expect.arrayContaining([
               expect.objectContaining({
@@ -242,7 +231,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
   });
 
@@ -258,7 +247,7 @@ describe('SheetsTemplatesHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
         expect(result.response.template).toBeDefined();
-        expect(result.response.template.id).toBe('template-1');
+        expect(result.response.template?.id).toBe('template-1');
       }
       expect(mockDriveApi.files.get).toHaveBeenCalledWith(
         expect.objectContaining({ fileId: 'template-1' })
@@ -276,7 +265,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should get builtin template', async () => {
@@ -316,8 +305,8 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template.name).toBe('Budget Template');
-        expect(result.response.template.category).toBe('finance');
+        expect(result.response.template?.name).toBe('Budget Template');
+        expect(result.response.template?.category).toBe('finance');
       }
     });
 
@@ -332,7 +321,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
   });
 
@@ -351,7 +340,7 @@ describe('SheetsTemplatesHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
         expect(result.response.template).toBeDefined();
-        expect(result.response.template.name).toBe('My Template');
+        expect(result.response.template?.name).toBe('My Template');
       }
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
       expect(mockDriveApi.files.create).toHaveBeenCalled();
@@ -420,7 +409,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should handle Drive API errors', async () => {
@@ -435,7 +424,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
   });
 
@@ -482,7 +471,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should apply template to specific folder', async () => {
@@ -533,7 +522,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should emit progress notifications for multi-sheet template application', async () => {
@@ -621,8 +610,8 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('builtin');
+      expect(result.response).toHaveProperty('error');
+      expect(result.response).toMatchObject({ error: { message: expect.stringContaining('builtin') } });
     });
 
     it('should update template name only', async () => {
@@ -661,7 +650,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should handle Drive API errors', async () => {
@@ -676,7 +665,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
   });
 
@@ -704,8 +693,8 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('builtin');
+      expect(result.response).toHaveProperty('error');
+      expect(result.response).toMatchObject({ error: { message: expect.stringContaining('builtin') } });
     });
 
     it('should handle template not found', async () => {
@@ -719,7 +708,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should handle Drive API errors', async () => {
@@ -733,7 +722,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
   });
 
@@ -776,7 +765,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
 
     it('should handle Drive API errors', async () => {
@@ -790,7 +779,7 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect(result.response).toHaveProperty('error');
     });
   });
 
@@ -858,8 +847,8 @@ describe('SheetsTemplatesHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect(result.response).toHaveProperty('error');
+      expect(result.response).toHaveProperty('error.code', 'INVALID_PARAMS');
     });
   });
 });

@@ -59,7 +59,6 @@ describe('Cancellation and Timeout Behavior', () => {
   });
 
   describe('Timeout Handling', () => {
-    let _batchCompiler: BatchCompiler;
     let mockSheetsApi: sheets_v4.Sheets;
     let mockSnapshotService: SnapshotService;
 
@@ -74,7 +73,7 @@ describe('Cancellation and Timeout Behavior', () => {
 
       mockSnapshotService = { createSnapshot: vi.fn() } as unknown as SnapshotService;
 
-      _batchCompiler = new BatchCompiler({
+      void new BatchCompiler({
         rateLimiter: new RateLimiter(),
         diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi }),
         policyEnforcer: new PolicyEnforcer(),
@@ -275,7 +274,7 @@ describe('Cancellation and Timeout Behavior', () => {
       // Dry run validates without executing
       const result = await batchCompiler.executeWithSafety({
         spreadsheetId: 'test-123',
-        safety: { dryRun: true, autoSnapshot: false },
+        safety: { dryRun: true, autoSnapshot: false, sanitizeFormulas: true },
         operation: async () => {
           // Would do real work in non-dry-run
         },

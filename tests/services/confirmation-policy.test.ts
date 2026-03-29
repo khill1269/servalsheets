@@ -5,15 +5,13 @@
  * Covers risk assessment, thresholds, and confirmation requirements
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   CONFIRMATION_THRESHOLDS,
   analyzeOperation,
   analyzeOperationPlan,
   shouldConfirm,
   getConfirmationGuidance,
-  type RiskLevel,
-  type OperationAnalysis,
 } from '../../src/services/confirmation-policy.js';
 
 describe('ConfirmationPolicy', () => {

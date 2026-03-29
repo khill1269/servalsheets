@@ -6,9 +6,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
-import { SheetsCoreHandler } from '../src/handlers/core';
-import type { HandlerContext } from '../src/handlers/base';
-import type { SheetsCoreInput } from '../src/schemas/core';
+import { SheetsCoreHandler } from '../src/handlers/core.js';
+import type { HandlerContext } from '../src/handlers/base.js';
+import type { SheetsCoreInput } from '../src/schemas/core.js';
 
 describe('SheetsCoreHandler - Verbosity Feature', () => {
   let handler: SheetsCoreHandler;
@@ -100,18 +100,18 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
         lastSheetId: undefined,
         recentOperations: [],
       },
-    } as HandlerContext;
+    } as unknown as HandlerContext;
 
     handler = new SheetsCoreHandler(context, mockSheetsApi);
   });
 
   describe('Standard Verbosity (default)', () => {
     it('should return full response with all metadata', async () => {
-      const input: SheetsCoreInput = {
+      const input = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         // verbosity omitted = defaults to 'standard'
-      };
+      } as unknown as SheetsCoreInput;
 
       const result = await handler.handle(input);
 
@@ -127,7 +127,7 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
         expect(spreadsheet?.sheets).toHaveLength(3);
 
         // Check all sheet properties are present
-        const sheet = spreadsheet?.sheets[0];
+        const sheet = spreadsheet?.sheets?.[0];
         expect(sheet?.sheetId).toBe(0);
         expect(sheet?.title).toBe('Sheet1');
         expect(sheet?.index).toBe(0);
@@ -144,11 +144,11 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
     });
 
     it('should include response metadata', async () => {
-      const input: SheetsCoreInput = {
+      const input = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'standard',
-      };
+      } as unknown as SheetsCoreInput;
 
       const result = await handler.handle(input);
       const responseJson = JSON.stringify(result.response);
@@ -164,11 +164,11 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
 
   describe('Minimal Verbosity (token optimization)', () => {
     it('should return compact response with only essential fields', async () => {
-      const input: SheetsCoreInput = {
+      const input = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'minimal',
-      };
+      } as unknown as SheetsCoreInput;
 
       const result = await handler.handle(input);
 
@@ -182,7 +182,7 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
         expect(spreadsheet?.sheets).toHaveLength(3);
 
         // Check minimal sheet properties
-        const sheet = spreadsheet?.sheets[0];
+        const sheet = spreadsheet?.sheets?.[0];
         expect(sheet?.sheetId).toBe(0);
         expect(sheet?.title).toBe('Sheet1');
         expect(sheet?.rowCount).toBe(1000);
@@ -200,20 +200,20 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
 
     it('should reduce response size by ~70-80%', async () => {
       // Get standard response size
-      const standardInput: SheetsCoreInput = {
+      const standardInput = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'standard',
-      };
+      } as unknown as SheetsCoreInput;
       const standardResult = await handler.handle(standardInput);
       const standardSize = JSON.stringify(standardResult.response).length;
 
       // Get minimal response size
-      const minimalInput: SheetsCoreInput = {
+      const minimalInput = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'minimal',
-      };
+      } as unknown as SheetsCoreInput;
       const minimalResult = await handler.handle(minimalInput);
       const minimalSize = JSON.stringify(minimalResult.response).length;
 
@@ -230,11 +230,11 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
     });
 
     it('should not omit metadata on error responses', async () => {
-      const input: SheetsCoreInput = {
+      const input = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'minimal',
-      };
+      } as unknown as SheetsCoreInput;
 
       // Mock API error
       mockSheetsApi.spreadsheets.get = vi
@@ -253,11 +253,11 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
 
   describe('Detailed Verbosity (future enhancement)', () => {
     it('should return standard response (detailed not yet implemented)', async () => {
-      const input: SheetsCoreInput = {
+      const input = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'detailed',
-      };
+      } as unknown as SheetsCoreInput;
 
       const result = await handler.handle(input);
 
@@ -274,17 +274,17 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
   describe('Token Usage Simulation', () => {
     it('demonstrates real-world token savings for LLMs', async () => {
       // Simulate LLM use case: "Get spreadsheet info"
-      const standardInput: SheetsCoreInput = {
+      const standardInput = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'standard',
-      };
+      } as unknown as SheetsCoreInput;
 
-      const minimalInput: SheetsCoreInput = {
+      const minimalInput = {
         action: 'get',
         spreadsheetId: 'test-spreadsheet-id',
         verbosity: 'minimal',
-      };
+      } as unknown as SheetsCoreInput;
 
       const standardResult = await handler.handle(standardInput);
       const minimalResult = await handler.handle(minimalInput);

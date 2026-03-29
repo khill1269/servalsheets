@@ -166,7 +166,7 @@ describe('TaskStoreAdapter', () => {
 
       const retrievedResult = await adapter.getTaskResult(task.taskId);
 
-      expect(retrievedResult.structuredContent).toMatchObject({
+      expect(retrievedResult['structuredContent']).toMatchObject({
         response: {
           success: false,
           error: {

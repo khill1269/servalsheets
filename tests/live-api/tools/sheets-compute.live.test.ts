@@ -65,6 +65,7 @@ describe.skipIf(!runLiveTests)('sheets_compute Live API Tests', () => {
         request: {
           action: 'evaluate',
           spreadsheetId: testSpreadsheet.id,
+          verbosity: 'standard' as const,
           formula: '=2+3*4',
         },
       });
@@ -82,6 +83,7 @@ describe.skipIf(!runLiveTests)('sheets_compute Live API Tests', () => {
         request: {
           action: 'evaluate',
           spreadsheetId: testSpreadsheet.id,
+          verbosity: 'standard' as const,
           formula: '=SUM(10,20,30)',
         },
       });
@@ -96,16 +98,16 @@ describe.skipIf(!runLiveTests)('sheets_compute Live API Tests', () => {
         request: {
           action: 'statistical',
           spreadsheetId: testSpreadsheet.id,
-          range: 'Sheet1!A2:A6',
-          metrics: ['mean', 'median', 'stddev', 'min', 'max'],
+          verbosity: 'standard' as const,
+          range: { a1: 'Sheet1!A2:A6' },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
         const resp = result.response as Record<string, unknown>;
         // Should contain statistical results
-        expect(resp.statistics ?? resp.result ?? resp.data).toBeDefined();
+        expect(resp['statistics'] ?? resp['result'] ?? resp['data']).toBeDefined();
       }
     });
   });

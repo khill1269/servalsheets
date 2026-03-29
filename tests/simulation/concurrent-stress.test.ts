@@ -176,7 +176,7 @@ describe('Concurrent Stress — 100 simultaneous reads', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: `Sheet1!A${i + 1}:D${i + 4}`,
-      })
+      } as any)
     );
 
     const results = await Promise.allSettled(promises);
@@ -196,7 +196,7 @@ describe('Concurrent Stress — 100 simultaneous reads', () => {
     const N = 50;
     const results = await Promise.allSettled(
       Array.from({ length: N }, () =>
-        handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' })
+        handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } as any)
       )
     );
 
@@ -213,7 +213,7 @@ describe('Concurrent Stress — 100 simultaneous reads', () => {
     const N = 50;
     const results = await Promise.allSettled(
       Array.from({ length: N }, () =>
-        handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' })
+        handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } as any)
       )
     );
 
@@ -255,7 +255,7 @@ describe('Concurrent Stress — 50 simultaneous writes', () => {
           spreadsheetId: 'test-id',
           range: `Sheet1!A${i + 1}:B${i + 1}`,
           values: [['value-a', 'value-b']],
-        })
+        } as any)
       )
     );
 
@@ -288,7 +288,7 @@ describe('Concurrent Stress — mixed operations interleaved', () => {
 
   it('30 reads + 20 writes + 10 clears — all complete, shapes valid', async () => {
     const reads = Array.from({ length: 30 }, (_, i) =>
-      handler.handle({ action: 'read', spreadsheetId: 'test-id', range: `Sheet1!A${i + 1}:D${i + 2}` })
+      handler.handle({ action: 'read', spreadsheetId: 'test-id', range: `Sheet1!A${i + 1}:D${i + 2}` } as any)
     );
     const writes = Array.from({ length: 20 }, (_, i) =>
       handler.handle({
@@ -296,14 +296,14 @@ describe('Concurrent Stress — mixed operations interleaved', () => {
         spreadsheetId: 'test-id',
         range: `Sheet1!A${i + 1}:B${i + 1}`,
         values: [['x', 'y']],
-      })
+      } as any)
     );
     const clears = Array.from({ length: 10 }, (_, i) =>
       handler.handle({
         action: 'clear',
         spreadsheetId: 'test-id',
         range: `Sheet1!A${i + 1}:B${i + 1}`,
-      })
+      } as any)
     );
 
     const results = await Promise.allSettled([...reads, ...writes, ...clears]);
@@ -328,7 +328,7 @@ describe('Concurrent Stress — per-request context isolation', () => {
     const promises = Array.from({ length: 20 }, (_, i) => {
       const context = createMockContext(`request-${i}`);
       const h = new SheetsDataHandler(context, mockApi as any as sheets_v4.Sheets);
-      return h.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+      return h.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } as any);
     });
 
     const results = await Promise.allSettled(promises);
@@ -363,7 +363,7 @@ describe('Concurrent Stress — error responses under concurrent failure injecti
     const N = 30;
     const results = await Promise.allSettled(
       Array.from({ length: N }, () =>
-        handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' })
+        handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } as any)
       )
     );
 
@@ -408,7 +408,7 @@ describe('Concurrent Stress — batch_read concurrency', () => {
           action: 'batch_read',
           spreadsheetId: 'test-id',
           ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
-        })
+        } as any)
       )
     );
 

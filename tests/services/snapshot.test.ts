@@ -59,8 +59,8 @@ describe('SnapshotService', () => {
       // Verify snapshot is stored
       const snapshots = snapshotService.list(spreadsheetId);
       expect(snapshots).toHaveLength(1);
-      expect(snapshots[0].sourceSpreadsheetId).toBe(spreadsheetId);
-      expect(snapshots[0].copySpreadsheetId).toBe(copyId);
+      expect(snapshots[0]!.sourceSpreadsheetId).toBe(spreadsheetId);
+      expect(snapshots[0]!.copySpreadsheetId).toBe(copyId);
     });
 
     it('should create snapshot with custom name', async () => {
@@ -87,7 +87,7 @@ describe('SnapshotService', () => {
       );
 
       const snapshots = snapshotService.list(spreadsheetId);
-      expect(snapshots[0].name).toBe(customName);
+      expect(snapshots[0]!.name).toBe(customName);
     });
 
     it('should create snapshot without folder when no defaultFolderId', async () => {
@@ -154,8 +154,8 @@ describe('SnapshotService', () => {
       // Assert
       const snapshots = snapshotService.list(spreadsheetId);
       expect(snapshots).toHaveLength(2);
-      expect(snapshots[0].id).toBe(snapshot1);
-      expect(snapshots[1].id).toBe(snapshot2);
+      expect(snapshots[0]!.id).toBe(snapshot1);
+      expect(snapshots[1]!.id).toBe(snapshot2);
     });
 
     it('should retrieve specific snapshot by ID', async () => {
@@ -519,8 +519,8 @@ describe('SnapshotService', () => {
 
       // Verify timestamps are in order
       const timestamps = snapshots.map((s) => new Date(s.createdAt).getTime());
-      expect(timestamps[0]).toBeLessThanOrEqual(timestamps[1]);
-      expect(timestamps[1]).toBeLessThanOrEqual(timestamps[2]);
+      expect(timestamps[0]!).toBeLessThanOrEqual(timestamps[1]!);
+      expect(timestamps[1]!).toBeLessThanOrEqual(timestamps[2]!);
     });
   });
 });

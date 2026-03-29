@@ -102,8 +102,8 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
         { name: 'name', type: 'STRING', mode: 'NULLABLE' },
         { name: 'tags', type: 'STRING', mode: 'REPEATED' },
       ];
-      expect(columns[0].mode).toBe('REQUIRED');
-      expect(columns[2].mode).toBe('REPEATED');
+      expect(columns[0]!.mode).toBe('REQUIRED');
+      expect(columns[2]!.mode).toBe('REPEATED');
     });
   });
 
@@ -150,7 +150,7 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
         },
       });
       expect(response.status).toBe(200);
-      expect(response.data.replies![0].addSheet?.properties?.sheetId).toBeDefined();
+      expect(response.data.replies![0]!.addSheet?.properties?.sheetId).toBeDefined();
     });
   });
 

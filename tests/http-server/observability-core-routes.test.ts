@@ -29,7 +29,7 @@ describe('http observability core routes', () => {
       healthService: {
         checkLiveness: vi.fn(async () => ({ status: 'healthy' })),
         checkReadiness: vi.fn(async () => ({ status: 'degraded', checks: ['cache'] })),
-      },
+      } as never,
       options: {
         enableOAuth: true,
         oauthConfig: {

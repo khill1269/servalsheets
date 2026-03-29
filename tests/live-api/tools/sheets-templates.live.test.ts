@@ -31,7 +31,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -65,7 +65,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         namedRanges: [{ name: 'DataRange', range: 'Data!A2:D1000' }],
       };
       expect(template.sheets.length).toBe(2);
-      expect(template.sheets[0].headers).toContain('Revenue');
+      expect(template.sheets[0]!.headers).toContain('Revenue');
     });
   });
 
@@ -109,7 +109,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         includeGridData: false,
       });
 
-      expect(response.data.sheets![0].properties?.gridProperties?.frozenRowCount).toBe(1);
+      expect(response.data.sheets![0]!.properties?.gridProperties?.frozenRowCount).toBe(1);
     });
 
     it('should capture column widths for template', async () => {
@@ -141,7 +141,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         ranges: ['TestData!A1:B1'],
       });
 
-      expect(response.data.sheets![0].data).toBeDefined();
+      expect(response.data.sheets![0]!.data).toBeDefined();
     });
   });
 
@@ -257,7 +257,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         namedRanges: [{ name: 'LineItems', range: 'Invoice!A2:E100' }],
       };
       expect(template.sheets.length).toBe(2);
-      expect(template.namedRanges[0].name).toBe('LineItems');
+      expect(template.namedRanges[0]!.name).toBe('LineItems');
     });
   });
 
@@ -276,7 +276,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         },
       ];
       expect(builtinTemplates.length).toBeGreaterThan(0);
-      expect(builtinTemplates[0].sheets).toContain('Transactions');
+      expect(builtinTemplates[0]!.sheets).toContain('Transactions');
     });
   });
 
@@ -319,7 +319,7 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
       });
 
-      expect(verifyResponse.data.sheets![0].properties?.gridProperties?.frozenRowCount).toBe(1);
+      expect(verifyResponse.data.sheets![0]!.properties?.gridProperties?.frozenRowCount).toBe(1);
     });
 
     it('should clone spreadsheet structure for template application', async () => {

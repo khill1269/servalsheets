@@ -99,7 +99,7 @@ describe('OtlpExporter', () => {
       await exporter.export();
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchMock.mock.calls[0];
+      const [url, options] = fetchMock.mock.calls[0] as [string, { method: string; headers: Record<string, string>; body: string }];
       expect(url).toContain('/v1/traces');
       expect(options.method).toBe('POST');
       expect(options.headers['Content-Type']).toBe('application/json');
@@ -114,7 +114,7 @@ describe('OtlpExporter', () => {
       exporter.addSpan(createTestSpan());
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const resource = body.resourceSpans[0].resource;
       const attrs = resource.attributes;
 
@@ -151,7 +151,7 @@ describe('OtlpExporter', () => {
       );
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const span = body.resourceSpans[0].scopeSpans[0].spans[0];
 
       // Should be padded to 32 hex chars for traceId, 16 for spanId
@@ -172,7 +172,7 @@ describe('OtlpExporter', () => {
       );
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const span = body.resourceSpans[0].scopeSpans[0].spans[0];
 
       // Nanoseconds should be microseconds * 1000
@@ -189,7 +189,7 @@ describe('OtlpExporter', () => {
       exporter.addSpan(createTestSpan({ kind: 'internal' }));
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const spans = body.resourceSpans[0].scopeSpans[0].spans;
 
       expect(spans[0].kind).toBe(1); // SERVER
@@ -205,7 +205,7 @@ describe('OtlpExporter', () => {
       exporter.addSpan(createTestSpan({ status: 'unset' }));
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const spans = body.resourceSpans[0].scopeSpans[0].spans;
 
       expect(spans[0].status.code).toBe(1); // OK
@@ -227,7 +227,7 @@ describe('OtlpExporter', () => {
       );
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const attrs = body.resourceSpans[0].scopeSpans[0].spans[0].attributes;
 
       expect(attrs.find((a: { key: string }) => a.key === 'stringAttr').value.stringValue).toBe(
@@ -245,7 +245,7 @@ describe('OtlpExporter', () => {
       exporter.addSpan(createTestSpan({ parentId: 'abcdef123456' }));
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const span = body.resourceSpans[0].scopeSpans[0].spans[0];
 
       // Should be padded to 16 hex characters
@@ -268,7 +268,7 @@ describe('OtlpExporter', () => {
       );
       await exporter.export();
 
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      const body = JSON.parse((fetchMock.mock.calls[0] as any[])[1].body);
       const events = body.resourceSpans[0].scopeSpans[0].spans[0].events;
 
       expect(events).toHaveLength(1);

@@ -14,9 +14,9 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(2);
-    expect(error.resources![0].uri).toBe('servalsheets://decisions/find-sheet');
-    expect(error.resources![0].description).toContain('Decision tree');
-    expect(error.resources![1].uri).toBe('servalsheets://reference/sheet-naming');
+    expect(error.resources![0]!.uri).toBe('servalsheets://decisions/find-sheet');
+    expect(error.resources![0]!.description).toContain('Decision tree');
+    expect(error.resources![1]!.uri).toBe('servalsheets://reference/sheet-naming');
   });
 
   it('should include resource links for RANGE_NOT_FOUND', () => {
@@ -26,9 +26,9 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(2);
-    expect(error.resources![0].uri).toBe('servalsheets://reference/a1-notation');
-    expect(error.resources![0].description).toContain('A1 notation');
-    expect(error.resources![1].uri).toBe('servalsheets://decisions/find-range');
+    expect(error.resources![0]!.uri).toBe('servalsheets://reference/a1-notation');
+    expect(error.resources![0]!.description).toContain('A1 notation');
+    expect(error.resources![1]!.uri).toBe('servalsheets://decisions/find-range');
   });
 
   it('should include resource links for AUTH_REQUIRED', () => {
@@ -36,8 +36,8 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(2);
-    expect(error.resources![0].uri).toBe('servalsheets://reference/authentication');
-    expect(error.resources![1].uri).toBe('servalsheets://decisions/auth-flow');
+    expect(error.resources![0]!.uri).toBe('servalsheets://reference/authentication');
+    expect(error.resources![1]!.uri).toBe('servalsheets://decisions/auth-flow');
   });
 
   it('should include resource links for PERMISSION_DENIED', () => {
@@ -47,8 +47,8 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(2);
-    expect(error.resources![0].uri).toBe('servalsheets://decisions/request-access');
-    expect(error.resources![1].uri).toBe('servalsheets://reference/permissions');
+    expect(error.resources![0]!.uri).toBe('servalsheets://decisions/request-access');
+    expect(error.resources![1]!.uri).toBe('servalsheets://reference/permissions');
   });
 
   it('should include resource links for QUOTA_EXCEEDED', () => {
@@ -56,9 +56,9 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(2);
-    expect(error.resources![0].uri).toBe('servalsheets://reference/api-limits');
-    expect(error.resources![1].uri).toBe('servalsheets://decisions/optimize-requests');
-    expect(error.resources![1].description).toContain('reduce API calls');
+    expect(error.resources![0]!.uri).toBe('servalsheets://reference/api-limits');
+    expect(error.resources![1]!.uri).toBe('servalsheets://decisions/optimize-requests');
+    expect(error.resources![1]!.description).toContain('reduce API calls');
   });
 
   it('should include resource link for RATE_LIMIT', () => {
@@ -66,7 +66,7 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(1);
-    expect(error.resources![0].uri).toBe('servalsheets://reference/rate-limiting');
+    expect(error.resources![0]!.uri).toBe('servalsheets://reference/rate-limiting');
   });
 
   it('should include resource link for INVALID_PARAMS', () => {
@@ -75,14 +75,14 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
     });
 
     expect(error.resources).toBeDefined();
-    expect(error.resources![0].uri).toBe('servalsheets://decisions/parameter-validation');
+    expect(error.resources![0]!.uri).toBe('servalsheets://decisions/parameter-validation');
   });
 
   it('should include resource link for OUT_OF_BOUNDS', () => {
     const error = enhanceError('OUT_OF_BOUNDS', 'Range exceeds sheet dimensions');
 
     expect(error.resources).toBeDefined();
-    expect(error.resources![0].uri).toBe('servalsheets://reference/sheet-dimensions');
+    expect(error.resources![0]!.uri).toBe('servalsheets://reference/sheet-dimensions');
   });
 
   it('should not include resources for errors without resource mapping', () => {
@@ -108,7 +108,7 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     // Verify resolution steps are actionable
     expect(error.resolutionSteps).toHaveLength(4);
-    expect(error.resolutionSteps![0]).toContain('sheets_core');
+    expect(error.resolutionSteps![0]!).toContain('sheets_core');
 
     // Verify fixableVia is correct
     expect(error.fixableVia?.tool).toBe('sheets_core');
@@ -116,7 +116,7 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
 
     // Verify resources are correct
     expect(error.resources).toHaveLength(2);
-    expect(error.resources![0].uri).toContain('servalsheets://');
+    expect(error.resources![0]!.uri).toContain('servalsheets://');
   });
 
   it('should have consistent URI format across all resources', () => {

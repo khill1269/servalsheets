@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { compactResponse, isCompactModeEnabled } from '../../src/utils/response-compactor.js';
+import { compactResponse } from '../../src/utils/response-compactor.js';
 import { getSessionContext, resetSessionContext } from '../../src/services/session-context.js';
 
 // Enable compact mode for these tests (global setup disables it)

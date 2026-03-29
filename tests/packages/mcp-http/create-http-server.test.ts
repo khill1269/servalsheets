@@ -67,7 +67,7 @@ describe('@serval/mcp-http createHttpServer', () => {
       registerHttpEnterpriseMiddleware: vi.fn(),
       bootstrapHttpTransportSessions: vi.fn(() => ({
         sessions,
-        sessionCleanupInterval: { kind: 'interval' } as NodeJS.Timeout,
+        sessionCleanupInterval: { kind: 'interval' } as unknown as NodeJS.Timeout,
         cleanupSessions,
       })),
       registerHttpSurfaceRoutes: vi.fn(),

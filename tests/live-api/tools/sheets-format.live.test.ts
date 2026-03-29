@@ -36,7 +36,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -82,7 +82,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       });
 
       const cellFormat =
-        verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat;
+        verifyResponse.data.sheets![0]!.data![0]!.rowData![0]!.values![0]!.userEnteredFormat;
       expect(cellFormat?.backgroundColor?.red).toBeCloseTo(0.2, 1);
     });
 
@@ -151,7 +151,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       });
 
       const textFormat =
-        verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat
+        verifyResponse.data.sheets![0]!.data![0]!.rowData![0]!.values![0]!.userEnteredFormat
           ?.textFormat;
       expect(textFormat?.bold).toBe(true);
     });
@@ -287,7 +287,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
         valueRenderOption: 'FORMATTED_VALUE',
       });
 
-      expect(verifyResponse.data.values![0][0]).toBe('75%');
+      expect(verifyResponse.data.values![0]![0]).toBe('75%');
     });
   });
 
@@ -386,7 +386,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       });
 
       const alignment =
-        verifyResponse.data.sheets![0].data![0].rowData![0].values![0].userEnteredFormat
+        verifyResponse.data.sheets![0]!.data![0]!.rowData![0]!.values![0]!.userEnteredFormat
           ?.horizontalAlignment;
       expect(alignment).toBe('CENTER');
     });
@@ -613,7 +613,7 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
               },
             ],
           },
-        })
+        }) as any
       );
 
       const stats = client.getStats();

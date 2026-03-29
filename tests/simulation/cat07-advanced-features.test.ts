@@ -30,15 +30,11 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B10' }) } as any,
-  auth: { scopes: ['https://www.googleapis.com/auth/drive.file'] } as any,
+  auth: { hasElevatedAccess: false, scopes: ['https://www.googleapis.com/auth/drive.file'] } as any,
   samplingServer: undefined,
   snapshotService: {} as any,
   sessionContext: {} as any,
-  confirmDestructiveAction: vi.fn().mockResolvedValue(undefined),
-  createSnapshotIfNeeded: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
-  sendProgress: vi.fn(),
-  cachedApi: {} as any,
-});
+} as unknown as HandlerContext);
 
 describe('Category 7: Advanced Features', () => {
   let handler: AdvancedHandler;
@@ -67,7 +63,7 @@ describe('Category 7: Advanced Features', () => {
         name: 'RevenueRange',
         range: { a1: 'Sheet1!A1:B5' },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -75,7 +71,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.2 list_named_ranges dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'list_named_ranges', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -83,7 +79,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.3 get_named_range dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'get_named_range', spreadsheetId: 'test-sheet-id', name: 'SalesRange' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -100,7 +96,7 @@ describe('Category 7: Advanced Features', () => {
         name: 'UpdatedRange',
         range: { a1: 'Sheet1!A1:C10' },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -115,7 +111,7 @@ describe('Category 7: Advanced Features', () => {
         spreadsheetId: 'test-sheet-id',
         namedRangeId: 'nr-1',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -131,7 +127,7 @@ describe('Category 7: Advanced Features', () => {
         range: { a1: 'Sheet1!A1:B5' },
         warningOnly: true,
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -139,7 +135,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.7 list_protected_ranges dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'list_protected_ranges', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -155,7 +151,7 @@ describe('Category 7: Advanced Features', () => {
         metadataKey: 'dataSource',
         metadataValue: 'api',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -163,7 +159,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.9 get_metadata dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'get_metadata', spreadsheetId: 'test-sheet-id', metadataKey: 'dataSource' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -178,7 +174,7 @@ describe('Category 7: Advanced Features', () => {
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:C10' },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -186,7 +182,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.11 list_banding dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'list_banding', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -202,7 +198,7 @@ describe('Category 7: Advanced Features', () => {
         range: { a1: 'Sheet1!A1:C10' },
         tableProperties: { displayName: 'SalesData' },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -218,7 +214,7 @@ describe('Category 7: Advanced Features', () => {
         tableId: 't1',
         tableProperties: { displayName: 'UpdatedSales' },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -226,7 +222,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.14 list_tables dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'list_tables', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -242,7 +238,7 @@ describe('Category 7: Advanced Features', () => {
         cell: { a1: 'A1' },
         email: 'user@example.com',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -250,7 +246,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.16 list_chips dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'list_chips', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -263,7 +259,7 @@ describe('Category 7: Advanced Features', () => {
         functionName: 'CALCULATE_PROFIT',
         functionBody: '=revenue - cost',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -271,7 +267,7 @@ describe('Category 7: Advanced Features', () => {
   it('7.18 list_named_functions dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'list_named_functions', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -283,7 +279,7 @@ describe('Category 7: Advanced Features', () => {
         spreadsheetId: 'test-sheet-id',
         functionName: 'CALCULATE_PROFIT',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -295,7 +291,7 @@ describe('Category 7: Advanced Features', () => {
         spreadsheetId: 'test-sheet-id',
         name: 'Budget Template',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });

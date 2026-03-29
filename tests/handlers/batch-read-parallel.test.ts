@@ -138,7 +138,7 @@ describe('ParallelExecutor - Batch Read Integration', () => {
     }));
 
     await executor.executeAll(tasks);
-    const stats = executor.getStats();
+    const stats = executor.getStats() as any;
 
     expect(stats.totalExecuted).toBeGreaterThanOrEqual(5);
     expect(stats.totalSucceeded).toBeGreaterThanOrEqual(5);

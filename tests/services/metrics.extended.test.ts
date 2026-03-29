@@ -272,7 +272,7 @@ describe('MetricsService', () => {
 
     it('should initialize with options', () => {
       resetMetricsService();
-      const service = initMetricsService({ retentionPeriodMs: 60000 });
+      const service = initMetricsService({ retentionPeriodMs: 60000 } as any);
       expect(service).toBeDefined();
     });
 

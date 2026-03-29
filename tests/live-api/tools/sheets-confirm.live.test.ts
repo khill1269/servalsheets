@@ -62,7 +62,7 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         willCreateSnapshot: true,
       };
       expect(plan.steps.length).toBe(2);
-      expect(plan.steps[1].isDestructive).toBe(true);
+      expect(plan.steps[1]!.isDestructive).toBe(true);
     });
 
     it('should calculate total API calls from plan', () => {
@@ -143,7 +143,7 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
         ],
       };
       expect(wizard.steps.length).toBe(3);
-      expect(wizard.steps[1].dependsOn).toBe('basic_info');
+      expect(wizard.steps[1]!.dependsOn).toBe('basic_info');
     });
 
     it('should validate wizard step dependencies', () => {
@@ -203,7 +203,7 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
           tool: 'sheets_dimensions',
           action: 'freeze',
           params: { rows: 1 },
-        });
+        } as any);
       }
       expect(executionPlan.steps.length).toBe(3);
     });

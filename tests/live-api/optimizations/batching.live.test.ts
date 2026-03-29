@@ -16,9 +16,7 @@ import {
   BatchingSystem,
   initBatchingSystem,
   getBatchingSystem,
-  resetBatchingSystem,
 } from '../../../src/services/batching-system.js';
-import { google } from 'googleapis';
 
 const runTests = isLiveApiEnabled();
 const describeOrSkip = runTests ? describe : describe.skip;

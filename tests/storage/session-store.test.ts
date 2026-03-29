@@ -17,7 +17,7 @@ vi.mock('../../src/utils/logger.js', () => ({
   },
 }));
 
-import { SessionStore, MemorySessionStore } from '../../src/storage/session-store.js';
+import { MemorySessionStore } from '../../src/storage/session-store.js';
 
 describe('MemorySessionStore', () => {
   let store: MemorySessionStore;

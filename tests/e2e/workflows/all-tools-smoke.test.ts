@@ -476,7 +476,7 @@ describe.skipIf(SKIP_E2E)('E2E: All Tools Smoke Test', () => {
 
     it('should analyze range (if sampling supported)', async () => {
       const session = client.getSession();
-      if (session.serverCapabilities?.sampling) {
+      if ((session.serverCapabilities as Record<string, unknown> | undefined)?.['sampling']) {
         const result = await client.callTool('sheets_analyze', {
           request: {
             action: 'analyze_range',

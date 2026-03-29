@@ -96,7 +96,7 @@ describe('ConfirmHandler', () => {
           ],
           willCreateSnapshot: true,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -154,7 +154,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -218,7 +218,7 @@ describe('ConfirmHandler', () => {
           willCreateSnapshot: true,
           additionalWarnings: ['This operation will take several minutes'],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -226,7 +226,7 @@ describe('ConfirmHandler', () => {
       }
 
       // Verify elicitation was called with proper risk indicators
-      const call = vi.mocked(mockContext.server!.elicitInput).mock.calls[0][0];
+      const call = vi.mocked(mockContext.server!.elicitInput).mock.calls[0]![0];
       expect(call.message).toContain('Database Restructure');
       expect(call.message).toContain('CRITICAL'); // Risk level shown in uppercase
     });
@@ -261,7 +261,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -290,7 +290,7 @@ describe('ConfirmHandler', () => {
               description: 'Should fail due to missing elicitation',
               steps: [],
             },
-          })
+          } as any)
       );
 
       expect(firstResult.response.success).toBe(false);
@@ -318,7 +318,7 @@ describe('ConfirmHandler', () => {
               description: 'Should succeed with distinct capability cache key',
               steps: [],
             },
-          })
+          } as any)
       );
 
       expect(secondResult.response.success).toBe(true);
@@ -350,7 +350,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -386,7 +386,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -416,7 +416,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -456,7 +456,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -500,7 +500,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -532,7 +532,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -545,7 +545,7 @@ describe('ConfirmHandler', () => {
     it('should return initial stats with no confirmations', async () => {
       const result = await handler.handle({
         action: 'get_stats',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -591,7 +591,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       // Second confirmation - declined
       vi.mocked(mockContext.server!.elicitInput).mockResolvedValue({
@@ -614,12 +614,12 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       // Get stats
       const result = await handler.handle({
         action: 'get_stats',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -667,7 +667,7 @@ describe('ConfirmHandler', () => {
               },
             ],
           },
-        });
+        } as any);
       }
 
       vi.mocked(mockContext.server!.elicitInput).mockResolvedValue({
@@ -690,7 +690,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       vi.mocked(mockContext.server!.elicitInput).mockResolvedValue({
         action: 'cancel',
@@ -712,11 +712,11 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       const result = await handler.handle({
         action: 'get_stats',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -740,7 +740,7 @@ describe('ConfirmHandler', () => {
             fields: [{ key: 'approved', label: 'Approved', type: 'boolean' }],
           },
         ],
-      });
+      } as any);
 
       expect(startResult.response.success).toBe(true);
       const wizardId =
@@ -750,13 +750,13 @@ describe('ConfirmHandler', () => {
       const completeResult = await handler.handle({
         action: 'wizard_complete',
         wizardId: wizardId!,
-      });
+      } as any);
 
       expect(completeResult.response.success).toBe(true);
 
       const statsResult = await handler.handle({
         action: 'get_stats',
-      });
+      } as any);
 
       expect(statsResult.response.success).toBe(true);
       if (statsResult.response.success) {
@@ -794,7 +794,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -806,7 +806,7 @@ describe('ConfirmHandler', () => {
     it('should validate output schema for get_stats', async () => {
       const result = await handler.handle({
         action: 'get_stats',
-      });
+      } as any);
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -845,7 +845,7 @@ describe('ConfirmHandler', () => {
             },
           ],
         },
-      });
+      } as any);
 
       const parseResult = SheetsConfirmOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);

@@ -40,12 +40,14 @@ function isValidCallToolResult(result: unknown): boolean {
   if (!isPlainRecord(first)) return false;
   return (first as Record<string, unknown>)['type'] === 'text';
 }
+void isValidCallToolResult;
 
 function getResponseText(result: unknown): string {
   const r = result as Record<string, unknown>;
   const content = r['content'] as Array<Record<string, unknown>>;
   return content[0]!['text'] as string;
 }
+void getResponseText;
 
 // ─── Suite 1: normalizeToolArgs never throws ──────────────────────────────────
 

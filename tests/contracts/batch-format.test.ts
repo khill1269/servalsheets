@@ -12,11 +12,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { z } from 'zod';
 import { FormatHandler } from '../../src/handlers/format.js';
 import { SheetsFormatInputSchema, SheetsFormatOutputSchema } from '../../src/schemas/format.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import type { sheets_v4 } from 'googleapis';
 
 // ============================================================================
 // SCHEMA VALIDATION TESTS
@@ -201,7 +199,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('cellsFormatted');
@@ -229,10 +227,10 @@ describe('FormatHandler batch_format execution', () => {
             textFormat: { bold: true, fontSize: 14 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operationsApplied).toBe(1);
+      expect((result.response as any).operationsApplied).toBe(1);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -253,7 +251,7 @@ describe('FormatHandler batch_format execution', () => {
             numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -276,7 +274,7 @@ describe('FormatHandler batch_format execution', () => {
             vertical: 'MIDDLE',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -299,7 +297,7 @@ describe('FormatHandler batch_format execution', () => {
             bottom: { style: 'SOLID', color: { red: 0, green: 0, blue: 0 } },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -325,7 +323,7 @@ describe('FormatHandler batch_format execution', () => {
             },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -344,7 +342,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'header_row',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -375,10 +373,10 @@ describe('FormatHandler batch_format execution', () => {
             numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operationsApplied).toBe(3);
+      expect((result.response as any).operationsApplied).toBe(3);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -408,10 +406,10 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 0, green: 0, blue: 1 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operationsApplied).toBe(3);
+      expect((result.response as any).operationsApplied).toBe(3);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
     });
 
@@ -438,10 +436,10 @@ describe('FormatHandler batch_format execution', () => {
             numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.apiCallsSaved).toBe(2);
+      expect((result.response as any).apiCallsSaved).toBe(2);
     });
 
     it('should handle up to 100 operations', async () => {
@@ -457,10 +455,10 @@ describe('FormatHandler batch_format execution', () => {
         action: 'batch_format',
         spreadsheetId: 'test-id',
         operations,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operationsApplied).toBe(100);
+      expect((result.response as any).operationsApplied).toBe(100);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
     });
   });
@@ -483,13 +481,13 @@ describe('FormatHandler batch_format execution', () => {
             textFormat: { bold: true },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
-      expect(result.response.operationsApplied).toBe(2);
-      expect(result.response.apiCallsSaved).toBe(1);
+      expect((result.response as any).operationsApplied).toBe(2);
+      expect((result.response as any).apiCallsSaved).toBe(1);
     });
 
     it('should calculate cellsFormatted in dryRun mode', async () => {
@@ -504,10 +502,10 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       expect(result.response).toHaveProperty('cellsFormatted');
     });
   });
@@ -526,7 +524,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -545,7 +543,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response).toHaveProperty('action', 'batch_format');
     });
@@ -563,7 +561,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response).toHaveProperty('success', true);
       expect(result.response).toHaveProperty('action');
@@ -579,10 +577,10 @@ describe('FormatHandler batch_format execution', () => {
         action: 'batch_format',
         spreadsheetId: 'test-id',
         operations: [],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
@@ -597,7 +595,7 @@ describe('FormatHandler batch_format execution', () => {
             // Missing required alignment fields
           },
         ],
-      });
+      } as any);
 
       // Should succeed because empty alignment ops are skipped, but no valid requests means error
       // This depends on handler logic
@@ -619,10 +617,10 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeDefined();
+      expect((result.response as any).error?.code).toBeDefined();
     });
 
     it('should validate error response schema', async () => {
@@ -638,7 +636,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -659,7 +657,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'header_row',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -680,7 +678,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'alternating_rows',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -700,7 +698,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'currency',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -722,7 +720,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'percentage',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -744,7 +742,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'date',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
@@ -766,7 +764,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'highlight_positive',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -785,7 +783,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'highlight_negative',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -804,7 +802,7 @@ describe('FormatHandler batch_format execution', () => {
             preset: 'total_row',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -825,7 +823,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -844,7 +842,7 @@ describe('FormatHandler batch_format execution', () => {
             color: { red: 1, green: 0, blue: 0 },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -867,7 +865,7 @@ describe('FormatHandler batch_format execution', () => {
             textFormat: { bold: true },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();

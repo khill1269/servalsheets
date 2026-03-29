@@ -24,14 +24,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // ============================================================================
 // Test Fixtures & Helpers
 // ============================================================================
 
 const SPREADSHEET_ID = 'test-ss-001';
-const SHEET_ID = 0;
 const NOW = Date.now();
 
 interface MockPlanStep {
@@ -151,8 +149,8 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
       });
 
       expect(plan.steps).toHaveLength(3);
-      expect(plan.steps[0].tool).toBe('sheets_data');
-      expect(plan.steps[2].tool).toBe('sheets_format');
+      expect(plan.steps[0]?.tool).toBe('sheets_data');
+      expect(plan.steps[2]?.tool).toBe('sheets_format');
       expect(plan.status).toBe('draft');
     });
 
@@ -232,8 +230,8 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
         ],
       });
 
-      expect(plan.results[0].output).toHaveProperty('sheetId');
-      expect(plan.results[1].output).toHaveProperty('updatedRows');
+      expect(plan.results[0]?.output).toHaveProperty('sheetId');
+      expect(plan.results[1]?.output).toHaveProperty('updatedRows');
     });
 
     it('should stop on step failure and allow resume', () => {
@@ -252,7 +250,7 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
       });
 
       expect(plan.status).toBe('paused');
-      expect(plan.results[1].success).toBe(false);
+      expect(plan.results[1]?.success).toBe(false);
       expect(plan.steps).toHaveLength(3); // Can resume from step 3
     });
   });
@@ -301,14 +299,6 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
     });
 
     it('should track rollback in history', () => {
-      const plan = makePlanState({
-        results: [
-          { stepId: 'step-001', success: true },
-          { stepId: 'step-002', success: true },
-          { stepId: 'step-003', success: false, error: 'Invalid formula' },
-        ],
-      });
-
       const history = [
         { action: 'plan', timestamp: NOW },
         { action: 'execute_step:step-001', timestamp: NOW + 1000 },
@@ -318,7 +308,7 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
       ];
 
       expect(history).toHaveLength(5);
-      expect(history[history.length - 1].action).toBe('rollback');
+      expect(history[history.length - 1]?.action).toBe('rollback');
     });
   });
 
@@ -364,7 +354,7 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
 
       // Check that resume preserves history
       expect(plan.results).toHaveLength(2);
-      expect(plan.results[0].output).toEqual({ sheetId: 123 });
+      expect(plan.results[0]?.output).toEqual({ sheetId: 123 });
     });
 
     it('should fail if plan not found', () => {
@@ -404,9 +394,9 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
       };
 
       expect(template.sheets).toHaveLength(3);
-      expect(template.sheets[0].name).toBe('Contacts');
-      expect(template.sheets[1].columns).toContain('Industry');
-      expect(template.sheets[2].columns).toContain('Outcome');
+      expect(template.sheets[0]?.name).toBe('Contacts');
+      expect(template.sheets[1]?.columns).toContain('Industry');
+      expect(template.sheets[2]?.columns).toContain('Outcome');
     });
 
     it('should include VLOOKUP formulas for relationships', () => {
@@ -475,8 +465,8 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
         { name: 'Variance %', format: 'percentage' },
       ];
 
-      expect(columns[1].format).toBe('currency');
-      expect(columns[4].format).toBe('percentage');
+      expect(columns[1]?.format).toBe('currency');
+      expect(columns[4]?.format).toBe('percentage');
     });
   });
 
@@ -518,7 +508,7 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
 
       const enhanced = { ...plan, steps: [...plan.steps, recoveryStep] };
       expect(enhanced.steps).toHaveLength(2);
-      expect(enhanced.steps[1].tool).toBe('sheets_core');
+      expect(enhanced.steps[1]?.tool).toBe('sheets_core');
     });
 
     it('should retry original step after recovery', () => {
@@ -531,7 +521,7 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
       });
 
       expect(plan.results).toHaveLength(3);
-      expect(plan.results[2].success).toBe(true);
+      expect(plan.results[2]?.success).toBe(true);
     });
   });
 
@@ -570,8 +560,6 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
       const plan = makePlanState();
       const encrypted = Buffer.from(JSON.stringify(plan)).toString('base64');
 
-      // Simulate wrong key: would produce garbled output
-      const wrongKey = 'wrong-key-material';
       expect(() => {
         // In real code, decryption would throw with wrong key
         const decrypted = Buffer.from(encrypted, 'base64').toString('utf-8');
@@ -621,15 +609,11 @@ Bob,25,bob@test.com`;
         row.map((cell) => (typeof cell === 'string' ? cell.trim() : cell))
       );
 
-      expect(cleanedRows[0][0]).toBe('Name');
-      expect(cleanedRows[1][1]).toBe('30');
+      expect((cleanedRows[0] as any)[0]).toBe('Name');
+      expect((cleanedRows[1] as any)[1]).toBe('30');
     });
 
     it('should apply formatting after cleaning', () => {
-      const data = [
-        { Name: 'Alice', Age: '30', Email: 'alice@test.com' },
-      ];
-
       const formatted = {
         Name: { format: 'text' },
         Age: { format: 'number' },
@@ -662,7 +646,7 @@ Bob,25,bob@test.com`;
       const toAppend = newRows.filter((r) => !existingIds.has(r[dedupKey]));
 
       expect(toAppend).toHaveLength(1);
-      expect(toAppend[0].name).toBe('Charlie');
+      expect(toAppend[0]?.name).toBe('Charlie');
     });
 
     it('should track append statistics', () => {
@@ -686,8 +670,8 @@ Bob,25,bob@test.com`;
       ];
 
       const sorted = toAppend.sort((a, b) => a.order - b.order);
-      expect(sorted[0].name).toBe('Charlie');
-      expect(sorted[2].name).toBe('Eve');
+      expect(sorted[0]?.name).toBe('Charlie');
+      expect(sorted[2]?.name).toBe('Eve');
     });
   });
 
@@ -706,8 +690,8 @@ Bob,25,bob@test.com`;
       };
 
       expect(dashboard.rows).toHaveLength(3);
-      expect(dashboard.rows[0].type).toBe('kpi');
-      expect(dashboard.rows[2].cells[1]).toBe('=B1-B2');
+      expect(dashboard.rows[0]?.type).toBe('kpi');
+      expect(dashboard.rows[2]?.cells[1]).toBe('=B1-B2');
     });
 
     it('should add charts below KPIs', () => {
@@ -728,7 +712,7 @@ Bob,25,bob@test.com`;
       };
 
       expect(dashboard.charts).toHaveLength(2);
-      expect(dashboard.charts[0].type).toBe('line');
+      expect(dashboard.charts[0]?.type).toBe('line');
     });
 
     it('should include summary sections', () => {
@@ -741,7 +725,7 @@ Bob,25,bob@test.com`;
       };
 
       expect(dashboard.sections).toHaveLength(3);
-      expect(dashboard.sections[1].name).toBe('Trends');
+      expect(dashboard.sections[1]?.name).toBe('Trends');
     });
   });
 
@@ -786,20 +770,14 @@ Bob,25,bob@test.com`;
     });
 
     it('should continue on partial failure if allowed', () => {
-      const operations = [
-        { op: 'write', range: 'Sheet1!A1' },
-        { op: 'write', range: 'InvalidRange' }, // Will fail
-        { op: 'write', range: 'Sheet1!A3' }, // Should still execute
-      ];
-
       const results = [
         { success: true },
         { success: false, error: 'Invalid range' },
         { success: true },
       ];
 
-      expect(results[1].success).toBe(false);
-      expect(results[2].success).toBe(true);
+      expect(results[1]?.success).toBe(false);
+      expect(results[2]?.success).toBe(true);
     });
   });
 
@@ -837,9 +815,6 @@ Bob,25,bob@test.com`;
         operationCount: 3,
         status: 'pending', // Not committed
       });
-
-      // Simulate failure: operation 2 fails
-      const failedOp = { tool: 'sheets_data', action: 'write', error: 'Invalid range' };
 
       // Transaction should not commit
       expect(txn.status).toBe('pending');
@@ -968,7 +943,7 @@ Bob,25,bob@test.com`;
       };
 
       expect(context.operations).toHaveLength(2);
-      expect(context.operations[1].tool).toBe('sheets_format');
+      expect(context.operations[1]?.tool).toBe('sheets_format');
     });
 
     it('should track last 5 operations for context', () => {
@@ -980,15 +955,10 @@ Bob,25,bob@test.com`;
 
       const lastFive = operations.slice(-5);
       expect(lastFive).toHaveLength(5);
-      expect(lastFive[0].timestamp).toBe(NOW + 7000);
+      expect(lastFive[0]?.timestamp).toBe(NOW + 7000);
     });
 
     it('should clear context on set_active', () => {
-      const oldContext = {
-        activeSpreadsheetId: 'old-ss',
-        operations: Array.from({ length: 5 }, (_, i) => ({ action: 'write' })),
-      };
-
       const newContext = {
         activeSpreadsheetId: SPREADSHEET_ID,
         operations: [],
@@ -1031,8 +1001,8 @@ Bob,25,bob@test.com`;
       });
 
       const restored = checkpoint.spreadsheetState;
-      expect(restored.sheets).toBeDefined();
-      expect(restored.sheets[0].rows).toBe(100);
+      expect(restored['sheets']).toBeDefined();
+      expect((restored['sheets'] as any)[0]?.rows).toBe(100);
     });
 
     it('should list checkpoints for plan', () => {
@@ -1057,7 +1027,7 @@ Bob,25,bob@test.com`;
       const fresh = checkpoints.filter((c) => NOW - c.createdAt < MAX_AGE_MS);
 
       expect(fresh).toHaveLength(2);
-      expect(fresh[0].checkpointId).toBe('ckpt-002');
+      expect(fresh[0]?.checkpointId).toBe('ckpt-002');
     });
 
     it('should support checkpoint rollback to specific timestamp', () => {

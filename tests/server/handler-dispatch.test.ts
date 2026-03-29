@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { dispatchServerToolCall } from '../../src/server/handler-dispatch.js';
+import { dispatchServerToolCall, type DispatchServerToolCallDependencies } from '../../src/server/handler-dispatch.js';
 
 describe('dispatchServerToolCall', () => {
   it('routes tool execution through the stdio routing helper', async () => {
@@ -30,7 +30,7 @@ describe('dispatchServerToolCall', () => {
         costTrackingTenantId: 'tenant-1',
       },
       {
-        executeRoutedToolCall,
+        executeRoutedToolCall: executeRoutedToolCall as unknown as DispatchServerToolCallDependencies['executeRoutedToolCall'],
       }
     );
 

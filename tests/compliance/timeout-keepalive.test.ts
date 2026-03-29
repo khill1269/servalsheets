@@ -19,11 +19,10 @@ vi.mock('../../src/utils/request-context.js', () => {
   };
 });
 
-// Import the mock setter
-import { setMockRequestContext } from '../../src/utils/request-context.js';
-
-// Helper to flush microtasks (needed because sendProgress is fire-and-forget async)
-const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+// Import the mock setter (provided by vi.mock above, not in the real module)
+const { setMockRequestContext } = await import('../../src/utils/request-context.js') as unknown as {
+  setMockRequestContext: (ctx: Record<string, unknown> | null) => void;
+};
 
 describe('Keepalive Mechanism', () => {
   beforeEach(() => {

@@ -49,7 +49,7 @@ describe.skipIf(SKIP_E2E)('E2E: Multi-Step Workflows', () => {
 
       // Step 2: Analyze data (if sampling supported)
       const session = client.getSession();
-      if (session.serverCapabilities?.sampling) {
+      if ((session.serverCapabilities as Record<string, unknown>)?.['sampling']) {
         const analyzeResult = await client.callTool('sheets_analyze', {
           request: {
             action: 'analyze_range',

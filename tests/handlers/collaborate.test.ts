@@ -5,28 +5,14 @@
  * Covers 29 actions across sharing (8), comments (10), and versions (11)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CollaborateHandler } from '../../src/handlers/collaborate.js';
 import { SheetsCollaborateOutputSchema } from '../../src/schemas/collaborate.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import type { sheets_v4, drive_v3 } from 'googleapis';
 import {
   createRequestContext,
   runWithRequestContext,
 } from '../../src/utils/request-context.js';
-
-// Mock Google Sheets API
-const createMockSheetsApi = () => ({
-  spreadsheets: {
-    get: vi.fn().mockResolvedValue({
-      data: {
-        spreadsheetId: 'test-spreadsheet-id',
-        properties: { title: 'Test Spreadsheet' },
-        sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-      },
-    }),
-  },
-});
 
 // Mock Google Drive API
 const createMockDriveApi = () => ({
@@ -172,9 +158,6 @@ const createMockContext = (): HandlerContext => ({
       sheetName: 'Sheet1',
     }),
   } as any,
-  sheetsApi: createMockSheetsApi() as unknown as sheets_v4.Sheets,
-  driveApi: createMockDriveApi() as unknown as drive_v3.Drive,
-  sessionId: 'test-session',
   requestId: 'test-request',
   auth: {
     hasElevatedAccess: true,
@@ -184,10 +167,11 @@ const createMockContext = (): HandlerContext => ({
       'https://www.googleapis.com/auth/drive.file',
     ],
   },
-});
+} as unknown as HandlerContext);
 
 describe('CollaborateHandler', () => {
-  let handler: CollaborateHandler;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let handler: any;
   let mockContext: HandlerContext;
   let mockDriveApi: ReturnType<typeof createMockDriveApi>;
 
@@ -535,7 +519,7 @@ describe('CollaborateHandler', () => {
           spreadsheetId: 'test-spreadsheet-id',
           afterRevisionId: 'rev-1',
         })
-      );
+      ) as Awaited<ReturnType<CollaborateHandler['handle']>>;
 
       expect(result.response.success).toBe(true);
       // Should have emitted at least the initial progress notification
@@ -578,7 +562,7 @@ describe('CollaborateHandler', () => {
           revisionId1: 'head~1',
           revisionId2: 'head',
         })
-      );
+      ) as Awaited<ReturnType<CollaborateHandler['handle']>>;
 
       expect(result.response.success).toBe(true);
       // Should have emitted progress during revision resolution

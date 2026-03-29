@@ -117,7 +117,7 @@ describe('legacy registered tool failover path', () => {
     const taskStore = new TaskStoreAdapter(new InMemoryTaskStore());
 
     try {
-      const created = (await computeTaskHandler.createTask(
+      const created = (await computeTaskHandler!.createTask(
         {
           request: {
             action: 'evaluate',
@@ -198,7 +198,7 @@ describe('legacy registered tool failover path', () => {
     const taskStore = new TaskStoreAdapter(new InMemoryTaskStore());
 
     try {
-      const created = (await analyzeTaskHandler.createTask(
+      const created = (await analyzeTaskHandler!.createTask(
         {
           request: {
             action: 'analyze_data',
@@ -280,7 +280,7 @@ describe('legacy registered tool failover path', () => {
     const taskStore = new TaskStoreAdapter(new InMemoryTaskStore());
 
     try {
-      const created = (await connectorsTaskHandler.createTask(
+      const created = (await connectorsTaskHandler!.createTask(
         {
           request: {
             action: 'list_connectors',
@@ -360,7 +360,7 @@ describe('legacy registered tool failover path', () => {
     const taskStore = new TaskStoreAdapter(new InMemoryTaskStore());
 
     try {
-      const created = (await agentTaskHandler.createTask(
+      const created = (await agentTaskHandler!.createTask(
         {
           request: {
             action: 'list_plans',
@@ -440,7 +440,7 @@ describe('legacy registered tool failover path', () => {
     const taskStore = new TaskStoreAdapter(new InMemoryTaskStore());
 
     try {
-      const created = (await bigqueryTaskHandler.createTask(
+      const created = (await bigqueryTaskHandler!.createTask(
         {
           request: {
             action: 'list_connections',
@@ -521,7 +521,7 @@ describe('legacy registered tool failover path', () => {
     const taskStore = new TaskStoreAdapter(new InMemoryTaskStore());
 
     try {
-      const created = (await appsscriptTaskHandler.createTask(
+      const created = (await appsscriptTaskHandler!.createTask(
         {
           request: {
             action: 'get',

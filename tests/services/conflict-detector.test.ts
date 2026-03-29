@@ -607,7 +607,7 @@ describe('ConflictDetector', () => {
       // Assert
       const activeConflicts = conflictDetector.getActiveConflicts();
       expect(activeConflicts).toHaveLength(1);
-      expect(activeConflicts[0].id).toBe(conflict!.id);
+      expect(activeConflicts[0]!.id).toBe(conflict!.id);
 
       // Resolve and check again
       await conflictDetector.resolveConflict({

@@ -85,6 +85,7 @@ describe('ConnectorManager salt persistence', () => {
     manager.register(new StubConnector() as any);
 
     const configureResult = await manager.configure('stub', {
+      type: 'api_key',
       apiKey: 'secret-api-key',
     });
 

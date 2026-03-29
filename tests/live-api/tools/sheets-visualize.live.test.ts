@@ -34,7 +34,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
 
     // Find or create Benchmarks sheet
     const benchmarks = meta.data.sheets?.find((s) => s.properties?.title === 'Benchmarks');
@@ -47,7 +47,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
           requests: [{ addSheet: { properties: { title: 'Benchmarks' } } }],
         },
       });
-      benchmarksSheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId!;
+      benchmarksSheetId = addResponse.data.replies![0]!.addSheet?.properties?.sheetId!;
     }
 
     // Pre-seed TestData sheet once
@@ -163,7 +163,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.data.replies![0].addChart?.chart?.chartId).toBeDefined();
+      expect(response.data.replies![0]!.addChart?.chart?.chartId).toBeDefined();
     });
 
     it('should create a line chart', async () => {
@@ -368,7 +368,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
         },
       });
 
-      const chartId = createResponse.data.replies![0].addChart?.chart?.chartId;
+      const chartId = createResponse.data.replies![0]!.addChart?.chart?.chartId;
       expect(chartId).toBeDefined();
 
       const updateResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -491,7 +491,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
         },
       });
 
-      const chartId = createResponse.data.replies![0].addChart?.chart?.chartId;
+      const chartId = createResponse.data.replies![0]!.addChart?.chart?.chartId;
 
       const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
@@ -506,7 +506,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
       });
 
-      const charts = verifyResponse.data.sheets![0].charts ?? [];
+      const charts = verifyResponse.data.sheets![0]!.charts ?? [];
       const deletedChart = charts.find((c) => c.chartId === chartId);
       expect(deletedChart).toBeUndefined();
     });

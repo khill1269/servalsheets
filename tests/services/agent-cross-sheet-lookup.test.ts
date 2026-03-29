@@ -212,7 +212,7 @@ describe('D1: inject_cross_sheet_lookup step type', () => {
       expect.any(String),
       expect.any(Object)
     );
-    const [tool, action] = mockHandler.mock.calls[0]!;
+    const [tool, action] = (mockHandler.mock.calls[0] ?? []) as unknown as [string, string, ...unknown[]];
     // Should NOT be internal inject step
     expect(action).not.toBe('inject_cross_sheet_lookup');
     expect(tool).not.toBe('__internal__');

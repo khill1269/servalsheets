@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestHttpClient } from '../mcp-client-simulator.js';
-import type { MCPHttpClient } from '../mcp-client-simulator.js';
+import type { MCPHttpClient, MCPClientConfig } from '../mcp-client-simulator.js';
 import { TOOL_COUNT } from '../../../src/schemas/action-counts.js';
 
 const SKIP_E2E = process.env['TEST_E2E'] !== 'true';
@@ -100,7 +100,7 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
         transport: 'http' as const,
       };
 
-      const testClient = createTestHttpClient('http://localhost:3000', config);
+      const testClient = createTestHttpClient('http://localhost:3000', config as unknown as Partial<MCPClientConfig>);
       await testClient.initialize();
 
       expect(testClient.isInitialized()).toBe(true);
@@ -132,7 +132,7 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
         expect(typeof tool.name).toBe('string');
         expect(tool.name.length).toBeGreaterThan(0);
         expect(typeof tool.description).toBe('string');
-        expect(tool.description.length).toBeGreaterThan(0);
+        expect(tool.description!.length).toBeGreaterThan(0);
         expect(tool.inputSchema).toBeDefined();
         expect(tool.inputSchema.type).toBe('object');
         expect(tool.inputSchema.properties).toBeDefined();
@@ -316,7 +316,7 @@ describe.skipIf(SKIP_E2E)('E2E: MCP Protocol Compliance', () => {
       const prompts = await client.listPrompts();
 
       if (prompts.length > 0) {
-        const promptResult = await client.getPrompt(prompts[0].name);
+        const promptResult = await client.getPrompt(prompts[0]!.name);
 
         expect(promptResult.messages).toBeDefined();
         expect(Array.isArray(promptResult.messages)).toBe(true);

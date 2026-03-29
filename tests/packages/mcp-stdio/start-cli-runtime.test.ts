@@ -73,7 +73,7 @@ describe('@serval/mcp-stdio startCliRuntime', () => {
       'startTransport',
     ]);
     expect(scheduledCallback).not.toBeNull();
-    await scheduledCallback?.();
+    await scheduledCallback!();
     expect(recordSuccessfulStartup).toHaveBeenCalledOnce();
     expect(output.error).not.toHaveBeenCalled();
     expect(output.warn).not.toHaveBeenCalled();

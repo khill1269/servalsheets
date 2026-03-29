@@ -205,7 +205,7 @@ describe.skipIf(skipTests)('Large Scale Data Tests', () => {
         console.log(`Read 1000 rows (${rows * cols} cells): ${formatDuration(duration)}`);
 
         expect(result.values.length).toBe(rows);
-        expect(result.values[0].length).toBe(cols);
+        expect(result.values[0]!.length).toBe(cols);
       },
       LARGE_SCALE_CONFIG.LARGE_TIMEOUT
     );
@@ -246,7 +246,7 @@ describe.skipIf(skipTests)('Large Scale Data Tests', () => {
         console.log(`Read ${rows}x${cols}: ${formatDuration(readTime)}`);
 
         expect(result.values.length).toBe(rows);
-        expect(result.values[0].length).toBe(cols);
+        expect(result.values[0]!.length).toBe(cols);
       },
       LARGE_SCALE_CONFIG.MEDIUM_TIMEOUT
     );
@@ -332,7 +332,7 @@ describe.skipIf(skipTests)('Large Scale Data Tests', () => {
         console.log(`Batch read ${ranges.length} ranges: ${formatDuration(duration)}`);
 
         expect(result.valueRanges.length).toBe(ranges.length);
-        expect(result.valueRanges[0].values.length).toBe(100);
+        expect(result.valueRanges[0]!.values.length).toBe(100);
       },
       LARGE_SCALE_CONFIG.MEDIUM_TIMEOUT
     );

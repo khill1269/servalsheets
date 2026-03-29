@@ -67,7 +67,7 @@ describe('Deferred Schema Mode', () => {
 
       const prepared = prepareSchemaForRegistration(testSchema, 'input');
       const json = toPreparedJsonSchema(prepared);
-      const request = json.properties?.['request'] as Record<string, unknown>;
+      const request = (json['properties'] as Record<string, unknown>)?.['request'] as Record<string, unknown>;
       const properties = request?.['properties'] as Record<string, unknown>;
       expect((properties?.['action'] as Record<string, unknown>)?.['type']).toBe('string');
     });
@@ -117,7 +117,7 @@ describe('Deferred Schema Mode', () => {
 
       const prepared = prepareSchemaForRegistration(testSchema, 'input');
       const json = toPreparedJsonSchema(prepared);
-      const request = json.properties?.['request'] as Record<string, unknown>;
+      const request = (json['properties'] as Record<string, unknown>)?.['request'] as Record<string, unknown>;
       const properties = request?.['properties'] as Record<string, unknown>;
 
       expect(request?.['type']).toBe('object');

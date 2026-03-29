@@ -54,8 +54,8 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
 
       // Should return error (not throw)
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('Redis required');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('Redis required');
     });
 
     it('should work after manager is initialized', async () => {
@@ -87,8 +87,8 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
 
       // Should return error mentioning Redis
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('Redis required');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('Redis required');
     });
 
     it('should initialize once and reuse singleton', () => {
@@ -166,8 +166,8 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 });

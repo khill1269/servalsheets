@@ -36,7 +36,7 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]?.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -129,7 +129,7 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
 
       expect(response.status).toBe(200);
       const protectedRangeId =
-        response.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+        response.data.replies![0]?.addProtectedRange?.protectedRange?.protectedRangeId;
       expect(protectedRangeId).toBeDefined();
     });
 
@@ -187,7 +187,7 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       });
 
       const protectedRangeId =
-        addResponse.data.replies![0].addProtectedRange?.protectedRange?.protectedRangeId;
+        addResponse.data.replies![0]?.addProtectedRange?.protectedRange?.protectedRangeId;
 
       const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
         spreadsheetId: testSpreadsheet.id,
@@ -222,7 +222,7 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
 
       expect(response.status).toBe(200);
       const metadataId =
-        response.data.replies![0].createDeveloperMetadata?.developerMetadata?.metadataId;
+        response.data.replies![0]?.createDeveloperMetadata?.developerMetadata?.metadataId;
       expect(metadataId).toBeDefined();
     });
 

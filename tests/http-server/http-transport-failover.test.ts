@@ -33,17 +33,22 @@ vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
 }));
 
 vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/handlers/compute.js')>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actual = await importOriginal<any>();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   class MockComputeHandler extends actual.ComputeHandler {
-    override async handle(input: Parameters<actual.ComputeHandler['handle']>[0]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async handle(input: any) {
+      const req = (input as Record<string, unknown>)['request'] ?? input;
       if (
-        input.request.action === 'evaluate' &&
-        input.request.formula === '=REMOTE_FAILOVER_SENTINEL()'
+        (req as Record<string, unknown>)['action'] === 'evaluate' &&
+        (req as Record<string, unknown>)['formula'] === '=REMOTE_FAILOVER_SENTINEL()'
       ) {
         throw new Error('local compute failed');
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
       return await super.handle(input);
     }
   }
@@ -55,21 +60,25 @@ vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
 });
 
 vi.mock('../../src/handlers/analyze.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/handlers/analyze.js')>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actual = await importOriginal<any>();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   class MockAnalyzeHandler extends actual.AnalyzeHandler {
-    override async handle(input: Parameters<actual.AnalyzeHandler['handle']>[0]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async handle(input: any) {
       // Check action only — spreadsheetId may be at a different nesting level
       // after parseForHandler schema validation (passthrough vs strict)
-      const req = input.request ?? input;
+      const req = (input as Record<string, unknown>)['request'] ?? input;
       if (
-        req.action === 'analyze_data' &&
-        ((req as Record<string, unknown>).spreadsheetId === 'remote-failover-analyze' ||
-          (input as Record<string, unknown>).spreadsheetId === 'remote-failover-analyze')
+        (req as Record<string, unknown>)['action'] === 'analyze_data' &&
+        ((req as Record<string, unknown>)['spreadsheetId'] === 'remote-failover-analyze' ||
+          (input as Record<string, unknown>)['spreadsheetId'] === 'remote-failover-analyze')
       ) {
         throw new Error('local analyze failed');
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
       return await super.handle(input);
     }
   }

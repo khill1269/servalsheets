@@ -7,7 +7,7 @@
 
 import { describe, bench, beforeAll } from 'vitest';
 import { createHandlers } from '../../src/handlers/index.js';
-import { createMockContext, createMockSheetsApi } from '../helpers/google-api-mocks.js';
+import { createMockContext, createMockSheetsApi, createMockDriveApi } from '../helpers/google-api-mocks.js';
 import type { HandlerContext } from '../../src/handlers/index.js';
 
 describe('Handler Performance Benchmarks', () => {
@@ -15,12 +15,13 @@ describe('Handler Performance Benchmarks', () => {
   let context: HandlerContext;
 
   beforeAll(() => {
-    const mockApi = createMockSheetsApi();
-    context = createMockContext();
+    const mockSheetsApi = createMockSheetsApi();
+    const mockDriveApi = createMockDriveApi();
+    context = createMockContext() as unknown as HandlerContext;
     handlers = createHandlers({
       context,
-      sheetsApi: mockApi.spreadsheets,
-      driveApi: mockApi.drive,
+      sheetsApi: mockSheetsApi,
+      driveApi: mockDriveApi,
     });
   });
 
@@ -28,7 +29,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'get spreadsheet metadata',
       async () => {
-        await handlers.core.executeAction({
+        await (handlers.core as any).handle({
           request: {
             action: 'get',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -41,7 +42,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'create spreadsheet',
       async () => {
-        await handlers.core.executeAction({
+        await (handlers.core as any).handle({
           request: {
             action: 'create',
             title: 'Benchmark Test',
@@ -56,7 +57,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'read_range',
       async () => {
-        await handlers.data.executeAction({
+        await (handlers.data as any).handle({
           request: {
             action: 'read',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -70,7 +71,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'write_range',
       async () => {
-        await handlers.data.executeAction({
+        await (handlers.data as any).handle({
           request: {
             action: 'write',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -85,7 +86,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'batch_read (10 ranges)',
       async () => {
-        await handlers.data.executeAction({
+        await (handlers.data as any).handle({
           request: {
             action: 'batch_read',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -105,7 +106,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'set_format',
       async () => {
-        await handlers.format.executeAction({
+        await (handlers.format as any).handle({
           request: {
             action: 'set_format',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -123,7 +124,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'clear_format',
       async () => {
-        await handlers.format.executeAction({
+        await (handlers.format as any).handle({
           request: {
             action: 'clear_format',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -139,7 +140,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'insert_rows',
       async () => {
-        await handlers.dimensions.executeAction({
+        await (handlers.dimensions as any).handle({
           request: {
             action: 'insert_rows',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -155,7 +156,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'delete_columns',
       async () => {
-        await handlers.dimensions.executeAction({
+        await (handlers.dimensions as any).handle({
           request: {
             action: 'delete_columns',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -173,7 +174,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'chart_create',
       async () => {
-        await handlers.visualize.executeAction({
+        await (handlers.visualize as any).handle({
           request: {
             action: 'chart_create',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -193,7 +194,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'add_permission',
       async () => {
-        await handlers.collaborate.executeAction({
+        await (handlers.collaborate as any).handle({
           request: {
             action: 'add_permission',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -210,7 +211,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'formula_evaluate',
       async () => {
-        await handlers.advanced.executeAction({
+        await (handlers.advanced as any).handle({
           request: {
             action: 'formula_evaluate',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -226,7 +227,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'context_save',
       async () => {
-        await handlers.session.executeAction({
+        await (handlers.session as any).handle({
           request: {
             action: 'context_save',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -246,7 +247,7 @@ describe('Handler Performance Benchmarks', () => {
       'simple input validation',
       () => {
         // This is handled internally by handlers but we can measure the overhead
-        handlers.core.executeAction({
+        (handlers.core as any).handle({
           request: {
             action: 'get',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -259,7 +260,7 @@ describe('Handler Performance Benchmarks', () => {
     bench(
       'complex input validation (batch write)',
       () => {
-        handlers.data.executeAction({
+        (handlers.data as any).handle({
           request: {
             action: 'batch_write',
             spreadsheetId: 'test-spreadsheet-12345',
@@ -289,7 +290,7 @@ describe('Handler Performance Benchmarks', () => {
           },
         };
         // Don't await - just measure sync overhead
-        handlers.core.executeAction(action).catch(() => {});
+        (handlers.core as any).handle(action).catch(() => {});
       },
       { iterations: 5000 }
     );

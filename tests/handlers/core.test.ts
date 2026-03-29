@@ -5,7 +5,7 @@
  * Covers 15 actions: 8 spreadsheet operations + 7 sheet operations.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { SheetsCoreOutputSchema } from '../../src/schemas/core.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -252,7 +252,7 @@ describe('SheetsCoreHandler', () => {
   describe('Spreadsheet Operations', () => {
     describe('get action', () => {
       it('should get spreadsheet metadata', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get',
           spreadsheetId: 'test-spreadsheet-id',
         });
@@ -278,7 +278,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should include sheets in response', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get',
           spreadsheetId: 'test-spreadsheet-id',
           includeSheets: true,
@@ -323,7 +323,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get',
           spreadsheetId: 'test-spreadsheet-id',
           response_format: 'preview',
@@ -342,7 +342,7 @@ describe('SheetsCoreHandler', () => {
       it('should handle API errors gracefully', async () => {
         mockApi.spreadsheets.get.mockRejectedValueOnce(new Error('Spreadsheet not found'));
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get',
           spreadsheetId: 'nonexistent-id',
         });
@@ -379,7 +379,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get',
           spreadsheetId: 'shortcut-sheet-id',
         });
@@ -400,7 +400,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('create action', () => {
       it('should create a new spreadsheet', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'create',
           title: 'My New Spreadsheet',
         });
@@ -440,7 +440,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should create spreadsheet with custom properties', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'create',
           title: 'Custom Spreadsheet',
           locale: 'en_GB',
@@ -472,7 +472,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('copy action', () => {
       it('should copy a spreadsheet', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'copy',
           spreadsheetId: 'test-spreadsheet-id',
           destinationTitle: 'Copy of Spreadsheet',
@@ -492,7 +492,7 @@ describe('SheetsCoreHandler', () => {
       it('should handle copy errors', async () => {
         mockDriveApi.files.copy.mockRejectedValueOnce(new Error('Permission denied'));
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'copy',
           spreadsheetId: 'test-spreadsheet-id',
           destinationTitle: 'Copy',
@@ -504,7 +504,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('update_properties action', () => {
       it('should update spreadsheet properties', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'update_properties',
           spreadsheetId: 'test-spreadsheet-id',
           title: 'Updated Title',
@@ -523,7 +523,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('get_url action', () => {
       it('should generate spreadsheet URL', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get_url',
           spreadsheetId: 'test-spreadsheet-id',
         });
@@ -539,7 +539,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should generate URL with sheet ID', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get_url',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -552,7 +552,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('batch_get action', () => {
       it('should get multiple spreadsheets', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'batch_get',
           spreadsheetIds: ['id1', 'id2'],
         });
@@ -569,7 +569,7 @@ describe('SheetsCoreHandler', () => {
       it('should apply preview response_format to spreadsheet batch list', async () => {
         const spreadsheetIds = Array.from({ length: 12 }, (_, i) => `id-${i + 1}`);
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'batch_get',
           spreadsheetIds,
           response_format: 'preview',
@@ -607,7 +607,7 @@ describe('SheetsCoreHandler', () => {
           };
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'batch_get',
           spreadsheetIds: ['shortcut-batch-id', 'regular-batch-id'],
         });
@@ -634,8 +634,8 @@ describe('SheetsCoreHandler', () => {
         });
 
         const spreadsheetIds = Array.from({ length: 20 }, (_, i) => `id-${i + 1}`);
-        const result = await runWithRequestContext(requestContext, () =>
-          handler.handle({
+        const result: any = await runWithRequestContext(requestContext, () =>
+          (handler as any).handle({
             action: 'batch_get',
             spreadsheetIds,
           })
@@ -655,7 +655,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('get_comprehensive action', () => {
       it('should get comprehensive spreadsheet data', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get_comprehensive',
           spreadsheetId: 'test-spreadsheet-id',
         });
@@ -711,7 +711,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'describe_workbook',
           spreadsheetId: 'test-spreadsheet-id',
         });
@@ -760,7 +760,7 @@ describe('SheetsCoreHandler', () => {
           data: { valueRanges: [{ range: "'Sheet1'!A1:Z1000", values: [] }] },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'describe_workbook',
           spreadsheetId: 'empty-sheet-id',
         });
@@ -797,7 +797,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'describe_workbook',
           spreadsheetId: 'large-sheet-id',
         });
@@ -845,7 +845,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'describe_workbook',
           spreadsheetId: 'custom-limit-sheet-id',
           maxSheets: 3,
@@ -883,7 +883,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'workbook_fingerprint',
           spreadsheetId: 'fp-sheet-id',
         });
@@ -898,7 +898,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('list action', () => {
       it('should list spreadsheets', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'list',
           maxResults: 10,
         });
@@ -928,7 +928,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'list',
           response_format: 'preview',
         } as any);
@@ -944,7 +944,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should filter by query', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'list',
           query: 'name contains "Budget"',
         });
@@ -962,7 +962,7 @@ describe('SheetsCoreHandler', () => {
   describe('Sheet/Tab Operations', () => {
     describe('add_sheet action', () => {
       it('should add a new sheet', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'add_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           title: 'New Sheet',
@@ -980,7 +980,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should add sheet with custom properties', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'add_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           title: 'Custom Sheet',
@@ -1012,7 +1012,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('delete_sheet action', () => {
       it('should delete a sheet with confirmation', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'delete_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -1028,7 +1028,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should create snapshot before deletion', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'delete_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -1063,7 +1063,7 @@ describe('SheetsCoreHandler', () => {
           mockDriveApi as any as drive_v3.Drive
         );
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'delete_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -1075,7 +1075,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should support dryRun mode', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'delete_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -1113,7 +1113,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'duplicate_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -1133,7 +1133,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('clear_sheet action', () => {
       it('should clear a sheet by sheetId', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'clear_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 0,
@@ -1176,14 +1176,14 @@ describe('SheetsCoreHandler', () => {
           }),
         } as any;
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'clear_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetName: 'Sheet1',
         } as any);
 
         expect(result.response.success).toBe(true);
-        expect(mockContext.sheetResolver.resolve).toHaveBeenCalledWith('test-spreadsheet-id', {
+        expect(mockContext.sheetResolver?.resolve).toHaveBeenCalledWith('test-spreadsheet-id', {
           sheetId: undefined,
           sheetName: 'Sheet1',
         });
@@ -1208,14 +1208,14 @@ describe('SheetsCoreHandler', () => {
           getSheetId: vi.fn().mockResolvedValue(0),
         } as any;
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'clear_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetName: 'Sheet1',
         } as any);
 
         expect(result.response.success).toBe(true);
-        expect(mockContext.metadataCache.getSheetId).toHaveBeenCalledWith(
+        expect(mockContext.metadataCache?.getSheetId).toHaveBeenCalledWith(
           'test-spreadsheet-id',
           'Sheet1'
         );
@@ -1243,7 +1243,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'clear_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 0,
@@ -1310,7 +1310,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'update_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 123,
@@ -1355,7 +1355,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'update_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetName: 'Sheet1',
@@ -1373,7 +1373,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('copy_sheet_to action', () => {
       it('should copy sheet to another spreadsheet', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'copy_sheet_to',
           spreadsheetId: 'source-id',
           sheetId: 123,
@@ -1392,7 +1392,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('list_sheets action', () => {
       it('should list all sheets in spreadsheet', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'list_sheets',
           spreadsheetId: 'test-spreadsheet-id',
         });
@@ -1423,7 +1423,7 @@ describe('SheetsCoreHandler', () => {
           },
         });
 
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'list_sheets',
           spreadsheetId: 'test-spreadsheet-id',
           response_format: 'compact',
@@ -1442,7 +1442,7 @@ describe('SheetsCoreHandler', () => {
 
     describe('get_sheet action', () => {
       it('should get sheet by ID', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 0,
@@ -1459,7 +1459,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should get sheet by ID (0)', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 0,
@@ -1471,7 +1471,7 @@ describe('SheetsCoreHandler', () => {
       });
 
       it('should handle sheet not found', async () => {
-        const result = await handler.handle({
+        const result = await (handler as any).handle({
           action: 'get_sheet',
           spreadsheetId: 'test-spreadsheet-id',
           sheetId: 999,
@@ -1485,7 +1485,7 @@ describe('SheetsCoreHandler', () => {
 
   describe('error handling', () => {
     it('should handle unknown actions', async () => {
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'unknown_action' as any,
       } as any);
 
@@ -1501,7 +1501,7 @@ describe('SheetsCoreHandler', () => {
 
       // requireAuth() throws before the try-catch, so we expect it to throw
       await expect(
-        handler.handle({
+        (handler as any).handle({
           action: 'get',
           spreadsheetId: 'test-id',
         })
@@ -1511,7 +1511,7 @@ describe('SheetsCoreHandler', () => {
     it('should handle API errors', async () => {
       mockApi.spreadsheets.get.mockRejectedValueOnce(new Error('API Error'));
 
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'get',
         spreadsheetId: 'test-id',
       });

@@ -20,7 +20,7 @@ describe('@serval/mcp-stdio registerStdioToolSet', () => {
         createTaskHandler: vi.fn(() => ({ createTask: vi.fn(), getTask: vi.fn(), getTaskResult: vi.fn() })),
         handleToolCall: vi.fn(),
         getToolIcons: vi.fn(() => undefined),
-        getToolExecution: vi.fn(() => ({ taskSupport: 'required' })),
+        getToolExecution: vi.fn(() => ({ taskSupport: 'required' })) as unknown as (toolName: string) => { taskSupport?: 'optional' | 'forbidden' | 'required' } | undefined,
         registerTaskTool,
         registerTool: vi.fn(),
       }
@@ -45,7 +45,7 @@ describe('@serval/mcp-stdio registerStdioToolSet', () => {
       ],
       {
         createTaskHandler: vi.fn(),
-        handleToolCall,
+        handleToolCall: handleToolCall as unknown as (toolName: string, args: Record<string, unknown>, extra?: unknown) => Promise<import('@modelcontextprotocol/sdk/types.js').CallToolResult>,
         getToolIcons: vi.fn(() => []),
         getToolExecution: vi.fn(() => undefined),
         registerTaskTool: vi.fn(),

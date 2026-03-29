@@ -185,7 +185,7 @@ export class BreakingChangeDetector {
       };
     }
 
-    const latestSnapshot = snapshots[snapshots.length - 1];
+    const latestSnapshot = snapshots[snapshots.length - 1]!;
     const changes: BreakingChange[] = [];
 
     // Compare structure

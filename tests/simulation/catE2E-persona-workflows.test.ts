@@ -22,8 +22,7 @@
  * MCP Protocol: 2025-11-25
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { sheets_v4 } from 'googleapis';
+import { describe, it, expect } from 'vitest';
 
 // ============================================================================
 // E2E.1 — Financial Analyst: Budget Variance Workflow
@@ -156,7 +155,7 @@ describe('E2E.2: Data Engineer — Quality Pipeline', () => {
     ];
 
     expect(issues).toHaveLength(6);
-    expect(issues[0].type).toBe('whitespace');
+    expect(issues[0]!.type).toBe('whitespace');
   });
 
   it('E2E.2.3: Apply cleaning rules', () => {
@@ -169,8 +168,8 @@ describe('E2E.2: Data Engineer — Quality Pipeline', () => {
     ];
 
     expect(cleanedData).toHaveLength(4);
-    expect(cleanedData[1][0]).toBe('Alice Smith'); // Trimmed
-    expect(cleanedData[1][3]).toBe(1000); // Converted to number
+    expect(cleanedData[1]![0]).toBe('Alice Smith'); // Trimmed
+    expect(cleanedData[1]![3]).toBe(1000); // Converted to number
   });
 
   it('E2E.2.4: Validate cleaned data', () => {
@@ -218,7 +217,6 @@ describe('E2E.2: Data Engineer — Quality Pipeline', () => {
 describe('E2E.3: Small Business — Invoice Generation', () => {
   it('E2E.3.1: Apply invoice template', () => {
     // Step 1: Apply template
-    const templateId = 'invoice-standard-2026';
     const templateData = {
       invoiceNumber: 'INV-2026-001',
       clientName: 'Acme Corp',
@@ -243,7 +241,7 @@ describe('E2E.3: Small Business — Invoice Generation', () => {
     ];
 
     expect(lineItems).toHaveLength(3);
-    expect(lineItems[0].total).toBe(1500);
+    expect(lineItems[0]!.total).toBe(1500);
   });
 
   it('E2E.3.3: Compute subtotal, tax, and total', () => {
@@ -309,7 +307,7 @@ describe('E2E.4: Marketing — Dashboard Creation', () => {
   it('E2E.4.1: Read campaign performance data', () => {
     // Step 1: Read data
     expect(campaignData).toHaveLength(5);
-    expect(campaignData[1][1]).toBe(250000); // Email impressions
+    expect(campaignData[1]![1]).toBe(250000); // Email impressions
   });
 
   it('E2E.4.2: Detect performance patterns', () => {
@@ -320,8 +318,8 @@ describe('E2E.4: Marketing — Dashboard Creation', () => {
       { type: 'best_conversion_rate', campaign: 'Email Campaign Q1', rate: 0.04 },
     ];
 
-    expect(patterns[0].type).toBe('highest_roi');
-    expect(patterns[0].campaign).toBe('Email Campaign Q1');
+    expect(patterns[0]!.type).toBe('highest_roi');
+    expect(patterns[0]!.campaign).toBe('Email Campaign Q1');
   });
 
   it('E2E.4.3: Create visualization charts', () => {
@@ -333,7 +331,7 @@ describe('E2E.4: Marketing — Dashboard Creation', () => {
     ];
 
     expect(charts).toHaveLength(3);
-    expect(charts[0].type).toBe('column');
+    expect(charts[0]!.type).toBe('column');
   });
 
   it('E2E.4.4: Build KPI summary section', () => {
@@ -394,7 +392,7 @@ describe('E2E.5: HR — Scenario Modeling (Headcount Projection)', () => {
   it('E2E.5.1: Write current headcount data', () => {
     // Step 1: Load baseline
     expect(headcountData).toHaveLength(5);
-    expect(headcountData[1][1]).toBe(50); // Engineering headcount
+    expect(headcountData[1]![1]).toBe(50); // Engineering headcount
   });
 
   it('E2E.5.2: Build dependency graph (headcount → cost)', () => {
@@ -410,7 +408,7 @@ describe('E2E.5: HR — Scenario Modeling (Headcount Projection)', () => {
 
   it('E2E.5.3: Model Scenario A: +20% headcount growth', () => {
     // Step 3: Scenario modeling
-    const scenarioA = {
+    void {
       name: 'Growth +20%',
       changes: [
         { cell: 'B2', value: 60 }, // Engineering: 50 → 60
@@ -425,7 +423,7 @@ describe('E2E.5: HR — Scenario Modeling (Headcount Projection)', () => {
 
   it('E2E.5.4: Model Scenario B: Salary increase 10%', () => {
     // Step 4: Alternative scenario
-    const scenarioB = {
+    void {
       name: 'Salary +10%',
       changes: [
         { cell: 'C2', value: 550000 }, // Engineering base: 500k → 550k (10% raise)

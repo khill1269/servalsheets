@@ -41,7 +41,7 @@ describe.skipIf(SKIP_INTEGRATION)('Values Handler Integration', () => {
   const range = (a1: string): string => `${testSheetTitle}!${a1}`;
 
   const callTool = async <T>(name: string, request: Record<string, unknown>): Promise<T> => {
-    const result = await harness.client.callTool({
+    const result = await harness!.client.callTool({
       name,
       arguments: { request },
     });

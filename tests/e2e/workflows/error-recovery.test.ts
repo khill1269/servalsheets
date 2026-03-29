@@ -299,9 +299,9 @@ describe.skipIf(SKIP_E2E)('E2E: Error Recovery', () => {
       const results = await Promise.all(promises);
 
       // First and third should succeed
-      expect(results[0].isError).toBe(false);
-      expect(results[1].isError).toBe(true);
-      expect(results[2].isError).toBe(false);
+      expect(results[0]!.isError).toBe(false);
+      expect(results[1]!.isError).toBe(true);
+      expect(results[2]!.isError).toBe(false);
     });
   });
 

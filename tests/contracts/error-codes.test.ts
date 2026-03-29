@@ -21,7 +21,6 @@ import {
   formatZodErrors,
   createZodValidationError,
   enrichErrorWithContext,
-  type ErrorPattern,
 } from '../../src/utils/error-factory.js';
 import type { ErrorDetail } from '../../src/schemas/shared.js';
 
@@ -108,7 +107,7 @@ describe('Error Code Coverage', () => {
 
         expect(error.message).toContain('view');
         expect(error.message).toContain('edit');
-        expect(error.details?.resourceType).toBe('spreadsheet');
+        expect(error.details?.['resourceType']).toBe('spreadsheet');
       });
 
       it('should produce actionable error message', () => {
@@ -136,7 +135,7 @@ describe('Error Code Coverage', () => {
         expect(error.retryable).toBe(true);
         expect(error.retryAfterMs).toBe(30000);
         expect(error.retryStrategy).toBe('wait_for_reset');
-        expect(error.details?.resetTime).toBeDefined();
+        expect(error.details?.['resetTime']).toBeDefined();
       });
 
       it('should provide batch operation suggestions', () => {
@@ -256,7 +255,7 @@ describe('Error Code Coverage', () => {
         expect(error.code).toBe('INVALID_REQUEST');
         expect(error.category).toBe('client');
         expect(error.message).toContain('spreadsheetId');
-        expect(error.details?.expectedFormat).toBe('string (44 characters)');
+        expect(error.details?.['expectedFormat']).toBe('string (44 characters)');
       });
 
       it('should include allowed values when provided', () => {
@@ -461,7 +460,7 @@ describe('Error Code Coverage', () => {
     it('should detect auth expiry pattern', () => {
       // Auth expiry pattern requires errors with 'token' or 'auth' in the message
       // and category 'auth' but code is NOT PERMISSION_DENIED or FORBIDDEN
-      const errors: ErrorDetail[] = [
+      const errors = [
         {
           code: 'TOKEN_EXPIRED',
           message: 'Token has expired',
@@ -483,7 +482,7 @@ describe('Error Code Coverage', () => {
           severity: 'high',
           retryable: false,
         },
-      ];
+      ] as ErrorDetail[];
 
       const pattern = detectErrorPattern(errors);
 
@@ -762,24 +761,24 @@ describe('Error Code Coverage', () => {
     });
 
     it('should limit error history to 10 entries', () => {
-      const previousErrors: ErrorDetail[] = Array(15)
+      const previousErrors = Array(15)
         .fill(null)
         .map((_, i) => ({
-          code: 'ERROR',
+          code: 'UNKNOWN',
           message: `Error ${i}`,
           category: 'client',
           severity: 'low',
           retryable: false,
-        }));
+        })) as ErrorDetail[];
 
       const enriched = enrichErrorWithContext(
         {
-          code: 'ERROR',
+          code: 'UNKNOWN',
           message: 'Current',
           category: 'client',
           severity: 'low',
           retryable: false,
-        },
+        } as ErrorDetail,
         { previousErrors }
       );
 
@@ -815,15 +814,6 @@ describe('Error Code Coverage', () => {
 
   describe('Error Structure Validation', () => {
     it('all error codes should be covered by factory functions', () => {
-      const factoryFunctions = [
-        createPermissionError,
-        createRateLimitError,
-        createNotFoundError,
-        createAuthenticationError,
-        createValidationError,
-        createIncrementalScopeError,
-      ];
-
       // Collect all codes produced by factory functions
       const producedCodes = new Set<string>();
 

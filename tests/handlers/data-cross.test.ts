@@ -112,6 +112,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess; { a1: string } is valid at runtime
       const result = await handler.handle({
         request: {
           action: 'cross_read',
@@ -120,17 +121,17 @@ describe('F2: Cross-Spreadsheet Federation', () => {
             { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' }, label: 'Costs' },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.action).toBe('cross_read');
-      expect(result.response.mergedHeaders).toContain('_source');
-      expect(result.response.sourcesRead).toBe(2);
+      expect((result.response as any).action).toBe('cross_read');
+      expect((result.response as any).mergedHeaders).toContain('_source');
+      expect((result.response as any).sourcesRead).toBe(2);
       // 2 data rows from each source = 4 merged rows
-      expect(result.response.rows).toHaveLength(4);
+      expect((result.response as any).rows).toHaveLength(4);
       // First row should have 'Sales' as _source
-      expect(result.response.rows?.[0]?.[0]).toBe('Sales');
+      expect((result.response as any).rows?.[0]?.[0]).toBe('Sales');
     });
 
     it('should join on key column when joinKey is provided', async () => {
@@ -144,6 +145,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_read',
@@ -154,14 +156,14 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           joinKey: 'Name',
           joinType: 'left',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.mergedHeaders).not.toContain('_source');
-      expect(result.response.mergedHeaders).toContain('Name');
+      expect((result.response as any).mergedHeaders).not.toContain('_source');
+      expect((result.response as any).mergedHeaders).toContain('Name');
       // Left join: Alice (in both) + Bob (only in A) = 2 rows
-      expect(result.response.rows).toHaveLength(2);
+      expect((result.response as any).rows).toHaveLength(2);
     });
 
     it('should include only matching rows for inner join', async () => {
@@ -175,6 +177,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_read',
@@ -185,15 +188,16 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           joinKey: 'Name',
           joinType: 'inner',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
       // Inner join: only Alice appears in both sources
-      expect(result.response.rows).toHaveLength(1);
+      expect((result.response as any).rows).toHaveLength(1);
     });
 
     it('should return error when joinKey not found in first source', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_read',
@@ -203,7 +207,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           ],
           joinKey: 'NonExistentColumn',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
     });
@@ -213,6 +217,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       await handler.handle({
         request: {
           action: 'cross_read',
@@ -222,7 +227,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
             { spreadsheetId: 'ss3', range: { a1: 'Sheet1!A1:C3' } },
           ],
         },
-      });
+      } as any);
 
       // One API call per source
       expect(getValues).toHaveBeenCalledTimes(3);
@@ -241,12 +246,13 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       } as unknown as HandlerContext;
 
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_read',
           sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } }],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(cachedGetValues).toHaveBeenCalledWith(
@@ -274,6 +280,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_read',
@@ -283,20 +290,20 @@ describe('F2: Cross-Spreadsheet Federation', () => {
             { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:O31' }, label: 'B' },
           ],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.responseFormat).toBe('preview');
-      expect(result.response.truncated).toBe(true);
-      expect(result.response.rowCount).toBe(60);
-      expect(result.response.returnedRowCount).toBe(25);
-      expect(result.response.columnCount).toBe(16);
-      expect(result.response.returnedColumnCount).toBe(10);
-      expect(result.response.rows?.length).toBe(25);
-      expect(result.response.rows?.[0]?.length).toBe(10);
-      expect(result.response._meta?.truncated).toBe(true);
-      expect(result.response._meta?.continuationHint).toContain('response_format');
+      expect((result.response as any).responseFormat).toBe('preview');
+      expect((result.response as any).truncated).toBe(true);
+      expect((result.response as any).rowCount).toBe(60);
+      expect((result.response as any).returnedRowCount).toBe(25);
+      expect((result.response as any).columnCount).toBe(16);
+      expect((result.response as any).returnedColumnCount).toBe(10);
+      expect((result.response as any).rows?.length).toBe(25);
+      expect((result.response as any).rows?.[0]?.length).toBe(10);
+      expect((result.response as any)._meta?.truncated).toBe(true);
+      expect((result.response as any)._meta?.continuationHint).toContain('response_format');
     });
   });
 
@@ -306,35 +313,37 @@ describe('F2: Cross-Spreadsheet Federation', () => {
 
   describe('cross_query', () => {
     it('should return matching rows containing the query string', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_query',
           sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' }, label: 'Sales' }],
           query: 'alice',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.action).toBe('cross_query');
-      expect(result.response.queryMatches).toHaveLength(1);
-      expect(result.response.queryMatches?.[0]?.matchedValues).toContain('Alice');
-      expect(result.response.queryMatches?.[0]?.label).toBe('Sales');
-      expect(result.response.totalSearched).toBe(2); // 2 data rows
+      expect((result.response as any).action).toBe('cross_query');
+      expect((result.response as any).queryMatches).toHaveLength(1);
+      expect((result.response as any).queryMatches?.[0]?.matchedValues).toContain('Alice');
+      expect((result.response as any).queryMatches?.[0]?.label).toBe('Sales');
+      expect((result.response as any).totalSearched).toBe(2); // 2 data rows
     });
 
     it('should return empty matches when no rows match query', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_query',
           sources: [{ spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:C3' } }],
           query: 'zzz_no_match',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.queryMatches).toHaveLength(0);
+      expect((result.response as any).queryMatches).toHaveLength(0);
     });
 
     it('should search across all sources and aggregate matches', async () => {
@@ -348,6 +357,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_query',
@@ -357,13 +367,13 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           ],
           query: 'Alice',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
       // Alice appears in both sources
-      expect(result.response.queryMatches).toHaveLength(2);
-      expect(result.response.totalSearched).toBe(4); // 2 rows from each source
+      expect((result.response as any).queryMatches).toHaveLength(2);
+      expect((result.response as any).totalSearched).toBe(4); // 2 rows from each source
     });
 
     it('should respect maxResults limit', async () => {
@@ -372,6 +382,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_query',
@@ -379,11 +390,11 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           query: 'Alice',
           maxResults: 5,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.queryMatches?.length).toBeLessThanOrEqual(5);
+      expect((result.response as any).queryMatches?.length).toBeLessThanOrEqual(5);
     });
 
     it('should apply compact response_format limit to query matches', async () => {
@@ -395,6 +406,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_query',
@@ -403,17 +415,17 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           maxResults: 500,
           response_format: 'compact',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.responseFormat).toBe('compact');
-      expect(result.response.totalMatches).toBe(300);
-      expect(result.response.returnedMatches).toBe(200);
-      expect(result.response.truncated).toBe(true);
-      expect(result.response.queryMatches?.length).toBe(200);
-      expect(result.response._meta?.truncated).toBe(true);
-      expect(result.response._meta?.continuationHint).toContain('response_format');
+      expect((result.response as any).responseFormat).toBe('compact');
+      expect((result.response as any).totalMatches).toBe(300);
+      expect((result.response as any).returnedMatches).toBe(200);
+      expect((result.response as any).truncated).toBe(true);
+      expect((result.response as any).queryMatches?.length).toBe(200);
+      expect((result.response as any)._meta?.truncated).toBe(true);
+      expect((result.response as any)._meta?.continuationHint).toContain('response_format');
     });
   });
 
@@ -423,19 +435,20 @@ describe('F2: Cross-Spreadsheet Federation', () => {
 
   describe('cross_write', () => {
     it('should copy data from source to destination spreadsheet', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess; destination.range is plain string per schema
       const result = await handler.handle({
         request: {
           action: 'cross_write',
           source: { spreadsheetId: 'src-ss', range: { a1: 'Sheet1!A1:C3' } },
-          destination: { spreadsheetId: 'dst-ss', range: { a1: 'Sheet1!A1' } },
+          destination: { spreadsheetId: 'dst-ss', range: 'Sheet1!A1' },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.action).toBe('cross_write');
-      expect(typeof result.response.cellsCopied).toBe('number');
-      expect(result.response.updatedRange).toBe('Sheet1!A1:C3');
+      expect((result.response as any).action).toBe('cross_write');
+      expect(typeof (result.response as any).cellsCopied).toBe('number');
+      expect((result.response as any).updatedRange).toBe('Sheet1!A1:C3');
     });
 
     it('should call values.get on source and values.update on destination', async () => {
@@ -451,13 +464,14 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues, updateValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       await handler.handle({
         request: {
           action: 'cross_write',
           source: { spreadsheetId: 'src-ss', range: { a1: 'Sheet1!A1:C3' } },
-          destination: { spreadsheetId: 'dst-ss', range: { a1: 'DestSheet!A1' } },
+          destination: { spreadsheetId: 'dst-ss', range: 'DestSheet!A1' },
         },
-      });
+      } as any);
 
       expect(getValues).toHaveBeenCalled();
       expect(updateValues).toHaveBeenCalled();
@@ -466,17 +480,18 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     it('should count non-null cells as cellsCopied', async () => {
       // MOCK_SHEET_A has 3 rows × 3 cols = 9 cells but first is header
       // Headers + 2 data rows = 9 total cells (all non-null)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_write',
           source: { spreadsheetId: 'src-ss', range: { a1: 'Sheet1!A1:C3' } },
-          destination: { spreadsheetId: 'dst-ss', range: { a1: 'Sheet1!A1' } },
+          destination: { spreadsheetId: 'dst-ss', range: 'Sheet1!A1' },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.cellsCopied).toBeGreaterThan(0);
+      expect((result.response as any).cellsCopied).toBeGreaterThan(0);
     });
   });
 
@@ -497,6 +512,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
@@ -504,12 +520,12 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:C3' } },
           keyColumn: 'Name',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.action).toBe('cross_compare');
-      const diff = result.response.diff!;
+      expect((result.response as any).action).toBe('cross_compare');
+      const diff = (result.response as any).diff!;
       // Charlie is in ss2 but not ss1 → added
       expect(diff.added).toHaveLength(1);
       // Bob is in ss1 but not ss2 → removed
@@ -535,6 +551,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
@@ -542,11 +559,11 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B2' } },
           keyColumn: 'Name',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      const diff = result.response.diff!;
+      const diff = (result.response as any).diff!;
       expect(diff.summary.changedCells).toBe(1);
       expect(diff.changed?.[0]?.key).toBe('Alice');
       expect(diff.changed?.[0]?.column).toBe('Value');
@@ -572,17 +589,18 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
           source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:B3' } },
           source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B2' } },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      const diff = result.response.diff!;
+      const diff = (result.response as any).diff!;
       // Row [3,4] is in src1 but not src2 → removed
       expect(diff.summary.removedRows).toBe(1);
       expect(diff.summary.addedRows).toBe(0);
@@ -593,13 +611,14 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
           source1: { spreadsheetId: 'ss1', range: { a1: 'Sheet1!A1:B3' } },
           source2: { spreadsheetId: 'ss2', range: { a1: 'Sheet1!A1:B2' } },
         },
-      });
+      } as any);
 
       // Should return error response since both sources failed
       expect(result.response.success).toBe(false);
@@ -618,6 +637,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RangeInputSchema uses z.preprocess
       const result = await handler.handle({
         request: {
           action: 'cross_compare',
@@ -626,17 +646,17 @@ describe('F2: Cross-Spreadsheet Federation', () => {
           keyColumn: 'id',
           response_format: 'preview',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (!result.response.success) return;
-      expect(result.response.responseFormat).toBe('preview');
-      expect(result.response.truncated).toBe(true);
-      expect(result.response.diff?.summary.changedCells).toBe(40);
-      expect(result.response.diff?.returnedChangedCells).toBe(25);
-      expect(result.response.diff?.changed?.length).toBe(25);
-      expect(result.response._meta?.truncated).toBe(true);
-      expect(result.response._meta?.continuationHint).toContain('response_format');
+      expect((result.response as any).responseFormat).toBe('preview');
+      expect((result.response as any).truncated).toBe(true);
+      expect((result.response as any).diff?.summary.changedCells).toBe(40);
+      expect((result.response as any).diff?.returnedChangedCells).toBe(25);
+      expect((result.response as any).diff?.changed?.length).toBe(25);
+      expect((result.response as any)._meta?.truncated).toBe(true);
+      expect((result.response as any)._meta?.continuationHint).toContain('response_format');
     });
   });
 });

@@ -21,7 +21,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsDataHandler } from '../../src/handlers/data.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import type { sheets_v4 } from 'googleapis';
 import { resetETagCache } from '../../src/services/etag-cache.js';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -263,7 +262,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         data: { range: 'Sheet1!A1:D4', values: financialData },
       });
 
-      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } as any);
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -281,7 +280,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         data: { range: 'Sheet1!A1:C4', values: data },
       });
 
-      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:C4' });
+      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:C4' } as any);
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -299,7 +298,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         data: { range: 'Sheet1!A1:D4', values: riskData },
       });
 
-      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } as any);
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -331,7 +330,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
           ['Total', '=SUM(B2:B2)', '=SUM(C2:C2)'],
         ],
         valueInputOption: 'USER_ENTERED',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -360,7 +359,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         range: 'Sheet1!A1:B2',
         values: [['Bob', '25']],
         valueInputOption: 'RAW',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.values.append).toHaveBeenCalled();
@@ -396,7 +395,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
           'Sheet1!A5:B5',
         ],
         response_format: 'compact',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -425,7 +424,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         find: 'Inactive',
         replacement: 'Archived',
         range: 'Sheet1!A1:B10',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -449,7 +448,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         spreadsheetId: 'test-id',
         cell: 'Sheet1!A1',
         note: 'This is a test note',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -467,7 +466,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         spreadsheetId: 'test-id',
         cell: 'Sheet1!A1',
         url: 'https://example.com',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -491,7 +490,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:C1',
         mergeType: 'MERGE_ALL',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -508,7 +507,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'unmerge_cells',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:C1',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -533,7 +532,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         source: 'Sheet1!A1:B2',
         destination: 'Sheet1!A4',
         pasteType: 'PASTE_NORMAL',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -552,7 +551,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         source: 'Sheet1!A1:B2',
         destination: 'Sheet1!D1',
         pasteType: 'PASTE_NORMAL',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -586,7 +585,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         sourceRange: { a1: 'Sheet1!A1:A3' },
         fillRange: { a1: 'Sheet1!A4:A6' },
         strategy: 'linear',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -614,7 +613,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         sourceRange: { a1: 'Sheet1!A1:A3' },
         fillRange: { a1: 'Sheet1!A4:A6' },
         strategy: 'date',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -642,7 +641,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         sourceRange: { a1: 'Sheet1!A1:A2' },
         fillRange: { a1: 'Sheet1!A3:A4' },
         strategy: 'repeat',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -686,7 +685,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         ],
         joinKey: 'ID',
         joinType: 'inner',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -713,7 +712,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         spreadsheetId: 'test-id',
         sources: [{ spreadsheetId: 'sheet-1', range: { a1: 'A1:C3' } }],
         query: 'Show all rows where Revenue > 55000',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -752,7 +751,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
           range: 'A1:B2',
         },
         valueInputOption: 'RAW',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -788,7 +787,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         source1: { spreadsheetId: 'sheet-1', range: { a1: 'A1:B3' } },
         source2: { spreadsheetId: 'sheet-2', range: { a1: 'A1:B3' } },
         compareColumns: ['Q1'],
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -820,7 +819,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:C101',
         response_format: 'compact',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values?.length).toBe(101);
@@ -841,7 +840,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:99999',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(false);
       const errorDetail = (response.response as any)?.error;
@@ -870,7 +869,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B4',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -892,7 +891,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B4',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -915,7 +914,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A6',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -941,7 +940,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B2',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -974,7 +973,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'batch_read',
         spreadsheetId: 'test-id',
         ranges: ['Sheet1!A1:B2', 'Sheet1!C1:D2'],
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -998,7 +997,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
           ['Expense', '40000'],
         ],
         valueInputOption: 'RAW',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -1021,7 +1020,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         range: 'Sheet1!A1:B2',
         values: [['NewProduct', '75000']],
         valueInputOption: 'RAW',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -1041,7 +1040,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B2',
-      });
+      } as any);
 
       expect(response.response).toBeDefined();
     });
@@ -1063,7 +1062,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B51',
         response_format: 'compact',
-      });
+      } as any);
 
       expect(response.response?.success).toBe(true);
     });
@@ -1083,7 +1082,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         action: 'read',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B2',
-      });
+      } as any);
 
       expect(mockContext.sessionContext?.trackReadOperation).toHaveBeenCalled();
     });

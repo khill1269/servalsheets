@@ -31,7 +31,7 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -80,14 +80,14 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         range: 'TestData!E2:F2',
         valueRenderOption: 'FORMATTED_VALUE',
       });
-      expect(formattedResponse.data.values![0][0]).toBe('30');
+      expect(formattedResponse.data.values![0]![0]).toBe('30');
 
       const formulaResponse = await client.sheets.spreadsheets.values.get({
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!E2:F2',
         valueRenderOption: 'FORMULA',
       });
-      expect(formulaResponse.data.values![0][0]).toBe('=E1+F1');
+      expect(formulaResponse.data.values![0]![0]).toBe('=E1+F1');
     });
 
     it('should handle empty cells gracefully', async () => {
@@ -109,9 +109,9 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         range: 'TestData!H1:J3',
       });
 
-      expect(response.data.values![0][0]).toBe('H1');
-      expect(response.data.values![0][1]).toBe('');
-      expect(response.data.values![1][1]).toBe('I2');
+      expect(response.data.values![0]![0]).toBe('H1');
+      expect(response.data.values![0]![1]).toBe('');
+      expect(response.data.values![1]![1]).toBe('I2');
     });
 
     it('should read multiple ranges in a single request', async () => {
@@ -132,7 +132,7 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
       });
 
       expect(response.data.valueRanges).toHaveLength(2);
-      expect(response.data.valueRanges![0].values).toEqual([['L1'], ['L2'], ['L3']]);
+      expect(response.data.valueRanges![0]!.values).toEqual([['L1'], ['L2'], ['L3']]);
     });
   });
 
@@ -168,7 +168,7 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         valueRenderOption: 'FORMATTED_VALUE',
       });
 
-      expect(verifyResponse.data.values![0][0]).toBe('200');
+      expect(verifyResponse.data.values![0]![0]).toBe('200');
     });
 
     it('should append values after existing data', async () => {
@@ -311,7 +311,7 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         includeGridData: true,
       });
 
-      const cellNote = verifyResponse.data.sheets![0].data![0].rowData![0].values![0].note;
+      const cellNote = verifyResponse.data.sheets![0]!.data![0]!.rowData![0]!.values![0]!.note;
       expect(cellNote).toBe('This is a test note');
     });
 
@@ -347,7 +347,7 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(verifyResponse.data.values![0][0]).toContain('HYPERLINK');
+      expect(verifyResponse.data.values![0]![0]).toContain('HYPERLINK');
     });
   });
 
@@ -378,7 +378,7 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         includeGridData: false,
       });
-      expect(verifyMerge.data.sheets![0].merges).toBeDefined();
+      expect(verifyMerge.data.sheets![0]!.merges).toBeDefined();
 
       // Unmerge
       await client.sheets.spreadsheets.batchUpdate({
@@ -417,7 +417,8 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
     it('should track batch operation efficiency', async () => {
       client.resetMetrics();
 
-      await client.trackOperation('valuesBatchUpdate', 'POST', () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GaxiosResponseWithHTTP2 vs GaxiosResponse compat
+      await (client.trackOperation as any)('valuesBatchUpdate', 'POST', () =>
         client.sheets.spreadsheets.values.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {

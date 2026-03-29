@@ -8,11 +8,9 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import {
   getLiveApiClient,
-  getQuotaManager,
   applyQuotaDelay,
   TEMPLATES,
   generateTestId,
-  sleep,
   standardAfterEach,
 } from '../setup/index.js';
 import { shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
@@ -95,7 +93,7 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       // Verify deletion
       const metadata = await client.getSpreadsheet(testSpreadsheetId);
       const sheetExists = metadata.sheets?.some(
-        (s: { properties?: { title?: string } }) => s.properties?.title === sheetName
+        (s) => (s as { properties?: { title?: string } }).properties?.title === sheetName
       );
       expect(sheetExists).toBeFalsy();
     }, 60000);
@@ -141,8 +139,8 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
 
       expect(batchResult.valueRanges).toBeDefined();
       expect(batchResult.valueRanges.length).toBe(2);
-      expect(batchResult.valueRanges[0].values.length).toBe(5);
-      expect(batchResult.valueRanges[1].values.length).toBe(5);
+      expect(batchResult.valueRanges[0]?.values.length).toBe(5);
+      expect(batchResult.valueRanges[1]?.values.length).toBe(5);
     }, 60000);
 
     it('should perform batch write to multiple ranges', async () => {
@@ -230,9 +228,9 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       });
 
       // Verify formula calculations
-      expect(result.values[0][0]).toBe('10'); // A1
-      expect(result.values[0][1]).toBe('20'); // B1 = A1*2
-      expect(result.values[0][2]).toBe('150'); // C1 = SUM(A1:A5)
+      expect(result.values[0]?.[0]).toBe('10'); // A1
+      expect(result.values[0]?.[1]).toBe('20'); // B1 = A1*2
+      expect(result.values[0]?.[2]).toBe('150'); // C1 = SUM(A1:A5)
     }, 60000);
 
     it('should handle cross-sheet references', async () => {
@@ -267,7 +265,7 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
         valueRenderOption: 'FORMATTED_VALUE',
       });
 
-      expect(result.values[0][0]).toBe('600');
+      expect(result.values[0]?.[0]).toBe('600');
     }, 60000);
   });
 
@@ -283,7 +281,7 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
 
       // Try to read from invalid range - should throw or return error
       await expect(async () => {
-        await client.readData(testSpreadsheetId, 'InvalidSheet!A1:B2');
+        await client.readData(testSpreadsheetId!, 'InvalidSheet!A1:B2');
       }).rejects.toThrow();
 
       await applyQuotaDelay();
@@ -318,8 +316,8 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       await applyQuotaDelay();
 
       // Read final value
-      const result = await client.readData(testSpreadsheetId, 'Sheet1!A1');
-      expect(result.values[0][0]).toMatch(/^Write_\d$/);
+      const result = await client.readData(testSpreadsheetId!, 'Sheet1!A1');
+      expect(result.values[0]?.[0]).toMatch(/^Write_\d$/);
     }, 60000);
   });
 
@@ -358,8 +356,8 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
       // Verify cleanup
       const metadata = await client.getSpreadsheet(spreadsheetId);
       const remainingSheets =
-        metadata.sheets?.filter((s: { properties?: { title?: string } }) =>
-          s.properties?.title?.startsWith('TempSheet_')
+        metadata.sheets?.filter((s) =>
+          (s as { properties?: { title?: string } }).properties?.title?.startsWith('TempSheet_')
         ) ?? [];
 
       expect(remainingSheets.length).toBe(0);

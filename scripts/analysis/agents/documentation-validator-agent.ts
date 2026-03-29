@@ -92,6 +92,7 @@ interface BestPracticeRule {
  * Best practice rules loaded from official documentation
  * These are updated by fetchLatestDocumentation()
  */
+// @ts-ignore -- populated by fetchLatestDocumentation() at runtime
 let BEST_PRACTICE_RULES: BestPracticeRule[] = [];
 
 // ============================================================================
@@ -391,22 +392,53 @@ export class DocumentationValidatorAgent extends AnalysisAgent {
   }
 
   /**
-   * Fetch latest documentation from official sources
-   * Updates rules based on current best practices
+   * Fetch latest documentation from official sources and cache locally.
+   * Cached content lives in .analysis-cache/ for offline access and version tracking.
+   * Rules themselves remain statically curated (pattern-based, not auto-generated).
    */
   async fetchLatestDocumentation(): Promise<void> {
     console.log('📚 Fetching latest documentation from official sources...');
+
+    const cacheDir = path.join(process.cwd(), '.analysis-cache');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
 
     for (const source of OFFICIAL_SOURCES) {
       try {
         console.log(`  → Fetching ${source.name}...`);
 
-        // TODO: Implement actual fetching
-        // For now, use cached/static rules
+        const response = await fetch(source.url, {
+          signal: AbortSignal.timeout(10_000),
+          headers: { 'User-Agent': 'ServalSheets-DocValidator/2.0 (analysis tool)' },
+        });
 
-        source.lastFetched = new Date().toISOString();
+        if (!response.ok) {
+          console.warn(`  ⚠️  ${source.name}: HTTP ${response.status}`);
+          continue;
+        }
+
+        const content = await response.text();
+        const cacheEntry = {
+          name: source.name,
+          url: source.url,
+          fetchedAt: new Date().toISOString(),
+          contentLength: content.length,
+          // Store a content hash for drift detection (not full content — can be multi-MB)
+          contentHash: Buffer.from(
+            await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content))
+          ).toString('hex'),
+        };
+
+        const cachePath = path.join(process.cwd(), source.cachePath);
+        fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+        fs.writeFileSync(cachePath, JSON.stringify(cacheEntry, null, 2));
+
+        source.lastFetched = cacheEntry.fetchedAt;
+        console.log(`  ✓ ${source.name} (${Math.round(content.length / 1024)}KB cached)`);
       } catch (error) {
-        console.warn(`  ⚠️  Failed to fetch ${source.name}:`, error);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.warn(`  ⚠️  Failed to fetch ${source.name}: ${msg}`);
       }
     }
 
@@ -566,7 +598,7 @@ async function main() {
 
   for (const report of reports) {
     console.log(`\n${report.dimension}: ${report.status.toUpperCase()}`);
-    console.log(`  Rules checked: ${report.metrics?.rulesChecked}`);
+    console.log(`  Rules checked: ${report.metrics?.['rulesChecked']}`);
     console.log(`  Violations: ${report.issueCount}`);
 
     if (report.issues.length > 0) {

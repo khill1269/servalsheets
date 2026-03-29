@@ -96,6 +96,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
 
     // Register webhook (calls Drive API watch internally)
     const registration = await webhookManager.register({
+      action: 'register',
       spreadsheetId: testSpreadsheetId!,
       webhookUrl: 'https://api.example.com/sheets-webhook',
       eventTypes: ['sheet.update'],
@@ -120,6 +121,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
 
     // Register webhook with short expiration (1 hour)
     const registration = await webhookManager.register({
+      action: 'register',
       spreadsheetId: testSpreadsheetId!,
       webhookUrl: 'https://api.example.com/sheets-webhook',
       eventTypes: ['sheet.update'],
@@ -192,7 +194,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
       },
       secret: 'test-secret-minimum16chars',
       maxAttempts: 3,
-      scheduledAt: new Date(),
+      scheduledAt: Date.now(),
     });
 
     // Verify enqueuing succeeded (no error thrown)
@@ -207,6 +209,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
 
     // Register then immediately unregister
     const registration = await webhookManager.register({
+      action: 'register',
       spreadsheetId: testSpreadsheetId!,
       webhookUrl: 'https://api.example.com/sheets-webhook',
       eventTypes: ['sheet.update'],

@@ -177,7 +177,7 @@ describe('TemplateStore', () => {
       const templates = await store.list('finance');
 
       expect(templates).toHaveLength(1);
-      expect(templates[0].category).toBe('finance');
+      expect(templates[0]!.category).toBe('finance');
     });
 
     it('should return empty array when no templates', async () => {
@@ -331,11 +331,12 @@ describe('TemplateStore', () => {
         category: 'custom',
         sheets: [
           {
-            title: 'Sheet1',
-            gridProperties: { rowCount: 100, columnCount: 10 },
+            name: 'Sheet1',
+            rowCount: 100,
+            columnCount: 10,
           },
         ],
-      });
+      } as any);
 
       expect(template).toBeDefined();
       expect(template.id).toBe('new-template-id');
@@ -393,11 +394,12 @@ describe('TemplateStore', () => {
         name: 'Minimal Template',
         sheets: [
           {
-            title: 'Sheet1',
-            gridProperties: { rowCount: 100, columnCount: 10 },
+            name: 'Sheet1',
+            rowCount: 100,
+            columnCount: 10,
           },
         ],
-      });
+      } as any);
 
       expect(template).toBeDefined();
       expect(template.name).toBe('Minimal Template');

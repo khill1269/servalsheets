@@ -127,9 +127,9 @@ describe('Resource Cleanup Registry', () => {
     it('should clean up in LIFO order (reverse registration)', async () => {
       const order: string[] = [];
 
-      registerCleanup('Service1', () => order.push('first'));
-      registerCleanup('Service1', () => order.push('second'));
-      registerCleanup('Service1', () => order.push('third'));
+      registerCleanup('Service1', () => { order.push('first'); });
+      registerCleanup('Service1', () => { order.push('second'); });
+      registerCleanup('Service1', () => { order.push('third'); });
 
       await cleanupAllResources();
 
@@ -151,8 +151,8 @@ describe('Resource Cleanup Registry', () => {
       expect(result.successful).toBe(1);
       expect(result.failed).toBe(1);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].service).toBe('Service1');
-      expect(result.errors[0].error).toBe('Cleanup failed');
+      expect(result.errors[0]?.service).toBe('Service1');
+      expect(result.errors[0]?.error).toBe('Cleanup failed');
     });
 
     it('should report all errors when multiple cleanups fail', async () => {
@@ -291,8 +291,8 @@ describe('Resource Cleanup Registry', () => {
       const order: string[] = [];
 
       // Service B depends on Service A
-      registerCleanup('ServiceA', () => order.push('A'));
-      registerCleanup('ServiceB', () => order.push('B'));
+      registerCleanup('ServiceA', () => { order.push('A'); });
+      registerCleanup('ServiceB', () => { order.push('B'); });
 
       await cleanupAllResources();
 

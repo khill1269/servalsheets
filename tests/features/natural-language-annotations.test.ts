@@ -27,7 +27,7 @@ describe('Feature 2: Natural Language Queries Annotations', () => {
   });
 
   describe('Annotation Structure', () => {
-    const annotation = ACTION_ANNOTATIONS[annotationKey];
+    const annotation = ACTION_ANNOTATIONS[annotationKey]!;
 
     it('should specify API call count', () => {
       expect(annotation).toHaveProperty('apiCalls');

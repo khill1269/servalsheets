@@ -18,6 +18,8 @@ import { CompositeInputSchema } from '../../src/schemas/composite.js';
 
 describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
   let handler: CompositeHandler;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper to bypass strict input typing
+  let h: any;
   let mockContext: HandlerContext;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock type
   let mockSheetsApi: any;
@@ -70,14 +72,10 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       },
     };
 
-    // Create mock context
+    // Create mock context (no sheetsApi/driveApi — those are constructor args)
     mockContext = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: {} as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      sheetsApi: mockSheetsApi as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      driveApi: mockDriveApi as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock auth type
       authClient: { credentials: { access_token: 'test-token' } } as any,
       authService: {
@@ -105,9 +103,10 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
-    };
+    } as unknown as HandlerContext;
 
-    handler = new CompositeHandler(mockContext);
+    handler = new CompositeHandler(mockContext, mockSheetsApi, mockDriveApi);
+    h = handler;
   });
 
   afterEach(() => {
@@ -134,27 +133,26 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
     it('should reject sheetName parameter with helpful error', async () => {
       // Try using sheetName instead of sheet (common mistake)
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'smart_append',
           spreadsheetId: 'test-id',
-          // @ts-expect-error - Testing invalid parameter
-          sheetName: 'Sheet1', // Wrong parameter name
+          sheetName: 'Sheet1', // Wrong parameter name (intentional for error test)
           data: [{ col1: 'value1' }],
         },
       });
 
       // Should return error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
 
       // BUG FIX 0.10: Error message should mention the correct parameter name
-      const errorMessage = result.response.error?.message.toLowerCase();
+      const errorMessage = (result.response as any).error?.message.toLowerCase();
       expect(errorMessage?.includes('sheet') || errorMessage?.includes('parameter')).toBe(true);
     });
 
     it('should accept sheet parameter correctly', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'smart_append',
           spreadsheetId: 'test-id',
@@ -169,7 +167,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
     });
 
     it('should use sheet parameter for import_csv', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'import_csv',
           spreadsheetId: 'test-id',
@@ -194,23 +192,25 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
         },
       };
       const importHandler = new CompositeHandler(
-        authorizedContext,
+        authorizedContext as unknown as HandlerContext,
         mockSheetsApi,
         mockDriveApi
       );
-      const result = await importHandler.handle({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing legacy alias
+      const ih = importHandler as any;
+      const result = await ih.handle({
         request: {
           action: 'import_csv',
           spreadsheetId: 'test-id',
-          // @ts-expect-error - Testing legacy alias that bypasses schema parsing in direct handler tests
-          sheetName: 'Imported CSV',
+          sheetName: 'Imported CSV', // legacy alias — testing bypass of schema parsing
+
           csvData: 'Header1,Header2\nValue1,Value2',
         },
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.sheetName).toBe('Imported CSV');
+        expect((result.response as any).sheetName).toBe('Imported CSV');
       }
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -229,7 +229,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
     });
 
     it('should use sheet parameter for bulk_update', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'bulk_update',
           spreadsheetId: 'test-id',
@@ -244,7 +244,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
     });
 
     it('should use sheet parameter for deduplicate', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'deduplicate',
           spreadsheetId: 'test-id',
@@ -260,7 +260,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
     it('should use sheetName parameter for setup_sheet (different action)', async () => {
       // setup_sheet uses sheetName because it's creating a NEW sheet
       // This is intentional - new sheet name vs existing sheet reference
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'setup_sheet',
           spreadsheetId: 'test-id',
@@ -276,30 +276,28 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
   describe('regression tests', () => {
     it('should handle unknown action gracefully', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
-          // @ts-expect-error - Testing invalid action
-          action: 'invalid_action',
+          action: 'invalid_action', // intentionally invalid for error test
         },
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should handle missing spreadsheetId', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'smart_append',
-          // @ts-expect-error - Testing missing required field
-          sheet: 'Sheet1',
+          sheet: 'Sheet1', // missing spreadsheetId intentionally for error test
           data: [{ col1: 'value1' }],
         },
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 });

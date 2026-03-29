@@ -65,7 +65,7 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
     });
 
     it('should handle multiple validation rules', () => {
-      const value = 'test@example.com';
+      const value: string = 'test@example.com';
       const rules = {
         required: value !== null && value !== '',
         email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
@@ -123,7 +123,7 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!F1',
       });
-      expect(response.data.values![0][0]).toBe('Version2');
+      expect(response.data.values![0]?.[0]).toBe('Version2');
     });
   });
 
@@ -151,7 +151,7 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!G1',
       });
-      expect(response.data.values![0][0]).toBe('ResolvedValue');
+      expect(response.data.values![0]?.[0]).toBe('ResolvedValue');
     });
   });
 
@@ -196,7 +196,7 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
         requestBody: { requests: [{ addSheet: { properties: { title: sheetName } } }] },
       });
 
-      const newSheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
+      const newSheetId = addResponse.data.replies![0]?.addSheet?.properties?.sheetId;
       expect(newSheetId).toBeDefined();
 
       await client.sheets.spreadsheets.values.update({

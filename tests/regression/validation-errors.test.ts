@@ -61,7 +61,7 @@ describe('Regression: Validation Error Fixes', () => {
         const result = schema.safeParse(input);
         expect(result.success).toBe(true);
         if (result.success) {
-          expect(result.data.request.protectedRangeId).toBe(123);
+          expect((result.data.request as any).protectedRangeId).toBe(123);
         }
       });
 
@@ -159,7 +159,7 @@ describe('Regression: Validation Error Fixes', () => {
         const result = schema.safeParse(input);
         expect(result.success).toBe(true);
         if (result.success) {
-          expect(result.data.request.metadataId).toBe(789);
+          expect((result.data.request as any).metadataId).toBe(789);
         }
       });
     });
@@ -249,7 +249,7 @@ describe('Regression: Validation Error Fixes', () => {
         expect(result.success).toBe(true);
         if (result.success) {
           // Count should default to 1
-          expect(result.data.request.count).toBe(1);
+          expect((result.data.request as any).count).toBe(1);
         }
       });
 
@@ -649,8 +649,8 @@ describe('Regression: Validation Error Fixes', () => {
         const result = schema.safeParse(input);
         expect(result.success).toBe(true);
         if (result.success) {
-          expect(typeof result.data.request.sheetId).toBe('number');
-          expect(typeof result.data.request.startIndex).toBe('number');
+          expect(typeof (result.data.request as any).sheetId).toBe('number');
+          expect(typeof (result.data.request as any).startIndex).toBe('number');
         }
       });
     });

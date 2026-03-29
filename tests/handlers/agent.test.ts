@@ -131,7 +131,7 @@ describe('AgentHandler', () => {
           description: 'Add a profit margin column to the Q1 data',
           spreadsheetId: 'ss-001',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -157,7 +157,7 @@ describe('AgentHandler', () => {
           description: 'Do something complex',
           maxSteps: 5,
         },
-      });
+      } as any);
 
       expect(compilePlanAI).toHaveBeenCalledWith('Do something complex', 5, undefined, undefined);
     });
@@ -182,7 +182,7 @@ describe('AgentHandler', () => {
           description: 'Write summary table',
           spreadsheetId: 'ss-001',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -236,7 +236,7 @@ describe('AgentHandler', () => {
           description: 'Summarize profit trends',
           spreadsheetId: 'ss-live-001',
         },
-      });
+      } as any);
 
       expect(analyzeHandler.handle).toHaveBeenCalledWith({
         request: {
@@ -324,7 +324,7 @@ describe('AgentHandler', () => {
           action: 'plan',
           description: 'Create budget tracker',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -353,7 +353,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           dryRun: false,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -383,7 +383,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           dryRun: true,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -401,7 +401,7 @@ describe('AgentHandler', () => {
           action: 'execute',
           planId: 'plan-missing',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -425,7 +425,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           stepId: STEP_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -445,7 +445,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           stepId: STEP_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -463,7 +463,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           stepId: 'step-bad',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -490,7 +490,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           context: 'Before applying formulas',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -512,7 +512,7 @@ describe('AgentHandler', () => {
           action: 'observe',
           planId: 'plan-xyz',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -541,7 +541,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           checkpointId: CHECKPOINT_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -565,7 +565,7 @@ describe('AgentHandler', () => {
           planId: 'plan-missing',
           checkpointId: CHECKPOINT_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -585,7 +585,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           checkpointId: 'ckpt-missing',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -614,7 +614,7 @@ describe('AgentHandler', () => {
           action: 'get_status',
           planId: PLAN_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -635,7 +635,7 @@ describe('AgentHandler', () => {
           action: 'get_status',
           planId: 'plan-nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -659,7 +659,7 @@ describe('AgentHandler', () => {
           action: 'get_status',
           planId: PLAN_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -685,7 +685,7 @@ describe('AgentHandler', () => {
         request: {
           action: 'list_plans',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -708,7 +708,7 @@ describe('AgentHandler', () => {
           status: 'completed',
           limit: 5,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(listPlans).toHaveBeenCalledWith(5, 'completed');
@@ -721,7 +721,7 @@ describe('AgentHandler', () => {
         request: {
           action: 'list_plans',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -738,7 +738,7 @@ describe('AgentHandler', () => {
         request: {
           action: 'list_plans',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -768,7 +768,7 @@ describe('AgentHandler', () => {
           action: 'resume',
           planId: PLAN_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -794,7 +794,7 @@ describe('AgentHandler', () => {
           planId: PLAN_ID,
           fromStepId: STEP_ID,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(resumePlan).toHaveBeenCalledWith(PLAN_ID, STEP_ID, expect.any(Function));
@@ -808,7 +808,7 @@ describe('AgentHandler', () => {
           action: 'resume',
           planId: 'plan-gone',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {

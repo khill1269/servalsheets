@@ -29,13 +29,13 @@ function assertRoutedCorrectly(
   response: Record<string, unknown>,
   expectedAction: string
 ): void {
-  if (response.action === expectedAction) {
+  if (response['action'] === expectedAction) {
     return; // success path — action dispatched and returned correctly
   }
   // Failure path — check it's not a routing error
-  if (response.success === false) {
-    const error = response.error as Record<string, unknown> | undefined;
-    const errorMessage = String(error?.message ?? '');
+  if (response['success'] === false) {
+    const error = response['error'] as Record<string, unknown> | undefined;
+    const errorMessage = String(error?.['message'] ?? '');
     const isRoutingError =
       errorMessage.toLowerCase().includes('unknown action') ||
       errorMessage.toLowerCase().includes('invalid action');
@@ -43,7 +43,7 @@ function assertRoutedCorrectly(
     return; // API/auth failure, routing was correct
   }
   // success:true but wrong action field
-  expect(response.action).toBe(expectedAction);
+  expect(response['action']).toBe(expectedAction);
 }
 
 describe('MCP Evaluation Suite', () => {
@@ -70,8 +70,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'read');
     });
 
@@ -88,8 +88,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'import_csv');
     });
 
@@ -105,8 +105,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'add_sheet');
     });
 
@@ -125,8 +125,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'insert');
     });
 
@@ -148,8 +148,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'batch_format');
     });
 
@@ -167,8 +167,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       // May fail with PERMISSION_DENIED/auth error in test env — routing must be correct
       assertRoutedCorrectly(response, 'share_add');
     });
@@ -184,8 +184,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'undo');
     });
 
@@ -201,8 +201,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'get_dependents');
     });
 
@@ -218,8 +218,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'model_scenario');
     });
 
@@ -235,8 +235,8 @@ describe('MCP Evaluation Suite', () => {
           },
         },
       });
-      const payload = parseResponse(result);
-      const response = payload.response as Record<string, unknown>;
+      const payload = parseResponse(result as any);
+      const response = payload['response'] as Record<string, unknown>;
       assertRoutedCorrectly(response, 'generate_sheet');
     });
   });
@@ -262,9 +262,9 @@ describe('MCP Evaluation Suite', () => {
         },
       },
     });
-    const activePayload = parseResponse(active);
-    const activeResponse = activePayload.response as Record<string, unknown>;
-    expect(activeResponse.success).toBe(true);
+    const activePayload = parseResponse(active as any);
+    const activeResponse = activePayload['response'] as Record<string, unknown>;
+    expect(activeResponse['success']).toBe(true);
 
     const context = await harness.client.callTool({
       name: 'sheets_session',
@@ -274,9 +274,9 @@ describe('MCP Evaluation Suite', () => {
         },
       },
     });
-    const contextPayload = parseResponse(context);
-    const contextResponse = contextPayload.response as Record<string, unknown>;
-    expect(contextResponse.success).toBe(true);
+    const contextPayload = parseResponse(context as any);
+    const contextResponse = contextPayload['response'] as Record<string, unknown>;
+    expect(contextResponse['success']).toBe(true);
 
     const authStatus = await harness.client.callTool({
       name: 'sheets_auth',
@@ -286,8 +286,8 @@ describe('MCP Evaluation Suite', () => {
         },
       },
     });
-    const authPayload = parseResponse(authStatus);
-    expect((authPayload.response as Record<string, unknown>).success).toBe(true);
+    const authPayload = parseResponse(authStatus as any);
+    expect((authPayload['response'] as Record<string, unknown>)['success']).toBe(true);
 
     const historyList = await harness.client.callTool({
       name: 'sheets_history',
@@ -298,7 +298,7 @@ describe('MCP Evaluation Suite', () => {
         },
       },
     });
-    const historyListPayload = parseResponse(historyList);
-    expect((historyListPayload.response as Record<string, unknown>).success).toBe(true);
+    const historyListPayload = parseResponse(historyList as any);
+    expect((historyListPayload['response'] as Record<string, unknown>)['success']).toBe(true);
   });
 });

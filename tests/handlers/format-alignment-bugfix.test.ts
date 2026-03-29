@@ -79,7 +79,7 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
-    };
+    } as unknown as HandlerContext;
 
     handler = new FormatHandler(mockContext, mockApi);
   });
@@ -90,18 +90,19 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
   describe('valid alignment parameters (BUG FIX 0.5)', () => {
     it('should accept horizontal alignment parameter', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
         horizontal: 'CENTER',
-      });
+      } as any);
 
       // Verify result is defined and successful
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('set_alignment');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('set_alignment');
 
       // Verify API was called with correct parameters
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -130,14 +131,15 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
     });
 
     it('should accept vertical alignment parameter', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
         vertical: 'MIDDLE',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
@@ -158,14 +160,15 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
     });
 
     it('should accept wrapStrategy parameter', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
         wrapStrategy: 'WRAP',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
@@ -186,6 +189,7 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
     });
 
     it('should accept multiple alignment properties together', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
@@ -193,9 +197,9 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
         horizontal: 'RIGHT',
         vertical: 'TOP',
         wrapStrategy: 'CLIP',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
@@ -220,49 +224,51 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
   describe('invalid parameters - improved error message (BUG FIX 0.5)', () => {
     it('should return helpful error when no alignment properties provided', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
         // No alignment properties
-      });
+      } as any);
 
       // Should return error with helpful message
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error.code).toBe('INVALID_PARAMS');
-      expect(result.response.error.message).toContain('alignment properties');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error.message).toContain('alignment properties');
       // BUG FIX: Error message should mention correct parameter names
-      expect(result.response.error.message).toContain('horizontal');
-      expect(result.response.error.message).toContain('vertical');
-      expect(result.response.error.message).toContain('wrapStrategy');
+      expect((result.response as any).error.message).toContain('horizontal');
+      expect((result.response as any).error.message).toContain('vertical');
+      expect((result.response as any).error.message).toContain('wrapStrategy');
     });
 
     it('should handle wrong parameter name (horizontalAlignment)', async () => {
       // This is what user tried in test log
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing wrong parameter name from user's perspective
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
-        // @ts-expect-error - Testing wrong parameter name from user's perspective
         horizontalAlignment: 'CENTER',
-      });
+      } as any);
 
       // Should return error because schema won't recognize horizontalAlignment
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error.message).toContain('horizontal');
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error.message).toContain('horizontal');
     });
   });
 
   describe('case insensitivity', () => {
     it('should accept lowercase alignment values', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
         horizontal: 'center',
-      });
+      } as any);
 
       // Should work or provide clear error
       expect(result).toBeDefined();
@@ -272,15 +278,16 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
   describe('regression tests', () => {
     it('should not break existing set_alignment behavior', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing un-wrapped input
       const result = await handler.handle({
         action: 'set_alignment',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A5',
         horizontal: 'LEFT',
-      });
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('set_alignment');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('set_alignment');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
   });

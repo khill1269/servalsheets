@@ -88,14 +88,14 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
       vi.mocked(getTimeline).mockResolvedValue(mockTimeline as any);
 
       const result = await handler.handle({
-        request: { action: 'timeline', spreadsheetId: 'sheet-abc' },
+        request: { action: 'timeline', spreadsheetId: 'sheet-abc' } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.timeline).toHaveLength(2);
-        expect(result.response.timeline![0].revisionId).toBe('r2');
-        expect(result.response.message).toContain('2');
+        expect((result.response as any).timeline).toHaveLength(2);
+        expect((result.response as any).timeline![0].revisionId).toBe('r2');
+        expect((result.response as any).message).toContain('2');
       }
     });
 
@@ -106,7 +106,7 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
       });
 
       const result = await handler.handle({
-        request: { action: 'timeline', spreadsheetId: 'sheet-abc' },
+        request: { action: 'timeline', spreadsheetId: 'sheet-abc' } as any,
       });
 
       expect(result.response.success).toBe(false);
@@ -130,13 +130,13 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           spreadsheetId: 'sheet-abc',
           since: '2026-01-01',
           until: '2026-01-02',
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.timeline).toHaveLength(0);
-        expect(result.response.message).toContain('0');
+        expect((result.response as any).timeline).toHaveLength(0);
+        expect((result.response as any).message).toContain('0');
       }
     });
   });
@@ -162,13 +162,13 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           spreadsheetId: 'sheet-abc',
           revisionId1: 'r1',
           revisionId2: 'r2',
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.diff).toBeDefined();
-        expect(result.response.message).toContain('3');
+        expect((result.response as any).diff).toBeDefined();
+        expect((result.response as any).message).toContain('3');
       }
     });
 
@@ -185,12 +185,12 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           spreadsheetId: 'sheet-abc',
           revisionId1: 'r1',
           revisionId2: 'r2',
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.message).toContain('Cell-level diff unavailable');
+        expect((result.response as any).message).toContain('Cell-level diff unavailable');
       }
     });
 
@@ -203,7 +203,7 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           spreadsheetId: 'sheet-abc',
           revisionId1: 'r1',
           revisionId2: 'r2',
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(false);
@@ -225,14 +225,14 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           spreadsheetId: 'sheet-abc',
           revisionId: 'r1',
           cells: ['Sheet1!D15', 'Sheet1!E20'],
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true, createSnapshot: true },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.message).toContain('Dry run');
-        expect(result.response.restored).toHaveLength(2);
+        expect((result.response as any).message).toContain('Dry run');
+        expect((result.response as any).restored).toHaveLength(2);
       }
       expect(vi.mocked(restoreCells)).not.toHaveBeenCalled();
     });
@@ -251,12 +251,12 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           revisionId: 'r1',
           cells: ['Sheet1!D15', 'Sheet1!E20'],
           safety: { createSnapshot: false },
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.restored).toHaveLength(2);
+        expect((result.response as any).restored).toHaveLength(2);
       }
     });
 
@@ -269,7 +269,7 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
           spreadsheetId: 'sheet-abc',
           revisionId: 'r1',
           cells: ['Sheet1!A1'],
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(false);

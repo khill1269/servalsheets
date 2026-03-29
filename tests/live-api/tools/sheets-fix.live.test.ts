@@ -31,7 +31,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets?.[0]?.properties?.sheetId ?? 0;
   }, 60000);
 
   afterAll(async () => {
@@ -52,7 +52,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         fields: 'sheets.properties.gridProperties',
       });
 
-      const gridProps = response.data.sheets![0].properties!.gridProperties;
+      const gridProps = response.data.sheets?.[0]?.properties?.gridProperties;
       // Initially headers may or may not be frozen depending on previous tests
       expect(
         gridProps?.frozenRowCount === 0 ||
@@ -81,7 +81,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         fields: 'sheets.properties.gridProperties',
       });
 
-      expect(response.data.sheets![0].properties!.gridProperties?.frozenRowCount).toBe(1);
+      expect(response.data.sheets?.[0]?.properties?.gridProperties?.frozenRowCount).toBe(1);
     });
   });
 
@@ -128,7 +128,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         fields: 'sheets.protectedRanges',
       });
 
-      expect(response.data.sheets![0].protectedRanges!.length).toBeGreaterThan(0);
+      expect((response.data.sheets?.[0]?.protectedRanges ?? []).length).toBeGreaterThan(0);
     });
   });
 
@@ -177,9 +177,9 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      const formulas = response.data.values![0];
-      expect(formulas[0]).toContain('TODAY()');
-      expect(formulas[1]).toContain('$L$2');
+      const formulas = response.data.values?.[0];
+      expect(formulas?.[0]).toContain('TODAY()');
+      expect(formulas?.[1]).toContain('$L$2');
     });
 
     it('should detect full column references', async () => {
@@ -204,7 +204,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(response.data.values![0][0]).toMatch(/[A-Z]:[A-Z]/);
+      expect(response.data.values?.[0]?.[0]).toMatch(/[A-Z]:[A-Z]/);
     });
 
     it('should convert to bounded range', async () => {
@@ -221,7 +221,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         valueRenderOption: 'FORMULA',
       });
 
-      expect(response.data.values![0][0]).toBe('=SUM(P2:P100)');
+      expect(response.data.values?.[0]?.[0]).toBe('=SUM(P2:P100)');
     });
   });
 
@@ -265,7 +265,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
         fields: 'sheets.conditionalFormats',
       });
 
-      const cfRules = response.data.sheets![0].conditionalFormats || [];
+      const cfRules = response.data.sheets?.[0]?.conditionalFormats || [];
       expect(cfRules.length).toBeGreaterThanOrEqual(3);
     });
   });
@@ -292,7 +292,7 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
       });
 
       expect(beforeState.data.values).toBeDefined();
-      expect(beforeState.data.values![1][0]).toContain('TODAY()');
+      expect(beforeState.data.values?.[1]?.[0]).toContain('TODAY()');
     });
   });
 

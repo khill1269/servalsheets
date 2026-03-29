@@ -37,7 +37,7 @@ describe('MetricsService', () => {
     });
 
     it('should accept windowSize option', () => {
-      const svc = new MetricsService({ windowSize: 500 });
+      const svc = new MetricsService({ windowSize: 500 } as any);
       expect(svc).toBeDefined();
     });
   });
@@ -111,7 +111,7 @@ describe('MetricsService', () => {
 
   describe('recordApiCall', () => {
     it('should record API call', () => {
-      service.recordApiCall('spreadsheets.get', true);
+      (service as any).recordApiCall('spreadsheets.get', true);
 
       const metrics = service.getApiMetrics();
       expect(metrics.calls).toBe(1);
@@ -119,16 +119,16 @@ describe('MetricsService', () => {
     });
 
     it('should track errors', () => {
-      service.recordApiCall('spreadsheets.get', false);
+      (service as any).recordApiCall('spreadsheets.get', false);
 
       const metrics = service.getApiMetrics();
       expect(metrics.errors).toBe(1);
     });
 
     it('should calculate error rate', () => {
-      service.recordApiCall('test', true);
-      service.recordApiCall('test', true);
-      service.recordApiCall('test', false);
+      (service as any).recordApiCall('test', true);
+      (service as any).recordApiCall('test', true);
+      (service as any).recordApiCall('test', false);
 
       const metrics = service.getApiMetrics();
       expect(metrics.errorRate).toBeCloseTo(0.333, 2);
@@ -217,7 +217,7 @@ describe('MetricsService', () => {
     it('should return complete metrics summary', () => {
       service.recordOperation('test', 100, true);
       service.recordCacheAccess(true);
-      service.recordApiCall('test', true);
+      (service as any).recordApiCall('test', true);
 
       const summary = service.getSummary();
 
@@ -234,7 +234,7 @@ describe('MetricsService', () => {
     it('should reset all metrics', () => {
       service.recordOperation('test', 100, true);
       service.recordCacheAccess(true);
-      service.recordApiCall('test', true);
+      (service as any).recordApiCall('test', true);
 
       service.reset();
 
@@ -258,7 +258,7 @@ describe('MetricsService singleton', () => {
   });
 
   it('should allow setting custom instance', () => {
-    const customService = new MetricsService({ windowSize: 500 });
+    const customService = new MetricsService({ windowSize: 500 } as any);
     setMetricsService(customService);
 
     const instance = getMetricsService();

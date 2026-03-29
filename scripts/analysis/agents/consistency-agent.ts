@@ -17,13 +17,6 @@ import {
   AnalysisContext,
 } from '../multi-agent-analysis.js';
 
-interface NamingIssue {
-  name: string;
-  expected: string;
-  actual: string;
-  line: number;
-}
-
 interface ImportIssue {
   message: string;
   expected: string;
@@ -273,7 +266,7 @@ export class ConsistencyAgent extends AnalysisAgent {
           message: 'Imports not in correct order (expected: External → Internal → Types)',
           expected: 'External → Internal → Types',
           suggestion: 'Reorder imports or run: npm run lint --fix',
-          line: imports[0].line,
+          line: imports[0]!.line,
         },
       ];
     }

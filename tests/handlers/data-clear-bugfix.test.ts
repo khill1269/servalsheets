@@ -37,8 +37,6 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
 
     // Create mock context
     mockContext = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      sheetsApi: mockApi as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: {} as any, // Required by requireAuth()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock auth type
@@ -68,7 +66,7 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
-    };
+    } as unknown as HandlerContext;
 
     handler = new SheetsDataHandler(mockContext, mockApi);
   });
@@ -81,22 +79,24 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
   describe('clear returns result (BUG FIX 0.7)', () => {
     it('should return result with updatedRange field', async () => {
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B10',
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B10',
+        },
+      } as any);
 
       // Verify result is defined (not null/undefined)
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
 
       // Verify success response
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('clear');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('clear');
 
       // BUG FIX: Verify updatedRange is present in response
       expect(result.response).toHaveProperty('updatedRange');
-      expect(result.response.updatedRange).toBe('Sheet1!A1:B10');
+      expect((result.response as any).updatedRange).toBe('Sheet1!A1:B10');
 
       // Verify API was called
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -134,14 +134,16 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
       });
 
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B10',
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B10',
+        },
+      } as any);
 
       // Should fallback to resolved range (from rangeResolver mock)
-      expect(result.response.success).toBe(true);
-      expect(result.response.updatedRange).toBe('Sheet1!A1:B10');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).updatedRange).toBe('Sheet1!A1:B10');
     });
 
     it('should handle errors and still return result', async () => {
@@ -149,72 +151,82 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
       mockApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('Permission denied'));
 
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B10',
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B10',
+        },
+      } as any);
 
       // Should return error response (not throw)
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should return result in dryRun mode', async () => {
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B10',
-        safety: { dryRun: true },
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B10',
+          safety: { dryRun: true },
+        },
+      } as any);
 
       // Should return result without calling API
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
-      expect(result.response.updatedRange).toBe('Sheet1!A1:B10');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
+      expect((result.response as any).updatedRange).toBe('Sheet1!A1:B10');
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
     it('should preserve updatedRange through verbosity filter', async () => {
       // Test with minimal verbosity
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B10',
-        verbosity: 'minimal',
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B10',
+          verbosity: 'minimal',
+        },
+      } as any);
 
       // updatedRange should be preserved even in minimal mode
-      expect(result.response.updatedRange).toBeDefined();
-      expect(typeof result.response.updatedRange).toBe('string');
+      expect((result.response as any).updatedRange).toBeDefined();
+      expect(typeof (result.response as any).updatedRange).toBe('string');
     });
 
     it('should preserve updatedRange through response compactor', async () => {
       // Test with standard verbosity (response compaction enabled)
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B10',
-        verbosity: 'standard',
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B10',
+          verbosity: 'standard',
+        },
+      } as any);
 
       // updatedRange should survive response compaction
-      expect(result.response.updatedRange).toBeDefined();
-      expect(result.response.updatedRange).toBe('Sheet1!A1:B10');
+      expect((result.response as any).updatedRange).toBeDefined();
+      expect((result.response as any).updatedRange).toBe('Sheet1!A1:B10');
     });
   });
 
   describe('regression tests', () => {
     it('should not break existing clear behavior', async () => {
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:Z100',
-      });
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:Z100',
+        },
+      } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('clear');
+      expect((result.response as any).success).toBe(true);
+      expect((result.response as any).action).toBe('clear');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
   });

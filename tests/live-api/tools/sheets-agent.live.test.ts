@@ -21,6 +21,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 import { AgentHandler } from '../../../src/handlers/agent.js';
 import { compilePlan, listPlans } from '../../../src/services/agent-engine.js';
+import type { SheetsAgentInput } from '../../../src/schemas/agent.js';
 
 const runLiveTests = shouldRunIntegrationTests();
 
@@ -35,10 +36,7 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
 
   describe('list_plans', () => {
     it('should return an array of plans (may be empty)', async () => {
-      const result = await handler.handle({
-        action: 'list_plans',
-        limit: 10,
-      });
+      const result = await handler.handle({ action: 'list_plans', limit: 10 } as unknown as SheetsAgentInput);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -47,10 +45,7 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
     });
 
     it('should respect limit parameter', async () => {
-      const result = await handler.handle({
-        action: 'list_plans',
-        limit: 2,
-      });
+      const result = await handler.handle({ action: 'list_plans', limit: 2 } as unknown as SheetsAgentInput);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -62,10 +57,7 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
 
   describe('get_status', () => {
     it('should return NOT_FOUND for a non-existent planId', async () => {
-      const result = await handler.handle({
-        action: 'get_status',
-        planId: 'non-existent-plan-id-live-test',
-      });
+      const result = await handler.handle({ action: 'get_status', planId: 'non-existent-plan-id-live-test' } as unknown as SheetsAgentInput);
 
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
@@ -76,11 +68,7 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
 
   describe('rollback', () => {
     it('should return NOT_FOUND for a non-existent planId', async () => {
-      const result = await handler.handle({
-        action: 'rollback',
-        planId: 'non-existent-plan-id-live-test',
-        checkpointId: 'non-existent-checkpoint',
-      });
+      const result = await handler.handle({ action: 'rollback', planId: 'non-existent-plan-id-live-test', checkpointId: 'non-existent-checkpoint' } as unknown as SheetsAgentInput);
 
       // rollback returns success: false with NOT_FOUND or similar when plan doesn't exist
       // Either success or failure is acceptable — what matters is it doesn't throw

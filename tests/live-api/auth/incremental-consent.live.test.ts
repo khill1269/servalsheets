@@ -12,7 +12,7 @@ import { createGoogleApiClient } from '../../../src/services/google-api.js';
 import { SheetsTemplatesHandler as TemplatesHandler } from '../../../src/handlers/templates.js';
 import { CollaborateHandler } from '../../../src/handlers/collaborate.js';
 import type { HandlerContext } from '../../../src/handlers/base.js';
-import { IncrementalScopeRequiredError } from '../../../src/security/incremental-scope.js';
+
 import {
   ELEVATED_SCOPES as FULL_SCOPES,
 } from '../../../src/services/google-api.js';
@@ -36,8 +36,8 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
   });
 
   it('should use minimal scopes by default', () => {
-    const googleApi = createGoogleApiClient({
-      credentials: {
+    void createGoogleApiClient({
+      oauthTokens: {
         access_token: 'test-token',
         refresh_token: 'test-refresh',
         scope: MINIMAL_SCOPES.join(' '),
@@ -58,8 +58,8 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
   });
 
   it('should throw IncrementalScopeRequiredError when templates require drive.appdata', async () => {
-    const googleApi = createGoogleApiClient({
-      credentials: {
+    const googleApi = await createGoogleApiClient({
+      oauthTokens: {
         access_token: 'test-token',
         refresh_token: 'test-refresh',
         scope: MINIMAL_SCOPES.join(' '), // Only minimal scopes
@@ -84,15 +84,17 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
       },
     } as unknown as HandlerContext;
 
-    const handler = new TemplatesHandler(context);
+    const handler = new TemplatesHandler(context as unknown as HandlerContext, undefined as any, undefined as any);
 
     // Attempt to create a template without drive.appdata scope
     const result = await handler.handle({
-      action: 'create',
-      spreadsheetId: testSpreadsheetId!,
-      name: 'Test Template',
-      description: 'Test incremental consent',
-    });
+      request: {
+        action: 'create',
+        spreadsheetId: testSpreadsheetId!,
+        name: 'Test Template',
+        description: 'Test incremental consent',
+      },
+    } as any);
 
     // Should return error response with INCREMENTAL_SCOPE_REQUIRED
     expect(result.response.success).toBe(false);
@@ -101,15 +103,15 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
       expect(result.response.error?.message).toContain('additional permissions');
       expect(result.response.error?.details).toHaveProperty('authorizationUrl');
       expect(result.response.error?.details).toHaveProperty('missingScopes');
-      expect(result.response.error?.details?.missingScopes).toContain(
+      expect(result.response.error?.details?.['missingScopes']).toContain(
         'https://www.googleapis.com/auth/drive.appdata'
       );
     }
   });
 
   it('should succeed when all required scopes are granted', async () => {
-    const googleApi = createGoogleApiClient({
-      credentials: {
+    const googleApi = await createGoogleApiClient({
+      oauthTokens: {
         access_token: process.env['GOOGLE_ACCESS_TOKEN'] ?? 'test-token',
         refresh_token: process.env['GOOGLE_REFRESH_TOKEN'] ?? 'test-refresh',
         scope: FULL_SCOPES.join(' '), // All scopes granted
@@ -140,18 +142,18 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
 
     // Should succeed with full scopes
     const result = await handler.handle({
-      action: 'list',
-    });
+      request: { action: 'list' },
+    } as any);
 
     // Scope validation passed: the operation should NOT be blocked by INCREMENTAL_SCOPE_REQUIRED.
     // The underlying Drive API call may return a different error (e.g., if test credentials lack
     // drive.appdata scope in the actual token), but scope pre-validation should have allowed through.
-    expect(result.response.error?.code).not.toBe('INCREMENTAL_SCOPE_REQUIRED');
+    expect((result.response as any).error?.code).not.toBe('INCREMENTAL_SCOPE_REQUIRED');
   });
 
   it('should throw IncrementalScopeRequiredError when comments require drive scope', async () => {
-    const googleApi = createGoogleApiClient({
-      credentials: {
+    const googleApi = await createGoogleApiClient({
+      oauthTokens: {
         access_token: 'test-token',
         refresh_token: 'test-refresh',
         scope: MINIMAL_SCOPES.join(' '), // Only minimal scopes
@@ -184,25 +186,27 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
 
     // Attempt to add comment without drive scope
     const result = await handler.handle({
-      action: 'comment_add',
-      spreadsheetId: testSpreadsheetId!,
-      range: 'A1',
-      comment: 'Test comment',
-    });
+      request: {
+        action: 'comment_add',
+        spreadsheetId: testSpreadsheetId!,
+        range: 'A1',
+        comment: 'Test comment',
+      },
+    } as any);
 
     // Should return error response with INCREMENTAL_SCOPE_REQUIRED
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
       expect(result.response.error?.code).toBe('INCREMENTAL_SCOPE_REQUIRED');
-      expect(result.response.error?.details?.missingScopes).toContain(
+      expect(result.response.error?.details?.['missingScopes']).toContain(
         'https://www.googleapis.com/auth/drive'
       );
     }
   });
 
   it('should include authorization URL with include_granted_scopes=true', async () => {
-    const googleApi = createGoogleApiClient({
-      credentials: {
+    const googleApi = await createGoogleApiClient({
+      oauthTokens: {
         access_token: 'test-token',
         refresh_token: 'test-refresh',
         scope: MINIMAL_SCOPES.join(' '),
@@ -227,19 +231,21 @@ describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
       },
     } as unknown as HandlerContext;
 
-    const handler = new TemplatesHandler(context);
+    const handler = new TemplatesHandler(context as unknown as HandlerContext, undefined as any, undefined as any);
 
     const result = await handler.handle({
-      action: 'create',
-      spreadsheetId: testSpreadsheetId!,
-      name: 'Test Template',
-      description: 'Test incremental consent',
-    });
+      request: {
+        action: 'create',
+        spreadsheetId: testSpreadsheetId!,
+        name: 'Test Template',
+        description: 'Test incremental consent',
+      },
+    } as any);
 
     // Should return error with authorization URL
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
-      const authUrl = result.response.error?.details?.authorizationUrl as string;
+      const authUrl = result.response.error?.details?.['authorizationUrl'] as string;
       expect(authUrl).toBeDefined();
       expect(authUrl).toContain('include_granted_scopes=true');
       expect(authUrl).toContain('scope=');

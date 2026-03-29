@@ -8,12 +8,10 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resolve: {
-    // Handle .js imports for .ts files (NodeNext module resolution compatibility)
-    extensionAlias: {
-      '.js': ['.ts', '.js'],
-    },
-  },
+    extensionAlias: { '.js': ['.ts', '.js'] },
+  } as any,
   test: {
     globals: true,
     environment: 'node',
@@ -27,8 +25,8 @@ export default defineConfig({
       NODE_ENV: 'test',
       OAUTH_AUTO_OPEN_BROWSER: 'false',
       // These can be overridden by actual environment
-      TEST_REAL_API: process.env.TEST_REAL_API ?? 'false',
-      TEST_SPREADSHEET_ID: process.env.TEST_SPREADSHEET_ID ?? '',
+      TEST_REAL_API: process.env['TEST_REAL_API'] ?? 'false',
+      TEST_SPREADSHEET_ID: process.env['TEST_SPREADSHEET_ID'] ?? '',
       TEST_INFRASTRUCTURE_ENABLED: 'true',
     },
     // Extended timeouts for API calls
@@ -42,7 +40,7 @@ export default defineConfig({
     // Reporter configuration
     reporters: ['verbose'],
     // Bail on first failure in CI
-    bail: process.env.CI ? 1 : 0,
+    bail: process.env['CI'] ? 1 : 0,
     // Coverage configuration (optional for live tests)
     coverage: {
       enabled: false, // Disable coverage for live tests by default

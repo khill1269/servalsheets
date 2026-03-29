@@ -19,8 +19,8 @@ describe('@serval/mcp-runtime runtime diagnostics', () => {
 
     expect(breadcrumbs.pid).toBeTypeOf('number');
     expect(breadcrumbs.uptimeSeconds).toBeTypeOf('number');
-    expect(breadcrumbs.memory.rssMb).toBeTypeOf('number');
-    expect(breadcrumbs.memory.heapUsedMb).toBeTypeOf('number');
+    expect(breadcrumbs.memory['rssMb']).toBeTypeOf('number');
+    expect(breadcrumbs.memory['heapUsedMb']).toBeTypeOf('number');
     expect(breadcrumbs.resourcesRegistered).toBe(true);
   });
 

@@ -5,14 +5,13 @@
  * These tests verify the testing utilities work correctly.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { TEST_CONFIG, getTestConfig, resetTestConfig, overrideTestConfig } from './setup/config.js';
 import {
   executeWithTestRetry,
   isTestRetryableError,
   getRetryStats,
   clearRetryMetrics,
-  TestRetryManager,
 } from './setup/test-retry-manager.js';
 import { QuotaManager, getQuotaManager, resetQuotaManager } from './setup/quota-manager.js';
 import {
@@ -33,7 +32,6 @@ import {
   generateCustomTemplate,
 } from './setup/sheet-templates.js';
 import {
-  sleep,
   generateTestId,
   columnLetter,
   a1Range,
@@ -45,7 +43,6 @@ import {
 } from './setup/test-helpers.js';
 import {
   PreTestValidator,
-  getPreTestValidator,
   resetPreTestValidator,
 } from './guards/pre-test-validator.js';
 import {
@@ -266,8 +263,8 @@ describe('Test Infrastructure', () => {
 
       const metrics = collector.getTestMetrics();
       expect(metrics).toHaveLength(1);
-      expect(metrics[0].testName).toBe('testCase1');
-      expect(metrics[0].status).toBe('passed');
+      expect(metrics[0]!.testName).toBe('testCase1');
+      expect(metrics[0]!.status).toBe('passed');
     });
 
     it('should calculate suite metrics', () => {
@@ -505,8 +502,8 @@ describe('Test Infrastructure', () => {
 
       const resources = guard.getTrackedResources();
       expect(resources).toHaveLength(1);
-      expect(resources[0].id).toBe('sheet-123');
-      expect(resources[0].createdBy).toBe('test1');
+      expect(resources[0]!.id).toBe('sheet-123');
+      expect(resources[0]!.createdBy).toBe('test1');
     });
 
     it('should untrack resources', () => {

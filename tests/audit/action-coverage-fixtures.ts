@@ -1851,7 +1851,7 @@ function buildValidInput(tool: string, action: string): Record<string, unknown> 
 
   // Add spreadsheetId if needed
   if (needsSpreadsheetId(tool, action)) {
-    inner.spreadsheetId = 'test-spreadsheet-id';
+    inner['spreadsheetId'] = 'test-spreadsheet-id';
   }
 
   // Merge overrides

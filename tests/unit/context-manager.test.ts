@@ -2,7 +2,7 @@
  * ContextManager Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextManager } from '../../src/services/context-manager.js';
 
 type TestParams = {

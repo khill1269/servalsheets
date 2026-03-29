@@ -37,7 +37,7 @@ describe('ConnectorsHandler', () => {
       connectors: [{ id: 'finnhub', name: 'Finnhub', description: 'Market data', authType: 'api_key', configured: false }],
     });
 
-    const result = await handler.handle({ request: { action: 'list_connectors' } });
+    const result = await handler.handle({ request: { action: 'list_connectors' } } as any);
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(result.response.success).toBe(true);
@@ -61,7 +61,7 @@ describe('ConnectorsHandler', () => {
         connectorId: 'finnhub',
         credentials: { type: 'api_key', apiKey: 'test-key' },
       },
-    });
+    } as any);
     const queryResult = await handler.handle({
       request: {
         action: 'query',
@@ -70,7 +70,7 @@ describe('ConnectorsHandler', () => {
         params: { symbol: 'AAPL' },
         useCache: false,
       },
-    });
+    } as any);
     const batchResult = await handler.handle({
       request: {
         action: 'batch_query',
@@ -82,7 +82,7 @@ describe('ConnectorsHandler', () => {
           },
         ],
       },
-    });
+    } as any);
 
     expect(configureSpy).toHaveBeenCalledWith('finnhub', { type: 'api_key', apiKey: 'test-key' });
     expect(querySpy).toHaveBeenCalledWith(
@@ -222,13 +222,13 @@ describe('ConnectorsHandler', () => {
         schedule: { interval: 'hourly' },
         destination: { spreadsheetId: 'spreadsheet-id', range: { a1: 'Sheet1!A1' } },
       },
-    });
+    } as any);
     const unsubscribeResult = await handler.handle({
       request: { action: 'unsubscribe', subscriptionId: 'sub_1' },
-    });
+    } as any);
     const listResult = await handler.handle({
       request: { action: 'list_subscriptions' },
-    });
+    } as any);
 
     expect(subscribeSpy).toHaveBeenCalledTimes(1);
     expect(unsubscribeSpy).toHaveBeenCalledWith('sub_1');
@@ -263,16 +263,16 @@ describe('ConnectorsHandler', () => {
         params: { symbol: 'AAPL' },
         transform: { limit: 1 },
       },
-    });
+    } as any);
     const statusResult = await handler.handle({
       request: { action: 'status', connectorId: 'finnhub' },
-    });
+    } as any);
     const discoverResult = await handler.handle({
       request: { action: 'discover', connectorId: 'finnhub' },
-    });
+    } as any);
     const discoverSchemaResult = await handler.handle({
       request: { action: 'discover', connectorId: 'finnhub', endpoint: 'stock/quote' },
-    });
+    } as any);
 
     expect(querySpy).toHaveBeenCalledWith('finnhub', 'stock/quote', { symbol: 'AAPL' }, { limit: 1 }, true);
     expect(statusSpy).toHaveBeenCalledWith('finnhub');
@@ -303,7 +303,7 @@ describe('ConnectorsHandler', () => {
 
     const result = await handler.handle({
       request: { action: 'discover', connectorId: 'finnhub', endpoint: 'unknown/endpoint' },
-    });
+    } as any);
 
     expect(result.response.success).toBe(false);
     expect(result.response.action).toBe('discover');

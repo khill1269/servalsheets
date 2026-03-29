@@ -2,14 +2,13 @@
  * Tests for session context fuzzy matching in find_by_reference
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { handleSheetsSession } from '../../src/handlers/session.js';
 import {
   getSessionContext,
   resetSessionContext,
   type SpreadsheetContext,
 } from '../../src/services/session-context.js';
-import type { SheetsSessionInput } from '../../src/schemas/session.js';
 
 describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
   beforeEach(() => {
@@ -27,7 +26,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(budget);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'Q1 Budget',
@@ -35,9 +34,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).confidence).toBe('exact');
       expect((result.response as any).matchScore).toBe(1.0);
     });
@@ -52,7 +51,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(budget);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'budget tracker',
@@ -60,9 +59,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).matchScore).toBeGreaterThan(0.5);
     });
 
@@ -76,7 +75,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(sales);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'the sales pipeline',
@@ -84,9 +83,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).confidence).toBe('exact');
     });
 
@@ -108,7 +107,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       session.setActiveSpreadsheet(budget);
       session.setActiveSpreadsheet(sales); // sales becomes active
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'budget',
@@ -116,9 +115,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       // Should still find budget even though sales is active
       expect((result.response as any).spreadsheet.spreadsheetId).toBe('budget-123');
     });
@@ -133,7 +132,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(veryLongTitle);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'xyz', // Low match
@@ -141,7 +140,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
       // May or may not find (depends on scoring), but should not crash
     });
@@ -156,7 +155,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(tracker);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'budget details',
@@ -164,9 +163,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).spreadsheet.spreadsheetId).toBe('tracker-789');
     });
   });
@@ -182,7 +181,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(budget);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'Q1 Budget',
@@ -190,9 +189,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).spreadsheet).toBeDefined();
     });
 
@@ -206,7 +205,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(report);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'Annual Report',
@@ -214,9 +213,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
     });
 
     it('should normalize "workbook" to "spreadsheet"', async () => {
@@ -229,7 +228,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(data);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'Data Analysis',
@@ -237,9 +236,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
     });
   });
 
@@ -254,7 +253,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         undoable: true,
       });
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'that',
@@ -262,9 +261,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).confidence).toBe('exact');
       expect((result.response as any).matchScore).toBe(1.0);
     });
@@ -279,7 +278,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         undoable: true,
       });
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'the format',
@@ -287,9 +286,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).matchScore).toBeGreaterThan(0.5);
     });
 
@@ -317,7 +316,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         undoable: true,
       });
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'the write',
@@ -325,16 +324,16 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).operation.action).toBe('write');
     });
   });
 
   describe('Edge cases', () => {
     it('should handle empty reference gracefully', async () => {
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: '',
@@ -342,13 +341,13 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(false);
       expect((result.response as any).error).toBeDefined();
     });
 
     it('should return not found when no matches exist', async () => {
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'nonexistent',
@@ -356,9 +355,9 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(false);
+      expect((result.response as any).found).toBe(false);
     });
 
     it('should be case insensitive', async () => {
@@ -371,7 +370,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
       };
       session.setActiveSpreadsheet(budget);
 
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: 'ANNUAL budget REPORT',
@@ -379,14 +378,14 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(true);
-      expect(result.response.found).toBe(true);
+      expect((result.response as any).found).toBe(true);
       expect((result.response as any).confidence).toBe('exact');
     });
 
     it('should handle whitespace-only reference gracefully', async () => {
-      const input: SheetsSessionInput = {
+      const input = {
         request: {
           action: 'find_by_reference',
           reference: '   ',
@@ -394,7 +393,7 @@ describe('Session Handler - Fuzzy Matching for find_by_reference', () => {
         },
       };
 
-      const result = await handleSheetsSession(input);
+      const result = await handleSheetsSession(input as any);
       expect(result.response.success).toBe(false);
     });
   });

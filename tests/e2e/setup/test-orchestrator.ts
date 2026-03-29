@@ -11,6 +11,7 @@
  * - Error recovery and rollback support
  */
 
+import { describe } from 'vitest';
 import { LiveApiClient } from '../../live-api/setup/live-api-client.js';
 import { loadTestCredentials, shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 import { logger } from '../../../src/utils/logger.js';
@@ -53,7 +54,7 @@ export class TestOrchestrator {
   private cleanupTasks: Array<() => Promise<void>> = [];
 
   constructor(private testTitle: string) {
-    const credentials = loadTestCredentials();
+    const credentials = loadTestCredentials() as any;
     this.client = new LiveApiClient(credentials, {
       logRequests: false,
       trackMetrics: true,
@@ -128,7 +129,7 @@ export class TestOrchestrator {
       // Execute step (simulation for now - in real implementation would call MCP tools)
       const result = await this.callTool(step.tool, step.action, {
         ...step.args,
-        spreadsheetId: step.args.spreadsheetId || this.context.spreadsheetId,
+        spreadsheetId: step.args['spreadsheetId'] || this.context.spreadsheetId,
       });
 
       // Validate result if validator provided
@@ -291,7 +292,7 @@ export class TestOrchestrator {
     }
 
     // Apply formatting (simplified - would need full range parsing in production)
-    const response = await this.client.sheets.spreadsheets.batchUpdate({
+    const response = await (this.client.sheets.spreadsheets.batchUpdate as any)({
       spreadsheetId,
       requestBody: {
         requests: [
@@ -314,7 +315,7 @@ export class TestOrchestrator {
 
     return {
       success: true,
-      replies: response.data.replies,
+      replies: (response as any).data?.replies,
     };
   }
 

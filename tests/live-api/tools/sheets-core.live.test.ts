@@ -57,7 +57,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
           includeGridData: false,
         });
 
-        const firstSheet = response.data.sheets![0];
+        const firstSheet = response.data.sheets![0]!;
         expect(firstSheet.properties).toBeDefined();
         expect(firstSheet.properties!.sheetId).toBeDefined();
         expect(firstSheet.properties!.title).toBeDefined();
@@ -165,7 +165,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         expect(response.status).toBe(200);
         expect(response.data.replies).toHaveLength(1);
 
-        const addedSheet = response.data.replies![0].addSheet;
+        const addedSheet = response.data.replies![0]!.addSheet;
         expect(addedSheet?.properties?.title).toBe(newSheetTitle);
         expect(addedSheet?.properties?.sheetId).toBeDefined();
       });
@@ -196,7 +196,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
         expect(response.status).toBe(200);
 
-        const addedSheet = response.data.replies![0].addSheet;
+        const addedSheet = response.data.replies![0]!.addSheet;
         expect(addedSheet?.properties?.gridProperties?.rowCount).toBe(100);
         expect(addedSheet?.properties?.gridProperties?.frozenRowCount).toBe(1);
       });
@@ -211,7 +211,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
           },
         });
 
-        const sheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
+        const sheetId = addResponse.data.replies![0]!.addSheet?.properties?.sheetId;
         expect(sheetId).toBeDefined();
 
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -242,7 +242,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
           },
         });
 
-        const sheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
+        const sheetId = addResponse.data.replies![0]!.addSheet?.properties?.sheetId;
         const newTitle = `Renamed_${Date.now()}`;
 
         const renameResponse = await client.sheets.spreadsheets.batchUpdate({
@@ -312,7 +312,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
         expect(duplicateResponse.status).toBe(200);
 
-        const duplicatedSheet = duplicateResponse.data.replies![0].duplicateSheet;
+        const duplicatedSheet = duplicateResponse.data.replies![0]!.duplicateSheet;
         expect(duplicatedSheet?.properties?.sheetId).toBeDefined();
         expect(duplicatedSheet?.properties?.sheetId).not.toBe(sourceSheetId);
 

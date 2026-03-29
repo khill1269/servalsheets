@@ -197,14 +197,14 @@ describe('CompositeHandler — Progress Notifications', () => {
       const [firstCall, secondCall] = mockSendProgress.mock.calls;
 
       // First call: progress=0, total=2, message contains 'Starting'
-      expect(firstCall[0]).toBe(0);
-      expect(firstCall[1]).toBe(2);
-      expect(firstCall[2]).toMatch(/starting/i);
+      expect(firstCall![0]).toBe(0);
+      expect(firstCall![1]).toBe(2);
+      expect(firstCall![2]).toMatch(/starting/i);
 
       // Second call: progress=2, total=2, message contains row count
-      expect(secondCall[0]).toBe(2);
-      expect(secondCall[1]).toBe(2);
-      expect(secondCall[2]).toContain('500');
+      expect(secondCall![0]).toBe(2);
+      expect(secondCall![1]).toBe(2);
+      expect(secondCall![2]).toContain('500');
     });
 
     it('should emit start progress before calling importCsv', async () => {
@@ -353,7 +353,7 @@ describe('CompositeHandler — Progress Notifications', () => {
 
       // Assert — start progress was sent, but completion was not
       expect(mockSendProgress).toHaveBeenCalledTimes(1);
-      expect(mockSendProgress.mock.calls[0][0]).toBe(0); // only the start call
+      expect(mockSendProgress.mock.calls[0]![0]).toBe(0); // only the start call
     });
   });
 });

@@ -100,25 +100,25 @@ const MATRIX_3X2 = [
 // ============================================================================
 
 describe('Cat10: Compute & Formula Engine', () => {
-  let aggregate: ReturnType<typeof vi.fn>;
-  let computeStatistics: ReturnType<typeof vi.fn>;
-  let computeRegression: ReturnType<typeof vi.fn>;
-  let computeForecast: ReturnType<typeof vi.fn>;
-  let matrixOp: ReturnType<typeof vi.fn>;
-  let explainFormula: ReturnType<typeof vi.fn>;
-  let fetchRangeData: ReturnType<typeof vi.fn>;
+  let aggregate: any;
+  let computeStatistics: any;
+  let computeRegression: any;
+  let computeForecast: any;
+  let matrixOp: any;
+  let explainFormula: any;
+  let fetchRangeData: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
 
     const computeEngine = await import('../../src/services/compute-engine.js');
-    aggregate = vi.mocked(computeEngine.aggregate);
-    computeStatistics = vi.mocked(computeEngine.computeStatistics);
-    computeRegression = vi.mocked(computeEngine.computeRegression);
-    computeForecast = vi.mocked(computeEngine.computeForecast);
-    matrixOp = vi.mocked(computeEngine.matrixOp);
-    explainFormula = vi.mocked(computeEngine.explainFormula);
-    fetchRangeData = vi.mocked(computeEngine.fetchRangeData);
+    aggregate = vi.mocked(computeEngine.aggregate) as any;
+    computeStatistics = vi.mocked(computeEngine.computeStatistics) as any;
+    computeRegression = vi.mocked(computeEngine.computeRegression) as any;
+    computeForecast = vi.mocked(computeEngine.computeForecast) as any;
+    matrixOp = vi.mocked(computeEngine.matrixOp) as any;
+    explainFormula = vi.mocked(computeEngine.explainFormula) as any;
+    fetchRangeData = vi.mocked(computeEngine.fetchRangeData) as any;
   });
 
   // =========================================================================
@@ -136,7 +136,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=2+3',
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
@@ -163,12 +163,12 @@ describe('Cat10: Compute & Formula Engine', () => {
           spreadsheetId: SPREADSHEET_ID,
           formula: '=A1+B1',
           range: { a1: 'Sheet1!A1:B2' },
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.result).toBe(30); // 10 + 20
+        expect((result.response as any).result).toBe(30); // 10 + 20
       }
     });
 
@@ -181,7 +181,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=IF(SUM(1,2,3)>5, 10, 20)',
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
@@ -196,7 +196,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           action: 'evaluate',
           spreadsheetId: SPREADSHEET_ID,
           formula: '=1 + )', // Invalid syntax
-        },
+        } as any,
       });
 
       // Should either succeed with error details or fail with success:false
@@ -624,7 +624,7 @@ describe('Cat10: Compute & Formula Engine', () => {
   describe('10.8 SQL Query on Sheet Data (DuckDB)', () => {
     it('should execute SELECT query on sheet range', async () => {
       const duckdbEngine = makeDuckDBEngine();
-      duckdbEngine.query.mockResolvedValue({
+      (duckdbEngine.query as any).mockResolvedValue({
         columns: ['Product', 'Q1 Revenue'],
         rows: [
           ['Widget A', 50000],
@@ -632,7 +632,7 @@ describe('Cat10: Compute & Formula Engine', () => {
         ],
       });
 
-      const result = await duckdbEngine.query('SELECT * FROM data LIMIT 2', {
+      const result = await (duckdbEngine.query as any)('SELECT * FROM data LIMIT 2', {
         data: REVENUE_COST_DATA,
       });
 
@@ -642,7 +642,7 @@ describe('Cat10: Compute & Formula Engine', () => {
 
     it('should filter data with WHERE clause', async () => {
       const duckdbEngine = makeDuckDBEngine();
-      duckdbEngine.query.mockResolvedValue({
+      (duckdbEngine.query as any).mockResolvedValue({
         columns: ['Product', 'Q1 Revenue'],
         rows: [
           ['Widget C', 100000],
@@ -650,7 +650,7 @@ describe('Cat10: Compute & Formula Engine', () => {
         ],
       });
 
-      const result = await duckdbEngine.query(
+      const result = await (duckdbEngine.query as any)(
         'SELECT * FROM data WHERE "Q1 Revenue" > 80000',
         { data: REVENUE_COST_DATA }
       );
@@ -660,25 +660,25 @@ describe('Cat10: Compute & Formula Engine', () => {
 
     it('should compute aggregations in SQL', async () => {
       const duckdbEngine = makeDuckDBEngine();
-      duckdbEngine.query.mockResolvedValue({
+      (duckdbEngine.query as any).mockResolvedValue({
         columns: ['avg_revenue'],
         rows: [[86250]],
       });
 
-      const result = await duckdbEngine.query(
+      const result = await (duckdbEngine.query as any)(
         'SELECT AVG("Q1 Revenue") as avg_revenue FROM data',
         { data: REVENUE_COST_DATA }
       );
 
-      expect(result.rows[0][0]).toBe(86250);
+      expect(result.rows[0]?.[0]).toBe(86250);
     });
 
     it('should block SQL injection patterns (safety check)', async () => {
       const duckdbEngine = makeDuckDBEngine();
-      duckdbEngine.query.mockRejectedValue(new Error('Blocked injection attempt'));
+      (duckdbEngine.query as any).mockRejectedValue(new Error('Blocked injection attempt'));
 
       await expect(
-        duckdbEngine.query(
+        (duckdbEngine.query as any)(
           "SELECT * FROM data; DROP TABLE data; --",
           { data: REVENUE_COST_DATA }
         )
@@ -705,21 +705,21 @@ describe('Cat10: Compute & Formula Engine', () => {
               operation: 'aggregate',
               range: { a1: 'Sheet1!B2:B5' },
               functions: ['sum'],
-            },
+            } as any,
             {
               id: 'avg_revenue',
               operation: 'aggregate',
               range: { a1: 'Sheet1!B2:B5' },
               functions: ['average'],
-            },
+            } as any,
             {
               id: 'forecast',
               operation: 'forecast',
               range: { a1: 'Sheet1!A2:B7' },
               periods: 3,
-            },
+            } as any,
           ],
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
@@ -739,15 +739,15 @@ describe('Cat10: Compute & Formula Engine', () => {
               operation: 'aggregate',
               range: { a1: 'Sheet1!B2:B5' },
               functions: ['sum'],
-            },
+            } as any,
             {
               id: 'metric_2',
               operation: 'aggregate',
               range: { a1: 'Sheet1!B2:B5' },
               functions: ['average'],
-            },
+            } as any,
           ],
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
@@ -768,14 +768,14 @@ describe('Cat10: Compute & Formula Engine', () => {
               operation: 'aggregate',
               range: { a1: 'Sheet1!B2:B5' },
               functions: ['sum'],
-            },
+            } as any,
             {
               id: 'invalid_1',
               operation: 'unknown_operation', // Invalid
               range: { a1: 'Sheet1!B2:B5' },
-            },
+            } as any,
           ],
-        },
+        } as any,
       });
 
       // Should not crash; may return partial results or all-fail response
@@ -791,14 +791,14 @@ describe('Cat10: Compute & Formula Engine', () => {
         operation: 'aggregate',
         range: { a1: 'Sheet1!B2:B5' },
         functions: ['sum'],
-      }));
+      })) as any;
 
       const result = await handler.handle({
         request: {
           action: 'batch_compute',
           spreadsheetId: SPREADSHEET_ID,
           computations,
-        },
+        } as any,
       });
 
       expect(result.response.success).toBe(true);
@@ -834,7 +834,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           spreadsheetId: SPREADSHEET_ID,
           range: { a1: 'Sheet1!B2:B5' },
           functions: ['sum', 'average', 'count'],
-        },
+        } as any,
       });
 
       expect(result1.response.success).toBe(true);
@@ -844,7 +844,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           action: 'statistical',
           spreadsheetId: SPREADSHEET_ID,
           range: { a1: 'Sheet1!B2:B5' },
-        },
+        } as any,
       });
 
       expect(result2.response.success).toBe(true);
@@ -877,7 +877,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           range: { a1: 'Sheet1!A2:B7' },
           xColumn: 'Month',
           yColumn: 'Sales',
-        },
+        } as any,
       });
 
       expect(regResult.response.success).toBe(true);
@@ -890,7 +890,7 @@ describe('Cat10: Compute & Formula Engine', () => {
           dateColumn: 'Month',
           valueColumn: 'Sales',
           periods: 3,
-        },
+        } as any,
       });
 
       expect(foreResult.response.success).toBe(true);

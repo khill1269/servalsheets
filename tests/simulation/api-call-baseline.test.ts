@@ -158,17 +158,17 @@ describe('API call baseline — single read fires exactly one values.get', () =>
   });
 
   it('single read calls values.get exactly once', async () => {
-    await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+    await handler.handle({ request: { action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } } as any);
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(1);
   });
 
   it('single read does not call values.batchGet', async () => {
-    await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+    await handler.handle({ request: { action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } } as any);
     expect(mockApi.spreadsheets.values.batchGet).toHaveBeenCalledTimes(0);
   });
 
   it('successful read returns success:true', async () => {
-    const result = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+    const result = await handler.handle({ request: { action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } } as any);
     const resp = (result as any).response;
     expect(resp.success).toBe(true);
   });
@@ -189,28 +189,34 @@ describe('API call baseline — batch_read fires ONE batchGet', () => {
 
   it('batch_read with 3 ranges fires exactly 1 batchGet call', async () => {
     await handler.handle({
-      action: 'batch_read',
-      spreadsheetId: 'test-id',
-      ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
-    });
+      request: {
+        action: 'batch_read',
+        spreadsheetId: 'test-id',
+        ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
+      },
+    } as any);
     expect(mockApi.spreadsheets.values.batchGet).toHaveBeenCalledTimes(1);
   });
 
   it('batch_read does NOT call values.get individually', async () => {
     await handler.handle({
-      action: 'batch_read',
-      spreadsheetId: 'test-id',
-      ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
-    });
+      request: {
+        action: 'batch_read',
+        spreadsheetId: 'test-id',
+        ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
+      },
+    } as any);
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(0);
   });
 
   it('batch_read result contains valueRanges for all 3 ranges', async () => {
     const result = await handler.handle({
-      action: 'batch_read',
-      spreadsheetId: 'test-id',
-      ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
-    });
+      request: {
+        action: 'batch_read',
+        spreadsheetId: 'test-id',
+        ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5', 'Sheet1!C1:C5'],
+      },
+    } as any);
     const resp = (result as any).response;
     expect(resp.success).toBe(true);
   });
@@ -231,33 +237,39 @@ describe('API call baseline — writes do not inflate read API calls', () => {
 
   it('write calls values.update (not values.get)', async () => {
     await handler.handle({
-      action: 'write',
-      spreadsheetId: 'test-id',
-      range: 'Sheet1!A1:B1',
-      values: [['New Name', 'New Revenue']],
-    });
+      request: {
+        action: 'write',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B1',
+        values: [['New Name', 'New Revenue']],
+      },
+    } as any);
     expect(mockApi.spreadsheets.values.update).toHaveBeenCalledTimes(1);
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(0);
   });
 
   it('append calls values.append (not values.get)', async () => {
     await handler.handle({
-      action: 'append',
-      spreadsheetId: 'test-id',
-      range: 'Sheet1!A1',
-      values: [['New Row', 9999, 5555, '2024-02-01']],
-    });
+      request: {
+        action: 'append',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1',
+        values: [['New Row', 9999, 5555, '2024-02-01']],
+      },
+    } as any);
     expect(mockApi.spreadsheets.values.append).toHaveBeenCalledTimes(1);
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(0);
   });
 
   it('clear calls spreadsheets.batchUpdate (not values.get)', async () => {
     await handler.handle({
-      action: 'clear',
-      spreadsheetId: 'test-id',
-      range: 'Sheet1!A1:D4',
-      safety: { skipConfirmation: true },
-    });
+      request: {
+        action: 'clear',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D4',
+        safety: { skipConfirmation: true },
+      },
+    } as any);
     expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
     expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(0);
   });
@@ -282,7 +294,7 @@ describe('API call baseline — concurrent reads share API calls', () => {
         createMockContext(`concurrent-${i}`),
         mockApi as any as sheets_v4.Sheets
       );
-      return handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+      return handler.handle({ request: { action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' } } as any);
     });
 
     const results = await Promise.allSettled(promises);
@@ -305,10 +317,12 @@ describe('API call baseline — concurrent reads share API calls', () => {
         mockApi as any as sheets_v4.Sheets
       );
       return handler.handle({
-        action: 'batch_read',
-        spreadsheetId: 'test-id',
-        ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5'],
-      });
+        request: {
+          action: 'batch_read',
+          spreadsheetId: 'test-id',
+          ranges: ['Sheet1!A1:A5', 'Sheet1!B1:B5'],
+        },
+      } as any);
     });
 
     await Promise.allSettled(promises);
@@ -358,10 +372,12 @@ describe('API call baseline — per-request API call isolation', () => {
         mockApi as any as sheets_v4.Sheets
       );
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: `Sheet1!A${i + 1}:D${i + 4}`,
-      });
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: `Sheet1!A${i + 1}:D${i + 4}`,
+        },
+      } as any);
       const resp = (result as any).response;
       expect(typeof resp.success).toBe('boolean');
     }
@@ -374,18 +390,22 @@ describe('API call baseline — per-request API call isolation', () => {
     );
 
     const writeResult = await handler.handle({
-      action: 'write',
-      spreadsheetId: 'test-id',
-      range: 'Sheet1!A1',
-      values: [['Updated']],
-    });
+      request: {
+        action: 'write',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1',
+        values: [['Updated']],
+      },
+    } as any);
     expect(typeof (writeResult as any).response.success).toBe('boolean');
 
     const readResult = await handler.handle({
-      action: 'read',
-      spreadsheetId: 'test-id',
-      range: 'Sheet1!A1:D4',
-    });
+      request: {
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D4',
+      },
+    } as any);
     expect(typeof (readResult as any).response.success).toBe('boolean');
   });
 });

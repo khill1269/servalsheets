@@ -182,7 +182,7 @@ describe('TestingAgent (Simple)', () => {
       expect(coverageReport).toBeDefined();
 
       if (coverageReport && coverageReport.issues.length > 0) {
-        const suggestion = coverageReport.issues[0].suggestion;
+        const suggestion = (coverageReport.issues[0] as any).suggestion;
         expect(suggestion).toContain('Happy path');
         // Should suggest edge cases based on string parameter
         // Should suggest optional parameter test
@@ -220,7 +220,7 @@ describe('TestingAgent (Simple)', () => {
 
       expect(qualityReport).toBeDefined();
       expect(qualityReport?.issueCount).toBe(2); // Two empty tests
-      expect(qualityReport?.issues[0].message).toContain('Empty test case');
+      expect(qualityReport?.issues[0]?.message).toContain('Empty test case');
     });
 
     it('should detect weak assertions pattern', async () => {
@@ -261,12 +261,12 @@ describe('TestingAgent (Simple)', () => {
 
       // Should warn about weak assertions (all use toBeDefined/toBeTruthy)
       // At least one test should have weak assertions
-      expect(qualityReport?.metrics?.testCount).toBe(3);
-      expect(qualityReport?.metrics?.weakAssertionCount).toBeGreaterThan(0);
+      expect(qualityReport?.metrics?.['testCount']).toBe(3);
+      expect(qualityReport?.metrics?.['weakAssertionCount']).toBeGreaterThan(0);
 
       // If more than half use weak assertions, should warn
-      if (qualityReport?.metrics?.weakAssertionCount && qualityReport.metrics.testCount) {
-        if (qualityReport.metrics.weakAssertionCount > qualityReport.metrics.testCount / 2) {
+      if (qualityReport?.metrics?.['weakAssertionCount'] && qualityReport.metrics['testCount']) {
+        if (qualityReport.metrics['weakAssertionCount'] > qualityReport.metrics['testCount'] / 2) {
           const hasWeakAssertionWarning = qualityReport?.issues.some((i) =>
             i.message.includes('weak assertions')
           );
@@ -322,7 +322,7 @@ describe('TestingAgent (Simple)', () => {
       const coverageReport = reports.find((r) => r.dimension === 'coverageGaps');
 
       expect(coverageReport?.metrics).toBeDefined();
-      expect(coverageReport?.metrics?.untestedFunctionCount).toBeGreaterThanOrEqual(0);
+      expect(coverageReport?.metrics?.['untestedFunctionCount']).toBeGreaterThanOrEqual(0);
     });
 
     it('should include metrics in quality report', async () => {
@@ -345,8 +345,8 @@ describe('TestingAgent (Simple)', () => {
       const qualityReport = reports.find((r) => r.dimension === 'testQuality');
 
       expect(qualityReport?.metrics).toBeDefined();
-      expect(qualityReport?.metrics?.testCount).toBe(3);
-      expect(qualityReport?.metrics?.emptyTestCount).toBe(2);
+      expect(qualityReport?.metrics?.['testCount']).toBe(3);
+      expect(qualityReport?.metrics?.['emptyTestCount']).toBe(2);
     });
   });
 });

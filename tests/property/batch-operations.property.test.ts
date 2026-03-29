@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import type { BatchableOperation } from '../../src/services/batching-system.js';
+import type { BatchableOperation as _BatchableOperation } from '../../src/services/batching-system.js';
 
 describe('Batch Operations Property Tests', () => {
   describe('Batch Splitting Invariants', () => {

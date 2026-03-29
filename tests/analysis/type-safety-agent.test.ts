@@ -44,9 +44,9 @@ describe('TypeSafetyAgent', () => {
 
       expect(anyReport).toBeDefined();
       expect(anyReport!.issueCount).toBe(1);
-      expect(anyReport!.issues[0].message).toContain('Explicit "any" type found');
-      expect(anyReport!.issues[0].line).toBe(2);
-      expect(anyReport!.issues[0].suggestion).toContain('unknown');
+      expect(anyReport!.issues[0]!.message).toContain('Explicit "any" type found');
+      expect(anyReport!.issues[0]!.line).toBe(2);
+      expect(anyReport!.issues[0]!.suggestion).toContain('unknown');
     });
 
     it('should detect explicit any in return type', async () => {
@@ -62,7 +62,7 @@ describe('TypeSafetyAgent', () => {
       const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.issueCount).toBe(1);
-      expect(anyReport!.issues[0].suggestion).toContain('unknown');
+      expect(anyReport!.issues[0]!.suggestion).toContain('unknown');
     });
 
     it('should detect any[] array type', async () => {
@@ -76,8 +76,8 @@ describe('TypeSafetyAgent', () => {
       const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.issueCount).toBe(1);
-      expect(anyReport!.issues[0].message).toContain('Explicit "any" type found');
-      expect(anyReport!.issues[0].suggestion).toContain('any[]');
+      expect(anyReport!.issues[0]!.message).toContain('Explicit "any" type found');
+      expect(anyReport!.issues[0]!.suggestion).toContain('any[]');
     });
 
     it('should detect multiple any types', async () => {
@@ -94,7 +94,7 @@ describe('TypeSafetyAgent', () => {
       const anyReport = reports.find((r) => r.dimension === 'anyTypes');
 
       expect(anyReport!.issueCount).toBe(4);
-      expect(anyReport!.metrics?.explicitAnyCount).toBe(4);
+      expect(anyReport!.metrics?.['explicitAnyCount']).toBe(4);
     });
 
     it('should pass when no any types found', async () => {
@@ -126,9 +126,9 @@ describe('TypeSafetyAgent', () => {
       const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(1);
-      expect(assertionReport!.issues[0].message).toContain('as');
-      expect(assertionReport!.issues[0].message).toContain('string');
-      expect(assertionReport!.issues[0].suggestion).toContain('type guard');
+      expect(assertionReport!.issues[0]!.message).toContain('as');
+      expect(assertionReport!.issues[0]!.message).toContain('string');
+      expect(assertionReport!.issues[0]!.suggestion).toContain('type guard');
     });
 
     it('should detect multiple "as" assertions', async () => {
@@ -144,7 +144,7 @@ describe('TypeSafetyAgent', () => {
       const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(3);
-      expect(assertionReport!.metrics?.asAssertions).toBe(3);
+      expect(assertionReport!.metrics?.['asAssertions']).toBe(3);
     });
 
     it('should suggest type guard for interface casts', async () => {
@@ -157,8 +157,8 @@ describe('TypeSafetyAgent', () => {
       const reports = await agent.analyze('test.ts', sourceFile, context);
       const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
-      expect(assertionReport!.issues[0].suggestion).toContain('isUser');
-      expect(assertionReport!.issues[0].suggestion).toContain('value is User');
+      expect(assertionReport!.issues[0]!.suggestion).toContain('isUser');
+      expect(assertionReport!.issues[0]!.suggestion).toContain('value is User');
     });
 
     it('should suggest typeof for primitive casts', async () => {
@@ -171,7 +171,7 @@ describe('TypeSafetyAgent', () => {
       const reports = await agent.analyze('test.ts', sourceFile, context);
       const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
-      expect(assertionReport!.issues[0].suggestion).toContain('typeof');
+      expect(assertionReport!.issues[0]!.suggestion).toContain('typeof');
     });
   });
 
@@ -187,8 +187,8 @@ describe('TypeSafetyAgent', () => {
       const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(1);
-      expect(assertionReport!.issues[0].suggestion).toContain('Prefer "as" syntax');
-      expect(assertionReport!.metrics?.angleBracketAssertions).toBe(1);
+      expect(assertionReport!.issues[0]!.suggestion).toContain('Prefer "as" syntax');
+      expect(assertionReport!.metrics?.['angleBracketAssertions']).toBe(1);
     });
 
     it('should count both as and angle bracket assertions', async () => {
@@ -203,8 +203,8 @@ describe('TypeSafetyAgent', () => {
       const assertionReport = reports.find((r) => r.dimension === 'typeAssertions');
 
       expect(assertionReport!.issueCount).toBe(2);
-      expect(assertionReport!.metrics?.asAssertions).toBe(1);
-      expect(assertionReport!.metrics?.angleBracketAssertions).toBe(1);
+      expect(assertionReport!.metrics?.['asAssertions']).toBe(1);
+      expect(assertionReport!.metrics?.['angleBracketAssertions']).toBe(1);
     });
   });
 
@@ -220,9 +220,9 @@ describe('TypeSafetyAgent', () => {
       const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issueCount).toBe(1);
-      expect(nonNullReport!.issues[0].message).toContain('Non-null assertion');
-      expect(nonNullReport!.issues[0].suggestion).toContain('optional chaining');
-      expect(nonNullReport!.issues[0].suggestion).toContain('?.');
+      expect(nonNullReport!.issues[0]!.message).toContain('Non-null assertion');
+      expect(nonNullReport!.issues[0]!.suggestion).toContain('optional chaining');
+      expect(nonNullReport!.issues[0]!.suggestion).toContain('?.');
     });
 
     it('should detect non-null assertion on array access', async () => {
@@ -236,7 +236,7 @@ describe('TypeSafetyAgent', () => {
       const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issueCount).toBe(1);
-      expect(nonNullReport!.issues[0].suggestion).toContain('null check');
+      expect(nonNullReport!.issues[0]!.suggestion).toContain('null check');
     });
 
     it('should detect multiple non-null assertions', async () => {
@@ -252,7 +252,7 @@ describe('TypeSafetyAgent', () => {
       const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
       expect(nonNullReport!.issueCount).toBe(3);
-      expect(nonNullReport!.metrics?.nonNullAssertionCount).toBe(3);
+      expect(nonNullReport!.metrics?.['nonNullAssertionCount']).toBe(3);
     });
 
     it('should suggest appropriate alternatives', async () => {
@@ -265,7 +265,7 @@ describe('TypeSafetyAgent', () => {
       const reports = await agent.analyze('test.ts', sourceFile, context);
       const nonNullReport = reports.find((r) => r.dimension === 'nonNullAssertions');
 
-      expect(nonNullReport!.issues[0].suggestion).toContain('Ensure return type');
+      expect(nonNullReport!.issues[0]!.suggestion).toContain('Ensure return type');
     });
 
     it('should warn status when few assertions, fail when many', async () => {
@@ -306,9 +306,9 @@ describe('TypeSafetyAgent', () => {
       const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.issueCount).toBe(1);
-      expect(tsIgnoreReport!.issues[0].message).toContain('without explanation');
-      expect(tsIgnoreReport!.issues[0].severity).toBe('high');
-      expect(tsIgnoreReport!.issues[0].suggestion).toContain('@ts-expect-error');
+      expect(tsIgnoreReport!.issues[0]!.message).toContain('without explanation');
+      expect(tsIgnoreReport!.issues[0]!.severity).toBe('high');
+      expect(tsIgnoreReport!.issues[0]!.suggestion).toContain('@ts-expect-error');
     });
 
     it('should detect @ts-ignore with reason', async () => {
@@ -323,9 +323,9 @@ describe('TypeSafetyAgent', () => {
       const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.issueCount).toBe(1);
-      expect(tsIgnoreReport!.issues[0].message).toContain('Legacy API compatibility');
-      expect(tsIgnoreReport!.issues[0].severity).toBe('medium');
-      expect(tsIgnoreReport!.issues[0].suggestion).toContain('Fix underlying type issue');
+      expect(tsIgnoreReport!.issues[0]!.message).toContain('Legacy API compatibility');
+      expect(tsIgnoreReport!.issues[0]!.severity).toBe('medium');
+      expect(tsIgnoreReport!.issues[0]!.suggestion).toContain('Fix underlying type issue');
     });
 
     it('should detect multiple @ts-ignore comments', async () => {
@@ -346,9 +346,9 @@ describe('TypeSafetyAgent', () => {
       const tsIgnoreReport = reports.find((r) => r.dimension === 'tsIgnoreComments');
 
       expect(tsIgnoreReport!.issueCount).toBe(3);
-      expect(tsIgnoreReport!.metrics?.tsIgnoreCount).toBe(3);
-      expect(tsIgnoreReport!.metrics?.withReason).toBe(1);
-      expect(tsIgnoreReport!.metrics?.withoutReason).toBe(2);
+      expect(tsIgnoreReport!.metrics?.['tsIgnoreCount']).toBe(3);
+      expect(tsIgnoreReport!.metrics?.['withReason']).toBe(1);
+      expect(tsIgnoreReport!.metrics?.['withoutReason']).toBe(2);
     });
 
     it('should pass when no @ts-ignore comments', async () => {

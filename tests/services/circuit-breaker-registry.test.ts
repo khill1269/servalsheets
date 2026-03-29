@@ -6,10 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  circuitBreakerRegistry,
-  type CircuitBreakerEntry,
-} from '../../src/services/circuit-breaker-registry.js';
+import { circuitBreakerRegistry } from '../../src/services/circuit-breaker-registry.js';
 import { CircuitBreaker } from '../../src/utils/circuit-breaker.js';
 
 describe('CircuitBreakerRegistry', () => {
@@ -268,7 +265,7 @@ describe('CircuitBreakerRegistry', () => {
       const all = circuitBreakerRegistry.getAll();
 
       expect(all).toHaveLength(1);
-      expect(all[0].name).toBe('breaker-2');
+      expect(all[0]!.name).toBe('breaker-2');
     });
   });
 
@@ -433,7 +430,7 @@ describe('CircuitBreakerRegistry', () => {
 
       const all = circuitBreakerRegistry.getAll();
       expect(all).toHaveLength(1);
-      expect(all[0].name).toBe('breaker-2');
+      expect(all[0]!.name).toBe('breaker-2');
     });
 
     it('should clear statistics after clear', () => {
@@ -557,9 +554,9 @@ describe('CircuitBreakerRegistry', () => {
 
       // Execute operations on some breakers
       const successOp = async () => 'success';
-      await breakers[0].execute(successOp);
-      await breakers[2].execute(successOp);
-      await breakers[4].execute(successOp);
+      await breakers[0]!.execute(successOp);
+      await breakers[2]!.execute(successOp);
+      await breakers[4]!.execute(successOp);
 
       const stats = circuitBreakerRegistry.getAllStats();
 

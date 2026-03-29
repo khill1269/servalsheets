@@ -39,7 +39,7 @@ describe('legacy tool task handler cancellation control plane', () => {
     try {
       const { task } = await handler.createTask(
         {},
-        { taskStore, taskRequestedTtl: 60000 } as Parameters<typeof handler.createTask>[1]
+        { taskStore, taskRequestedTtl: 60000 } as unknown as Parameters<typeof handler.createTask>[1]
       );
 
       await started;

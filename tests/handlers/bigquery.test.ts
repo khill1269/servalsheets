@@ -14,7 +14,8 @@ import {
 } from '../../src/utils/request-context.js';
 
 describe('SheetsBigQueryHandler', () => {
-  let handler: SheetsBigQueryHandler;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock: avoids union/verbosity cast noise throughout
+  let handler: any;
   let mockContext: HandlerContext;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock type
   let mockSheetsApi: any;
@@ -99,6 +100,7 @@ describe('SheetsBigQueryHandler', () => {
     };
 
     // Create mock context
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock shape
     mockContext = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: {} as any,
@@ -131,7 +133,7 @@ describe('SheetsBigQueryHandler', () => {
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
-    };
+    } as unknown as HandlerContext;
 
     handler = new SheetsBigQueryHandler(mockContext, mockSheetsApi, mockBigQueryApi);
   });
@@ -228,7 +230,8 @@ describe('SheetsBigQueryHandler', () => {
 
     it('should handle missing BigQuery API', async () => {
       // Create handler without BigQuery API
-      const handlerNoBQ = new SheetsBigQueryHandler(mockContext, mockSheetsApi);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock
+      const handlerNoBQ: any = new SheetsBigQueryHandler(mockContext, mockSheetsApi);
 
       const result = await handlerNoBQ.handle({
         request: {
@@ -667,7 +670,8 @@ describe('SheetsBigQueryHandler', () => {
     });
 
     it('should handle missing BigQuery API for preview', async () => {
-      const handlerNoBQ = new SheetsBigQueryHandler(mockContext, mockSheetsApi);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock
+      const handlerNoBQ: any = new SheetsBigQueryHandler(mockContext, mockSheetsApi);
 
       const result = await handlerNoBQ.handle({
         request: {
@@ -850,7 +854,8 @@ describe('SheetsBigQueryHandler', () => {
     });
 
     it('should require BigQuery API for export', async () => {
-      const handlerNoBQ = new SheetsBigQueryHandler(mockContext, mockSheetsApi);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock
+      const handlerNoBQ: any = new SheetsBigQueryHandler(mockContext, mockSheetsApi);
 
       const result = await handlerNoBQ.handle({
         request: {
@@ -1007,7 +1012,6 @@ describe('SheetsBigQueryHandler', () => {
     it('should handle unknown action', async () => {
       const result = await handler.handle({
         request: {
-          // @ts-expect-error - Testing invalid action
           action: 'invalid_action',
         },
       });
@@ -1061,8 +1065,9 @@ describe('SheetsBigQueryHandler', () => {
         ...mockContext,
         googleClient: null,
       };
-      const noAuthHandler = new SheetsBigQueryHandler(
-        noAuthContext,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock
+      const noAuthHandler: any = new SheetsBigQueryHandler(
+        noAuthContext as any,
         mockSheetsApi,
         mockBigQueryApi
       );
@@ -1110,7 +1115,8 @@ describe('SheetsBigQueryHandler', () => {
         insertAll: vi.fn().mockResolvedValue({ data: {} }),
       };
 
-      const result = await runWithRequestContext(requestContext, () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result: any = await runWithRequestContext(requestContext, () =>
         handler.handle({
           request: {
             action: 'export_to_bigquery',
@@ -1154,7 +1160,8 @@ describe('SheetsBigQueryHandler', () => {
         },
       });
 
-      const result = await runWithRequestContext(requestContext, () =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result: any = await runWithRequestContext(requestContext, () =>
         handler.handle({
           request: {
             action: 'import_from_bigquery',

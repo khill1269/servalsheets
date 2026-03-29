@@ -32,7 +32,7 @@ describe('http request-context middleware', () => {
     expect(existingRes.setHeader).toHaveBeenCalledWith('X-Request-ID', 'client-request-id');
 
     const generatedReq = {
-      headers: {},
+      headers: {} as Record<string, string>,
     };
     const generatedRes = createResponseDouble();
     requestIdMiddleware(generatedReq as never, generatedRes as never, next);
@@ -48,7 +48,7 @@ describe('http request-context middleware', () => {
     });
     const next = vi.fn();
     const req = {
-      headers: {},
+      headers: {} as Record<string, string>,
       header: vi.fn(() => '00-0123456789abcdef0123456789abcdef-89abcdef01234567-01'),
     };
     const res = createResponseDouble();
@@ -84,7 +84,7 @@ describe('http request-context middleware', () => {
     });
     const next = vi.fn();
     const req = {
-      headers: {},
+      headers: {} as Record<string, string>,
       header: vi.fn(() => 'malformed-traceparent-value'),
     };
     const res = createResponseDouble();

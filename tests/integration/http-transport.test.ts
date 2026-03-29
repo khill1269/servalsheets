@@ -53,10 +53,11 @@ vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/handlers/compute.js')>();
 
   class MockComputeHandler extends actual.ComputeHandler {
-    override async handle(input: Parameters<actual.ComputeHandler['handle']>[0]) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    override async handle(input: any) {
       if (
-        input.request.action === 'evaluate' &&
-        input.request.formula === '=REMOTE_FAILOVER_SENTINEL()'
+        (input as { request: { action: string; formula?: string } }).request.action === 'evaluate' &&
+        (input as { request: { action: string; formula?: string } }).request.formula === '=REMOTE_FAILOVER_SENTINEL()'
       ) {
         throw new Error('local compute failed');
       }

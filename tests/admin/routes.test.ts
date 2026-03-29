@@ -26,7 +26,7 @@ function applyEnvOverrides(overrides: Record<string, string>): () => void {
 }
 
 describe('Admin route authentication', () => {
-  let restoreEnv = () => undefined;
+  let restoreEnv: () => void = () => undefined;
 
   afterEach(() => {
     restoreEnv();

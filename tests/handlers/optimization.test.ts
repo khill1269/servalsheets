@@ -4,7 +4,7 @@
  * Tests for Phase 2 handler optimization utilities.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   createActionDispatcher,
   fastCacheKey,
@@ -114,8 +114,8 @@ describe('Response Builders', () => {
       const result = fastSuccess('read', { values: [[1, 2]], range: 'A1' });
       expect(result.success).toBe(true);
       expect(result.action).toBe('read');
-      expect(result.values).toEqual([[1, 2]]);
-      expect(result.range).toBe('A1');
+      expect(result['values']).toEqual([[1, 2]]);
+      expect(result['range']).toBe('A1');
     });
   });
 
@@ -288,7 +288,7 @@ describe('Range Utilities', () => {
 describe('LazyContextTracker', () => {
   it('should track context changes', () => {
     const updates: unknown[] = [];
-    const tracker = new LazyContextTracker((params) => updates.push(params));
+    const tracker = new LazyContextTracker((params: Record<string, unknown>) => updates.push(params));
 
     tracker.track({ spreadsheetId: 'ss1' });
     tracker.track({ spreadsheetId: 'ss1' }); // Same, should not trigger
@@ -301,7 +301,7 @@ describe('LazyContextTracker', () => {
 
   it('should track all parameter changes', () => {
     const updates: unknown[] = [];
-    const tracker = new LazyContextTracker((params) => updates.push(params));
+    const tracker = new LazyContextTracker((params: Record<string, unknown>) => updates.push(params));
 
     tracker.track({ spreadsheetId: 'ss1', sheetId: 0, range: 'A1' });
     tracker.track({ spreadsheetId: 'ss1', sheetId: 0, range: 'A1' }); // Same
@@ -312,7 +312,7 @@ describe('LazyContextTracker', () => {
 
   it('should reset tracking state', () => {
     const updates: unknown[] = [];
-    const tracker = new LazyContextTracker((params) => updates.push(params));
+    const tracker = new LazyContextTracker((params: Record<string, unknown>) => updates.push(params));
 
     tracker.track({ spreadsheetId: 'ss1' });
     tracker.reset();
@@ -326,7 +326,7 @@ describe('Async Utilities', () => {
   describe('batchAsync', () => {
     it('should process items in batches', async () => {
       const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-      const results = await batchAsync(items, async (n) => n * 2, 3);
+      const results = await batchAsync(items, async (n: number) => n * 2, 3);
       expect(results).toEqual([2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
     });
 

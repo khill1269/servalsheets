@@ -9,7 +9,7 @@ function createGuardableServer(rawServer: {
 }): Pick<McpServer, 'server'> {
   return {
     server: rawServer,
-  } as Pick<McpServer, 'server'>;
+  } as unknown as Pick<McpServer, 'server'>;
 }
 
 describe('@serval/mcp-runtime initialize cancellation guard', () => {
@@ -34,7 +34,7 @@ describe('@serval/mcp-runtime initialize cancellation guard', () => {
       })
     ).toBe(true);
 
-    const requestPromise = rawServer._onrequest({
+    const requestPromise = (rawServer._onrequest as (r: { id?: string | number; method?: string }) => Promise<void>)({
       id: 'init-1',
       method: 'initialize',
     });

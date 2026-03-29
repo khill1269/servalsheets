@@ -41,7 +41,7 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
         // Federation disabled — expect structured error response, not an exception
         expect(result.response.success).toBe(false);
         if (!result.response.success) {
-          const errorResp = result.response as { error: { code: string; message: string } };
+          const errorResp = result.response as unknown as { error: { code: string; message: string } };
           expect(typeof errorResp.error.message).toBe('string');
           expect(errorResp.error.message.length).toBeGreaterThan(0);
         }
@@ -75,7 +75,7 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
       expect(typeof result.response.success).toBe('boolean');
 
       if (!result.response.success) {
-        const errorResp = result.response as { error: { code: string; message: string } };
+        const errorResp = result.response as unknown as { error: { code: string; message: string } };
         expect(typeof errorResp.error.code).toBe('string');
         expect(typeof errorResp.error.message).toBe('string');
         // Should have error detail, not just empty fields

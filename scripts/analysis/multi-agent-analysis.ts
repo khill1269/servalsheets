@@ -405,14 +405,14 @@ export class AnalysisOrchestrator {
     }
 
     const complexityReport = reports.find((r) => r.dimension === 'complexity');
-    if (complexityReport && complexityReport.metrics?.maxComplexity > 20) {
+    if (complexityReport && (complexityReport.metrics?.['maxComplexity'] ?? 0) > 20) {
       recommendations.push(
-        `Consider refactoring high-complexity functions (max: ${complexityReport.metrics.maxComplexity})`
+        `Consider refactoring high-complexity functions (max: ${complexityReport.metrics?.['maxComplexity']})`
       );
     }
 
     const fileSizeReport = reports.find((r) => r.dimension === 'fileSize');
-    if (fileSizeReport && fileSizeReport.metrics?.lineCount > 1000) {
+    if (fileSizeReport && (fileSizeReport.metrics?.['lineCount'] ?? 0) > 1000) {
       recommendations.push(`File size exceeds 1000 lines - consider splitting into modules`);
     }
 

@@ -13,7 +13,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   RequestBuilder,
-  type WrappedRequest,
   type RequestMetadata,
 } from '../../src/core/request-builder.js';
 import type { sheets_v4 } from 'googleapis';
@@ -864,7 +863,6 @@ describe('RequestBuilder.clearBasicFilter', () => {
 describe('RequestBuilder.addFilterView', () => {
   it('should create addFilterView request', () => {
     const filter: sheets_v4.Schema$FilterView = {
-      filterId: 100,
       title: 'Filter View',
       range: createGridRange(),
     };
@@ -884,7 +882,6 @@ describe('RequestBuilder.addFilterView', () => {
 describe('RequestBuilder.updateFilterView', () => {
   it('should create updateFilterView request', () => {
     const filter: sheets_v4.Schema$FilterView = {
-      filterId: 100,
       title: 'Updated Filter',
       range: createGridRange(),
     };
@@ -924,7 +921,8 @@ describe('RequestBuilder.deleteFilterView', () => {
 describe('RequestBuilder.setDataValidation', () => {
   it('should create setDataValidation request with rule', () => {
     const rule: sheets_v4.Schema$DataValidationRule = {
-      allowedValues: {
+      condition: {
+        type: 'ONE_OF_LIST',
         values: [{ userEnteredValue: 'Option1' }, { userEnteredValue: 'Option2' }],
       },
     };
@@ -1271,7 +1269,7 @@ describe('RequestBuilder.addSlicer', () => {
   it('should create addSlicer request', () => {
     const slicer: sheets_v4.Schema$Slicer = {
       slicerId: 1,
-      title: 'Date Slicer',
+      spec: { title: 'Date Slicer' },
       position: {
         overlayPosition: {
           anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 0 },
@@ -1608,7 +1606,7 @@ describe('RequestBuilder.updateDimensionGroup', () => {
     const dimensionGroup: sheets_v4.Schema$DimensionGroup = {
       range: createDimensionRange(),
       depth: 1,
-      collapsedState: [{ dimension: 'ROWS', hiddenByUser: true }],
+      collapsed: true,
     };
 
     const options = {
@@ -1745,7 +1743,7 @@ describe('RequestBuilder.autoFill', () => {
   it('should create autoFill request with sourceAndDestination', () => {
     const sourceAndDestination: sheets_v4.Schema$SourceAndDestination = {
       source: createGridRange(),
-      destination: createGridRange(),
+      dimension: 'ROWS',
       fillLength: 5,
     };
 

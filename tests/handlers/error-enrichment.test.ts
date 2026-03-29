@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { BaseHandler, type HandlerContext, type HandlerError } from '../../src/handlers/base.js';
 import type { Intent } from '../../src/core/intent.js';
 import type { BatchCompiler } from '../../src/core/batch-compiler.js';

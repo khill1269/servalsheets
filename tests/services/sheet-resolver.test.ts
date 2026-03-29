@@ -11,8 +11,6 @@ import {
   getSheetResolver,
   setSheetResolver,
   resetSheetResolver,
-  type SheetReference,
-  type ResolvedSheet,
 } from '../../src/services/sheet-resolver.js';
 
 // Mock logger
@@ -256,7 +254,7 @@ describe('SheetResolutionError', () => {
 
     expect(error.message).toBe('Sheet not found');
     expect(error.code).toBe('SHEET_NOT_FOUND');
-    expect(error.details.sheetName).toBe('Test');
+    expect(error.details['sheetName']).toBe('Test');
     expect(error.availableSheets).toEqual(['Sheet1', 'Sheet2']);
     expect(error.name).toBe('SheetResolutionError');
   });

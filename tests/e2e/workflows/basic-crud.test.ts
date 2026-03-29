@@ -55,7 +55,7 @@ describe.skipIf(SKIP_E2E)('E2E: Basic CRUD Operations', () => {
         expect(typeof tool.name).toBe('string');
         expect(tool.name.length).toBeGreaterThan(0);
         expect(typeof tool.description).toBe('string');
-        expect(tool.description.length).toBeGreaterThan(0);
+        expect(tool.description!.length).toBeGreaterThan(0);
         expect(tool.inputSchema).toBeDefined();
 
         // Validate inputSchema is valid JSON Schema
@@ -292,7 +292,7 @@ describe.skipIf(SKIP_E2E)('E2E: Basic CRUD Operations', () => {
         expect(typeof prompt.name).toBe('string');
         expect(prompt.name.length).toBeGreaterThan(0);
         expect(typeof prompt.description).toBe('string');
-        expect(prompt.description.length).toBeGreaterThan(0);
+        expect(prompt.description!.length).toBeGreaterThan(0);
       }
     });
   });

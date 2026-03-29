@@ -125,9 +125,9 @@ describe('Schema Inspection Utilities', () => {
       const shape = getObjectShape(schema);
       expect(shape).not.toBeNull();
       expect(Object.keys(shape!)).toEqual(['name', 'age', 'active']);
-      expect(shape!.name instanceof z.ZodString).toBe(true);
-      expect(shape!.age instanceof z.ZodNumber).toBe(true);
-      expect(shape!.active instanceof z.ZodBoolean).toBe(true);
+      expect(shape!['name'] instanceof z.ZodString).toBe(true);
+      expect(shape!['age'] instanceof z.ZodNumber).toBe(true);
+      expect(shape!['active'] instanceof z.ZodBoolean).toBe(true);
     });
 
     it('should extract shape from wrapped object', () => {

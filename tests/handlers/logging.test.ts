@@ -126,8 +126,6 @@ describe('Logging Handler', () => {
     });
 
     it('should map alert to error level', async () => {
-      const { logger } = await import('../../src/utils/logger.js');
-
       const result = await handleLoggingSetLevel({
         level: 'alert' as McpLoggingLevel,
       });

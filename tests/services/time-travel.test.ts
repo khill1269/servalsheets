@@ -64,7 +64,7 @@ describe('TimeTravelDebugger', () => {
       const state = debugger_.inspectState(id);
       expect(state.name).toBe('Before edit');
       expect(state.operations).toHaveLength(1);
-      expect(state.operations[0].id).toBe(op.id);
+      expect(state.operations[0]!.id).toBe(op.id);
     });
 
     it('lists checkpoints sorted by creation time', async () => {
@@ -73,8 +73,8 @@ describe('TimeTravelDebugger', () => {
 
       const list = debugger_.listCheckpoints('ss-1');
       expect(list).toHaveLength(2);
-      expect(list[0].name).toBe('First');
-      expect(list[1].name).toBe('Second');
+      expect(list[0]!.name).toBe('First');
+      expect(list[1]!.name).toBe('Second');
     });
 
     it('deletes checkpoint and its snapshot', async () => {
@@ -103,8 +103,8 @@ describe('TimeTravelDebugger', () => {
 
       const list = smallDebugger.listCheckpoints('ss-1');
       expect(list).toHaveLength(2);
-      expect(list[0].name).toBe('Two');
-      expect(list[1].name).toBe('Three');
+      expect(list[0]!.name).toBe('Two');
+      expect(list[1]!.name).toBe('Three');
     });
   });
 
@@ -161,7 +161,7 @@ describe('TimeTravelDebugger', () => {
 
       expect(result.operation.id).toBe('op-target');
       expect(result.dependents).toHaveLength(1);
-      expect(result.dependents[0].id).toBe('op-dependent');
+      expect(result.dependents[0]!.id).toBe('op-dependent');
     });
 
     it('blameOperation returns empty dependents when no range', () => {
@@ -198,7 +198,7 @@ describe('TimeTravelDebugger', () => {
       const branch = debugger_.createBranch('ss-1', 'from-cp', cpId);
       // Branch should only have op1 (from checkpoint), not op2
       expect(branch.operations).toHaveLength(1);
-      expect(branch.operations[0].id).toBe('op-1');
+      expect(branch.operations[0]!.id).toBe('op-1');
     });
 
     it('switches active branch', () => {
@@ -249,8 +249,8 @@ describe('TimeTravelDebugger', () => {
 
       expect(result.success).toBe(false);
       expect(result.conflicts).toHaveLength(1);
-      expect(result.conflicts[0].sourceOp.id).toBe('src-op');
-      expect(result.conflicts[0].targetOp.id).toBe('tgt-op');
+      expect(result.conflicts[0]!.sourceOp.id).toBe('src-op');
+      expect(result.conflicts[0]!.targetOp.id).toBe('tgt-op');
     });
   });
 
@@ -269,7 +269,7 @@ describe('TimeTravelDebugger', () => {
       const diff = debugger_.diffCheckpoints(cp1, cp2);
 
       expect(diff.operationsAdded).toHaveLength(1);
-      expect(diff.operationsAdded[0].id).toBe('op-2');
+      expect(diff.operationsAdded[0]!.id).toBe('op-2');
       expect(diff.operationsRemoved).toHaveLength(0);
       expect(diff.timeDelta).toBeGreaterThanOrEqual(0);
     });

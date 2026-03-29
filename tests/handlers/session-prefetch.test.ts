@@ -26,10 +26,13 @@ describe('SessionHandler prefetch warmup', () => {
     const handler = new SessionHandler();
 
     const result = await handler.handle({
-      action: 'set_active',
-      spreadsheetId: 'prefetch-sheet-001',
-      title: 'Prefetch Sheet',
-      sheetNames: ['Sheet1'],
+      request: {
+        action: 'set_active',
+        verbosity: 'standard',
+        spreadsheetId: 'prefetch-sheet-001',
+        title: 'Prefetch Sheet',
+        sheetNames: ['Sheet1'],
+      },
     });
 
     expect(result.response.success).toBe(true);

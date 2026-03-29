@@ -276,8 +276,6 @@ describe('Restart Policy', () => {
 
   describe('Exponential backoff calculation', () => {
     it('should implement exponential growth', async () => {
-      const delays: number[] = [];
-
       // Record failures and check backoff increases exponentially
       for (let i = 0; i < 5; i++) {
         await recordStartupAttempt();

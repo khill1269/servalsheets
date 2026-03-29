@@ -46,14 +46,14 @@ describe('schema://actions resources', () => {
 
     const details = await readSchemaResource('schema://tools/sheets_appsscript');
     const toolPayload = JSON.parse(details.contents[0]!.text);
-    const request = toolPayload.inputSchema.properties.request as Record<string, unknown>;
-    const variants = Array.isArray(request.oneOf)
-      ? request.oneOf
-      : Array.isArray(request.anyOf)
-        ? request.anyOf
+    const request = toolPayload.inputSchema['properties']['request'] as Record<string, unknown>;
+    const variants = Array.isArray(request['oneOf'])
+      ? request['oneOf']
+      : Array.isArray(request['anyOf'])
+        ? request['anyOf']
         : [];
     const actions = variants
-      .map((variant: Record<string, any>) => variant?.properties?.action?.const)
+      .map((variant: Record<string, any>) => variant?.['properties']?.action?.const)
       .filter((value: unknown): value is string => typeof value === 'string');
 
     expect(actions).not.toContain('create_trigger');

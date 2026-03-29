@@ -40,7 +40,7 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }) } as any,
-  auth: { scopes: ['https://www.googleapis.com/auth/drive.file'] } as any,
+  auth: { hasElevatedAccess: false, scopes: ['https://www.googleapis.com/auth/drive.file'] } as any,
   samplingServer: undefined,
   snapshotService: {
     create: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
@@ -50,11 +50,7 @@ const createMockContext = (): HandlerContext => ({
     get: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
   } as any,
   sessionContext: {} as any,
-  confirmDestructiveAction: vi.fn().mockResolvedValue(undefined),
-  createSnapshotIfNeeded: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
-  sendProgress: vi.fn(),
-  cachedApi: {} as any,
-});
+} as unknown as HandlerContext);
 
 describe('Category 6: Collaboration Operations', () => {
   let handler: CollaborateHandler;
@@ -67,7 +63,7 @@ describe('Category 6: Collaboration Operations', () => {
     mockSheetsApi = createMockSheetsApi();
     mockDriveApi = createMockDriveApi();
     mockContext = createMockContext();
-    handler = new CollaborateHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets, mockDriveApi as unknown as drive_v3.Drive);
+    handler = new CollaborateHandler(mockContext, mockDriveApi as unknown as drive_v3.Drive, mockSheetsApi as unknown as sheets_v4.Sheets);
   });
 
   afterEach(() => {
@@ -83,7 +79,7 @@ describe('Category 6: Collaboration Operations', () => {
         role: 'writer',
         emailAddress: 'user@example.com',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -91,7 +87,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.2 share_list dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_list', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -99,7 +95,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.3 share_get dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_get', spreadsheetId: 'test-sheet-id', permissionId: 'perm-1' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -112,7 +108,7 @@ describe('Category 6: Collaboration Operations', () => {
         permissionId: 'perm-1',
         role: 'reader',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -120,7 +116,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.5 share_remove dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_remove', spreadsheetId: 'test-sheet-id', permissionId: 'perm-1' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -128,7 +124,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.6 share_set_link dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_set_link', spreadsheetId: 'test-sheet-id', enabled: true },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -136,7 +132,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.7 share_get_link dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_get_link', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -147,7 +143,7 @@ describe('Category 6: Collaboration Operations', () => {
     });
     const result = await handler.handle({
       request: { action: 'comment_add', spreadsheetId: 'test-sheet-id', content: 'Test comment' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -155,7 +151,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.9 comment_list dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'comment_list', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -169,7 +165,7 @@ describe('Category 6: Collaboration Operations', () => {
         approvers: ['approver@example.com'],
         requiredApprovals: 1,
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -177,7 +173,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.11 approval_approve dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'approval_approve', spreadsheetId: 'test-sheet-id', approvalId: 'apr-1' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -185,7 +181,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.12 undo dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'undo', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -193,7 +189,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.13 redo dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'redo', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -201,7 +197,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.14 version_create_snapshot dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'version_create_snapshot', spreadsheetId: 'test-sheet-id', name: 'Backup' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -209,7 +205,7 @@ describe('Category 6: Collaboration Operations', () => {
   it('6.15 version_list_snapshots dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'version_list_snapshots', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -221,7 +217,7 @@ describe('Category 6: Collaboration Operations', () => {
         spreadsheetId: 'test-sheet-id',
         snapshotId: 'snap-123',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -233,7 +229,7 @@ describe('Category 6: Collaboration Operations', () => {
         spreadsheetId: 'test-sheet-id',
         snapshotId: 'snap-123',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -246,7 +242,7 @@ describe('Category 6: Collaboration Operations', () => {
         revisionId1: 'rev-1',
         revisionId2: 'rev-2',
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });

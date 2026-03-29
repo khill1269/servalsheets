@@ -5,7 +5,7 @@
  * Tests plan formatting, elicitation, result processing, risk calculation, and statistics
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   getConfirmationService,
   resetConfirmationService,
@@ -227,19 +227,19 @@ describe('ConfirmService', () => {
 
       // Check approved field
       const approvedProp = schema.properties['approved'] as Record<string, unknown>;
-      expect(approvedProp.type).toBe('boolean');
-      expect(approvedProp.title).toBe('Execute this plan?');
-      expect(approvedProp.default).toBe(true);
+      expect(approvedProp['type']).toBe('boolean');
+      expect(approvedProp['title']).toBe('Execute this plan?');
+      expect(approvedProp['default']).toBe(true);
 
       // Check modifications field
       const modificationsProp = schema.properties['modifications'] as Record<string, unknown>;
-      expect(modificationsProp.type).toBe('string');
-      expect(modificationsProp.title).toBe('Modifications (optional)');
+      expect(modificationsProp['type']).toBe('string');
+      expect(modificationsProp['title']).toBe('Modifications (optional)');
 
       // Check skipSnapshot field
       const skipSnapshotProp = schema.properties['skipSnapshot'] as Record<string, unknown>;
-      expect(skipSnapshotProp.type).toBe('boolean');
-      expect(skipSnapshotProp.default).toBe(false);
+      expect(skipSnapshotProp['type']).toBe('boolean');
+      expect(skipSnapshotProp['default']).toBe(false);
     });
   });
 

@@ -508,7 +508,7 @@ describe('GoogleApiClient options', () => {
     const client = new GoogleApiClient({
       retryOptions: {
         maxRetries: 5,
-        initialDelayMs: 1000,
+        baseDelayMs: 1000,
       },
     });
 

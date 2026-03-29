@@ -148,7 +148,7 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary', 'quality'],
-      });
+      } as any);
 
       if (!result.response.success) {
         console.log('analyze error:', JSON.stringify(result.response, null, 2));
@@ -157,7 +157,7 @@ describe('AnalyzeHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('summary');
       expect(result.response).toHaveProperty('analyses');
-      expect(result.response.analyses).toHaveLength(1);
+      expect((result.response as any).analyses).toHaveLength(1);
       expect(result.response).toHaveProperty('overallQualityScore', 85);
 
       // Validate against schema
@@ -174,12 +174,12 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       // Handler correctly returns NO_DATA for empty data
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('NO_DATA');
-      expect(result.response.error?.message).toContain('No data found');
+      expect((result.response as any).error?.code).toBe('NO_DATA');
+      expect((result.response as any).error?.message).toContain('No data found');
     });
 
     it('should handle missing server instance', async () => {
@@ -199,14 +199,15 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       // Handler has fallback: uses traditional statistical analysis when server is missing
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(result.response.summary).toContain('Fast statistical analysis');
-        expect(result.response.analyses).toBeDefined();
-        expect(result.response.analyses.length).toBeGreaterThan(0);
+        const resp = result.response as any;
+        expect(resp.summary).toContain('Fast statistical analysis');
+        expect(resp.analyses).toBeDefined();
+        expect(resp.analyses.length).toBeGreaterThan(0);
       }
     });
 
@@ -223,10 +224,10 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('SAMPLING_UNAVAILABLE');
+      expect((result.response as any).error?.code).toBe('SAMPLING_UNAVAILABLE');
     });
 
     it('should handle parse error in LLM response', async () => {
@@ -249,10 +250,10 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('PARSE_ERROR');
+      expect((result.response as any).error?.code).toBe('PARSE_ERROR');
     });
 
     it('should support different analysis types', async () => {
@@ -295,7 +296,7 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['patterns', 'anomalies', 'trends'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -330,12 +331,12 @@ describe('AnalyzeHandler', () => {
         action: 'generate_formula',
         spreadsheetId: 'test-id',
         description: 'Calculate total price',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('formula');
-      expect(result.response.formula?.formula).toBe('=B2*C2');
-      expect(result.response.formula?.explanation).toBeDefined();
+      expect((result.response as any).formula?.formula).toBe('=B2*C2');
+      expect((result.response as any).formula?.explanation).toBeDefined();
 
       const parseResult = SheetsAnalyzeOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -356,10 +357,10 @@ describe('AnalyzeHandler', () => {
         action: 'generate_formula',
         spreadsheetId: 'test-id',
         description: 'Sum the first column',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.formula?.formula).toBe('=SUM(A1:A10)');
+      expect((result.response as any).formula?.formula).toBe('=SUM(A1:A10)');
     });
 
     it('should handle formula parse error', async () => {
@@ -371,10 +372,10 @@ describe('AnalyzeHandler', () => {
         action: 'generate_formula',
         spreadsheetId: 'test-id',
         description: 'test',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('PARSE_ERROR');
+      expect((result.response as any).error?.code).toBe('PARSE_ERROR');
     });
   });
 
@@ -425,12 +426,12 @@ describe('AnalyzeHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B4' },
         goal: 'show trends',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('chartRecommendations');
-      expect(result.response.chartRecommendations).toHaveLength(2);
-      expect(result.response.chartRecommendations![0].chartType).toBe('LINE');
+      expect((result.response as any).chartRecommendations).toHaveLength(2);
+      expect((result.response as any).chartRecommendations[0].chartType).toBe('LINE');
 
       const parseResult = SheetsAnalyzeOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -445,10 +446,10 @@ describe('AnalyzeHandler', () => {
         action: 'suggest_visualization',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B10' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('NO_DATA');
+      expect((result.response as any).error?.code).toBe('NO_DATA');
     });
   });
 
@@ -460,10 +461,10 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'invalid-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error?.code).toBe('INTERNAL_ERROR');
     });
 
     it('should handle sampling service errors', async () => {
@@ -485,10 +486,10 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error?.code).toBe('INTERNAL_ERROR');
     });
   });
 
@@ -525,7 +526,7 @@ describe('AnalyzeHandler', () => {
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:Z100' },
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
 
@@ -533,9 +534,9 @@ describe('AnalyzeHandler', () => {
       if (!mockApi.spreadsheets.values.get.mock.calls.length) {
         console.log(
           'A1 test: values.get not called, checking createMessage calls:',
-          mockContext.server!.createMessage.mock.calls.length
+          (mockContext.server!.createMessage as any).mock.calls.length
         );
-        console.log('Response summary:', result.response.summary);
+        console.log('Response summary:', (result.response as any).summary);
       }
 
       // Handler may use fast path, which doesn't call values.get the same way
@@ -578,7 +579,7 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_data',
         spreadsheetId: 'test-id',
         analysisTypes: ['summary'],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
 
@@ -622,7 +623,7 @@ describe('AnalyzeHandler', () => {
       const result = await handler.handle({
         action: 'analyze_performance',
         spreadsheetId: 'test-id',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -633,7 +634,7 @@ describe('AnalyzeHandler', () => {
       // The second call (grid-data fetch) must include a ranges parameter
       const calls = (mockApi.spreadsheets.get as ReturnType<typeof vi.fn>).mock.calls;
       expect(calls.length).toBe(2);
-      const gridDataCall = calls[1][0];
+      const gridDataCall = calls[1]![0];
       expect(gridDataCall.includeGridData).toBe(true);
       expect(gridDataCall.ranges).toBeDefined();
       expect(Array.isArray(gridDataCall.ranges)).toBe(true);
@@ -661,12 +662,12 @@ describe('AnalyzeHandler', () => {
         action: 'analyze_performance',
         spreadsheetId: 'test-id',
         maxSheets: 3,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
 
       const calls = (mockApi.spreadsheets.get as ReturnType<typeof vi.fn>).mock.calls;
-      const gridDataCall = calls[1][0];
+      const gridDataCall = calls[1]![0];
       expect((gridDataCall.ranges as string[]).length).toBeLessThanOrEqual(3);
     });
 
@@ -682,7 +683,7 @@ describe('AnalyzeHandler', () => {
       const result = await handler.handle({
         action: 'analyze_performance',
         spreadsheetId: 'test-id',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -692,7 +693,7 @@ describe('AnalyzeHandler', () => {
 
       // The grid-data call must still have ranges set (bounded fetch)
       const calls = (mockApi.spreadsheets.get as ReturnType<typeof vi.fn>).mock.calls;
-      const gridDataCall = calls[calls.length - 1][0];
+      const gridDataCall = calls[calls.length - 1]![0];
       expect(gridDataCall.includeGridData).toBe(true);
       expect(gridDataCall.ranges).toBeDefined();
     });
@@ -717,7 +718,7 @@ describe('AnalyzeHandler', () => {
       const result = await handler.handle({
         action: 'analyze_performance',
         spreadsheetId: 'test-id',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
@@ -796,7 +797,7 @@ describe('AnalyzeHandler', () => {
           handler.handle({
             action: 'analyze_formulas',
             spreadsheetId: 'test-id',
-          })
+          } as any)
       );
 
       expect(result.response.success).toBe(true);
@@ -863,7 +864,7 @@ describe('AnalyzeHandler', () => {
         action: 'formula_health_check',
         spreadsheetId: 'test-id',
         maxSheets: 2,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.get).toHaveBeenNthCalledWith(

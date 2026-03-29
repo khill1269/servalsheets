@@ -74,7 +74,7 @@ describe('DimensionsHandler', () => {
         startIndex: 5,
         count: 3,
         inheritFromBefore: false,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'insert');
@@ -113,7 +113,7 @@ describe('DimensionsHandler', () => {
         startIndex: 2,
         count: 5,
         inheritFromBefore: true,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'insert');
@@ -147,11 +147,11 @@ describe('DimensionsHandler', () => {
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('rowsAffected', 1);
-      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
       expect(call.requestBody.requests[0].insertDimension.range.endIndex).toBe(1);
     });
 
@@ -203,7 +203,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 5,
         endIndex: 10,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'delete');
@@ -237,7 +237,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 2,
         endIndex: 5,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'delete');
@@ -270,10 +270,10 @@ describe('DimensionsHandler', () => {
         startIndex: 0,
         endIndex: 10,
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       expect(result.response).toHaveProperty('rowsAffected', 10);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
@@ -291,7 +291,7 @@ describe('DimensionsHandler', () => {
         startIndex: 5,
         endIndex: 10,
         destinationIndex: 15,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'move');
@@ -327,7 +327,7 @@ describe('DimensionsHandler', () => {
         startIndex: 2,
         endIndex: 5,
         destinationIndex: 10,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'move');
@@ -365,7 +365,7 @@ describe('DimensionsHandler', () => {
         startIndex: 0,
         endIndex: 10,
         pixelSize: 30,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'resize');
@@ -404,7 +404,7 @@ describe('DimensionsHandler', () => {
         startIndex: 0,
         endIndex: 5,
         pixelSize: 150,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'resize');
@@ -442,7 +442,7 @@ describe('DimensionsHandler', () => {
         dimension: 'ROWS',
         startIndex: 0,
         endIndex: 20,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'auto_resize');
@@ -476,7 +476,7 @@ describe('DimensionsHandler', () => {
         dimension: 'COLUMNS',
         startIndex: 0,
         endIndex: 10,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'auto_resize');
@@ -495,7 +495,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 5,
         endIndex: 10,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'hide');
@@ -533,7 +533,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 2,
         endIndex: 5,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'hide');
@@ -550,7 +550,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 5,
         endIndex: 10,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'show');
@@ -588,7 +588,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 2,
         endIndex: 5,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'show');
@@ -606,7 +606,7 @@ describe('DimensionsHandler', () => {
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 2,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'freeze');
@@ -640,7 +640,7 @@ describe('DimensionsHandler', () => {
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 3,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'freeze');
@@ -674,7 +674,7 @@ describe('DimensionsHandler', () => {
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('rowsAffected', 0);
@@ -692,7 +692,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 5,
         endIndex: 15,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'group');
@@ -726,7 +726,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 2,
         endIndex: 8,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'group');
@@ -743,7 +743,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 5,
         endIndex: 15,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'ungroup');
@@ -777,7 +777,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 2,
         endIndex: 8,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'ungroup');
@@ -795,7 +795,7 @@ describe('DimensionsHandler', () => {
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 10,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'append');
@@ -825,7 +825,7 @@ describe('DimensionsHandler', () => {
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 5,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'append');
@@ -860,10 +860,10 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 0,
         count: 1,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeDefined();
+      expect((result.response as any).error?.code).toBeDefined();
     });
 
     it('should handle invalid action', async () => {
@@ -874,8 +874,8 @@ describe('DimensionsHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
-      expect(result.response.error?.message).toContain('Unknown action');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.message).toContain('Unknown action');
     });
 
     it('should validate schema compliance for errors', async () => {
@@ -888,7 +888,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 0,
         endIndex: 5,
-      });
+      } as any);
 
       const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -906,10 +906,10 @@ describe('DimensionsHandler', () => {
         endIndex: 10,
         destinationIndex: 15,
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
+      expect((result.response as any).dryRun).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
@@ -923,7 +923,7 @@ describe('DimensionsHandler', () => {
         sheetId: 0,
         startIndex: 0,
         count: 5,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       // Metadata is optional but should be included when present
@@ -982,7 +982,7 @@ describe('DimensionsHandler', () => {
           action: 'trim_whitespace',
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:D10',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'trim_whitespace');
@@ -1010,7 +1010,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:D10',
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('cellsAffected', 0);
@@ -1026,7 +1026,7 @@ describe('DimensionsHandler', () => {
           action: 'randomize_range',
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:D10',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'randomize_range');
@@ -1053,7 +1053,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:D10',
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1068,7 +1068,7 @@ describe('DimensionsHandler', () => {
           action: 'text_to_columns',
           spreadsheetId: 'test-sheet-id',
           source: 'Sheet1!A1:A10',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'text_to_columns');
@@ -1100,7 +1100,7 @@ describe('DimensionsHandler', () => {
           source: 'Sheet1!A1:A10',
           delimiterType: 'CUSTOM',
           delimiter: '|',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
@@ -1125,7 +1125,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           source: 'Sheet1!A1:A10',
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1140,7 +1140,7 @@ describe('DimensionsHandler', () => {
           action: 'auto_fill',
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:A10',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'auto_fill');
@@ -1170,7 +1170,7 @@ describe('DimensionsHandler', () => {
           sourceRange: 'Sheet1!A1:A3',
           fillLength: 10,
           dimension: 'ROWS',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
@@ -1198,7 +1198,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:A10',
           useAlternateSeries: true,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
@@ -1233,7 +1233,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:A10',
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1255,7 +1255,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
           range: 'Sheet1!A1:D10',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'set_basic_filter');
@@ -1279,7 +1279,7 @@ describe('DimensionsHandler', () => {
           action: 'set_basic_filter',
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -1312,7 +1312,7 @@ describe('DimensionsHandler', () => {
           action: 'set_basic_filter',
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -1361,7 +1361,7 @@ describe('DimensionsHandler', () => {
           sheetId: 0,
           columnIndex: 2,
           criteria: { 2: { hiddenValues: ['foo'] } },
-        });
+        } as any);
 
         expect(result.response.success).toBe(false);
         if (!result.response.success) {
@@ -1398,7 +1398,7 @@ describe('DimensionsHandler', () => {
           sheetId: 0,
           columnIndex: 2,
           criteria: { 2: { hiddenValues: ['foo', 'bar'] } },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         if (result.response.success) {
@@ -1416,7 +1416,7 @@ describe('DimensionsHandler', () => {
           action: 'clear_basic_filter',
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear_basic_filter');
@@ -1437,7 +1437,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1470,7 +1470,7 @@ describe('DimensionsHandler', () => {
           action: 'get_basic_filter',
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_basic_filter');
@@ -1488,7 +1488,7 @@ describe('DimensionsHandler', () => {
           action: 'get_basic_filter',
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         if (result.response.success) {
@@ -1512,7 +1512,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           range: 'Sheet1!A1:D10',
           sortSpecs: [{ columnIndex: 0, sortOrder: 'ASCENDING' }],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'sort_range');
@@ -1551,10 +1551,10 @@ describe('DimensionsHandler', () => {
             { columnIndex: 0, sortOrder: 'ASCENDING' },
             { columnIndex: 2, sortOrder: 'DESCENDING' },
           ],
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
-        const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+        const call = mockApi.spreadsheets.batchUpdate.mock.calls[0]![0];
         expect(call.requestBody.requests[0].sortRange.sortSpecs).toHaveLength(2);
         expect(call.requestBody.requests[0].sortRange.sortSpecs[1].sortOrder).toBe('DESCENDING');
       });
@@ -1598,7 +1598,7 @@ describe('DimensionsHandler', () => {
 
       it('should use metadataCache to resolve sheet title from sheetId for bare sort ranges', async () => {
         mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
-        mockContext.metadataCache = {
+        (mockContext as any).metadataCache = {
           getSheetName: vi.fn().mockResolvedValue('Revenue Data'),
           getSheetId: vi.fn().mockResolvedValue(7),
         } as any;
@@ -1612,7 +1612,7 @@ describe('DimensionsHandler', () => {
         } as any);
 
         expect(result.response.success).toBe(true);
-        expect(mockContext.metadataCache.getSheetName).toHaveBeenCalledWith('test-sheet-id', 7);
+        expect((mockContext as any).metadataCache.getSheetName).toHaveBeenCalledWith('test-sheet-id', 7);
         expect(mockContext.rangeResolver.resolve).toHaveBeenCalledWith('test-sheet-id', {
           a1: "'Revenue Data'!A1:D10",
         });
@@ -1639,7 +1639,7 @@ describe('DimensionsHandler', () => {
           sheetId: 0,
           title: 'High Value Customers',
           range: 'Sheet1!A1:D100',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'create_filter_view');
@@ -1676,7 +1676,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
           title: 'My Filter',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         if (result.response.success) {
@@ -1697,7 +1697,7 @@ describe('DimensionsHandler', () => {
           action: 'duplicate_filter_view',
           spreadsheetId: 'test-sheet-id',
           filterViewId: 42,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'duplicate_filter_view');
@@ -1721,7 +1721,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           filterViewId: 42,
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1737,7 +1737,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           filterViewId: 42,
           title: 'Updated Filter Name',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'update_filter_view');
@@ -1769,7 +1769,7 @@ describe('DimensionsHandler', () => {
           filterViewId: 42,
           title: 'New Name',
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1784,7 +1784,7 @@ describe('DimensionsHandler', () => {
           action: 'delete_filter_view',
           spreadsheetId: 'test-sheet-id',
           filterViewId: 42,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'delete_filter_view');
@@ -1805,7 +1805,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           filterViewId: 42,
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -1839,14 +1839,14 @@ describe('DimensionsHandler', () => {
         const result = await handler.handle({
           action: 'list_filter_views',
           spreadsheetId: 'test-sheet-id',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'list_filter_views');
         if (result.response.success) {
-          expect(result.response.filterViews).toHaveLength(2);
-          expect(result.response.filterViews?.[0].filterViewId).toBe(1);
-          expect(result.response.filterViews?.[0].title).toBe('View A');
+          expect((result.response as any).filterViews).toHaveLength(2);
+          expect((result.response as any).filterViews?.[0].filterViewId).toBe(1);
+          expect((result.response as any).filterViews?.[0].title).toBe('View A');
         }
 
         const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
@@ -1873,12 +1873,12 @@ describe('DimensionsHandler', () => {
           action: 'list_filter_views',
           spreadsheetId: 'test-sheet-id',
           sheetId: 0,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         if (result.response.success) {
-          expect(result.response.filterViews).toHaveLength(1);
-          expect(result.response.filterViews?.[0].filterViewId).toBe(1);
+          expect((result.response as any).filterViews).toHaveLength(1);
+          expect((result.response as any).filterViews?.[0].filterViewId).toBe(1);
         }
       });
     });
@@ -1907,14 +1907,14 @@ describe('DimensionsHandler', () => {
           action: 'get_filter_view',
           spreadsheetId: 'test-sheet-id',
           filterViewId: 42,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_filter_view');
         if (result.response.success) {
-          expect(result.response.filterViews).toHaveLength(1);
-          expect(result.response.filterViews?.[0].filterViewId).toBe(42);
-          expect(result.response.filterViews?.[0].title).toBe('My View');
+          expect((result.response as any).filterViews).toHaveLength(1);
+          expect((result.response as any).filterViews?.[0].filterViewId).toBe(42);
+          expect((result.response as any).filterViews?.[0].title).toBe('My View');
         }
 
         const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
@@ -1937,7 +1937,7 @@ describe('DimensionsHandler', () => {
           action: 'get_filter_view',
           spreadsheetId: 'test-sheet-id',
           filterViewId: 999,
-        });
+        } as any);
 
         expect(result.response.success).toBe(false);
       });
@@ -1981,7 +1981,7 @@ describe('DimensionsHandler', () => {
             width: 200,
             height: 150,
           },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'create_slicer');
@@ -2037,7 +2037,7 @@ describe('DimensionsHandler', () => {
             width: 200,
             height: 150,
           },
-        });
+        } as any);
 
         expect(result.response.success).toBe(false);
         if (!result.response.success) {
@@ -2058,7 +2058,7 @@ describe('DimensionsHandler', () => {
           slicerId: 5,
           title: 'Region Filter',
           filterColumn: 2,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'update_slicer');
@@ -2088,7 +2088,7 @@ describe('DimensionsHandler', () => {
           slicerId: 5,
           title: 'New Title',
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -2103,7 +2103,7 @@ describe('DimensionsHandler', () => {
           action: 'delete_slicer',
           spreadsheetId: 'test-sheet-id',
           slicerId: 5,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'delete_slicer');
@@ -2124,7 +2124,7 @@ describe('DimensionsHandler', () => {
           spreadsheetId: 'test-sheet-id',
           slicerId: 5,
           safety: { dryRun: true },
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -2150,14 +2150,14 @@ describe('DimensionsHandler', () => {
         const result = await handler.handle({
           action: 'list_slicers',
           spreadsheetId: 'test-sheet-id',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'list_slicers');
         if (result.response.success) {
-          expect(result.response.slicers).toHaveLength(2);
-          expect(result.response.slicers?.[0].slicerId).toBe(3);
-          expect(result.response.slicers?.[0].title).toBe('Product Filter');
+          expect((result.response as any).slicers).toHaveLength(2);
+          expect((result.response as any).slicers?.[0].slicerId).toBe(3);
+          expect((result.response as any).slicers?.[0].title).toBe('Product Filter');
         }
 
         const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
@@ -2184,12 +2184,12 @@ describe('DimensionsHandler', () => {
           action: 'list_slicers',
           spreadsheetId: 'test-sheet-id',
           sheetId: 1,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         if (result.response.success) {
-          expect(result.response.slicers).toHaveLength(1);
-          expect(result.response.slicers?.[0].slicerId).toBe(2);
+          expect((result.response as any).slicers).toHaveLength(1);
+          expect((result.response as any).slicers?.[0].slicerId).toBe(2);
         }
       });
 
@@ -2203,11 +2203,11 @@ describe('DimensionsHandler', () => {
         const result = await handler.handle({
           action: 'list_slicers',
           spreadsheetId: 'test-sheet-id',
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
         if (result.response.success) {
-          expect(result.response.slicers).toHaveLength(0);
+          expect((result.response as any).slicers).toHaveLength(0);
         }
       });
     });

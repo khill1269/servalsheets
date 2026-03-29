@@ -20,7 +20,7 @@ describe('createTaskAwareSamplingServer', () => {
       async () =>
         await createTaskAwareSamplingServer(baseServer).createMessage({
           messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }],
-        })
+        } as any)
     );
 
     expect(sendRequest).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe('createTaskAwareSamplingServer', () => {
       async () =>
         await server.createMessage({
           messages: [{ role: 'user', content: { type: 'text', text: 'hello' } }],
-        })
+        } as any)
     );
 
     expect(taskStore.updateTaskStatus).toHaveBeenCalledWith('task-123', 'input_required');

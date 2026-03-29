@@ -203,7 +203,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
             expect(result.mode).toBe(capability.mode);
             expect(result.assertionSource).toBe(capability.assertionSource);
           },
-          getFixtureTimeoutMs(capability)
+          getFixtureTimeoutMs(capability!)
         );
       }
     });
@@ -706,7 +706,8 @@ async function createMatrixSpreadsheet(
   suffix: string
 ): Promise<MatrixSpreadsheet> {
   const title = `SERVAL_MATRIX_${suffix}_${Date.now()}`;
-  const response = await client.executeWrite('matrix.createSpreadsheet', () =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const response = (await client.executeWrite('matrix.createSpreadsheet', () =>
     client.sheets.spreadsheets.create({
       requestBody: {
         properties: { title },
@@ -718,8 +719,8 @@ async function createMatrixSpreadsheet(
           { properties: { title: 'Lookup', sheetId: 4 } },
         ],
       },
-    })
-  );
+    }) as any
+  )) as { data: { spreadsheetId?: string; sheets?: Array<{ properties?: { title?: string; sheetId?: number } }> } };
 
   const spreadsheetId = response.data.spreadsheetId;
   if (!spreadsheetId) {
@@ -788,7 +789,7 @@ async function seedMatrixSpreadsheet(
     ['Archived', 'Restore', 'Delete'],
   ];
 
-  await client.executeWrite('matrix.seedSpreadsheet', () =>
+  await client.executeWrite('matrix.seedSpreadsheet', (() =>
     client.sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -802,10 +803,10 @@ async function seedMatrixSpreadsheet(
           { range: 'Sheet1!H1:H3', values: [['Trend'], ['=SPARKLINE(B2:B6)'], ['']] },
         ],
       },
-    })
+    })) as any
   );
 
-  await client.executeWrite('matrix.seedNamedRange', () =>
+  await client.executeWrite('matrix.seedNamedRange', (() =>
     client.sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -876,7 +877,7 @@ async function seedMatrixSpreadsheet(
           },
         ],
       },
-    })
+    })) as any
   );
 }
 
@@ -888,11 +889,11 @@ async function runProbe(
 ): Promise<{ status: number }> {
   switch (capability.probeStrategy) {
     case 'auth_connectivity':
-      return client.executeRead('matrix.probe.auth', async () =>
+      return client.executeRead('matrix.probe.auth', (async () =>
         client.sheets.spreadsheets.get({
           spreadsheetId: context.primary.id,
           fields: 'spreadsheetId',
-        })
+        })) as any
       );
 
     case 'multi_spreadsheet_metadata': {
@@ -903,11 +904,11 @@ async function runProbe(
 
       let lastStatus = 200;
       for (const spreadsheetId of spreadsheetIds) {
-        const response = await client.executeRead('matrix.probe.multiSpreadsheet', async () =>
+        const response = await client.executeRead('matrix.probe.multiSpreadsheet', (async () =>
           client.sheets.spreadsheets.get({
             spreadsheetId,
             fields: 'spreadsheetId',
-          })
+          })) as any
         );
         lastStatus = response.status;
       }
@@ -920,32 +921,32 @@ async function runProbe(
       const ranges = getProbeRanges(request);
 
       if (ranges.length > 1) {
-        const response = await client.executeRead('matrix.probe.batchRange', async () =>
+        const response = await client.executeRead('matrix.probe.batchRange', (async () =>
           client.sheets.spreadsheets.values.batchGet({
             spreadsheetId,
             ranges,
-          })
+          })) as any
         );
         return { status: response.status };
       }
 
       const range = ranges[0] ?? 'Sheet1!A1:F6';
-      const response = await client.executeRead('matrix.probe.range', async () =>
+      const response = await client.executeRead('matrix.probe.range', (async () =>
         client.sheets.spreadsheets.values.get({
           spreadsheetId,
           range,
-        })
+        })) as any
       );
       return { status: response.status };
     }
 
     case 'sheet_metadata': {
       const spreadsheetId = getFirstSpreadsheetId(request) ?? context.primary.id;
-      const response = await client.executeRead('matrix.probe.sheetMetadata', async () =>
+      const response = await client.executeRead('matrix.probe.sheetMetadata', (async () =>
         client.sheets.spreadsheets.get({
           spreadsheetId,
           fields: 'spreadsheetId,sheets.properties(sheetId,title)',
-        })
+        })) as any
       );
       return { status: response.status };
     }
@@ -953,11 +954,11 @@ async function runProbe(
     case 'spreadsheet_metadata':
     default: {
       const spreadsheetId = getFirstSpreadsheetId(request) ?? context.primary.id;
-      const response = await client.executeRead('matrix.probe.spreadsheetMetadata', async () =>
+      const response = await client.executeRead('matrix.probe.spreadsheetMetadata', (async () =>
         client.sheets.spreadsheets.get({
           spreadsheetId,
           fields: 'spreadsheetId,properties(title)',
-        })
+        })) as any
       );
       return { status: response.status };
     }
@@ -1074,8 +1075,8 @@ function extractToolPayload(result: CallToolResult): Record<string, unknown> | n
   }
 
   const textBlock = result.content.find(
-    (block) => block.type === 'text' && typeof block.text === 'string'
-  );
+    (block) => block.type === 'text' && typeof (block as { text?: string }).text === 'string'
+  ) as { text?: string } | undefined;
 
   if (!textBlock?.text) {
     return null;

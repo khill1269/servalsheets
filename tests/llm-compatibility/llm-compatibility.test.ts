@@ -106,7 +106,7 @@ function getStringFormat(schema: ZodTypeAny): { format?: string; pattern?: RegEx
 function getEnumValues(schema: ZodTypeAny): string[] {
   const unwrapped = unwrapSchema(schema);
   if (!(unwrapped instanceof z.ZodEnum)) return [];
-  return Object.values(unwrapped._def.entries);
+  return Object.values(unwrapped._def.entries) as string[];
 }
 
 function getLiteralValue(schema: ZodTypeAny): string | number | boolean | null {
@@ -200,19 +200,19 @@ function buildObject(schema: ZodTypeAny, mode: BuildMode): Record<string, unknow
 }
 
 function buildUnion(
-  schema: z.ZodUnion<ZodTypeAny[]>,
+  schema: z.ZodUnion<any>,
   fieldName: string | undefined,
   mode: BuildMode
 ) {
   for (const option of schema._def.options) {
-    const candidate = buildValue(option, fieldName, mode);
+    const candidate = buildValue(option as ZodTypeAny, fieldName, mode);
     if (schema.safeParse(candidate).success) return candidate;
   }
-  return buildValue(schema._def.options[0], fieldName, mode);
+  return buildValue(schema._def.options[0] as ZodTypeAny, fieldName, mode);
 }
 
 function buildRecord(
-  schema: z.ZodRecord<ZodTypeAny, ZodTypeAny>,
+  schema: z.ZodRecord<any, any>,
   fieldName: string | undefined,
   mode: BuildMode
 ) {
@@ -227,7 +227,7 @@ function buildRecord(
 }
 
 function buildTuple(schema: z.ZodTuple, fieldName: string | undefined, mode: BuildMode) {
-  return schema._def.items.map((item: ZodTypeAny) => buildValue(item, fieldName, mode));
+  return (schema._def.items as ZodTypeAny[]).map((item) => buildValue(item, fieldName, mode));
 }
 
 function getFieldOverrides(fieldName: string | undefined, mode: BuildMode): unknown[] {
@@ -288,14 +288,14 @@ function buildValue(schema: ZodTypeAny, fieldName: string | undefined, mode: Bui
   if (unwrapped instanceof z.ZodNumber) return buildNumber(schema, mode);
   if (unwrapped instanceof z.ZodBoolean) return false;
   if (unwrapped instanceof z.ZodEnum) return getEnumValues(schema)[0] ?? 'unknown';
-  if (unwrapped instanceof z.ZodArray) return buildArray(unwrapped, fieldName, mode);
+  if (unwrapped instanceof z.ZodArray) return buildArray(unwrapped as any, fieldName, mode);
   if (unwrapped instanceof z.ZodObject) return buildObject(unwrapped, mode);
-  if (unwrapped instanceof z.ZodUnion) return buildUnion(unwrapped, fieldName, mode);
+  if (unwrapped instanceof z.ZodUnion) return buildUnion(unwrapped as any, fieldName, mode);
   if (unwrapped instanceof z.ZodDiscriminatedUnion) {
     const options = getDiscriminatedUnionOptions(unwrapped) ?? [];
     if (options.length > 0) return buildObject(options[0] as ZodTypeAny, mode);
   }
-  if (unwrapped instanceof z.ZodRecord) return buildRecord(unwrapped, fieldName, mode);
+  if (unwrapped instanceof z.ZodRecord) return buildRecord(unwrapped as any, fieldName, mode);
   if (unwrapped instanceof z.ZodTuple) return buildTuple(unwrapped, fieldName, mode);
   if (unwrapped instanceof z.ZodDate) return new Date();
 
@@ -451,7 +451,7 @@ function buildRequests(toolName: string, schema: ZodTypeAny, mode: BuildMode) {
 
   if (requestSchema instanceof z.ZodObject) {
     const requestShape = getObjectShape(requestSchema) ?? {};
-    const actionField = requestShape['action'];
+    const actionField = requestShape['action'] as ZodTypeAny;
     const actions = getEnumValues(actionField);
     return actions.map((action) => {
       const request = buildObject(requestSchema, mode);
@@ -475,7 +475,7 @@ describe('LLM compatibility - minimal inputs', () => {
         it(`accepts minimal input for ${action}`, () => {
           const result = tool.schema.safeParse(input);
           if (!result.success) {
-            console.error(`${tool.name}.${action} validation errors:`, result.error.errors);
+            console.error(`${tool.name}.${action} validation errors:`, result.error.issues);
           }
           expect(result.success).toBe(true);
         });
@@ -493,7 +493,7 @@ describe('LLM compatibility - string-coerced numbers', () => {
         it(`accepts string-coerced numbers for ${action}`, () => {
           const result = tool.schema.safeParse(input);
           if (!result.success) {
-            console.error(`${tool.name}.${action} validation errors:`, result.error.errors);
+            console.error(`${tool.name}.${action} validation errors:`, result.error.issues);
           }
           expect(result.success).toBe(true);
         });

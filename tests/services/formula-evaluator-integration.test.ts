@@ -6,7 +6,7 @@
  * - A googleClient IS provided and Google-only cells are evaluated via the API
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { FormulaEvaluator } from '../../src/services/formula-evaluator.js';
 import type { SheetData } from '../../src/services/formula-evaluator.js';
 import type { GoogleApiClient } from '../../src/services/google-api.js';

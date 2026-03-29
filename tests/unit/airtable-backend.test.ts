@@ -124,8 +124,8 @@ describe('AirtableBackend', () => {
   it('exposes a typed native Airtable handle', () => {
     const native = backend.native();
 
-    expect(native.client).toBe(client);
-    expect(native.fieldOrderCache).toBeInstanceOf(Map);
-    expect(native.recordIdCache).toBeInstanceOf(Map);
+    expect((native as any).client).toBe(client);
+    expect((native as any).fieldOrderCache).toBeInstanceOf(Map);
+    expect((native as any).recordIdCache).toBeInstanceOf(Map);
   });
 });

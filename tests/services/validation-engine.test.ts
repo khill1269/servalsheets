@@ -57,8 +57,8 @@ describe('ValidationEngine', () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain('string');
-      expect(invalidResult.errors[0].rule.type).toBe('data_type');
+      expect(invalidResult.errors[0]!.message).toContain('string');
+      expect(invalidResult.errors[0]!.rule.type).toBe('data_type');
     });
 
     it('should validate number type correctly', async () => {
@@ -87,7 +87,7 @@ describe('ValidationEngine', () => {
 
       expect(nanResult.valid).toBe(false);
       expect(nanResult.errors).toHaveLength(1);
-      expect(nanResult.errors[0].message).toContain('number');
+      expect(nanResult.errors[0]!.message).toContain('number');
     });
 
     it('should validate boolean type correctly', async () => {
@@ -111,7 +111,7 @@ describe('ValidationEngine', () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain('boolean');
+      expect(invalidResult.errors[0]!.message).toContain('boolean');
     });
 
     it('should validate date type correctly', async () => {
@@ -140,7 +140,7 @@ describe('ValidationEngine', () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain('date');
+      expect(invalidResult.errors[0]!.message).toContain('date');
     });
   });
 
@@ -174,7 +174,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(email);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('email');
+        expect(result.errors[0]!.message).toContain('email');
       }
     });
 
@@ -206,7 +206,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(url);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('URL');
+        expect(result.errors[0]!.message).toContain('URL');
       }
     });
 
@@ -239,7 +239,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(phone);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('phone');
+        expect(result.errors[0]!.message).toContain('phone');
       }
     });
   });
@@ -268,7 +268,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('positive');
+        expect(result.errors[0]!.message).toContain('positive');
       }
     });
 
@@ -295,7 +295,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('non-negative');
+        expect(result.errors[0]!.message).toContain('non-negative');
       }
     });
   });
@@ -324,7 +324,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('required');
+        expect(result.errors[0]!.message).toContain('required');
       }
     });
 
@@ -351,7 +351,7 @@ describe('ValidationEngine', () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain('empty');
+        expect(result.errors[0]!.message).toContain('empty');
       }
     });
   });
@@ -399,7 +399,7 @@ describe('ValidationEngine', () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain('even');
+      expect(invalidResult.errors[0]!.message).toContain('even');
     });
 
     it('should execute multiple custom rules in sequence', async () => {
@@ -464,13 +464,13 @@ describe('ValidationEngine', () => {
 
       expect(oneFailResult.valid).toBe(true); // No errors
       expect(oneFailResult.warnings).toHaveLength(1);
-      expect(oneFailResult.warnings[0].message).toContain("start with 'A'");
+      expect(oneFailResult.warnings[0]!.message).toContain("start with 'A'");
 
       expect(twoFailResult.valid).toBe(false); // Has error
       expect(twoFailResult.errors).toHaveLength(1);
       // Note: Warning may or may not be present depending on rule execution order
       // The important part is that we have at least the error
-      expect(twoFailResult.errors[0].message).toContain('3 characters');
+      expect(twoFailResult.errors[0]!.message).toContain('3 characters');
     });
 
     it('should support custom rules with validation context', async () => {
@@ -481,7 +481,7 @@ describe('ValidationEngine', () => {
         type: 'custom',
         description: 'Validates based on context',
         validator: (value, context) => {
-          if (context?.metadata?.strictMode) {
+          if (context?.metadata?.['strictMode']) {
             return {
               valid: typeof value === 'string' && value.length > 10,
               message:
@@ -540,7 +540,7 @@ describe('ValidationEngine', () => {
       expect(strictResult.valid).toBe(false);
       expect(strictResult.totalChecks).toBeGreaterThan(0);
       expect(strictResult.errors).toHaveLength(1);
-      expect(strictResult.errors[0].message).toContain('Strict mode');
+      expect(strictResult.errors[0]!.message).toContain('Strict mode');
 
       expect(strictValidResult.valid).toBe(true);
       expect(strictValidResult.totalChecks).toBeGreaterThan(0);
@@ -642,7 +642,7 @@ describe('ValidationEngine', () => {
       // Should stop at first error, not collect all errors
       expect(result.errors.length).toBeLessThan(3);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain('Rule 1 failed');
+      expect(result.errors[0]!.message).toContain('Rule 1 failed');
     });
   });
 
@@ -768,10 +768,10 @@ describe('ValidationEngine', () => {
 
       // Assert
       expect(reports).toHaveLength(4);
-      expect(reports[0].valid).toBe(true);
-      expect(reports[1].valid).toBe(false);
-      expect(reports[2].valid).toBe(true);
-      expect(reports[3].valid).toBe(false);
+      expect(reports[0]!.valid).toBe(true);
+      expect(reports[1]!.valid).toBe(false);
+      expect(reports[2]!.valid).toBe(true);
+      expect(reports[3]!.valid).toBe(false);
 
       // Check that each report has proper structure
       reports.forEach((report) => {

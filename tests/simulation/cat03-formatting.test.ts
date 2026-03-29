@@ -23,7 +23,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FormatHandler } from '../../src/handlers/format.js';
 import { DimensionsHandler } from '../../src/handlers/dimensions.js';
-import { VisualizerHandler } from '../../src/handlers/visualize.js';
+// VisualizerHandler import removed (unused)
 import type { HandlerContext } from '../../src/handlers/base.js';
 import { getContextManager } from '../../src/services/context-manager.js';
 
@@ -116,10 +116,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:Z1' },
         preset: 'header_row',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('apply_preset');
+      expect((result.response as any).action).toBe('apply_preset');
       expect(result.response).toHaveProperty('cellsFormatted');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
@@ -132,7 +132,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A2:Z100' },
         preset: 'alternating_rows',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -163,13 +163,13 @@ describe('Category 3: Formatting & Visual Presentation', () => {
             numberFormat: { type: 'PERCENT' },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('batch_format');
+      expect((result.response as any).action).toBe('batch_format');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
 
-      const callArgs = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
+      const callArgs = mockApi.spreadsheets.batchUpdate.mock.calls[0]?.[0];
       expect(callArgs.requestBody.requests.length).toBeGreaterThan(0);
     });
   });
@@ -193,10 +193,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
           format: { backgroundColor: { green: 1 } },
         },
         index: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('rule_add_conditional_format');
+      expect((result.response as any).action).toBe('rule_add_conditional_format');
     });
 
     it('should support color_scale preset for data visualization', async () => {
@@ -219,7 +219,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
           },
         },
         index: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -252,10 +252,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         action: 'suggest_format',
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!B2:B100' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('suggest_format');
+      expect((result.response as any).action).toBe('suggest_format');
       // Note: suggestions is optional and depends on data analysis
     });
   });
@@ -274,7 +274,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
           values: ['Low', 'Medium', 'High'],
         },
         showDropdown: true,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       // Response should include cellsValidated count
@@ -299,7 +299,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         parentRange: 'Sheet1!B2:B100',
         dependentRange: 'Sheet1!C2:C100',
         lookupSheet: 'Dropdown_Lookup',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -329,10 +329,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
             format: { italic: true },
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('set_rich_text');
+      expect((result.response as any).action).toBe('set_rich_text');
     });
   });
 
@@ -349,10 +349,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         startIndex: 10,
         count: 5,
         inheritFromBefore: false,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('insert');
+      expect((result.response as any).action).toBe('insert');
       expect(result.response).toHaveProperty('rowsAffected', 5);
     });
 
@@ -366,10 +366,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         sheetId: 0,
         startIndex: 5,
         endIndex: 8,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('delete');
+      expect((result.response as any).action).toBe('delete');
     });
   });
 
@@ -383,10 +383,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         spreadsheetId: 'test-sheet-id',
         dimension: 'COLUMNS',
         sheetId: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('auto_resize');
+      expect((result.response as any).action).toBe('auto_resize');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           spreadsheetId: 'test-sheet-id',
@@ -402,7 +402,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         spreadsheetId: 'test-sheet-id',
         dimension: 'ROWS',
         sheetId: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -419,10 +419,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         dimension: 'ROWS',
         sheetId: 0,
         count: 1,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('freeze');
+      expect((result.response as any).action).toBe('freeze');
 
       // Verify session context was updated
       const context = getContextManager().getContext();
@@ -438,7 +438,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         dimension: 'COLUMNS',
         sheetId: 0,
         count: 2,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -459,10 +459,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
             sortOrder: 'ASCENDING',
           },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('sort_range');
+      expect((result.response as any).action).toBe('sort_range');
     });
 
     it('should sort by multiple columns', async () => {
@@ -476,7 +476,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
           { dimensionIndex: 0, sortOrder: 'ASCENDING' },
           { dimensionIndex: 1, sortOrder: 'DESCENDING' },
         ],
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -493,10 +493,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:Z100' },
         title: 'Active Records',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('create_filter_view');
+      expect((result.response as any).action).toBe('create_filter_view');
     });
 
     it('should create slicer for pivot interaction', async () => {
@@ -509,10 +509,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         dataRange: { a1: 'Sheet1!A1:B100' },
         filterColumn: 0,
         position: { anchorCell: 'D1' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('create_slicer');
+      expect((result.response as any).action).toBe('create_slicer');
     });
 
     it('should update filter view with criteria', async () => {
@@ -527,10 +527,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
             hiddenValues: ['Inactive'],
           },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('update_filter_view');
+      expect((result.response as any).action).toBe('update_filter_view');
     });
   });
 
@@ -543,10 +543,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         action: 'delete_duplicates',
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:D100' },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('delete_duplicates');
+      expect((result.response as any).action).toBe('delete_duplicates');
       // Response includes rowsAffected from the API call
       expect(result.response).toHaveProperty('rowsAffected');
     });
@@ -566,10 +566,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
           fontSize: 12,
           bold: true,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('set_text_format');
+      expect((result.response as any).action).toBe('set_text_format');
     });
 
     it('should apply conditional formatting with data bars', async () => {
@@ -596,7 +596,7 @@ describe('Category 3: Formatting & Visual Presentation', () => {
           },
         },
         index: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -611,10 +611,10 @@ describe('Category 3: Formatting & Visual Presentation', () => {
         startIndex: 5,
         endIndex: 10,
         sheetId: 0,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('group');
+      expect((result.response as any).action).toBe('group');
     });
   });
 });

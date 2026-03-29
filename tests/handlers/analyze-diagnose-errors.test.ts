@@ -187,8 +187,7 @@ describe('diagnose_errors action', () => {
 
     expect(result.success).toBe(true);
     // Both sheets are fetched in a single batchGet call
-    // @ts-expect-error test helper access
-    const batchGetMock = deps.sheetsApi.spreadsheets.values.batchGet;
+    const batchGetMock = deps.sheetsApi.spreadsheets.values.batchGet as any;
     const firstCallRanges: string[] = batchGetMock.mock.calls[0][0]['ranges'];
     expect(firstCallRanges).toHaveLength(2);
   });
@@ -231,7 +230,6 @@ describe('diagnose_errors action', () => {
 
     expect(result.success).toBe(true);
     // Should only have called batchGet once (no formula fetch)
-    // @ts-expect-error test helper
     expect(deps.sheetsApi.spreadsheets.values.batchGet).toHaveBeenCalledTimes(1);
   });
 

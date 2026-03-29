@@ -19,7 +19,7 @@ describe('elicitation schema compatibility', () => {
         },
       },
       required: ['labels'],
-    } satisfies FormElicitParams['requestedSchema'];
+    } as unknown as FormElicitParams['requestedSchema'];
 
     const parseResult = ElicitRequestFormParamsSchema.safeParse({
       message: 'Select labels',

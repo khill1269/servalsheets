@@ -191,7 +191,7 @@ describe('http foundation middleware', () => {
       isDeprecated: true,
       deprecationWarning: 'deprecated',
     });
-    expect(req.schemaVersion).toBe('v2');
+    expect((req as Record<string, unknown>)['schemaVersion']).toBe('v2');
     expect(next).toHaveBeenCalledOnce();
 
     next.mockReset();

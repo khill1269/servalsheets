@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Container, type ServiceLifecycle } from '../../src/di/container.js';
+import { Container } from '../../src/di/container.js';
 
 describe('Container', () => {
   let container: Container;

@@ -545,13 +545,13 @@ describe('DiscoveryApiClient', () => {
   describe('global instance', () => {
     afterEach(() => {
       resetDiscoveryApiClient();
-      delete process.env.DISCOVERY_API_ENABLED;
-      delete process.env.DISCOVERY_CACHE_TTL;
+      delete process.env['DISCOVERY_API_ENABLED'];
+      delete process.env['DISCOVERY_CACHE_TTL'];
     });
 
     it('should create global instance with environment config', () => {
-      process.env.DISCOVERY_API_ENABLED = 'true';
-      process.env.DISCOVERY_CACHE_TTL = '3600';
+      process.env['DISCOVERY_API_ENABLED'] = 'true';
+      process.env['DISCOVERY_CACHE_TTL'] = '3600';
 
       const globalClient = getDiscoveryApiClient();
 

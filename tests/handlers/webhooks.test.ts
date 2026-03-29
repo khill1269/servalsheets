@@ -61,7 +61,7 @@ describe('WebhookHandler', () => {
       const mockWebhook = {
         webhookId: 'webhook-123',
         webhookUrl: 'https://example.com/webhook',
-        eventTypes: ['spreadsheet.updated' as WebhookEventType],
+        eventTypes: ['sheet.update' as WebhookEventType],
         active: true,
         secret: 'test-secret',
         createdAt: new Date('2024-01-15T00:00:00Z').toISOString(),
@@ -73,10 +73,10 @@ describe('WebhookHandler', () => {
         request: {
           action: 'register',
           webhookUrl: 'https://example.com/webhook',
-          eventTypes: ['spreadsheet.updated'],
+          eventTypes: ['sheet.update'],
           spreadsheetId: 'sheet-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'data' in result.response) {
@@ -85,7 +85,7 @@ describe('WebhookHandler', () => {
       expect(mockWebhookManager.register).toHaveBeenCalledWith(
         expect.objectContaining({
           webhookUrl: 'https://example.com/webhook',
-          eventTypes: ['spreadsheet.updated'],
+          eventTypes: ['sheet.update'],
           spreadsheetId: 'sheet-123',
         })
       );
@@ -110,7 +110,7 @@ describe('WebhookHandler', () => {
           eventTypes: ['all'],
           secret: 'custom-secret',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockWebhookManager.register).toHaveBeenCalledWith(
@@ -129,11 +129,11 @@ describe('WebhookHandler', () => {
           webhookUrl: 'invalid-url',
           eventTypes: ['all'],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('Invalid webhook URL');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('Invalid webhook URL');
     });
 
     it('should handle manager initialization errors', async () => {
@@ -145,10 +145,10 @@ describe('WebhookHandler', () => {
           webhookUrl: 'https://example.com/webhook',
           eventTypes: ['all'],
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.message).toContain('not initialized');
+      expect((result.response as any).error?.message).toContain('not initialized');
     });
 
     it('returns CONFIG_ERROR before register when Redis-backed webhook storage is unavailable', async () => {
@@ -161,11 +161,11 @@ describe('WebhookHandler', () => {
           eventTypes: ['all'],
           spreadsheetId: 'sheet-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('CONFIG_ERROR');
-      expect(result.response.error?.message).toContain('Redis required');
+      expect((result.response as any).error?.code).toBe('CONFIG_ERROR');
+      expect((result.response as any).error?.message).toContain('Redis required');
       expect(mockWebhookManager.list).not.toHaveBeenCalled();
       expect(mockWebhookManager.register).not.toHaveBeenCalled();
     });
@@ -190,7 +190,7 @@ describe('WebhookHandler', () => {
           spreadsheetId: 'sheet-123',
           webhookUrl: 'https://example.com/watch',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
 
@@ -223,10 +223,10 @@ describe('WebhookHandler', () => {
           spreadsheetId: 'sheet-123',
           webhookUrl: 'https://example.com/watch',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('CONFIG_ERROR');
+      expect((result.response as any).error?.code).toBe('CONFIG_ERROR');
     });
   });
 
@@ -242,11 +242,11 @@ describe('WebhookHandler', () => {
           action: 'unregister',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'data' in result.response) {
-        expect(result.response.data.deleted).toBe(true);
+        expect((result.response as any).data.deleted).toBe(true);
       }
       expect(mockWebhookManager.unregister).toHaveBeenCalledWith('webhook-123');
     });
@@ -259,11 +259,11 @@ describe('WebhookHandler', () => {
           action: 'unregister',
           webhookId: 'nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('Webhook not found');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('Webhook not found');
     });
 
     it('should handle unregister errors', async () => {
@@ -274,10 +274,10 @@ describe('WebhookHandler', () => {
           action: 'unregister',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -287,7 +287,7 @@ describe('WebhookHandler', () => {
         {
           webhookId: 'webhook-1',
           webhookUrl: 'https://example.com/webhook1',
-          eventTypes: ['spreadsheet.updated' as WebhookEventType],
+          eventTypes: ['sheet.update' as WebhookEventType],
           active: true,
           deliveryCount: 10,
           failureCount: 1,
@@ -308,7 +308,7 @@ describe('WebhookHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -330,7 +330,7 @@ describe('WebhookHandler', () => {
           action: 'list',
           spreadsheetId: 'sheet-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockWebhookManager.list).toHaveBeenCalledWith('sheet-123', undefined);
@@ -344,7 +344,7 @@ describe('WebhookHandler', () => {
           action: 'list',
           active: true,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockWebhookManager.list).toHaveBeenCalledWith(undefined, true);
@@ -357,7 +357,7 @@ describe('WebhookHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -376,10 +376,10 @@ describe('WebhookHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -388,7 +388,7 @@ describe('WebhookHandler', () => {
       const mockWebhook = {
         webhookId: 'webhook-123',
         webhookUrl: 'https://example.com/webhook',
-        eventTypes: ['spreadsheet.updated' as WebhookEventType],
+        eventTypes: ['sheet.update' as WebhookEventType],
         active: true,
         secret: 'test-secret',
         spreadsheetId: 'sheet-123',
@@ -405,7 +405,7 @@ describe('WebhookHandler', () => {
           action: 'get',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -428,11 +428,11 @@ describe('WebhookHandler', () => {
           action: 'get',
           webhookId: 'nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('NOT_FOUND');
-      expect(result.response.error?.message).toContain('nonexistent');
+      expect((result.response as any).error?.code).toBe('NOT_FOUND');
+      expect((result.response as any).error?.message).toContain('nonexistent');
     });
 
     it('should handle get errors', async () => {
@@ -443,10 +443,10 @@ describe('WebhookHandler', () => {
           action: 'get',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -467,7 +467,7 @@ describe('WebhookHandler', () => {
           action: 'test',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -503,7 +503,7 @@ describe('WebhookHandler', () => {
           action: 'test',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockWebhookQueue.enqueue).toHaveBeenCalledWith(
@@ -524,11 +524,11 @@ describe('WebhookHandler', () => {
           action: 'test',
           webhookId: 'nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('NOT_FOUND');
-      expect(result.response.error?.message).toContain('nonexistent');
+      expect((result.response as any).error?.code).toBe('NOT_FOUND');
+      expect((result.response as any).error?.message).toContain('nonexistent');
     });
 
     it('should handle queue enqueue errors', async () => {
@@ -545,10 +545,10 @@ describe('WebhookHandler', () => {
           action: 'test',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.message).toContain('Queue full');
+      expect((result.response as any).error?.message).toContain('Queue full');
     });
   });
 
@@ -580,11 +580,11 @@ describe('WebhookHandler', () => {
         request: {
           action: 'get_stats',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'data' in result.response) {
-        const stats = result.response.data;
+        const stats = (result.response as any).data;
         expect(stats.totalWebhooks).toBe(2);
         expect(stats.activeWebhooks).toBe(1);
         expect(stats.totalDeliveries).toBe(150); // 100 + 50
@@ -615,11 +615,11 @@ describe('WebhookHandler', () => {
           action: 'get_stats',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'data' in result.response) {
-        const stats = result.response.data;
+        const stats = (result.response as any).data;
         expect(stats.totalWebhooks).toBe(1);
         expect(stats.totalDeliveries).toBe(25);
         expect(stats.failedDeliveries).toBe(3);
@@ -649,7 +649,7 @@ describe('WebhookHandler', () => {
         request: {
           action: 'get_stats',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -679,7 +679,7 @@ describe('WebhookHandler', () => {
         request: {
           action: 'get_stats',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -708,7 +708,7 @@ describe('WebhookHandler', () => {
         request: {
           action: 'get_stats',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (
@@ -729,10 +729,10 @@ describe('WebhookHandler', () => {
         request: {
           action: 'get_stats',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -740,15 +740,14 @@ describe('WebhookHandler', () => {
     it('should handle unknown action', async () => {
       const result = await handler.handle({
         request: {
-          // @ts-expect-error - Testing invalid action
           action: 'invalid_action',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
-      expect(result.response.error?.message).toContain('Unknown action');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.message).toContain('Unknown action');
     });
 
     it('should catch and handle unexpected errors', async () => {
@@ -760,10 +759,10 @@ describe('WebhookHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error?.code).toBe('INTERNAL_ERROR');
     });
 
     it('should handle non-Error exceptions', async () => {
@@ -776,10 +775,10 @@ describe('WebhookHandler', () => {
           action: 'get',
           webhookId: 'webhook-123',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INTERNAL_ERROR');
+      expect((result.response as any).error?.code).toBe('INTERNAL_ERROR');
     });
 
     it('maps Redis dependency failures to CONFIG_ERROR with guidance', async () => {
@@ -791,13 +790,13 @@ describe('WebhookHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('CONFIG_ERROR');
-      expect(result.response.error?.message).toContain('Redis backend is required');
-      expect(result.response.error?.resolutionSteps?.join(' ')).toContain('REDIS_URL');
-      expect((result.response.error?.details as { durabilityMode?: string } | undefined)?.durabilityMode).toBe(
+      expect((result.response as any).error?.code).toBe('CONFIG_ERROR');
+      expect((result.response as any).error?.message).toContain('Redis backend is required');
+      expect((result.response as any).error?.resolutionSteps?.join(' ')).toContain('REDIS_URL');
+      expect(((result.response as any).error?.details as { durabilityMode?: string } | undefined)?.durabilityMode).toBe(
         'redis_required'
       );
     });

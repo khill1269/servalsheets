@@ -48,8 +48,8 @@ describe('PatternRecognitionAgent', () => {
 
       // Check one of the "handle" deviation handlers
       const deviationReport = await agent.analyze(
-        handleHandlers[0].filePath,
-        handleHandlers[0].sourceFile,
+        handleHandlers[0]!.filePath,
+        handleHandlers[0]!.sourceFile,
         context
       );
 
@@ -57,8 +57,8 @@ describe('PatternRecognitionAgent', () => {
       expect(handlerReport).toBeDefined();
       expect(handlerReport?.status).toBe('warning');
       expect(handlerReport?.issueCount).toBeGreaterThan(0);
-      expect(handlerReport?.issues[0].message).toContain('execute');
-      expect(handlerReport?.metrics?.consistencyScore).toBeLessThan(90); // Not 100% consistent
+      expect(handlerReport?.issues[0]!.message).toContain('execute');
+      expect(handlerReport?.metrics?.['consistencyScore']).toBeLessThan(90); // Not 100% consistent
     });
 
     it('should pass when handler follows dominant pattern', async () => {
@@ -75,8 +75,8 @@ describe('PatternRecognitionAgent', () => {
 
       // Check one handler
       const reports = await agent.analyze(
-        executeHandlers[0].filePath,
-        executeHandlers[0].sourceFile,
+        executeHandlers[0]!.filePath,
+        executeHandlers[0]!.sourceFile,
         context
       );
 
@@ -123,8 +123,8 @@ describe('PatternRecognitionAgent', () => {
 
       // Check deviation schema
       const reports = await agent.analyze(
-        directEnumSchemas[0].filePath,
-        directEnumSchemas[0].sourceFile,
+        directEnumSchemas[0]!.filePath,
+        directEnumSchemas[0]!.sourceFile,
         context
       );
 
@@ -147,7 +147,7 @@ describe('PatternRecognitionAgent', () => {
       }
 
       // Check one schema
-      const reports = await agent.analyze(schemas[0].filePath, schemas[0].sourceFile, context);
+      const reports = await agent.analyze(schemas[0]!.filePath, schemas[0]!.sourceFile, context);
 
       const schemaReport = reports.find((r) => r.dimension === 'schemaPattern');
       expect(schemaReport).toBeDefined();
@@ -180,14 +180,14 @@ describe('PatternRecognitionAgent', () => {
 
       // Should have high consistency score
       const reports = await agent.analyze(
-        throwFiles[0].filePath,
-        throwFiles[0].sourceFile,
+        throwFiles[0]!.filePath,
+        throwFiles[0]!.sourceFile,
         context
       );
 
       const errorReport = reports.find((r) => r.dimension === 'errorPattern');
       expect(errorReport).toBeDefined();
-      expect(errorReport?.metrics?.consistencyScore).toBeGreaterThan(80);
+      expect(errorReport?.metrics?.['consistencyScore']).toBeGreaterThan(80);
     });
   });
 
@@ -210,15 +210,15 @@ describe('PatternRecognitionAgent', () => {
 
       // Check one handler
       const reports = await agent.analyze(
-        wrappedHandlers[0].filePath,
-        wrappedHandlers[0].sourceFile,
+        wrappedHandlers[0]!.filePath,
+        wrappedHandlers[0]!.sourceFile,
         context
       );
 
       const responseReport = reports.find((r) => r.dimension === 'responsePattern');
       expect(responseReport).toBeDefined();
       expect(responseReport?.status).toBe('pass');
-      expect(responseReport?.metrics?.consistencyScore).toBe(100);
+      expect(responseReport?.metrics?.['consistencyScore']).toBe(100);
     });
 
     it('should flag deviations from wrapped response pattern', async () => {
@@ -265,7 +265,7 @@ describe('PatternRecognitionAgent', () => {
       expect(namingReport).toBeDefined();
       expect(namingReport?.status).toBe('warning');
       expect(namingReport?.issueCount).toBeGreaterThan(0);
-      expect(namingReport?.issues[0].message).toContain('naming conventions');
+      expect(namingReport?.issues[0]!.message).toContain('naming conventions');
     });
 
     it('should pass when file uses consistent naming', async () => {
@@ -296,11 +296,11 @@ describe('PatternRecognitionAgent', () => {
       }
 
       // Check metrics
-      const reports = await agent.analyze(files[0].filePath, files[0].sourceFile, context);
+      const reports = await agent.analyze(files[0]!.filePath, files[0]!.sourceFile, context);
 
       const namingReport = reports.find((r) => r.dimension === 'namingPattern');
       expect(namingReport).toBeDefined();
-      expect(namingReport?.metrics?.consistencyScore).toBeGreaterThan(80);
+      expect(namingReport?.metrics?.['consistencyScore']).toBeGreaterThan(80);
     });
   });
 
@@ -324,16 +324,16 @@ describe('PatternRecognitionAgent', () => {
       }
 
       // Check consistency score
-      const reports = await agent.analyze(handlers[0].filePath, handlers[0].sourceFile, context);
+      const reports = await agent.analyze(handlers[0]!.filePath, handlers[0]!.sourceFile, context);
 
       const handlerReport = reports.find((r) => r.dimension === 'handlerPattern');
       expect(handlerReport).toBeDefined();
       // Score should be around 82% (18 files with execute out of 22 files)
       // Actual may be slightly different due to multiple methods per handler
-      expect(handlerReport?.metrics?.consistencyScore).toBeGreaterThan(75);
-      expect(handlerReport?.metrics?.consistencyScore).toBeLessThan(90);
-      expect(handlerReport?.metrics?.dominantPattern).toBeGreaterThanOrEqual(18);
-      expect(handlerReport?.metrics?.totalInstances).toBeGreaterThanOrEqual(22);
+      expect(handlerReport?.metrics?.['consistencyScore']).toBeGreaterThan(75);
+      expect(handlerReport?.metrics?.['consistencyScore']).toBeLessThan(90);
+      expect(handlerReport?.metrics?.['dominantPattern']).toBeGreaterThanOrEqual(18);
+      expect(handlerReport?.metrics?.['totalInstances']).toBeGreaterThanOrEqual(22);
     });
 
     it('should identify deviations with file and line numbers', async () => {
@@ -361,9 +361,9 @@ describe('PatternRecognitionAgent', () => {
       const handlerReport = reports.find((r) => r.dimension === 'handlerPattern');
       expect(handlerReport).toBeDefined();
       expect(handlerReport?.issues.length).toBeGreaterThan(0);
-      expect(handlerReport?.issues[0].file).toBe(handleHandler.filePath);
-      expect(handlerReport?.issues[0].line).toBeGreaterThan(0);
-      expect(handlerReport?.issues[0].suggestion).toContain('execute');
+      expect(handlerReport?.issues[0]!.file).toBe(handleHandler.filePath);
+      expect(handlerReport?.issues[0]!.line).toBeGreaterThan(0);
+      expect(handlerReport?.issues[0]!.suggestion).toContain('execute');
     });
   });
 
@@ -535,6 +535,10 @@ function createFileWithConsistentNaming(style: string, fileName = 'consistent.ts
 
 function createContext(allFiles: string[]): AnalysisContext {
   return {
+    projectRoot: '/test',
+    projectFiles: allFiles,
+    testFiles: [],
+    dependencies: {},
     allFiles,
     program: null as any,
     typeChecker: null as any,

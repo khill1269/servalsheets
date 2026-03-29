@@ -41,7 +41,7 @@ describe('Audit Logger - W5 Format Compliance', () => {
   it('should capture WHO (user identity) in audit events', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -58,7 +58,7 @@ describe('Audit Logger - W5 Format Compliance', () => {
   it('should capture WHAT (action and outcome) in audit events', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'range', spreadsheetId: '1ABC', range: 'Sheet1!A1:B10' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -82,7 +82,7 @@ describe('Audit Logger - W5 Format Compliance', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -104,7 +104,7 @@ describe('Audit Logger - W5 Format Compliance', () => {
   it('should capture WHERE (IP address, location) in audit events', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '203.0.113.42',
@@ -125,7 +125,7 @@ describe('Audit Logger - W5 Format Compliance', () => {
   it('should capture WHY (business context, scopes) in audit events', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -161,7 +161,7 @@ describe('Audit Logger - Immutability Guarantees', () => {
   it('should use append-only storage', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -170,7 +170,7 @@ describe('Audit Logger - Immutability Guarantees', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'append_rows',
+      action: 'append_rows' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -193,7 +193,7 @@ describe('Audit Logger - Immutability Guarantees', () => {
   it('should have monotonically increasing sequence numbers', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -202,7 +202,7 @@ describe('Audit Logger - Immutability Guarantees', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'append_rows',
+      action: 'append_rows' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -211,7 +211,7 @@ describe('Audit Logger - Immutability Guarantees', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'clear_range',
+      action: 'clear_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -230,7 +230,7 @@ describe('Audit Logger - Immutability Guarantees', () => {
   it('should not allow modification of existing entries', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -269,7 +269,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
   it('should include HMAC signature for each entry', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -287,7 +287,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
   it('should chain hashes (previous hash included in current hash)', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -296,7 +296,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'append_rows',
+      action: 'append_rows' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -316,7 +316,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
   it('should verify integrity of entire log', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -325,7 +325,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'append_rows',
+      action: 'append_rows' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -340,7 +340,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
   it('should detect hash chain tampering', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -349,7 +349,7 @@ describe('Audit Logger - Tamper-Proof Integrity', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'append_rows',
+      action: 'append_rows' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -392,7 +392,7 @@ describe('Audit Logger - Encryption At Rest', () => {
   it('should write encrypted log lines when encryption key is configured', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -410,7 +410,7 @@ describe('Audit Logger - Encryption At Rest', () => {
   it('should decrypt encrypted log lines', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -429,7 +429,7 @@ describe('Audit Logger - Encryption At Rest', () => {
   it('should verify integrity for encrypted logs', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -438,7 +438,7 @@ describe('Audit Logger - Encryption At Rest', () => {
 
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'append_rows',
+      action: 'append_rows' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -452,7 +452,7 @@ describe('Audit Logger - Encryption At Rest', () => {
   it('should fail integrity verification with incorrect encryption key', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -493,7 +493,7 @@ describe('Audit Logger - Retention Policy', () => {
   it('should prune audit logs older than retention window', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -525,7 +525,7 @@ describe('Audit Logger - Event Coverage', () => {
   it('should log data mutation events', async () => {
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'range', spreadsheetId: '1ABC', range: 'Sheet1!A1:B10' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -544,7 +544,7 @@ describe('Audit Logger - Event Coverage', () => {
   it('should log permission change events', async () => {
     await auditLogger.logPermissionChange({
       userId: 'admin@example.com',
-      action: 'share_spreadsheet',
+      action: 'share_spreadsheet' as any,
       resource: { type: 'permission', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -788,7 +788,7 @@ describe('Audit Logger - Compliance Requirements', () => {
     // Log entries should be timestamped and stored permanently
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',
@@ -811,7 +811,7 @@ describe('Audit Logger - Compliance Requirements', () => {
     // Healthcare data access must be logged
     await auditLogger.logMutation({
       userId: 'doctor@hospital.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: {
         type: 'spreadsheet',
         spreadsheetId: '1ABC',
@@ -840,7 +840,7 @@ describe('Audit Logger - Compliance Requirements', () => {
     // Data controller must maintain records of processing activities
     await auditLogger.logMutation({
       userId: 'user@example.com',
-      action: 'write_range',
+      action: 'write_range' as any,
       resource: { type: 'spreadsheet', spreadsheetId: '1ABC' },
       outcome: 'success',
       ipAddress: '192.168.1.1',

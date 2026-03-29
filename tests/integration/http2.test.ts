@@ -142,7 +142,7 @@ describe('HTTP/2 Support Integration', () => {
       // Version should be >= 100.0.0 (current is 169.0.0)
       const versionMatch = googleapisVersion?.match(/\^?(\d+)/);
       if (versionMatch) {
-        const majorVersion = parseInt(versionMatch[1]);
+        const majorVersion = parseInt(versionMatch[1]!);
         expect(majorVersion).toBeGreaterThanOrEqual(100);
       }
     });

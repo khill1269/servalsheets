@@ -46,7 +46,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
       expect(fix).toBeDefined();
       expect(fix?.tool).toBe('sheets_data');
       expect(fix?.action).toBe('read');
-      expect(fix?.params.range).toBe('A1:Z1000');
+      expect(fix?.params['range']).toBe('A1:Z1000');
       expect(fix?.explanation).toContain('unbounded');
       expect(fix?.explanation).toContain('1:1000');
     });
@@ -60,7 +60,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         { range: 'Sheet1!B:D', spreadsheetId: 'abc123' }
       );
 
-      expect(fix?.params.range).toBe('Sheet1!B1:D1000');
+      expect(fix?.params['range']).toBe('Sheet1!B1:D1000');
     });
 
     it('should handle validation error with unbounded keyword', () => {
@@ -72,7 +72,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         { range: 'X:Y', spreadsheetId: 'abc123' }
       );
 
-      expect(fix?.params.range).toBe('X1:Y1000');
+      expect(fix?.params['range']).toBe('X1:Y1000');
     });
   });
 
@@ -91,7 +91,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
 
       expect(fix?.tool).toBe('sheets_core');
       expect(fix?.action).toBe('list_sheets');
-      expect(fix?.params.spreadsheetId).toBe('abc123');
+      expect(fix?.params['spreadsheetId']).toBe('abc123');
     });
 
     it('should detect emoji in sheet name', () => {
@@ -230,7 +230,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
 
       expect(fix?.tool).toBe('sheets_data');
       expect(fix?.action).toBe('read');
-      expect(fix?.params.verbosity).toBe('minimal');
+      expect(fix?.params['verbosity']).toBe('minimal');
       expect(fix?.explanation).toContain('Rate limited');
       expect(fix?.explanation).toContain('minimal verbosity');
     });
@@ -244,7 +244,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         { spreadsheetId: 'abc123' }
       );
 
-      expect(fix?.params.verbosity).toBe('minimal');
+      expect(fix?.params['verbosity']).toBe('minimal');
     });
 
     it('should handle RATE_LIMITED variant', () => {
@@ -256,7 +256,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         { spreadsheetId: 'abc123' }
       );
 
-      expect(fix?.params.verbosity).toBe('minimal');
+      expect(fix?.params['verbosity']).toBe('minimal');
     });
   });
 
@@ -479,7 +479,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
 
       expect(fix?.tool).toBe('sheets_data');
       expect(fix?.action).toBe('read');
-      expect(fix?.params.verbosity).toBe('minimal');
+      expect(fix?.params['verbosity']).toBe('minimal');
       expect(fix?.explanation).toContain('timed out');
       expect(fix?.explanation).toContain('smaller range');
     });
@@ -493,7 +493,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         { spreadsheetId: 'abc123' }
       );
 
-      expect(fix?.params.verbosity).toBe('minimal');
+      expect(fix?.params['verbosity']).toBe('minimal');
     });
 
     it('should handle "timeout" message', () => {
@@ -505,7 +505,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         { spreadsheetId: 'abc123' }
       );
 
-      expect(fix?.params.verbosity).toBe('minimal');
+      expect(fix?.params['verbosity']).toBe('minimal');
     });
   });
 
@@ -960,7 +960,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
       });
 
       expect(suggestions.length).toBeGreaterThan(0);
-      expect(suggestions[0].message).toContain('FORMULA_ERROR');
+      expect(suggestions[0]!.message).toContain('FORMULA_ERROR');
     });
   });
 
@@ -1028,7 +1028,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
       // Step 3: Fix is suggested
       expect(fixedSuggestion?.tool).toBe('sheets_analyze');
       // Step 4: Parameters are provided
-      expect(fixedSuggestion?.params.spreadsheetId).toBe('abc123');
+      expect(fixedSuggestion?.params['spreadsheetId']).toBe('abc123');
       // Step 5: User can execute fix
       expect(fixedSuggestion?.action).toBe('analyze_formulas');
     });
@@ -1128,11 +1128,11 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         originalParams
       );
 
-      expect(fix?.params.spreadsheetId).toBe('abc123');
-      expect(fix?.params.range).toBe('A1:B10');
-      expect(fix?.params.values).toEqual([['a', 'b']]);
-      expect(fix?.params.customField).toBe('custom value');
-      expect(fix?.params.verbosity).toBe('minimal'); // Added by suggester
+      expect(fix?.params['spreadsheetId']).toBe('abc123');
+      expect(fix?.params['range']).toBe('A1:B10');
+      expect(fix?.params['values']).toEqual([['a', 'b']]);
+      expect(fix?.params['customField']).toBe('custom value');
+      expect(fix?.params['verbosity']).toBe('minimal'); // Added by suggester
     });
 
     it('should handle case-insensitive error message matching', () => {

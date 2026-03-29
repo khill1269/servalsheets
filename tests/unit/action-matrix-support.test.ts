@@ -34,7 +34,7 @@ describe('Action Matrix Support', () => {
           },
         },
       },
-    } as Pick<ActionFixture, 'validInput'>;
+    } as unknown as Pick<ActionFixture, 'tool' | 'validInput'>;
 
     const materialized = materializeFixtureRequest(fixture, {
       primarySpreadsheetId: 'sheet-primary',

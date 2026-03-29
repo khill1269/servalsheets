@@ -142,7 +142,7 @@ describe('Pre-Flight Validation', () => {
       expect(nodeCheck).toBeDefined();
       expect(nodeCheck?.result.passed).toBe(true);
       expect(nodeCheck?.critical).toBe(true);
-      expect(nodeCheck?.result.details?.required).toBe('>=20.0.0');
+      expect(nodeCheck?.result.details?.['required']).toBe('>=20.0.0');
     });
 
     it('should fail when package.json requires a newer Node major', async () => {
@@ -181,7 +181,7 @@ describe('Pre-Flight Validation', () => {
       const configCheck = result.checks.find((c) => c.name === 'Configuration Validation');
       expect(configCheck?.result.passed).toBe(false);
       expect(configCheck?.result.message).toContain('Configuration validation failed');
-      const issues = configCheck?.result.details?.issues as string[];
+      const issues = configCheck?.result.details?.['issues'] as string[];
       expect(issues).toBeDefined();
       expect(
         issues.some((issue: string) => issue.includes('ENCRYPTION_KEY must be 64 hex characters'))
@@ -199,7 +199,7 @@ describe('Pre-Flight Validation', () => {
       const configCheck = result.checks.find((c) => c.name === 'Configuration Validation');
       expect(configCheck?.result.passed).toBe(false);
       expect(configCheck?.result.message).toContain('Configuration validation failed');
-      const issues = configCheck?.result.details?.issues as string[];
+      const issues = configCheck?.result.details?.['issues'] as string[];
       expect(issues).toBeDefined();
       expect(
         issues.some((issue: string) => issue.includes('Incomplete OAuth client configuration'))
@@ -217,7 +217,7 @@ describe('Pre-Flight Validation', () => {
 
       const configCheck = result.checks.find((c) => c.name === 'Configuration Validation');
       expect(configCheck?.result.passed).toBe(false);
-      const issues = configCheck?.result.details?.issues as string[];
+      const issues = configCheck?.result.details?.['issues'] as string[];
       expect(issues).toBeDefined();
       expect(
         issues.some((issue: string) => issue.includes('Incomplete remote OAuth configuration'))
@@ -249,7 +249,7 @@ describe('Pre-Flight Validation', () => {
       const configCheck = result.checks.find((c) => c.name === 'Configuration Validation');
       expect(configCheck?.result.passed).toBe(false);
       expect(configCheck?.result.message).toContain('Configuration validation failed');
-      const issues = configCheck?.result.details?.issues as string[];
+      const issues = configCheck?.result.details?.['issues'] as string[];
       expect(issues).toBeDefined();
       expect(
         issues.some((issue: string) => issue.includes('REDIS_URL should start with redis://'))

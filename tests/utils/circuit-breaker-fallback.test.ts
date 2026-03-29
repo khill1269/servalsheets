@@ -10,14 +10,6 @@
 import { describe, it, expect } from 'vitest';
 import { FallbackStrategies } from '../../src/utils/circuit-breaker.js';
 
-function makeError(message: string, code?: string): Error {
-  const err = new Error(message);
-  if (code) {
-    (err as Error & { errorCode?: string }).errorCode = code;
-  }
-  return err;
-}
-
 function makeCodedError(errorCode: string, message = 'error'): Error {
   const err = new Error(message);
   (err as Error & { errorCode?: string }).errorCode = errorCode;
@@ -71,7 +63,7 @@ describe('FallbackStrategies.readOnlyMode.shouldUse()', () => {
   it('execute() returns the provided readOnlyResponse', async () => {
     const response = { success: false, error: 'test-read-only' };
     const fb = FallbackStrategies.readOnlyMode(response);
-    const result = await fb.execute(new Error('test'));
+    const result = await fb.execute();
     expect(result).toEqual(response);
   });
 });

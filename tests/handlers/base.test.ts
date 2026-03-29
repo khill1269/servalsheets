@@ -206,7 +206,7 @@ describe('BaseHandler', () => {
     it('should include custom metadata when provided', () => {
       const data = {};
       const meta: ResponseMeta = {
-        costEstimate: { apiCalls: 1, tokens: 100 },
+        costEstimate: { apiCalls: 1, estimatedLatencyMs: 100 },
       };
       const result = handler.testSuccess('test', data, undefined, false, meta);
 
@@ -261,7 +261,7 @@ describe('BaseHandler', () => {
 
     it('should preserve error details and metadata', () => {
       const errorDetail: ErrorDetail = {
-        code: 'RATE_LIMIT',
+        code: 'RATE_LIMITED',
         message: 'Too many requests',
         retryable: true,
         retryAfterMs: 5000,
@@ -270,7 +270,7 @@ describe('BaseHandler', () => {
       };
       const result = handler.testError(errorDetail);
 
-      expect(result.error.code).toBe('RATE_LIMIT');
+      expect(result.error.code).toBe('RATE_LIMITED');
       expect(result.error.retryAfterMs).toBe(5000);
       expect(result.error.resolutionSteps).toHaveLength(2);
     });
@@ -832,7 +832,7 @@ describe('BaseHandler', () => {
         revertSnapshotId: 'snap-456',
       };
       const meta: ResponseMeta = {
-        costEstimate: { apiCalls: 2, tokens: 200 },
+        costEstimate: { apiCalls: 2, estimatedLatencyMs: 200 },
       };
 
       const result = handler.testSuccess('write', data, mutation, false, meta);
@@ -929,7 +929,7 @@ describe('BaseHandler', () => {
         },
       };
 
-      const sheetId = await handler.testGetSheetId(spreadsheetId, 'Sheet1', mockSheetsApi);
+      const sheetId = await handler.testGetSheetId(spreadsheetId, 'Sheet1', mockSheetsApi as any);
       expect(sheetId).toBe(123);
 
       const resolveSpan = tracer

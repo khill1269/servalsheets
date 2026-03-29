@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AccessPatternTracker } from '../../src/services/access-pattern-tracker.js';
-import type { AccessRecord } from '../../src/services/access-pattern-tracker.js';
+import type { AccessRecord as _AccessRecord } from '../../src/services/access-pattern-tracker.js';
 
 describe('AccessPatternTracker', () => {
   let tracker: AccessPatternTracker;

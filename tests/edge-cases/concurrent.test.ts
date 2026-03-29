@@ -70,13 +70,11 @@ const createMockDataContext = (): HandlerContext =>
 describe('Concurrent modification edge cases', () => {
   describe('Apps Script: concurrent execution limit (ISSUE-203)', () => {
     let handler: SheetsAppsScriptHandler;
-    let mockSheetsApi: sheets_v4.Sheets;
 
     beforeEach(() => {
       vi.clearAllMocks();
       const mockContext = createMockAppsScriptContext();
-      mockSheetsApi = createMockSheetsApi();
-      handler = new SheetsAppsScriptHandler(mockContext, mockSheetsApi);
+      handler = new SheetsAppsScriptHandler(mockContext as any);
       // Reset static counter to 0 before each test
       (SheetsAppsScriptHandler as any).activeRunExecutions = 0;
     });
@@ -103,10 +101,10 @@ describe('Concurrent modification edge cases', () => {
           scriptId: 'test-script-id',
           functionName: 'myFunction',
         },
-      });
+      } as any);
 
       // Should not fail with QUOTA_EXCEEDED
-      expect(result.response.error?.code).not.toBe('QUOTA_EXCEEDED');
+      expect((result.response as any).error?.code).not.toBe('QUOTA_EXCEEDED');
     });
 
     it('returns QUOTA_EXCEEDED when concurrent execution limit is reached', async () => {
@@ -119,13 +117,13 @@ describe('Concurrent modification edge cases', () => {
           scriptId: 'test-script-id',
           functionName: 'myFunction',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('QUOTA_EXCEEDED');
-      expect(result.response.error.retryable).toBe(true);
-      expect(result.response.error.retryAfterMs).toBe(30000);
-      expect(result.response.error.message).toContain('concurrent execution limit');
+      expect((result.response as any).error.code).toBe('QUOTA_EXCEEDED');
+      expect((result.response as any).error.retryable).toBe(true);
+      expect((result.response as any).error.retryAfterMs).toBe(30000);
+      expect((result.response as any).error.message).toContain('concurrent execution limit');
     });
 
     it('releases the slot even when execution returns an error result', async () => {
@@ -149,7 +147,7 @@ describe('Concurrent modification edge cases', () => {
           scriptId: 'test-script-id',
           functionName: 'failingFunction',
         },
-      });
+      } as any);
 
       // Counter should be decremented back, not leak
       // Lifecycle: start=3 → increment to 4 → decrement to 3 (net change = 0)

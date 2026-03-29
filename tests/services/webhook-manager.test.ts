@@ -23,7 +23,7 @@ describe('WebhookManager', () => {
     // Reset singleton
     resetWebhookManager();
     resetEnvForTest();
-    vi.spyOn(dns.promises, 'lookup').mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValue({ address: '93.184.216.34', family: 4 });
 
     // Mock Redis client
     mockRedis = {

@@ -43,8 +43,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
     mockContext = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: mockGoogleClient as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      sheetsApi: {} as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock auth type
       authClient: { credentials: { access_token: 'test-token' } } as any,
       authService: {
@@ -72,7 +70,7 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
-    };
+    } as unknown as HandlerContext;
 
     handler = new SheetsAppsScriptHandler(mockContext);
   });
@@ -104,18 +102,18 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
         request: {
           action: 'list_processes',
         },
-      });
+      } as any);
 
       // Should return error with helpful guidance
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('Apps Script API');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('Apps Script API');
 
       // BUG FIX: Should mention how to enable API
       const errorText =
-        (result.response.error?.message || '') +
-        (result.response.error?.resolution || '') +
-        (result.response.error?.details?.resolution || '');
+        ((result.response as any).error?.message || '') +
+        ((result.response as any).error?.resolution || '') +
+        ((result.response as any).error?.details?.resolution || '');
       expect(errorText.toLowerCase().includes('enable')).toBe(true);
     });
 
@@ -141,17 +139,17 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
           action: 'get',
           scriptId: 'test-script-id',
         },
-      });
+      } as any);
 
       // Should return error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
 
       // BUG FIX: Should mention required scopes
       const errorText =
-        (result.response.error?.message || '') +
-        (result.response.error?.resolution || '') +
-        (result.response.error?.details?.resolution || '');
+        ((result.response as any).error?.message || '') +
+        ((result.response as any).error?.resolution || '') +
+        ((result.response as any).error?.details?.resolution || '');
       expect(errorText.includes('script.projects') || errorText.includes('OAuth scopes')).toBe(
         true
       );
@@ -179,12 +177,12 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
           action: 'get',
           scriptId: 'invalid-id',
         },
-      });
+      } as any);
 
       // Should return error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should provide helpful error for 404 not found', async () => {
@@ -209,12 +207,12 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
           action: 'get',
           scriptId: 'nonexistent-script',
         },
-      });
+      } as any);
 
       // Should return NOT_FOUND error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('NOT_FOUND');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('NOT_FOUND');
     });
   });
 
@@ -234,12 +232,12 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
           request: {
             action: 'list_processes',
           },
-        })
+        } as any)
       ).rejects.toMatchObject({
         error: {
           code: 'AUTHENTICATION_REQUIRED',
         },
-      });
+      } as any);
     });
 
     it('should require OAuth access token', async () => {
@@ -250,11 +248,11 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
         request: {
           action: 'list_processes',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('AUTH_ERROR');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('AUTH_ERROR');
     });
   });
 
@@ -283,10 +281,10 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
         request: {
           action: 'list_processes',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.processes).toBeDefined();
+      expect((result.response as any).processes).toBeDefined();
     });
   });
 
@@ -300,8 +298,8 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 });

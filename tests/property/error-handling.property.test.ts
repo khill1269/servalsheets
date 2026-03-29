@@ -165,7 +165,7 @@ describe('Error Handling Property Tests', () => {
               resourceType: 'spreadsheet',
             });
 
-            return error.details.resourceId === resourceId;
+            return error.details?.['resourceId'] === resourceId;
           }
         ),
         { numRuns: 500 }
@@ -194,7 +194,7 @@ describe('Error Handling Property Tests', () => {
             value: 'test',
           });
 
-          return error.details.field === field;
+          return error.details?.['field'] === field;
         }),
         { numRuns: 500 }
       );
@@ -207,7 +207,7 @@ describe('Error Handling Property Tests', () => {
             operation,
           });
 
-          return error.details.operation === operation;
+          return error.details?.['operation'] === operation;
         }),
         { numRuns: 500 }
       );
@@ -347,7 +347,7 @@ describe('Error Handling Property Tests', () => {
           });
 
           const validSeverities = ['low', 'medium', 'high', 'critical'];
-          return validSeverities.includes(error.severity);
+          return validSeverities.includes(error.severity!);
         }),
         { numRuns: 500 }
       );
@@ -411,7 +411,7 @@ describe('Error Handling Property Tests', () => {
 
         // Each resource type maps to a specific *_NOT_FOUND code
         expect(error.code as string).toContain('NOT_FOUND');
-        expect(error.details.resourceType).toBe(resourceType);
+        expect(error.details?.['resourceType']).toBe(resourceType);
       }
     });
 
@@ -441,8 +441,8 @@ describe('Error Handling Property Tests', () => {
       });
 
       expect(error.code).toBe('INVALID_REQUEST');
-      expect(error.details.expectedFormat).toBe('string');
-      expect(error.details.allowedValues).toEqual(['a', 'b', 'c']);
+      expect(error.details?.['expectedFormat']).toBe('string');
+      expect(error.details?.['allowedValues']).toEqual(['a', 'b', 'c']);
     });
   });
 

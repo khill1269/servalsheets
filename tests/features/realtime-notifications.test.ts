@@ -39,10 +39,10 @@ function getSubscriptionHandlers(server: McpServer): {
       .setRequestHandler as ReturnType<typeof vi.fn>
   ).mock.calls;
   return {
-    subscribe: calls[0][1] as (request: {
+    subscribe: calls[0]![1] as (request: {
       params: { uri: string };
     }) => Promise<Record<string, never>>,
-    unsubscribe: calls[1][1] as (request: {
+    unsubscribe: calls[1]![1] as (request: {
       params: { uri: string };
     }) => Promise<Record<string, never>>,
   };

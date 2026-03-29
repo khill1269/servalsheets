@@ -155,7 +155,7 @@ for (const tool of toolNames) {
             const issues = result.error.issues
               .map(
                 (i) =>
-                  `  - ${i.path.join('.')}: ${i.message} (code: ${(i as unknown as Record<string, unknown>).code})`
+                  `  - ${i.path.join('.')}: ${i.message} (code: ${(i as unknown as Record<string, unknown>)['code']})`
               )
               .join('\n');
             throw new Error(

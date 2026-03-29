@@ -54,9 +54,9 @@ describe('google handler context helper', () => {
     const context = createGoogleHandlerContextBase({
       googleClient: googleClient as never,
       runtimeServices: {
-        snapshotService: { kind: 'snapshot' } as never,
+        snapshotService: { kind: 'snapshot' },
         ...mockedPerformanceServices,
-      },
+      } as never,
       requestDeduplicator: requestDeduplicator as never,
       extraContext: {
         taskStore: { kind: 'task-store' },

@@ -15,11 +15,14 @@ import { resetSessionContext } from '../../src/services/session-context.js';
 
 describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
   let handler: SessionHandler;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper to bypass strict input typing
+  let h: any;
 
   beforeEach(() => {
     // Reset session context before each test
     resetSessionContext();
     handler = new SessionHandler();
+    h = handler;
   });
 
   afterEach(() => {
@@ -31,7 +34,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
   describe('set_active with sheetNames', () => {
     it('should store sheetNames when provided', async () => {
       // Set active with sheet names
-      await handler.handle({
+      await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: 'test-id',
@@ -41,7 +44,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
       });
 
       // Get context
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_context',
         },
@@ -61,7 +64,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
 
     it('should handle set_active without sheetNames (BUG FIX 0.11.1)', async () => {
       // Set active WITHOUT sheet names (common case)
-      await handler.handle({
+      await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: 'test-id',
@@ -71,7 +74,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
       });
 
       // Get context
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_context',
         },
@@ -89,7 +92,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
   describe('get_active returns sheetNames', () => {
     it('should include sheetNames in get_active response', async () => {
       // Set active with sheet names
-      await handler.handle({
+      await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: 'test-id',
@@ -99,7 +102,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
       });
 
       // Get active
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_active',
         },
@@ -117,7 +120,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
   describe('context summary includes sheetNames', () => {
     it('should mention sheet names in context summary', async () => {
       // Set active with sheet names
-      await handler.handle({
+      await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: 'test-id',
@@ -127,7 +130,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
       });
 
       // Get context
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_context',
         },
@@ -136,7 +139,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
       // Summary should mention sheets
       expect(result.response.success).toBe(true);
       if (result.response.success && 'summary' in result.response) {
-        const summary = result.response.summary.toLowerCase();
+        const summary = (result.response.summary as string | undefined)?.toLowerCase() ?? '';
         expect(summary.includes('4 sheets') || summary.includes('sheets:')).toBe(true);
       }
     });
@@ -144,7 +147,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
 
   describe('error path tests', () => {
     it('should handle set_active with empty sheetNames array (edge case)', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: 'test-id',
@@ -159,7 +162,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
 
     it('should handle get_context when no active spreadsheet is set', async () => {
       // Don't call set_active - start from clean state
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_context',
         },
@@ -173,7 +176,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
     });
 
     it('should handle set_active with missing spreadsheetId gracefully', async () => {
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: '',
@@ -191,7 +194,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
   describe('regression tests', () => {
     it('should handle get_context with no active spreadsheet', async () => {
       // Don't set active
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_context',
         },
@@ -207,7 +210,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
       // Create array with 150 sheets (exceeds maxSheetNames=100)
       const manySheets = Array.from({ length: 150 }, (_, i) => `Sheet${i + 1}`);
 
-      await handler.handle({
+      await h.handle({
         request: {
           action: 'set_active',
           spreadsheetId: 'test-id',
@@ -216,7 +219,7 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = await h.handle({
         request: {
           action: 'get_context',
         },

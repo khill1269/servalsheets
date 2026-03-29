@@ -4,13 +4,9 @@ import { fileURLToPath } from 'node:url';
 const isCI = process.env['CI'] === 'true' || process.env['GITHUB_ACTIONS'] === 'true';
 const maxConcurrency = isCI ? 4 : 8;
 const maxWorkers = isCI ? 4 : 8;
-const minWorkers = isCI ? 1 : 2;
 
 export default defineConfig({
   resolve: {
-    extensionAlias: {
-      '.js': ['.ts', '.js'],
-    },
     alias: {
       'node-cron': fileURLToPath(new URL('../mocks/node-cron.ts', import.meta.url)),
     },
@@ -28,7 +24,6 @@ export default defineConfig({
     pool: 'threads',
     maxConcurrency,
     maxWorkers,
-    minWorkers,
     benchmark: {
       include: ['tests/audit/performance-profile.bench.ts'],
       exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**', '**/tests/benchmarks/**'],

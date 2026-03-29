@@ -21,7 +21,7 @@ function extractSchemaActions(inputSchema: ZodTypeAny): string[] | null {
   if (!shape?.['request']) return null;
 
   const requestSchema = shape['request'];
-  const def = (requestSchema as { _def?: Record<string, unknown> })._def;
+  const def = (requestSchema as unknown as { _def?: Record<string, unknown> })._def;
   if (!def) return null;
 
   // Zod v4: _def.options is an array of ZodObject, discriminator is 'action'
@@ -34,7 +34,7 @@ function extractSchemaActions(inputSchema: ZodTypeAny): string[] | null {
   for (const option of options) {
     const actionField = option.shape?.['action'];
     if (!actionField) continue;
-    const fieldDef = (actionField as { _def?: Record<string, unknown> })._def;
+    const fieldDef = (actionField as unknown as { _def?: Record<string, unknown> })._def;
     // Zod v4 ZodLiteral uses 'values' array
     const values = fieldDef?.['values'] as unknown[] | undefined;
     if (Array.isArray(values) && values.length > 0) {
@@ -82,14 +82,14 @@ describe('TOOL_ACTIONS cross-map consistency (G17)', () => {
       const inCompletionNotSchema = completionActions.filter(a => !schemaSet.has(a));
       const inSchemaNoteCompletion = schemaActions.filter(a => !completionSet.has(a));
 
-      expect(inCompletionNotSchema).toEqual(
-        [],
+      expect(
+        inCompletionNotSchema,
         `${toolName}: completions.ts has actions not in schema: ${inCompletionNotSchema.join(', ')}`
-      );
-      expect(inSchemaNoteCompletion).toEqual(
-        [],
+      ).toEqual([]);
+      expect(
+        inSchemaNoteCompletion,
         `${toolName}: schema has actions not in completions.ts: ${inSchemaNoteCompletion.join(', ')}`
-      );
+      ).toEqual([]);
     });
   }
 });

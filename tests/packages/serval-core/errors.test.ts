@@ -175,12 +175,12 @@ describe('@serval/core — error classes', () => {
       const errors = [
         new ServiceError('s', 'UNKNOWN_ERROR', 'X', false),
         new ConfigError('c', 'K'),
-        new ValidationError('v'),
-        new NotFoundError('n', 'T', 'I'),
+        new ValidationError('v', 'field'),
+        new NotFoundError('T', 'I'),
         new AuthenticationError('a', 'oauth'),
-        new DataError('d', 'csv', 'op'),
+        new DataError('d', 'DATA_ERROR', false),
         new QuotaExceededError('q', 'read', 10),
-        new ApiTimeoutError('t', 'ep', 1000),
+        new ApiTimeoutError('t', 1000, 'ep'),
       ];
       for (const err of errors) {
         expect(err).toBeInstanceOf(ServalError);

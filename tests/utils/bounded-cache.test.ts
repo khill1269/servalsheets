@@ -5,7 +5,24 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { BoundedCache } from '../../src/utils/bounded-cache.js';
+import { BoundedCache as BoundedCacheImpl, type BoundedCacheOptions } from '../../src/utils/bounded-cache.js';
+
+// The production type constrains V extends object, but tests need primitive values.
+// Cast to a relaxed constructor type for test use only.
+const BoundedCache = BoundedCacheImpl as unknown as new <K extends string, V>(
+  options: BoundedCacheOptions
+) => {
+  get(key: K): V | undefined;
+  set(key: K, value: V): void;
+  has(key: K): boolean;
+  delete(key: K): boolean;
+  clear(): void;
+  size(): number;
+  keys(): IterableIterator<K>;
+  values(): IterableIterator<V>;
+  entries(): IterableIterator<[K, V]>;
+  getStats(): { size: number; maxSize: number; utilization: number };
+};
 
 describe('BoundedCache', () => {
   describe('Basic Operations', () => {

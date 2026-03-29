@@ -14,7 +14,7 @@
  * For full testing, multiple test accounts are recommended.
  */
 
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { it, expect, afterEach, beforeEach } from 'vitest';
 import { createTestOrchestrator, describeE2E } from '../setup/test-orchestrator.js';
 
 describeE2E('E2E: Collaboration Workflow', () => {
@@ -87,7 +87,7 @@ describeE2E('E2E: Collaboration Workflow', () => {
         const typed = result as { values?: unknown[][] };
         expect(typed.values).toBeDefined();
         expect(typed.values).toHaveLength(4);
-        expect(typed.values?.[0][0]).toBe('Task');
+        expect(typed.values?.[0]?.[0]).toBe('Task');
       },
     });
 
@@ -234,9 +234,9 @@ describeE2E('E2E: Collaboration Workflow', () => {
         expect(typed.values).toBeDefined();
         expect(typed.values).toHaveLength(4);
         // Verify all editors are tracked
-        expect(typed.values?.[1][1]).toBe('Editor A');
-        expect(typed.values?.[2][1]).toBe('Editor B');
-        expect(typed.values?.[3][1]).toBe('Editor C');
+        expect(typed.values?.[1]?.[1]).toBe('Editor A');
+        expect(typed.values?.[2]?.[1]).toBe('Editor B');
+        expect(typed.values?.[3]?.[1]).toBe('Editor C');
       },
     });
 

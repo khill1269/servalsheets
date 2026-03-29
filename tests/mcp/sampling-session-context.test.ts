@@ -78,8 +78,8 @@ describe('analyzeData() — session context enrichment', () => {
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
-    expect(messages[0].content.text).not.toContain('Active spreadsheet:');
-    expect(messages[0].content.text).not.toContain('Recent operations');
+    expect(messages[0]!.content.text).not.toContain('Active spreadsheet:');
+    expect(messages[0]!.content.text).not.toContain('Recent operations');
   });
 
   it('includes active spreadsheet in prompt when sessionContext has one', async () => {
@@ -100,7 +100,7 @@ describe('analyzeData() — session context enrichment', () => {
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
-    const promptText = messages[0].content.text;
+    const promptText = messages[0]!.content.text;
     expect(promptText).toContain('Q1 Sales Report');
     expect(promptText).toContain('Sheet1');
     expect(promptText).toContain('Revenue');
@@ -123,7 +123,7 @@ describe('analyzeData() — session context enrichment', () => {
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
-    const promptText = messages[0].content.text;
+    const promptText = messages[0]!.content.text;
     expect(promptText).toContain('sheets_data');
     expect(promptText).toContain('sheets_format');
     expect(promptText).toContain('Sheet1!A1:B10');
@@ -144,7 +144,7 @@ describe('analyzeData() — session context enrichment', () => {
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
-    const promptText = messages[0].content.text;
+    const promptText = messages[0]!.content.text;
     expect(promptText).not.toContain('Active spreadsheet:');
     expect(promptText).not.toContain('Recent operations');
   });
@@ -171,7 +171,7 @@ describe('analyzeData() — session context enrichment', () => {
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
-    const promptText = messages[0].content.text;
+    const promptText = messages[0]!.content.text;
     // Last 5: C1, D1, E1, F1, G1 — first two (A1, B1) should not appear
     expect(promptText).toContain('G1');
     expect(promptText).toContain('F1');

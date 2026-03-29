@@ -75,12 +75,12 @@ async function benchmark<T>(
   const variance = times.reduce((acc, t) => acc + Math.pow(t - mean, 2), 0) / times.length;
 
   return {
-    min: times[0],
-    max: times[times.length - 1],
+    min: times[0]!,
+    max: times[times.length - 1]!,
     mean,
-    median: times[Math.floor(times.length / 2)],
-    p95: times[Math.floor(times.length * 0.95)],
-    p99: times[Math.floor(times.length * 0.99)],
+    median: times[Math.floor(times.length / 2)]!,
+    p95: times[Math.floor(times.length * 0.95)]!,
+    p99: times[Math.floor(times.length * 0.99)]!,
     stdDev: Math.sqrt(variance),
   };
 }
@@ -111,9 +111,11 @@ function measureMemory<T>(fn: () => T): {
   };
 }
 
-// Skip performance regression tests unless explicitly requested
-// These tests compare against baseline and fail on regressions
-describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', () => {
+// Skip performance regression tests unless explicitly requested.
+// PERF_BASELINE creates a baseline, PERF_COMPARE compares against an existing one.
+describe.skipIf(!(process.env['PERF_COMPARE'] || process.env['PERF_BASELINE']))(
+  'Performance Regression Tests',
+  () => {
   const collectedMetrics: PerformanceMetrics[] = [];
   let mockContext: ReturnType<typeof createMockContext>;
   let handlers: ReturnType<typeof createHandlers>;
@@ -125,7 +127,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
       googleClient: { sheets: mockSheetsApi, getCircuitBreakerState: () => 'closed' },
     });
     handlers = createHandlers({
-      context: mockContext,
+      context: mockContext as unknown as any,
       sheetsApi: mockSheetsApi,
       driveApi: createMockDriveApi(),
     });
@@ -159,7 +161,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
         spreadsheetId: 'test-spreadsheet-id',
       };
 
-      const stats = await benchmark(() => handlers.core.handle({ request: input }), 200);
+      const stats = await benchmark(() => handlers.core.handle({ request: input } as any), 200);
 
       collectedMetrics.push({
         name: 'handler.core.get',
@@ -176,7 +178,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
         range: { a1: 'Sheet1!A1:B10' },
       };
 
-      const stats = await benchmark(() => handlers.data.handle({ request: input }), 200);
+      const stats = await benchmark(() => handlers.data.handle({ request: input } as any), 200);
 
       collectedMetrics.push({
         name: 'handler.data.read_range',
@@ -199,7 +201,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
         valueInputOption: 'USER_ENTERED' as const,
       };
 
-      const stats = await benchmark(() => handlers.data.handle({ request: input }), 50);
+      const stats = await benchmark(() => handlers.data.handle({ request: input } as any), 50);
 
       collectedMetrics.push({
         name: 'handler.data.write_range.large',
@@ -221,7 +223,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
         },
       };
 
-      const stats = await benchmark(() => handlers.format.handle({ request: input }), 100);
+      const stats = await benchmark(() => handlers.format.handle({ request: input } as any), 100);
 
       collectedMetrics.push({
         name: 'handler.format.set_format',
@@ -241,7 +243,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
 
       const { heapUsed, external, rss } = measureMemory(() => {
         for (let i = 0; i < 100; i++) {
-          handlers.core.handle({ request: input });
+          handlers.core.handle({ request: input } as any);
         }
       });
 
@@ -269,7 +271,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
 
       const { heapUsed, external, rss } = measureMemory(() => {
         for (let i = 0; i < 10; i++) {
-          handlers.data.handle({ request: input });
+          handlers.data.handle({ request: input } as any);
         }
       });
 
@@ -297,7 +299,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
       const start = performance.now();
 
       for (let i = 0; i < iterations; i++) {
-        await handlers.data.handle({ request: input });
+        await handlers.data.handle({ request: input } as any);
       }
 
       const duration = performance.now() - start;
@@ -331,7 +333,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
 
       const start = performance.now();
 
-      await Promise.all(inputs.map((input) => handlers.data.handle({ request: input })));
+      await Promise.all(inputs.map((input) => handlers.data.handle({ request: input as any } as any)));
 
       const duration = performance.now() - start;
       const throughput = (inputs.length / duration) * 1000;
@@ -439,7 +441,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
         ranges,
       };
 
-      const stats = await benchmark(() => handlers.data.handle({ request: input }), 50);
+      const stats = await benchmark(() => handlers.data.handle({ request: input } as any), 50);
 
       collectedMetrics.push({
         name: 'handler.data.batch_read.50ranges',
@@ -466,7 +468,7 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
         valueInputOption: 'USER_ENTERED' as const,
       };
 
-      const stats = await benchmark(() => handlers.data.handle({ request: input }), 50);
+      const stats = await benchmark(() => handlers.data.handle({ request: input } as any), 50);
 
       collectedMetrics.push({
         name: 'handler.data.batch_write.20entries',
@@ -517,4 +519,5 @@ describe.skipIf(!process.env['PERF_COMPARE'])('Performance Regression Tests', ()
       expect(stats.p95).toBeLessThan(7); // 7ms with retry wrapper
     });
   });
-});
+  }
+);

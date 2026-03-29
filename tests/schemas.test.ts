@@ -156,7 +156,7 @@ describe('ServalSheets v4', () => {
 
         expect(result.success).toBe(true);
         if (result.success) {
-          expect(result.data.request.runtimeVersion).toBe('V8');
+          expect((result.data.request as { runtimeVersion?: string }).runtimeVersion).toBe('V8');
         }
       });
     });

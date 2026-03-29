@@ -84,9 +84,9 @@ describe('WatchMode', () => {
 
       let analysisCount = 0;
       const originalAnalyze = watcher['analyzeFile'].bind(watcher);
-      watcher['analyzeFile'] = vi.fn(async (...args) => {
+      watcher['analyzeFile'] = vi.fn(async (...args: unknown[]) => {
         analysisCount++;
-        return originalAnalyze(...args);
+        return originalAnalyze(...(args as Parameters<typeof originalAnalyze>));
       });
 
       // Simulate rapid changes

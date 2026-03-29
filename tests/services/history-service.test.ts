@@ -32,6 +32,7 @@ function createMockOperation(overrides: Partial<OperationHistory> = {}): Operati
     timestamp: new Date('2024-01-15T00:00:00Z').toISOString(),
     duration: 100,
     result: 'success',
+    params: {},
     ...overrides,
   };
 }
@@ -210,7 +211,7 @@ describe('HistoryService', () => {
 
       const recent = service.getRecent(3);
       expect(recent).toHaveLength(3);
-      expect(recent[2].id).toBe('op-9');
+      expect(recent[2]!.id).toBe('op-9');
     });
 
     it('should return all if less than N operations', () => {

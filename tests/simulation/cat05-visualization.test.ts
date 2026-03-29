@@ -42,11 +42,7 @@ const createMockContext = (): HandlerContext => ({
   samplingServer: undefined,
   snapshotService: {} as any,
   sessionContext: {} as any,
-  confirmDestructiveAction: vi.fn().mockResolvedValue(undefined),
-  createSnapshotIfNeeded: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
-  sendProgress: vi.fn(),
-  cachedApi: {} as any,
-});
+} as unknown as HandlerContext);
 
 describe('Category 5: Visualization Operations', () => {
   let handler: VisualizeHandler;
@@ -68,7 +64,7 @@ describe('Category 5: Visualization Operations', () => {
   it('5.1 chart_list returns response object', async () => {
     const result = await handler.handle({
       request: { action: 'chart_list', spreadsheetId: 'test-sheet-id' },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -76,7 +72,7 @@ describe('Category 5: Visualization Operations', () => {
   it('5.2 chart_get returns response object', async () => {
     const result = await handler.handle({
       request: { action: 'chart_get', spreadsheetId: 'test-sheet-id', chartId: 123 },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -92,9 +88,9 @@ describe('Category 5: Visualization Operations', () => {
         sheetId: 0,
         chartType: 'COLUMN',
         data: { sourceRange: { a1: 'Sheet1!A1:B4' } },
-        position: { overlayPosition: { anchorCell: { a1: 'A5' } } },
+        position: { anchorCell: 'A5', offsetX: 0, offsetY: 0, width: 600, height: 400 },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -103,7 +99,7 @@ describe('Category 5: Visualization Operations', () => {
     mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{ deleteChart: {} }] } });
     const result = await handler.handle({
       request: { action: 'chart_delete', spreadsheetId: 'test-sheet-id', chartId: 123 },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -119,7 +115,7 @@ describe('Category 5: Visualization Operations', () => {
         chartId: 123,
         data: { sourceRange: { a1: 'Sheet1!A1:C5' } },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -134,9 +130,9 @@ describe('Category 5: Visualization Operations', () => {
         spreadsheetId: 'test-sheet-id',
         chartId: 123,
         seriesIndex: 0,
-        trendline: { type: 'LINEAR' },
+        trendline: { type: 'LINEAR', showEquation: false, showRSquared: false },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -152,7 +148,7 @@ describe('Category 5: Visualization Operations', () => {
         chartId: 123,
         seriesIndex: 0,
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -166,10 +162,10 @@ describe('Category 5: Visualization Operations', () => {
         action: 'pivot_create',
         spreadsheetId: 'test-sheet-id',
         sourceRange: { a1: 'Sheet1!A1:C4' },
-        rows: ['Month'],
-        values: ['Sales'],
+        rows: [{ sourceColumnOffset: 0, showTotals: false }],
+        values: [{ sourceColumnOffset: 1, summarizeFunction: 'SUM' }],
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -179,8 +175,8 @@ describe('Category 5: Visualization Operations', () => {
       data: { replies: [{ updatePivotTable: { pivotTable: { pivotId: 999 } } }] },
     });
     const result = await handler.handle({
-      request: { action: 'pivot_refresh', spreadsheetId: 'test-sheet-id', pivotId: 999 },
-    });
+      request: { action: 'pivot_refresh', spreadsheetId: 'test-sheet-id', sheetId: 0 },
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -188,7 +184,7 @@ describe('Category 5: Visualization Operations', () => {
   it('5.10 suggest_chart dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'suggest_chart', spreadsheetId: 'test-sheet-id', range: { a1: 'Sheet1!A1:C4' } },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -198,9 +194,9 @@ describe('Category 5: Visualization Operations', () => {
       request: {
         action: 'suggest_pivot',
         spreadsheetId: 'test-sheet-id',
-        sourceRange: { a1: 'Sheet1!A1:C4' },
+        range: { a1: 'Sheet1!A1:C4' },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });
@@ -214,9 +210,9 @@ describe('Category 5: Visualization Operations', () => {
         action: 'chart_move',
         spreadsheetId: 'test-sheet-id',
         chartId: 123,
-        position: { overlayPosition: { anchorCell: { a1: 'E5' } } },
+        position: { anchorCell: 'E5', offsetX: 0, offsetY: 0, width: 600, height: 400 },
       },
-    });
+    } as any);
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();
   });

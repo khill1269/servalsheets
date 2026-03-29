@@ -70,7 +70,7 @@ describe('legacy schema wrapper hardening', () => {
 
     // Should reject with ZodError for invalid action
     await expect(async () => {
-      await map.sheets_core({
+      await map['sheets_core']!({
         request: {
           action: 'not_a_real_action' as any,
           spreadsheetId: 'sheet-123',

@@ -248,8 +248,8 @@ describe('OAuth Flow Integration Tests', () => {
       });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBeDefined();
-      expect(['invalid_grant', 'invalid_request']).toContain(response.body.error);
+      expect((response.body as any).error).toBeDefined();
+      expect(['invalid_grant', 'invalid_request']).toContain((response.body as any).error);
     });
   });
 
@@ -276,7 +276,7 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect(response.status).toBe(200);
       // Token should be marked as inactive
-      expect(response.body.active).toBe(false);
+      expect((response.body as any).active).toBe(false);
     });
 
     it('should reject JWT with wrong audience', async () => {
@@ -300,7 +300,7 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect(response.status).toBe(200);
       // Token should be marked as inactive
-      expect(response.body.active).toBe(false);
+      expect((response.body as any).active).toBe(false);
     });
 
     it('should reject expired JWT', async () => {
@@ -323,7 +323,7 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect(response.status).toBe(200);
       // Token should be marked as inactive
-      expect(response.body.active).toBe(false);
+      expect((response.body as any).active).toBe(false);
     });
 
     it('should reject JWT signed with wrong secret', async () => {
@@ -347,7 +347,7 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect(response.status).toBe(200);
       // Token should be marked as inactive
-      expect(response.body.active).toBe(false);
+      expect((response.body as any).active).toBe(false);
     });
   });
 
@@ -382,7 +382,7 @@ describe('OAuth Flow Integration Tests', () => {
       });
 
       expect(tokenResponse.status).toBe(400);
-      expect(tokenResponse.body.error).toBeDefined();
+      expect((tokenResponse.body as any).error).toBeDefined();
     });
 
     it('should reject token exchange with wrong code_verifier', async () => {
@@ -397,7 +397,7 @@ describe('OAuth Flow Integration Tests', () => {
       });
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBeDefined();
+      expect((response.body as any).error).toBeDefined();
     });
   });
 

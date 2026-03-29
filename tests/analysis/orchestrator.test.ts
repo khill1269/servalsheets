@@ -9,12 +9,11 @@
  * - Report generation
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as ts from 'typescript';
 import { safeUnlinkSync } from '../helpers/safe-cleanup.js';
-import { AnalysisOrchestrator, OrchestratorOptions } from '../../scripts/analysis/orchestrator.js';
+import { AnalysisOrchestrator } from '../../scripts/analysis/orchestrator.js';
 import type { AnalysisContext } from '../../scripts/analysis/multi-agent-analysis.js';
 
 describe('AnalysisOrchestrator', () => {
@@ -227,21 +226,9 @@ export class TestHandler {
 
       // Conflicting findings should be filtered out
       if (report.resolvedConflicts.length > 0) {
-        const conflictIssueIds = new Set(
-          report.resolvedConflicts.flatMap((c) =>
-            c.issues.map((i) => `${i.file}:${i.line}:${i.dimension}`)
-          )
-        );
-
-        const finalIssueIds = new Set(
-          report.validatedFindings.map(
-            (f) => `${f.issue.file}:${f.issue.line}:${f.issue.dimension}`
-          )
-        );
-
         // Winner issues should be in final findings
         for (const conflict of report.resolvedConflicts) {
-          const winnerIssue = conflict.issues.find((i) =>
+          conflict.issues.find((i) =>
             report.validatedFindings.some(
               (f) => f.issue === i && f.validatedBy[0] === conflict.winner
             )

@@ -85,7 +85,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'add_named_range',
       spreadsheetId: 'sheet-id',
       name: 'Range1',
@@ -101,7 +101,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('updates a named range', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'update_named_range',
       spreadsheetId: 'sheet-id',
       namedRangeId: 'nr1',
@@ -115,7 +115,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('deletes a named range', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'delete_named_range',
       spreadsheetId: 'sheet-id',
       namedRangeId: 'nr1',
@@ -137,7 +137,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'list_named_ranges',
       spreadsheetId: 'sheet-id',
     });
@@ -158,7 +158,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'get_named_range',
       spreadsheetId: 'sheet-id',
       name: 'MyRange',
@@ -178,7 +178,7 @@ describe('AdvancedHandler', () => {
       data: { namedRanges: [] },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'get_named_range',
       spreadsheetId: 'sheet-id',
       name: 'NonExistent',
@@ -215,7 +215,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'add_protected_range',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B2' },
@@ -233,7 +233,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('updates a protected range', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'update_protected_range',
       spreadsheetId: 'sheet-id',
       protectedRangeId: 42,
@@ -248,7 +248,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('deletes a protected range', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'delete_protected_range',
       spreadsheetId: 'sheet-id',
       protectedRangeId: 42,
@@ -294,7 +294,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'list_protected_ranges',
       spreadsheetId: 'sheet-id',
     });
@@ -347,7 +347,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'set_metadata',
       spreadsheetId: 'sheet-id',
       metadataKey: 'my_key',
@@ -375,7 +375,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'get_metadata',
       spreadsheetId: 'sheet-id',
       metadataKey: 'my_key',
@@ -391,7 +391,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('deletes developer metadata', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'delete_metadata',
       spreadsheetId: 'sheet-id',
       metadataId: 101,
@@ -420,7 +420,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'add_banding',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:D10' },
@@ -437,7 +437,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('rejects banding without row or column properties', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'add_banding',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:D10' },
@@ -447,7 +447,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('updates banding', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'update_banding',
       spreadsheetId: 'sheet-id',
       bandedRangeId: 5,
@@ -464,7 +464,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('deletes banding', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'delete_banding',
       spreadsheetId: 'sheet-id',
       bandedRangeId: 5,
@@ -509,7 +509,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'list_banding',
       spreadsheetId: 'sheet-id',
     });
@@ -555,7 +555,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'create_table',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B2' },
@@ -594,7 +594,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'create_table',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B5' },
@@ -635,7 +635,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'create_table',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B5' },
@@ -654,7 +654,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('deletes a table', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'delete_table',
       spreadsheetId: 'sheet-id',
       tableId: 'table-1',
@@ -701,7 +701,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'list_tables',
       spreadsheetId: 'sheet-id',
     });
@@ -716,7 +716,7 @@ describe('AdvancedHandler', () => {
   });
 
   it('updates a table range', async () => {
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'update_table',
       spreadsheetId: 'sheet-id',
       tableId: 'table-1',
@@ -731,7 +731,7 @@ describe('AdvancedHandler', () => {
 
   it('updates a table without range (no-op path)', async () => {
     // update_table with no range specified results in no batchUpdate call
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'update_table',
       spreadsheetId: 'sheet-id',
       tableId: 'table-1',
@@ -770,7 +770,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'rename_table_column',
       spreadsheetId: 'sheet-id',
       tableId: 'table-1',
@@ -789,7 +789,7 @@ describe('AdvancedHandler', () => {
       data: { sheets: [{ properties: { sheetId: 0 }, tables: [] }] },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'rename_table_column',
       spreadsheetId: 'sheet-id',
       tableId: 'nonexistent-table',
@@ -827,7 +827,7 @@ describe('AdvancedHandler', () => {
       },
     });
 
-    const result = await handler.handle({
+    const result = await (handler as any).handle({
       action: 'set_table_column_properties',
       spreadsheetId: 'sheet-id',
       tableId: 'table-1',
@@ -906,7 +906,7 @@ describe('AdvancedHandler', () => {
 
   describe('smart chips', () => {
     it('adds a person chip', async () => {
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'add_person_chip',
         spreadsheetId: 'sheet-id',
         range: { a1: 'Sheet1!A1' },
@@ -925,7 +925,7 @@ describe('AdvancedHandler', () => {
     });
 
     it('adds a drive chip', async () => {
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'add_drive_chip',
         spreadsheetId: 'sheet-id',
         range: { a1: 'Sheet1!B1' },
@@ -944,7 +944,7 @@ describe('AdvancedHandler', () => {
 
     it('adds a rich link chip', async () => {
       // Per Google API docs: Only Drive links can be written as rich link chips
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'add_rich_link_chip',
         spreadsheetId: 'sheet-id',
         range: { a1: 'Sheet1!C1' },
@@ -963,7 +963,7 @@ describe('AdvancedHandler', () => {
 
     it('rejects non-Drive URIs for rich link chips', async () => {
       // Per Google API docs: Only Drive links can be written as rich link chips
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'add_rich_link_chip',
         spreadsheetId: 'sheet-id',
         range: { a1: 'Sheet1!C1' },
@@ -1060,7 +1060,7 @@ describe('AdvancedHandler', () => {
         .mockResolvedValueOnce(sizeCheckResponse)
         .mockResolvedValueOnce(chipDataResponse);
 
-      const result = await handler.handle({
+      const result = await (handler as any).handle({
         action: 'list_chips',
         spreadsheetId: 'sheet-id',
         range: 'Sheet1!A1:Z100',
@@ -1122,8 +1122,8 @@ describe('AdvancedHandler', () => {
         .mockResolvedValueOnce(sizeCheckResponse)
         .mockResolvedValueOnce(chipDataResponse);
 
-      const result = await runWithRequestContext(requestContext, () =>
-        handler.handle({
+      const result: any = await runWithRequestContext(requestContext, () =>
+        (handler as any).handle({
           action: 'list_chips',
           spreadsheetId: 'sheet-id',
           range: 'Sheet1!A1:Z100',

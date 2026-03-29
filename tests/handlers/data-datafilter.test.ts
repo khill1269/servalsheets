@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SheetsDataHandler } from '../../src/handlers/data.js';
 import type { sheets_v4 } from 'googleapis';
-import type { HandlerContext, FeatureFlags } from '../../src/core/types.js';
+import type { HandlerContext } from '../../src/handlers/base.js';
 
 describe('sheets_data with DataFilter', () => {
   let handler: SheetsDataHandler;
@@ -22,7 +22,7 @@ describe('sheets_data with DataFilter', () => {
       },
     } as unknown as sheets_v4.Sheets;
 
-    const featureFlags: FeatureFlags = {
+    const featureFlags = {
       enableDataFilterBatch: true,
       enableRequestDeduplication: false,
       enableReadMerging: false,
@@ -93,14 +93,15 @@ describe('sheets_data with DataFilter', () => {
               metadataKey: 'dataset:customers',
             },
           },
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.range).toBe('Sheet1!A1:C10');
-      expect(result.response.values).toHaveLength(2);
-      expect(result.response.rowCount).toBe(2);
-      expect(result.response.columnCount).toBe(3);
+      const r1 = result.response as any;
+      expect(r1.success).toBe(true);
+      expect(r1.range).toBe('Sheet1!A1:C10');
+      expect(r1.values).toHaveLength(2);
+      expect(r1.rowCount).toBe(2);
+      expect(r1.columnCount).toBe(3);
       expect(mockSheetsApi.spreadsheets.values.batchGetByDataFilter).toHaveBeenCalledWith({
         spreadsheetId: 'test-123',
         fields: 'valueRanges(valueRange(range,values))',
@@ -147,11 +148,12 @@ describe('sheets_data with DataFilter', () => {
               endRowIndex: 100,
             },
           },
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.range).toBe('Sheet1!A1:B100');
+      const r2 = result.response as any;
+      expect(r2.success).toBe(true);
+      expect(r2.range).toBe('Sheet1!A1:B100');
     });
 
     it('should return error if no matches found', async () => {
@@ -166,12 +168,13 @@ describe('sheets_data with DataFilter', () => {
           dataFilter: {
             developerMetadataLookup: { metadataKey: 'nonexistent' },
           },
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_FOUND');
-      expect(result.response.error.message).toContain('No data matched');
+      const r3 = result.response as any;
+      expect(r3.success).toBe(false);
+      expect(r3.error.code).toBe('NOT_FOUND');
+      expect(r3.error.message).toContain('No data matched');
     });
 
     // NOTE: Feature flag disabled tests are skipped because the handler
@@ -204,7 +207,7 @@ describe('sheets_data with DataFilter', () => {
           dataFilter: { a1Range: 'A1:B10' },
           valueRenderOption: 'FORMATTED_VALUE',
           majorDimension: 'COLUMNS',
-        },
+        } as any,
       });
 
       expect(mockSheetsApi.spreadsheets.values.batchGetByDataFilter).toHaveBeenCalledWith(
@@ -241,14 +244,15 @@ describe('sheets_data with DataFilter', () => {
             developerMetadataLookup: { metadataKey: 'summary:totals' },
           },
           values: [['Total', 42]],
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.updatedCells).toBe(10);
-      expect(result.response.updatedRows).toBe(5);
-      expect(result.response.updatedColumns).toBe(2);
-      expect(result.response.updatedRange).toBe('Sheet1!A1:B5');
+      const r4 = result.response as any;
+      expect(r4.success).toBe(true);
+      expect(r4.updatedCells).toBe(10);
+      expect(r4.updatedRows).toBe(5);
+      expect(r4.updatedColumns).toBe(2);
+      expect(r4.updatedRange).toBe('Sheet1!A1:B5');
       expect(mockSheetsApi.spreadsheets.values.batchUpdateByDataFilter).toHaveBeenCalledWith({
         spreadsheetId: 'test-123',
         fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns,responses',
@@ -278,14 +282,15 @@ describe('sheets_data with DataFilter', () => {
             ['Name', 'Value'],
             ['Test', 123],
           ],
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true } as any,
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
-      expect(result.response.updatedCells).toBe(4);
-      expect(result.response.updatedRows).toBe(2);
+      const r5 = result.response as any;
+      expect(r5.success).toBe(true);
+      expect(r5.dryRun).toBe(true);
+      expect(r5.updatedCells).toBe(4);
+      expect(r5.updatedRows).toBe(2);
       expect(mockSheetsApi.spreadsheets.values.batchUpdateByDataFilter).not.toHaveBeenCalled();
     });
 
@@ -310,7 +315,7 @@ describe('sheets_data with DataFilter', () => {
           dataFilter: { a1Range: 'A1:B1' },
           values: [['=SUM(A1:A10)', '100']],
           valueInputOption: 'RAW',
-        },
+        } as any,
       });
 
       expect(mockSheetsApi.spreadsheets.values.batchUpdateByDataFilter).toHaveBeenCalledWith(
@@ -344,12 +349,13 @@ describe('sheets_data with DataFilter', () => {
           dataFilter: {
             developerMetadataLookup: { metadataKey: 'temp:scratch_space' },
           },
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.clearedRanges).toEqual(['Sheet1!A10:B15']);
-      expect(result.response.updatedRange).toBe('Sheet1!A10:B15');
+      const r6 = result.response as any;
+      expect(r6.success).toBe(true);
+      expect(r6.clearedRanges).toEqual(['Sheet1!A10:B15']);
+      expect(r6.updatedRange).toBe('Sheet1!A10:B15');
       expect(mockSheetsApi.spreadsheets.values.batchClearByDataFilter).toHaveBeenCalledWith({
         spreadsheetId: 'test-123',
         fields: 'clearedRanges',
@@ -369,13 +375,14 @@ describe('sheets_data with DataFilter', () => {
           action: 'clear',
           spreadsheetId: 'test-123',
           dataFilter: { a1Range: 'A1:B10' },
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true } as any,
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.dryRun).toBe(true);
-      expect(result.response.clearedRanges).toEqual(['(dataFilter - dry run)']);
+      const r7 = result.response as any;
+      expect(r7.success).toBe(true);
+      expect(r7.dryRun).toBe(true);
+      expect(r7.clearedRanges).toEqual(['(dataFilter - dry run)']);
       expect(mockSheetsApi.spreadsheets.values.batchClearByDataFilter).not.toHaveBeenCalled();
     });
 
@@ -391,12 +398,13 @@ describe('sheets_data with DataFilter', () => {
           dataFilter: {
             developerMetadataLookup: { metadataKey: 'nonexistent' },
           },
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_FOUND');
-      expect(result.response.error.message).toContain('No data matched');
+      const r8 = result.response as any;
+      expect(r8.success).toBe(false);
+      expect(r8.error.code).toBe('NOT_FOUND');
+      expect(r8.error.message).toContain('No data matched');
     });
 
     it('should handle timeout gracefully', async () => {
@@ -409,12 +417,13 @@ describe('sheets_data with DataFilter', () => {
           action: 'clear',
           spreadsheetId: 'test-123',
           dataFilter: { a1Range: 'A1:B1000' },
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('DEADLINE_EXCEEDED');
-      expect(result.response.error.message).toContain('timed out');
+      const r9 = result.response as any;
+      expect(r9.success).toBe(false);
+      expect(r9.error.code).toBe('DEADLINE_EXCEEDED');
+      expect(r9.error.message).toContain('timed out');
     }, 15000); // Increase timeout for this test
 
     // NOTE: Feature flag disabled tests are skipped (see read tests for explanation)
@@ -472,10 +481,10 @@ describe('sheets_data with DataFilter', () => {
           spreadsheetId: 'test-123',
           dataFilter: { a1Range: 'A1' },
           values: [['Updated']],
-        },
+        } as any,
       });
 
-      expect(result.response.success).toBe(true);
+      expect((result.response as any).success).toBe(true);
       // Cache invalidation happens internally
     });
 
@@ -495,7 +504,7 @@ describe('sheets_data with DataFilter', () => {
           action: 'clear',
           spreadsheetId: 'test-123',
           dataFilter: { a1Range: 'A1:B10' },
-        },
+        } as any,
       });
 
       // Cache invalidation happens internally

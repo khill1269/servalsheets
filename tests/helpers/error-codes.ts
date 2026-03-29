@@ -5,6 +5,8 @@
  * These match the error codes used in src/core/errors.ts
  */
 
+import { expect } from 'vitest';
+
 /**
  * Standard error codes used across ServalSheets handlers
  *

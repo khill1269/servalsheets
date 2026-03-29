@@ -5,7 +5,7 @@ import type { HttpLoggingSubscriber } from '../../src/http-server/logging-regist
 
 describe('http logging bridge', () => {
   it('forwards matching logs to subscribed sessions and preserves the original logger result', async () => {
-    const originalLog = vi.fn(() => 'original-result');
+    const originalLog = vi.fn((..._args: unknown[]) => 'original-result' as unknown);
     const log = { log: originalLog };
     const bridge = createHttpLoggingBridge({ log });
 
@@ -66,7 +66,7 @@ describe('http logging bridge', () => {
     } satisfies HttpLoggingSubscriber);
 
     bridge.installLoggingBridge();
-    log.log('error', 'http-bridge-error-probe');
+    (log.log as (...args: unknown[]) => unknown)('error', 'http-bridge-error-probe');
 
     await vi.waitFor(() => {
       expect(bridge.subscribers.get('debug')?.forwardingMcpLog).toBe(false);

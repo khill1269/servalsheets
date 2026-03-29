@@ -143,7 +143,7 @@ describe('ErrorPatternLearner', () => {
       }
       const results = learner.suggestPrevention({ tool: 'sheets_core' });
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].message).toContain('SPREADSHEET_NOT_FOUND');
+      expect(results[0]!.message).toContain('SPREADSHEET_NOT_FOUND');
     });
   });
 

@@ -31,7 +31,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,
     });
-    sheetId = meta.data.sheets![0].properties!.sheetId!;
+    sheetId = meta.data.sheets![0]!.properties!.sheetId!;
   }, 60000);
 
   afterAll(async () => {
@@ -125,7 +125,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         requestBody: { requests: [{ addSheet: { properties: { title: sheetName } } }] },
       });
 
-      expect(addResponse.data.replies![0].addSheet?.properties?.sheetId).toBeDefined();
+      expect(addResponse.data.replies![0]!.addSheet?.properties?.sheetId).toBeDefined();
     });
   });
 
@@ -190,7 +190,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
         range: 'TestData!E1',
       });
 
-      expect(response.data.values![0][0]).toBe('Initial State');
+      expect(response.data.values![0]![0]).toBe('Initial State');
     });
   });
 

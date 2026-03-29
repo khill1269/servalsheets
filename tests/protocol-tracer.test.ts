@@ -4,7 +4,7 @@ import {
   getProtocolTracer,
   resetProtocolTracer,
 } from '../scripts/test-infrastructure/protocol-tracer.js';
-import type { ErrorDetail } from '../src/utils/error-factory.js';
+import type { ErrorDetail } from '../src/schemas/shared.js';
 
 describe('ProtocolTracer', () => {
   let tracer: ProtocolTracer;
@@ -58,9 +58,9 @@ describe('ProtocolTracer', () => {
       );
 
       const trace = tracer.getTrace(traceId);
-      expect(trace?.metadata.toolName).toBe('sheets_data');
-      expect(trace?.metadata.action).toBe('read');
-      expect(trace?.metadata.spreadsheetId).toBe('abc123');
+      expect(trace?.metadata['toolName']).toBe('sheets_data');
+      expect(trace?.metadata['action']).toBe('read');
+      expect(trace?.metadata['spreadsheetId']).toBe('abc123');
     });
 
     it('should return empty string when disabled', () => {
@@ -119,9 +119,9 @@ describe('ProtocolTracer', () => {
       });
 
       const trace = tracer.getTrace(traceId);
-      expect(trace?.metadata.toolName).toBe('sheets_data');
-      expect(trace?.metadata.httpStatus).toBe(200);
-      expect(trace?.metadata.retryCount).toBe(0);
+      expect(trace?.metadata['toolName']).toBe('sheets_data');
+      expect(trace?.metadata['httpStatus']).toBe(200);
+      expect(trace?.metadata['retryCount']).toBe(0);
     });
 
     it('should handle completing non-existent trace gracefully', () => {
@@ -251,9 +251,9 @@ describe('ProtocolTracer', () => {
 
       const trace3 = tracer.startTrace('c3', 'mcp-op', {}, { protocol: 'mcp' });
       const error: ErrorDetail = {
-        code: 'ERROR',
+        code: 'INTERNAL_ERROR',
         message: 'Failed',
-        category: 'validation',
+        category: 'client',
         severity: 'high',
         retryable: false,
       };
@@ -262,7 +262,7 @@ describe('ProtocolTracer', () => {
       const stats = tracer.getStats();
 
       expect(stats.total).toBe(3);
-      expect(stats.byProtocol.mcp).toBe(2);
+      expect(stats.byProtocol['mcp']).toBe(2);
       expect(stats.byProtocol['google-api']).toBe(1);
       expect(stats.byMethod['mcp-op']).toBe(2);
       expect(stats.byMethod['google-op']).toBe(1);
@@ -297,13 +297,13 @@ describe('ProtocolTracer', () => {
   describe('global tracer', () => {
     afterEach(() => {
       resetProtocolTracer();
-      delete process.env.PROTOCOL_TRACE_ENABLED;
-      delete process.env.PROTOCOL_TRACE_BUFFER_SIZE;
+      delete process.env['PROTOCOL_TRACE_ENABLED'];
+      delete process.env['PROTOCOL_TRACE_BUFFER_SIZE'];
     });
 
     it('should create global tracer with environment config', () => {
-      process.env.PROTOCOL_TRACE_ENABLED = 'true';
-      process.env.PROTOCOL_TRACE_BUFFER_SIZE = '500';
+      process.env['PROTOCOL_TRACE_ENABLED'] = 'true';
+      process.env['PROTOCOL_TRACE_BUFFER_SIZE'] = '500';
 
       const globalTracer = getProtocolTracer();
 

@@ -125,13 +125,6 @@ describe('Category 12: LLM Intelligence', () => {
     it('12.7 Quality scanner can be called on response data', () => {
       // Quality scanning is service-level functionality
       // This verifies the service is importable and callable
-      const values = [
-        ['Name', 'Score'],
-        ['Alice', 95],
-        ['Bob', null],
-        ['Carol', 'invalid'],
-      ];
-
       // Service exists and is importable
       expect(scanResponseQuality).toBeDefined();
       expect(typeof scanResponseQuality).toBe('function');
@@ -282,7 +275,7 @@ describe('Category 12: LLM Intelligence', () => {
     });
 
     it('should cap data profiling at 50 rows', () => {
-      const values = [['ID', 'Value']];
+      const values: (string | number)[][] = [['ID', 'Value']];
       for (let i = 1; i <= 100; i++) {
         values.push([i, i * 10]);
       }

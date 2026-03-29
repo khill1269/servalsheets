@@ -13,28 +13,12 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import {
-  SheetsAuthInputSchema,
   SheetsCoreInputSchema,
   SheetsDataInputSchema,
   SheetsFormatInputSchema,
   SheetsDimensionsInputSchema,
   SheetsVisualizeInputSchema,
-  SheetsCollaborateInputSchema,
   SheetsAdvancedInputSchema,
-  SheetsTransactionInputSchema,
-  SheetsQualityInputSchema,
-  SheetsHistoryInputSchema,
-  SheetsConfirmInputSchema,
-  SheetsAnalyzeInputSchema,
-  SheetsFixInputSchema,
-  CompositeInputSchema,
-  SheetsSessionInputSchema,
-  SheetsTemplatesInputSchema,
-  SheetsBigQueryInputSchema,
-  SheetsAppsScriptInputSchema,
-  SheetsWebhookInputSchema,
-  SheetsDependenciesInputSchema,
-  SheetsFederationInputSchema,
 } from '../../src/schemas/index.js';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
 
@@ -291,52 +275,52 @@ describe('API Contracts - Optional Fields', () => {
 describe('API Contracts - Action Lists Stability', () => {
   it('all tool actions lists remain stable', () => {
     // Verify that expected actions exist (no removals)
-    expect(TOOL_ACTIONS.sheets_data).toContain('read');
-    expect(TOOL_ACTIONS.sheets_data).toContain('write');
-    expect(TOOL_ACTIONS.sheets_data).toContain('append');
-    expect(TOOL_ACTIONS.sheets_data).toContain('clear');
-    expect(TOOL_ACTIONS.sheets_data).toContain('batch_read');
+    expect(TOOL_ACTIONS['sheets_data']).toContain('read');
+    expect(TOOL_ACTIONS['sheets_data']).toContain('write');
+    expect(TOOL_ACTIONS['sheets_data']).toContain('append');
+    expect(TOOL_ACTIONS['sheets_data']).toContain('clear');
+    expect(TOOL_ACTIONS['sheets_data']).toContain('batch_read');
 
-    expect(TOOL_ACTIONS.sheets_core).toContain('get');
-    expect(TOOL_ACTIONS.sheets_core).toContain('create');
-    expect(TOOL_ACTIONS.sheets_core).toContain('add_sheet');
-    expect(TOOL_ACTIONS.sheets_core).toContain('delete_sheet');
+    expect(TOOL_ACTIONS['sheets_core']).toContain('get');
+    expect(TOOL_ACTIONS['sheets_core']).toContain('create');
+    expect(TOOL_ACTIONS['sheets_core']).toContain('add_sheet');
+    expect(TOOL_ACTIONS['sheets_core']).toContain('delete_sheet');
 
-    expect(TOOL_ACTIONS.sheets_format).toContain('set_format');
-    expect(TOOL_ACTIONS.sheets_format).toContain('set_background');
-    expect(TOOL_ACTIONS.sheets_format).toContain('set_text_format');
-    expect(TOOL_ACTIONS.sheets_format).toContain('rule_add_conditional_format');
+    expect(TOOL_ACTIONS['sheets_format']).toContain('set_format');
+    expect(TOOL_ACTIONS['sheets_format']).toContain('set_background');
+    expect(TOOL_ACTIONS['sheets_format']).toContain('set_text_format');
+    expect(TOOL_ACTIONS['sheets_format']).toContain('rule_add_conditional_format');
 
-    expect(TOOL_ACTIONS.sheets_visualize).toContain('chart_create');
-    expect(TOOL_ACTIONS.sheets_visualize).toContain('pivot_create');
+    expect(TOOL_ACTIONS['sheets_visualize']).toContain('chart_create');
+    expect(TOOL_ACTIONS['sheets_visualize']).toContain('pivot_create');
 
-    expect(TOOL_ACTIONS.sheets_advanced).toContain('add_named_range');
-    expect(TOOL_ACTIONS.sheets_advanced).toContain('create_table');
+    expect(TOOL_ACTIONS['sheets_advanced']).toContain('add_named_range');
+    expect(TOOL_ACTIONS['sheets_advanced']).toContain('create_table');
 
-    expect(TOOL_ACTIONS.sheets_analyze).toContain('comprehensive');
-    expect(TOOL_ACTIONS.sheets_analyze).toContain('analyze_data');
+    expect(TOOL_ACTIONS['sheets_analyze']).toContain('comprehensive');
+    expect(TOOL_ACTIONS['sheets_analyze']).toContain('analyze_data');
 
-    expect(TOOL_ACTIONS.sheets_templates).toContain('list');
-    expect(TOOL_ACTIONS.sheets_templates).toContain('create');
-    expect(TOOL_ACTIONS.sheets_templates).toContain('apply');
+    expect(TOOL_ACTIONS['sheets_templates']).toContain('list');
+    expect(TOOL_ACTIONS['sheets_templates']).toContain('create');
+    expect(TOOL_ACTIONS['sheets_templates']).toContain('apply');
 
-    expect(TOOL_ACTIONS.sheets_bigquery).toContain('connect');
-    expect(TOOL_ACTIONS.sheets_bigquery).toContain('query');
+    expect(TOOL_ACTIONS['sheets_bigquery']).toContain('connect');
+    expect(TOOL_ACTIONS['sheets_bigquery']).toContain('query');
 
-    expect(TOOL_ACTIONS.sheets_appsscript).toContain('create');
-    expect(TOOL_ACTIONS.sheets_appsscript).toContain('run');
+    expect(TOOL_ACTIONS['sheets_appsscript']).toContain('create');
+    expect(TOOL_ACTIONS['sheets_appsscript']).toContain('run');
   });
 
   it('action counts remain stable or increase', () => {
     // Core tools should have at least these many actions
-    expect(TOOL_ACTIONS.sheets_data.length).toBeGreaterThanOrEqual(15);
-    expect(TOOL_ACTIONS.sheets_core.length).toBeGreaterThanOrEqual(15);
-    expect(TOOL_ACTIONS.sheets_format.length).toBeGreaterThanOrEqual(20);
-    expect(TOOL_ACTIONS.sheets_dimensions.length).toBeGreaterThanOrEqual(25);
-    expect(TOOL_ACTIONS.sheets_visualize.length).toBeGreaterThanOrEqual(15);
-    expect(TOOL_ACTIONS.sheets_collaborate.length).toBeGreaterThanOrEqual(30);
-    expect(TOOL_ACTIONS.sheets_advanced.length).toBeGreaterThanOrEqual(25);
-    expect(TOOL_ACTIONS.sheets_analyze.length).toBeGreaterThanOrEqual(15);
+    expect(TOOL_ACTIONS['sheets_data']!.length).toBeGreaterThanOrEqual(15);
+    expect(TOOL_ACTIONS['sheets_core']!.length).toBeGreaterThanOrEqual(15);
+    expect(TOOL_ACTIONS['sheets_format']!.length).toBeGreaterThanOrEqual(20);
+    expect(TOOL_ACTIONS['sheets_dimensions']!.length).toBeGreaterThanOrEqual(25);
+    expect(TOOL_ACTIONS['sheets_visualize']!.length).toBeGreaterThanOrEqual(15);
+    expect(TOOL_ACTIONS['sheets_collaborate']!.length).toBeGreaterThanOrEqual(30);
+    expect(TOOL_ACTIONS['sheets_advanced']!.length).toBeGreaterThanOrEqual(25);
+    expect(TOOL_ACTIONS['sheets_analyze']!.length).toBeGreaterThanOrEqual(15);
   });
 });
 

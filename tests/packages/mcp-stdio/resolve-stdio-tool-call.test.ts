@@ -111,7 +111,7 @@ describe('@serval/mcp-stdio resolveStdioToolCall', () => {
           kind: 'result',
           result: { response: { success: true } },
           handlerMap: { cached: true },
-        })),
+        })) as never,
         setCachedHandlerMap,
       }
     );

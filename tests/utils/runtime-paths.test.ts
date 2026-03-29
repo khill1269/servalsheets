@@ -14,7 +14,7 @@ vi.mock('node:fs', () => ({
 }));
 
 function normalizePath(value: string | null): string | null {
-  return value?.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return value?.replace(/\\/g, '/').replace(/\/+/g, '/') ?? null;
 }
 
 describe('runtime path resolution', () => {
@@ -50,12 +50,10 @@ describe('runtime path resolution', () => {
 
   it('falls back to the source tracing dashboard build when dist assets are absent', () => {
     vi.mocked(existsSync).mockImplementation((candidate) =>
-      normalizePath(String(candidate))?.endsWith('/src/ui/tracing-dashboard/dist') ?? false
+      normalizePath(String(candidate))?.endsWith('/ui/tracing-dashboard/dist') ?? false
     );
 
-    expect(normalizePath(resolveTracingDashboardPath())).toMatch(
-      /\/src\/ui\/tracing-dashboard\/dist$/
-    );
+    expect(normalizePath(resolveTracingDashboardPath())).toMatch(/\/ui\/tracing-dashboard\/dist$/);
   });
 
   it('resolves the tool hash baseline from runtime assets', () => {

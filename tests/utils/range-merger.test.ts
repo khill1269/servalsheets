@@ -7,9 +7,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   mergeOverlappingRanges,
-  type RangeMergeResult,
-  type MergedRange,
-  type OriginalRangeIndex,
 } from '../../src/utils/range-merger.js';
 
 describe('Range Merger - Synchronous Batch Optimization', () => {

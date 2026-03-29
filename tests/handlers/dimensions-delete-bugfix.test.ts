@@ -49,8 +49,6 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
     // Create mock context
     mockContext = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      sheetsApi: mockApi as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: {} as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock auth type
       authClient: { credentials: { access_token: 'test-token' } } as any,
@@ -79,7 +77,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
-    };
+    } as unknown as HandlerContext;
 
     handler = new DimensionsHandler(mockContext, mockApi);
   });
@@ -97,13 +95,13 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         dimension: 'ROWS',
         startIndex: 6,
         count: 1, // Should be converted to endIndex: 7
-      });
+      } as any);
 
       // Verify result is successful
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('delete');
+      expect((result.response as any).action).toBe('delete');
 
       // Verify API was called with correct endIndex (startIndex + count = 6 + 1 = 7)
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
@@ -140,7 +138,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         dimension: 'ROWS',
         startIndex: 10,
         count: 5, // Should be converted to endIndex: 15
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -169,7 +167,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         dimension: 'COLUMNS',
         startIndex: 2,
         count: 3, // Should be converted to endIndex: 5
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -199,7 +197,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         dimension: 'ROWS',
         startIndex: 6,
         endIndex: 7, // Explicit endIndex, no count
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -230,7 +228,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         startIndex: 6,
         count: 999, // Should be ignored
         endIndex: 8, // Should be used
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
@@ -261,7 +259,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         dimension: 'ROWS',
         startIndex: 6,
         // No count or endIndex - will result in NaN
-      });
+      } as any);
 
       // Handler will attempt to calculate count = endIndex - startIndex
       // With endIndex undefined, this becomes NaN, which may succeed or fail
@@ -280,10 +278,10 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
         dimension: 'ROWS',
         startIndex: 0,
         endIndex: 1,
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('delete');
+      expect((result.response as any).action).toBe('delete');
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
   });

@@ -47,10 +47,11 @@ vi.mock('../../src/utils/logger.js', () => ({
 
 const SPREADSHEET_ID = 'test-spreadsheet-id-001';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function makeHandler(
   duckdbEngine?: DuckDBEngine,
   server?: { elicitInput: (params: unknown) => Promise<{ action: string; content: unknown }> }
-): ComputeHandler {
+): any {
   const fakeSheets = {} as any;
   return new ComputeHandler(fakeSheets, { duckdbEngine, server });
 }

@@ -301,14 +301,14 @@ export class TestIsolationGuard {
         break;
 
       case 'filter':
-        if (resource.parentId && resource.metadata?.sheetId !== undefined) {
+        if (resource.parentId && resource.metadata?.['sheetId'] !== undefined) {
           await this.client.sheets.spreadsheets.batchUpdate({
             spreadsheetId: resource.parentId,
             requestBody: {
               requests: [
                 {
                   clearBasicFilter: {
-                    sheetId: resource.metadata.sheetId as number,
+                    sheetId: resource.metadata['sheetId'] as number,
                   },
                 },
               ],

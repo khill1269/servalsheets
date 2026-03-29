@@ -83,15 +83,11 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }) } as any,
-  auth: { scopes: ['https://www.googleapis.com/auth/bigquery'] } as any,
+  auth: { hasElevatedAccess: false, scopes: ['https://www.googleapis.com/auth/bigquery'] } as any,
   samplingServer: undefined,
   snapshotService: {} as any,
   sessionContext: {} as any,
-  confirmDestructiveAction: vi.fn().mockResolvedValue(undefined),
-  createSnapshotIfNeeded: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
-  sendProgress: vi.fn(),
-  cachedApi: {} as any,
-});
+} as unknown as HandlerContext);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Category 9: External Integrations
@@ -111,12 +107,10 @@ describe('Category 9: External Integrations', () => {
 
   describe('9.1-9.3 BigQuery Integration', () => {
     let handler: SheetsBigQueryHandler;
-    let mockBigQueryApi: ReturnType<typeof createMockBigQueryApi>;
-    let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
 
     beforeEach(() => {
-      mockBigQueryApi = createMockBigQueryApi();
-      mockSheetsApi = createMockSheetsApi();
+      const mockBigQueryApi = createMockBigQueryApi();
+      const mockSheetsApi = createMockSheetsApi();
       handler = new SheetsBigQueryHandler(
         mockContext,
         mockSheetsApi as unknown as any,
@@ -130,7 +124,7 @@ describe('Category 9: External Integrations', () => {
           action: 'list_datasets',
           projectId: 'test-project',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -142,7 +136,7 @@ describe('Category 9: External Integrations', () => {
           projectId: 'test-project',
           datasetId: 'dataset1',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -154,7 +148,7 @@ describe('Category 9: External Integrations', () => {
           projectId: 'test-project',
           query: 'SELECT 1',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -164,12 +158,14 @@ describe('Category 9: External Integrations', () => {
         request: {
           action: 'export_to_bigquery',
           spreadsheetId: 'test-sheet-id',
-          projectId: 'test-project',
-          datasetId: 'dataset1',
-          destinationTableId: 'table1',
-          sheetName: 'Sheet1',
+          range: { a1: 'Sheet1!A1:D10' },
+          destination: {
+            projectId: 'test-project',
+            datasetId: 'dataset1',
+            tableId: 'table1',
+          },
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -177,17 +173,9 @@ describe('Category 9: External Integrations', () => {
 
   describe('9.4-9.6 Apps Script Integration', () => {
     let handler: SheetsAppsScriptHandler;
-    let mockAppsScriptApi: ReturnType<typeof createMockAppsScriptApi>;
-    let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
 
     beforeEach(() => {
-      mockAppsScriptApi = createMockAppsScriptApi();
-      mockSheetsApi = createMockSheetsApi();
-      handler = new SheetsAppsScriptHandler(
-        mockContext,
-        mockSheetsApi as unknown as any,
-        mockAppsScriptApi as unknown as any
-      );
+      handler = new SheetsAppsScriptHandler(mockContext);
     });
 
     it('9.4 Apps Script create dispatches', async () => {
@@ -196,7 +184,7 @@ describe('Category 9: External Integrations', () => {
           action: 'create',
           title: 'My Script',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -207,7 +195,7 @@ describe('Category 9: External Integrations', () => {
           action: 'get_content',
           scriptId: 'script-123',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -220,12 +208,13 @@ describe('Category 9: External Integrations', () => {
           functionName: 'test',
           devMode: true,
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
 
     it('9.6 Apps Script trigger_create dispatches', async () => {
+      const mockAppsScriptApi = createMockAppsScriptApi();
       mockAppsScriptApi.projects.create.mockResolvedValue({
         data: { scriptId: 'script-123', parentId: 'test-sheet-id' },
       });
@@ -235,7 +224,7 @@ describe('Category 9: External Integrations', () => {
           scriptId: 'script-123',
           triggerType: 'ON_EDIT',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -243,11 +232,9 @@ describe('Category 9: External Integrations', () => {
 
   describe('9.7 Federation Integration', () => {
     let handler: FederationHandler;
-    let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
 
     beforeEach(() => {
-      mockSheetsApi = createMockSheetsApi();
-      handler = new FederationHandler(mockContext);
+      handler = new FederationHandler();
     });
 
     it('9.7 Federation list_servers dispatches', async () => {
@@ -296,7 +283,7 @@ describe('Category 9: External Integrations', () => {
         request: {
           action: 'list_connectors',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -312,7 +299,7 @@ describe('Category 9: External Integrations', () => {
             endpoint: '/quote',
             params: { symbol: 'AAPL' },
           },
-        });
+        } as any);
       } catch (err: any) {
         threw = true;
         expect(err.message || err.code).toMatch(/configured|not configured/i);
@@ -326,7 +313,7 @@ describe('Category 9: External Integrations', () => {
           action: 'status',
           connectorId: 'finnhub',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -340,7 +327,7 @@ describe('Category 9: External Integrations', () => {
             action: 'status',
             connectorId: 'not-a-real-connector',
           },
-        });
+        } as any);
       } catch (err: any) {
         threw = true;
         expect(err.message || err.code).toMatch(/connector|not found|NOT_FOUND/i);
@@ -353,7 +340,7 @@ describe('Category 9: External Integrations', () => {
     let handler: WebhookHandler;
 
     beforeEach(() => {
-      handler = new WebhookHandler(mockContext);
+      handler = new WebhookHandler();
     });
 
     it('9.9 Webhook register dispatches when Redis available', async () => {
@@ -363,8 +350,9 @@ describe('Category 9: External Integrations', () => {
           spreadsheetId: 'test-sheet-id',
           webhookUrl: 'https://example.com/webhook',
           eventTypes: ['sheet.update'],
+          expirationMs: 3600000,
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
       // If Redis is not available, handler returns error with graceful message
@@ -375,7 +363,7 @@ describe('Category 9: External Integrations', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -387,7 +375,7 @@ describe('Category 9: External Integrations', () => {
           spreadsheetId: 'test-sheet-id',
           webhookUrl: 'https://example.com/webhook',
         },
-      });
+      } as any);
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();
     });
@@ -404,7 +392,7 @@ describe('Category 9: External Integrations', () => {
             connectorId: '', // empty
             endpoint: '/quote',
           },
-        });
+        } as any);
       } catch (err: any) {
         threw = true;
         expect(err.message || err.code).toMatch(/connector|not found/i);
@@ -427,7 +415,7 @@ describe('Category 9: External Integrations', () => {
           action: 'list_datasets',
           projectId: 'test-project',
         },
-      });
+      } as any);
 
       expect(result).toBeDefined();
       expect(result.response).toBeDefined();

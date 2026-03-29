@@ -10,7 +10,7 @@ import { FormatHandler } from '../../src/handlers/format.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 
 // Mock Google Sheets API
-const createMockSheetsApi = (): unknown => ({
+const createMockSheetsApi = () => ({
   spreadsheets: {
     get: vi.fn().mockResolvedValue({
       data: {
@@ -33,7 +33,7 @@ const createMockContext = (): HandlerContext => ({
     compile: vi.fn(),
     execute: vi.fn(),
     executeAll: vi.fn(),
-  } as unknown,
+  } as unknown as import('../../src/core/batch-compiler.js').BatchCompiler,
   rangeResolver: {
     resolve: vi.fn().mockResolvedValue({
       a1Notation: 'Sheet1!A1:B2',
@@ -52,12 +52,12 @@ const createMockContext = (): HandlerContext => ({
         path: '',
       },
     }),
-  } as unknown,
+  } as unknown as import('../../src/core/range-resolver.js').RangeResolver,
   googleClient: {
     sheets: vi.fn(),
     isAuthenticated: () => true,
     hasValidToken: () => true,
-  } as unknown,
+  } as unknown as import('../../src/services/google-api.js').GoogleApiClient,
 });
 
 describe('FormatHandler Edge Cases', () => {
@@ -69,7 +69,7 @@ describe('FormatHandler Edge Cases', () => {
     vi.clearAllMocks();
     mockApi = createMockSheetsApi();
     mockContext = createMockContext();
-    handler = new FormatHandler(mockContext, mockApi as unknown);
+    handler = new FormatHandler(mockContext, mockApi as unknown as import('googleapis').sheets_v4.Sheets);
   });
 
   afterEach(() => {
@@ -85,7 +85,7 @@ describe('FormatHandler Edge Cases', () => {
         sheetId: 0,
         range: 'Sheet1!A1:A100' as unknown, // String instead of { a1: "..." }
         rulePreset: 'highlight_blanks',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -98,11 +98,11 @@ describe('FormatHandler Edge Cases', () => {
         sheetId: 0,
         range: undefined as unknown,
         rulePreset: 'highlight_blanks',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
-      expect(result.response.error?.message).toContain('Range is required');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.message).toContain('Range is required');
     });
 
     it('should return validation error for null range', async () => {
@@ -112,10 +112,10 @@ describe('FormatHandler Edge Cases', () => {
         sheetId: 0,
         range: null as unknown,
         rulePreset: 'highlight_blanks',
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should handle object range with a1 property', async () => {
@@ -125,7 +125,7 @@ describe('FormatHandler Edge Cases', () => {
         sheetId: 0,
         range: { a1: 'Sheet1!A1:A100' },
         rulePreset: 'highlight_duplicates',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe('FormatHandler Edge Cases', () => {
           },
         },
         rulePreset: 'color_scale_green_red',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -164,10 +164,10 @@ describe('FormatHandler Edge Cases', () => {
           condition: { type: 'BLANK' },
           format: { backgroundColor: { red: 1, green: 0, blue: 0 } },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should handle string range', async () => {
@@ -181,7 +181,7 @@ describe('FormatHandler Edge Cases', () => {
           condition: { type: 'BLANK' },
           format: { backgroundColor: { red: 1, green: 1, blue: 0 } },
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -194,10 +194,10 @@ describe('FormatHandler Edge Cases', () => {
         spreadsheetId: 'test-id',
         range: undefined as unknown,
         condition: { type: 'ONE_OF_LIST', values: ['A', 'B', 'C'] },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should handle string range', async () => {
@@ -206,7 +206,7 @@ describe('FormatHandler Edge Cases', () => {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:A10' as unknown,
         condition: { type: 'ONE_OF_LIST', values: ['Option A', 'Option B'] },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
     });
@@ -218,10 +218,10 @@ describe('FormatHandler Edge Cases', () => {
         action: 'clear_data_validation',
         spreadsheetId: 'test-id',
         range: undefined as unknown,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 
@@ -247,7 +247,7 @@ describe('FormatHandler Edge Cases', () => {
           sheetId: 0,
           range: 'A1:A100' as unknown,
           rulePreset: preset as unknown,
-        });
+        } as any);
 
         expect(result.response.success).toBe(true);
       });
@@ -260,10 +260,10 @@ describe('FormatHandler Edge Cases', () => {
         sheetId: 0,
         range: { a1: 'A1:A100' },
         rulePreset: 'unknown_preset' as unknown,
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.message).toContain('unknown_preset');
+      expect((result.response as any).error?.message).toContain('unknown_preset');
     });
   });
 });

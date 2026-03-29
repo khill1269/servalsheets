@@ -164,8 +164,8 @@ describe('PayloadValidator', () => {
       const result = validateBatchUpdatePayload(requests);
 
       expect(result.breakdown).toBeDefined();
-      expect(result.breakdown!.updateCells).toBeGreaterThan(0);
-      expect(result.breakdown!.repeatCell).toBeGreaterThan(0);
+      expect(result.breakdown!['updateCells']).toBeGreaterThan(0);
+      expect(result.breakdown!['repeatCell']).toBeGreaterThan(0);
     });
   });
 

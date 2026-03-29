@@ -77,13 +77,13 @@ describe('FixHandler', () => {
         spreadsheetId: 'test-id',
         issues: sampleIssues,
         mode: 'preview',
-      });
+      } as any);
 
       expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('mode', 'preview');
       expect(result.response).toHaveProperty('operations');
-      expect(result.response.operations.length).toBeGreaterThan(0);
+      expect((result.response as any).operations.length).toBeGreaterThan(0);
       expect(result.response).not.toHaveProperty('results');
 
       const parseResult = SheetsFixOutputSchema.safeParse(result);
@@ -98,15 +98,15 @@ describe('FixHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'fix' as const,
+        action: 'fix',
         spreadsheetId: 'test-id',
         issues: sampleIssues,
-        mode: 'apply' as const,
+        mode: 'apply',
         safety: { dryRun: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.mode).toBe('preview');
+      expect((result.response as any).mode).toBe('preview');
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
@@ -122,10 +122,10 @@ describe('FixHandler', () => {
         spreadsheetId: 'test-id',
         issues: [sampleIssues[1]], // NO_FROZEN_HEADERS
         mode: 'preview',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const operation = result.response.operations[0];
+      const operation = (result.response as any).operations[0];
       expect(operation).toHaveProperty('estimatedImpact');
       expect(operation).toHaveProperty('risk');
       expect(operation.estimatedImpact).toContain('Freeze');
@@ -152,13 +152,13 @@ describe('FixHandler', () => {
         issues: [sampleIssues[1]], // NO_FROZEN_HEADERS
         mode: 'apply',
         safety: { createSnapshot: false },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('mode', 'apply');
       expect(result.response).toHaveProperty('results');
-      expect(result.response.results).toBeInstanceOf(Array);
-      expect(result.response.summary.applied).toBeGreaterThan(0);
+      expect((result.response as any).results).toBeInstanceOf(Array);
+      expect((result.response as any).summary.applied).toBeGreaterThan(0);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
@@ -177,7 +177,7 @@ describe('FixHandler', () => {
         issues: [sampleIssues[1]],
         mode: 'apply',
         safety: { createSnapshot: true },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('snapshotId');
@@ -202,11 +202,11 @@ describe('FixHandler', () => {
         ],
         mode: 'apply',
         safety: { createSnapshot: false },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.summary.applied).toBeGreaterThan(0);
-      expect(result.response.summary.failed).toBeGreaterThan(0);
+      expect((result.response as any).summary.applied).toBeGreaterThan(0);
+      expect((result.response as any).summary.failed).toBeGreaterThan(0);
     });
   });
 
@@ -224,12 +224,12 @@ describe('FixHandler', () => {
         issues,
         mode: 'preview',
         filters: { severity: ['high'] },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operations.length).toBeGreaterThan(0);
+      expect((result.response as any).operations.length).toBeGreaterThan(0);
       expect(
-        result.response.operations.every((op) =>
+        (result.response as any).operations.every((op: any) =>
           issues.find((i) => i.type === op.issueType && i.severity === 'high')
         )
       ).toBe(true);
@@ -243,17 +243,17 @@ describe('FixHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'fix' as const,
+        action: 'fix',
         spreadsheetId: 'test-id',
         issues: sampleIssues,
-        mode: 'preview' as const,
+        mode: 'preview',
         filters: { types: ['NO_FROZEN_HEADERS'] },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operations.every((op) => op.issueType === 'NO_FROZEN_HEADERS')).toBe(
-        true
-      );
+      expect(
+        (result.response as any).operations.every((op: any) => op.issueType === 'NO_FROZEN_HEADERS')
+      ).toBe(true);
     });
 
     it('should filter by sheet name', async () => {
@@ -277,10 +277,10 @@ describe('FixHandler', () => {
         issues,
         mode: 'preview',
         filters: { sheets: ['Sheet1'] },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operations.length).toBeGreaterThan(0);
+      expect((result.response as any).operations.length).toBeGreaterThan(0);
     });
 
     it('should limit number of fixes', async () => {
@@ -307,10 +307,10 @@ describe('FixHandler', () => {
         issues: manyIssues,
         mode: 'preview',
         filters: { limit: 3 },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operations.length).toBeLessThanOrEqual(3);
+      expect((result.response as any).operations.length).toBeLessThanOrEqual(3);
     });
 
     it('should return early when no issues match filters', async () => {
@@ -320,11 +320,11 @@ describe('FixHandler', () => {
         issues: sampleIssues,
         mode: 'preview',
         filters: { severity: ['high'] }, // No high severity issues
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operations).toHaveLength(0);
-      expect(result.response.summary.skipped).toBe(sampleIssues.length);
+      expect((result.response as any).operations).toHaveLength(0);
+      expect((result.response as any).summary.skipped).toBe(sampleIssues.length);
     });
   });
 
@@ -335,14 +335,16 @@ describe('FixHandler', () => {
         spreadsheetId: 'test-id',
         issues: [{ type: 'MULTIPLE_TODAY', severity: 'medium', description: 'Test' }],
         mode: 'preview',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const ops = result.response.operations.filter((op) => op.issueType === 'MULTIPLE_TODAY');
+      const ops = (result.response as any).operations.filter(
+        (op: any) => op.issueType === 'MULTIPLE_TODAY'
+      );
       expect(ops.length).toBeGreaterThan(0);
 
       // MULTIPLE_TODAY operations use sheets_data and sheets_advanced
-      expect(ops.some((op) => op.tool === 'sheets_data' || op.tool === 'sheets_advanced')).toBe(
+      expect(ops.some((op: any) => op.tool === 'sheets_data' || op.tool === 'sheets_advanced')).toBe(
         true
       );
     });
@@ -361,10 +363,12 @@ describe('FixHandler', () => {
           { type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'Sheet1', description: 'Test' },
         ],
         mode: 'preview',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const op = result.response.operations.find((op) => op.issueType === 'NO_FROZEN_HEADERS');
+      const op = (result.response as any).operations.find(
+        (op: any) => op.issueType === 'NO_FROZEN_HEADERS'
+      );
       expect(op).toBeDefined();
       expect(op!.tool).toBe('sheets_dimensions');
       expect(op!.action).toBe('freeze_rows');
@@ -384,10 +388,12 @@ describe('FixHandler', () => {
           { type: 'NO_FROZEN_COLUMNS', severity: 'low', sheet: 'Sheet1', description: 'Test' },
         ],
         mode: 'preview',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const op = result.response.operations.find((op) => op.issueType === 'NO_FROZEN_COLUMNS');
+      const op = (result.response as any).operations.find(
+        (op: any) => op.issueType === 'NO_FROZEN_COLUMNS'
+      );
       expect(op).toBeDefined();
       expect(op!.action).toBe('freeze_columns');
     });
@@ -406,10 +412,12 @@ describe('FixHandler', () => {
           { type: 'NO_PROTECTION', severity: 'medium', sheet: 'Sheet1', description: 'Test' },
         ],
         mode: 'preview',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      const op = result.response.operations.find((op) => op.issueType === 'NO_PROTECTION');
+      const op = (result.response as any).operations.find(
+        (op: any) => op.issueType === 'NO_PROTECTION'
+      );
       expect(op).toBeDefined();
       expect(op!.tool).toBe('sheets_advanced');
       expect(op!.action).toBe('add_protected_range');
@@ -429,11 +437,11 @@ describe('FixHandler', () => {
           { type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'NonExistent', description: 'Test' },
         ],
         mode: 'preview',
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       // Should skip operations for sheets that don't exist
-      expect(result.response.operations).toHaveLength(0);
+      expect((result.response as any).operations).toHaveLength(0);
     });
 
     it('should handle API errors during apply', async () => {
@@ -454,10 +462,10 @@ describe('FixHandler', () => {
         ],
         mode: 'apply',
         safety: { createSnapshot: false },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
-      expect(result.response.summary.failed).toBeGreaterThan(0);
+      expect((result.response as any).summary.failed).toBeGreaterThan(0);
     });
 
     it('should handle unexpected errors gracefully', async () => {
@@ -469,11 +477,11 @@ describe('FixHandler', () => {
           { type: 'MULTIPLE_TODAY', severity: 'medium', description: 'Multiple TODAY()' },
         ],
         mode: 'preview',
-      });
+      } as any);
 
       // Preview mode returns operations without executing - should succeed
       expect(result.response.success).toBe(true);
-      expect(result.response.operations).toBeDefined();
+      expect((result.response as any).operations).toBeDefined();
     });
   });
 
@@ -484,7 +492,7 @@ describe('FixHandler', () => {
         spreadsheetId: 'test-id',
         issues: [],
         mode: 'preview',
-      });
+      } as any);
 
       const parseResult = SheetsFixOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
@@ -503,7 +511,7 @@ describe('FixHandler', () => {
         issues: [],
         mode: 'apply',
         safety: { createSnapshot: false },
-      });
+      } as any);
 
       const parseResult = SheetsFixOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);

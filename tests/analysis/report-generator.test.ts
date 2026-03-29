@@ -6,14 +6,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { ReportGenerator } from '../../scripts/analysis/report-generator.js';
-import type { OrchestratorReport, AgentSummary } from '../../scripts/analysis/report-generator.js';
-import type { AnalysisIssue } from '../../scripts/analysis/multi-agent-analysis.js';
+import type { NormalizedReport, AgentSummary } from '../../scripts/analysis/report-generator.js';
 
 describe('ReportGenerator', () => {
   const generator = new ReportGenerator();
 
   // Sample report data
-  const sampleReport: OrchestratorReport = {
+  const sampleReport: NormalizedReport = {
     timestamp: '2026-02-17T12:00:00Z',
     overallScore: 85,
     agents: [
@@ -303,7 +302,7 @@ describe('ReportGenerator', () => {
 
   describe('Edge Cases', () => {
     it('should handle report with no issues', () => {
-      const cleanReport: OrchestratorReport = {
+      const cleanReport: NormalizedReport = {
         timestamp: '2026-02-17T12:00:00Z',
         overallScore: 100,
         agents: [
@@ -334,7 +333,7 @@ describe('ReportGenerator', () => {
     });
 
     it('should handle very large reports', () => {
-      const largeReport: OrchestratorReport = {
+      const largeReport: NormalizedReport = {
         ...sampleReport,
         issues: Array.from({ length: 1000 }, (_, i) => ({
           dimension: 'test',

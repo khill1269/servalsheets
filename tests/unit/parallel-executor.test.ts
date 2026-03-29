@@ -2,7 +2,7 @@
  * ParallelExecutor Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ParallelExecutor } from '../../src/services/parallel-executor.js';
 
 type ParallelStats = {

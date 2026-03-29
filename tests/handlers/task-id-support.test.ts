@@ -5,7 +5,7 @@
  * responses must not create bespoke tasks or attach ad hoc `taskId` fields.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SheetsBigQueryHandler } from '../../src/handlers/bigquery.js';
 import { SheetsAppsScriptHandler } from '../../src/handlers/appsscript.js';
 import { CompositeHandler } from '../../src/handlers/composite.js';
@@ -134,14 +134,14 @@ describe('handler task ID cleanup', () => {
       request: {
         action: 'export_to_bigquery',
         spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B2',
+        range: { a1: 'Sheet1!A1:B2' },
         destination: {
           projectId: 'my-project',
           datasetId: 'my-dataset',
           tableId: 'my-table',
         },
       },
-    });
+    } as any);
     const importResult = await handler.handle({
       request: {
         action: 'import_from_bigquery',
@@ -151,7 +151,7 @@ describe('handler task ID cleanup', () => {
         sheetName: 'BigQuery Results',
         startCell: 'A1',
       },
-    });
+    } as any);
 
     expect(exportResult.response.success).toBe(true);
     expect(importResult.response.success).toBe(true);
@@ -163,7 +163,7 @@ describe('handler task ID cleanup', () => {
 
   it('appsscript run does not emit manual task IDs', async () => {
     const taskStore = createMockTaskStore();
-    const context: HandlerContext = {
+    const context = {
       googleClient: {
         oauth2: {
           credentials: {
@@ -180,7 +180,7 @@ describe('handler task ID cleanup', () => {
         }),
       } as any,
       taskStore: taskStore as unknown as HandlerContext['taskStore'],
-    };
+    } as unknown as HandlerContext;
     const handler = new SheetsAppsScriptHandler(context);
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -202,7 +202,7 @@ describe('handler task ID cleanup', () => {
         functionName: 'myFunction',
         devMode: true,
       },
-    });
+    } as any);
 
     expect(result.response.success).toBe(true);
     expect(result.response).not.toHaveProperty('taskId');
@@ -260,7 +260,7 @@ describe('handler task ID cleanup', () => {
         range: 'Sheet1!A:B',
         format: 'json',
       },
-    });
+    } as any);
 
     expect(result.response.success).toBe(true);
     expect(result.response).not.toHaveProperty('taskId');
@@ -294,7 +294,7 @@ describe('handler task ID cleanup', () => {
         action: 'timeline',
         spreadsheetId: 'test-id',
       },
-    });
+    } as any);
 
     expect(result.response.success).toBe(true);
     expect(result.response).not.toHaveProperty('taskId');

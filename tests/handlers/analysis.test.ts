@@ -70,7 +70,7 @@ describe('AnalyzeHandler', () => {
       action: 'analyze_quality',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B3' },
-    });
+    } as any);
 
     const parsed = SheetsAnalyzeOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
@@ -82,7 +82,7 @@ describe('AnalyzeHandler', () => {
       action: 'analyze_data',
       spreadsheetId: 'sheet-id',
       analysisTypes: ['summary'],
-    });
+    } as any);
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -99,12 +99,12 @@ describe('AnalyzeHandler', () => {
       action: 'analyze_quality',
       spreadsheetId: 'nonexistent-id',
       range: { a1: 'Sheet1!A1:B3' },
-    });
+    } as any);
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
       expect(result.response.error).toBeDefined();
-      expect(result.response.error.code).toBeDefined();
+      expect((result.response.error as any).code).toBeDefined();
     }
   });
 
@@ -117,7 +117,7 @@ describe('AnalyzeHandler', () => {
       action: 'analyze_quality',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B3' },
-    });
+    } as any);
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
@@ -134,7 +134,7 @@ describe('AnalyzeHandler', () => {
       action: 'analyze_data',
       spreadsheetId: 'nonexistent-id',
       analysisTypes: ['summary'],
-    });
+    } as any);
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {

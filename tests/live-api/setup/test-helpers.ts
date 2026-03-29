@@ -289,10 +289,10 @@ export async function assertEventually(
  * Get comprehensive test statistics
  */
 export function getTestStats(): {
-  metrics: ReturnType<typeof getMetricsCollector>['getRunMetrics'];
+  metrics: ReturnType<ReturnType<typeof getMetricsCollector>['getRunMetrics']>;
   retry: ReturnType<typeof getRetryStats>;
-  quota: ReturnType<typeof getQuotaManager>['getStats'];
-  rateLimiter: ReturnType<typeof getTestRateLimiter>['getStats'];
+  quota: ReturnType<ReturnType<typeof getQuotaManager>['getStats']>;
+  rateLimiter: ReturnType<ReturnType<typeof getTestRateLimiter>['getStats']>;
 } {
   return {
     metrics: getMetricsCollector().getRunMetrics(),
@@ -405,8 +405,8 @@ export function parseA1Notation(a1: string): {
 
   if (a1.includes('!')) {
     const parts = a1.split('!');
-    sheetName = parts[0].replace(/^'|'$/g, '');
-    range = parts[1];
+    sheetName = parts[0]!.replace(/^'|'$/g, '');
+    range = parts[1]!;
   }
 
   // Parse range (e.g., "A1:B2" or "A1")
@@ -425,9 +425,9 @@ export function parseA1Notation(a1: string): {
 
   return {
     sheetName,
-    startCol: colToIndex(match[1].toUpperCase()),
-    startRow: parseInt(match[2], 10),
-    endCol: match[3] ? colToIndex(match[3].toUpperCase()) : undefined,
-    endRow: match[4] ? parseInt(match[4], 10) : undefined,
+    startCol: colToIndex(match[1]!.toUpperCase()),
+    startRow: parseInt(match[2]!, 10),
+    endCol: match[3] ? colToIndex(match[3]!.toUpperCase()) : undefined,
+    endRow: match[4] ? parseInt(match[4]!, 10) : undefined,
   };
 }

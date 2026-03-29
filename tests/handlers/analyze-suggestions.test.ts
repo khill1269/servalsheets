@@ -223,11 +223,12 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('suggest_next_actions');
-      expect(Array.isArray(result.response.suggestions)).toBe(true);
-      expect(result.response.suggestions.length).toBeGreaterThan(0);
+      const resp1 = result.response as any;
+      expect(resp1).toBeDefined();
+      expect(resp1.success).toBe(true);
+      expect(resp1.action).toBe('suggest_next_actions');
+      expect(Array.isArray(resp1.suggestions)).toBe(true);
+      expect(resp1.suggestions.length).toBeGreaterThan(0);
     });
 
     it('respects maxSuggestions parameter', async () => {
@@ -239,8 +240,9 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.suggestions.length).toBeLessThanOrEqual(2);
+      const resp2 = result.response as any;
+      expect(resp2.success).toBe(true);
+      expect(resp2.suggestions.length).toBeLessThanOrEqual(2);
     });
 
     it('filters by category', async () => {
@@ -252,8 +254,9 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      for (const suggestion of result.response.suggestions) {
+      const resp3 = result.response as any;
+      expect(resp3.success).toBe(true);
+      for (const suggestion of resp3.suggestions) {
         expect(suggestion.category).toBe('formulas');
       }
     });
@@ -266,8 +269,9 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      for (const suggestion of result.response.suggestions) {
+      const resp4 = result.response as any;
+      expect(resp4.success).toBe(true);
+      for (const suggestion of resp4.suggestions) {
         expect(typeof suggestion.id).toBe('string');
         expect(typeof suggestion.title).toBe('string');
         expect(typeof suggestion.description).toBe('string');
@@ -289,9 +293,10 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.scoutSummary.title).toBe('Test Spreadsheet');
-      expect(result.response.scoutSummary.sheetCount).toBe(1);
+      const resp5 = result.response as any;
+      expect(resp5.success).toBe(true);
+      expect(resp5.scoutSummary.title).toBe('Test Spreadsheet');
+      expect(resp5.scoutSummary.sheetCount).toBe(1);
     });
 
     it('detects revenue + cost → profit margin suggestion', async () => {
@@ -303,8 +308,9 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      const profitSuggestion = result.response.suggestions.find(
+      const resp6 = result.response as any;
+      expect(resp6.success).toBe(true);
+      const profitSuggestion = resp6.suggestions.find(
         (s: any) => s.id === 'add_profit_margin'
       );
       expect(profitSuggestion).toBeDefined();
@@ -320,8 +326,9 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      const dropdownSuggestion = result.response.suggestions.find(
+      const resp7 = result.response as any;
+      expect(resp7.success).toBe(true);
+      const dropdownSuggestion = resp7.suggestions.find(
         (s: any) => s.id === 'add_data_validation'
       );
       expect(dropdownSuggestion).toBeDefined();
@@ -337,10 +344,11 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(driveResult.response.success).toBe(true);
-      expect(driveResult.response.action).toBe('discover_action');
-      expect(driveResult.response.matches.length).toBeGreaterThan(0);
-      expect(driveResult.response.matches[0]).toMatchObject({
+      const driveResp = driveResult.response as any;
+      expect(driveResp.success).toBe(true);
+      expect(driveResp.action).toBe('discover_action');
+      expect(driveResp.matches.length).toBeGreaterThan(0);
+      expect(driveResp.matches[0]).toMatchObject({
         tool: 'sheets_core',
         action: 'list',
       });
@@ -352,9 +360,10 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(tabsResult.response.success).toBe(true);
-      expect(tabsResult.response.matches.length).toBeGreaterThan(0);
-      expect(tabsResult.response.matches[0]).toMatchObject({
+      const tabsResp = tabsResult.response as any;
+      expect(tabsResp.success).toBe(true);
+      expect(tabsResp.matches.length).toBeGreaterThan(0);
+      expect(tabsResp.matches[0]).toMatchObject({
         tool: 'sheets_core',
         action: 'list_sheets',
       });
@@ -369,11 +378,12 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.matchCount).toBeGreaterThan(0);
-      expect(result.response.matches[0]).toHaveProperty('whenToUse');
-      expect(result.response.matches[0]).toHaveProperty('whenNotToUse');
-      expect(result.response.matches[0]).toHaveProperty('commonMistake');
+      const resp8 = result.response as any;
+      expect(resp8.success).toBe(true);
+      expect(resp8.matchCount).toBeGreaterThan(0);
+      expect(resp8.matches[0]).toHaveProperty('whenToUse');
+      expect(resp8.matches[0]).toHaveProperty('whenNotToUse');
+      expect(resp8.matches[0]).toHaveProperty('commonMistake');
     });
 
     it('returns clarification guidance for ambiguous queries', async () => {
@@ -385,12 +395,13 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.needsClarification).toBe(true);
-      expect(result.response.clarificationReason).toBe('underspecified_query');
-      expect(result.response.clarificationQuestion).toBeDefined();
-      expect(Array.isArray(result.response.clarificationOptions)).toBe(true);
-      expect(result.response.clarificationOptions.length).toBeGreaterThan(0);
+      const resp9 = result.response as any;
+      expect(resp9.success).toBe(true);
+      expect(resp9.needsClarification).toBe(true);
+      expect(resp9.clarificationReason).toBe('underspecified_query');
+      expect(resp9.clarificationQuestion).toBeDefined();
+      expect(Array.isArray(resp9.clarificationOptions)).toBe(true);
+      expect(resp9.clarificationOptions.length).toBeGreaterThan(0);
     });
   });
 
@@ -404,12 +415,13 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(true);
-      expect(result.response.action).toBe('auto_enhance');
-      expect(result.response.mode).toBe('preview');
-      expect(Array.isArray(result.response.enhancements)).toBe(true);
-      expect(result.response.enhanceSummary.applied).toBe(0);
+      const resp10 = result.response as any;
+      expect(resp10).toBeDefined();
+      expect(resp10.success).toBe(true);
+      expect(resp10.action).toBe('auto_enhance');
+      expect(resp10.mode).toBe('preview');
+      expect(Array.isArray(resp10.enhancements)).toBe(true);
+      expect(resp10.enhanceSummary.applied).toBe(0);
     });
 
     it('applies enhancements in apply mode', async () => {
@@ -421,9 +433,10 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.mode).toBe('apply');
-      expect(result.response.enhanceSummary.applied).toBeGreaterThanOrEqual(0);
+      const resp11 = result.response as any;
+      expect(resp11.success).toBe(true);
+      expect(resp11.mode).toBe('apply');
+      expect(resp11.enhanceSummary.applied).toBeGreaterThanOrEqual(0);
     });
 
     it('defaults to formatting + structure categories', async () => {
@@ -435,8 +448,9 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      for (const enhancement of result.response.enhancements) {
+      const resp12 = result.response as any;
+      expect(resp12.success).toBe(true);
+      for (const enhancement of resp12.enhancements) {
         expect(['formatting', 'structure']).toContain(
           enhancement.suggestion.category
         );
@@ -453,16 +467,17 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(result.response.success).toBe(true);
-      expect(result.response.enhancements.length).toBeLessThanOrEqual(1);
+      const resp13 = result.response as any;
+      expect(resp13.success).toBe(true);
+      expect(resp13.enhancements.length).toBeLessThanOrEqual(1);
     });
 
     it('handles errors gracefully', async () => {
       // Temporarily replace the Scout mock's quickScan in the module
       const scoutModule = await import('../../src/analysis/scout.js');
       const OrigScout = scoutModule.Scout;
-      // @ts-expect-error — replacing module export for test
-      scoutModule.Scout = class FailingScout {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (scoutModule as any).Scout = class FailingScout {
         scout = vi.fn().mockRejectedValue(new Error('API unavailable'));
       };
 
@@ -475,12 +490,13 @@ describe('F4: Smart Suggestions', () => {
       } as any);
 
       // Restore
-      // @ts-expect-error — restoring original
-      scoutModule.Scout = OrigScout;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (scoutModule as any).Scout = OrigScout;
 
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('INTERNAL_ERROR');
-      expect(result.response.error.retryable).toBe(true);
+      const resp14 = result.response as any;
+      expect(resp14.success).toBe(false);
+      expect(resp14.error.code).toBe('INTERNAL_ERROR');
+      expect(resp14.error.retryable).toBe(true);
     });
   });
 });

@@ -227,7 +227,7 @@ describe('Tenant Isolation', () => {
       const tenant1 = await service.createTenant('Tenant 1', {
         maxSpreadsheets: 100,
       });
-      const tenant2 = await service.createTenant('Tenant 2', {
+      await service.createTenant('Tenant 2', {
         maxSpreadsheets: 200,
       });
 

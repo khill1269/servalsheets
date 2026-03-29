@@ -5,7 +5,7 @@
  * Run with: npm run bench
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { performance } from 'perf_hooks';
 
 // Import schemas for validation benchmarks
@@ -17,7 +17,7 @@ import {
 } from '../../src/schemas/index.js';
 
 // Import mocks for handler benchmarks
-import { createMockSheetsApi, createMockContext } from '../helpers/google-api-mocks.js';
+import { createMockSheetsApi } from '../helpers/google-api-mocks.js';
 
 /**
  * Performance thresholds (in milliseconds)
@@ -92,12 +92,12 @@ async function benchmark<T>(
   const variance = times.reduce((acc, t) => acc + Math.pow(t - mean, 2), 0) / times.length;
 
   return {
-    min: times[0],
-    max: times[times.length - 1],
+    min: times[0]!,
+    max: times[times.length - 1]!,
     mean,
-    median: times[Math.floor(times.length / 2)],
-    p95: times[Math.floor(times.length * 0.95)],
-    p99: times[Math.floor(times.length * 0.99)],
+    median: times[Math.floor(times.length / 2)]!,
+    p95: times[Math.floor(times.length * 0.95)]!,
+    p99: times[Math.floor(times.length * 0.99)]!,
     stdDev: Math.sqrt(variance),
   };
 }

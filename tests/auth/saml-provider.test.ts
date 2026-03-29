@@ -14,7 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
-import type { SAML, SamlProfile } from 'node-saml';
+import type { SAML, SamlProfile } from '@node-saml/node-saml';
 
 import {
   SamlProvider,
@@ -370,7 +370,7 @@ describe('SamlProvider.createRouter — callback route', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ tokenType: 'Bearer', nameId: 'user@corp.com' })
     );
-    const call = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as { token: string };
+    const call = ((res.json as ReturnType<typeof vi.fn>).mock.calls[0] as [{ token: string }])[0];
     const decoded = provider.verifyToken(call.token);
     expect(decoded).not.toBeNull();
     expect(decoded!.sub).toBe('user@corp.com');
@@ -405,7 +405,7 @@ describe('SamlProvider.createRouter — callback route', () => {
     );
     expect(res.redirect).toHaveBeenCalledWith('https://app.example.com/dashboard');
     // Verify the redirect URL does NOT contain the token
-    const redirectUrl = (res.redirect as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const redirectUrl = ((res.redirect as ReturnType<typeof vi.fn>).mock.calls[0] as [string])[0];
     expect(redirectUrl).not.toContain('sso_token=');
   });
 
