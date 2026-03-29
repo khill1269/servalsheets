@@ -76,25 +76,16 @@ describe('server resource registration safeguards', () => {
     expect(startupMocks.registerServerResources).toHaveBeenCalled();
   });
 
-  it('registers resources before connect when startup left discovery deferred', async () => {
+  it('registers resources before connect when startup leaves discovery eager', async () => {
     const server = new ServalSheetsServer();
 
-    vi.spyOn(server, 'initialize').mockResolvedValue(undefined);
-    const registerResourcesSpy = vi
-      .spyOn(
-        server as unknown as {
-          registerResources: () => Promise<void>;
-        },
-        'registerResources'
-      )
-      .mockResolvedValue(undefined);
     const connectSpy = vi.spyOn(server.server, 'connect').mockImplementation(async () => undefined);
     vi.spyOn(process, 'on').mockReturnValue(process);
 
     await server.start();
 
-    expect(registerResourcesSpy).toHaveBeenCalledTimes(1);
-    expect(registerResourcesSpy.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(startupMocks.registerServerResources).toHaveBeenCalledTimes(1);
+    expect(startupMocks.registerServerResources.mock.invocationCallOrder[0]).toBeLessThan(
       connectSpy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
     );
     expect(
@@ -111,15 +102,6 @@ describe('server resource registration safeguards', () => {
   it('verifies tool integrity before startup initialization', async () => {
     const server = new ServalSheetsServer();
 
-    const initializeSpy = vi.spyOn(server, 'initialize').mockResolvedValue(undefined);
-    const registerResourcesSpy = vi
-      .spyOn(
-        server as unknown as {
-          registerResources: () => Promise<void>;
-        },
-        'registerResources'
-      )
-      .mockResolvedValue(undefined);
     const connectSpy = vi.spyOn(server.server, 'connect').mockImplementation(async () => undefined);
     vi.spyOn(process, 'on').mockReturnValue(process);
 
@@ -127,9 +109,9 @@ describe('server resource registration safeguards', () => {
 
     expect(startupMocks.verifyToolIntegrity).toHaveBeenCalledTimes(1);
     expect(startupMocks.verifyToolIntegrity.mock.invocationCallOrder[0]).toBeLessThan(
-      initializeSpy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+      startupMocks.registerServerResources.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
     );
-    expect(registerResourcesSpy).toHaveBeenCalledTimes(1);
+    expect(startupMocks.registerServerResources).toHaveBeenCalledTimes(1);
     expect(connectSpy).toHaveBeenCalledTimes(1);
 
     await server.shutdown();

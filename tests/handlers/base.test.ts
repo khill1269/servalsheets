@@ -127,6 +127,19 @@ class TestHandler extends BaseHandler<any, any> {
   ): Promise<number> {
     return this.getSheetId(spreadsheetId, sheetName, sheetsApi);
   }
+
+  public testShouldRequireConfirmation(context: any): boolean {
+    return this.shouldRequireConfirmation(context);
+  }
+
+  public async testConfirmOperation(
+    operation: string,
+    details: string,
+    context: any,
+    options?: { skipIfElicitationUnavailable?: boolean }
+  ): Promise<boolean> {
+    return this.confirmOperation(operation, details, context, options);
+  }
 }
 
 // Mock factory functions
@@ -1000,6 +1013,63 @@ describe('BaseHandler', () => {
         sheetName: 'Resolved Sheet',
       });
       expect(mockSheetsApi.spreadsheets.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Safety Confirmation', () => {
+    it('should require confirmation for destructive row deletes above the policy threshold', () => {
+      const dimensionsHandler = new TestHandler('sheets_dimensions', createMockContext());
+
+      expect(
+        dimensionsHandler.testShouldRequireConfirmation({
+          operationType: 'delete',
+          actionName: 'delete_rows',
+          isDestructive: true,
+          affectedRows: 11,
+        })
+      ).toBe(true);
+    });
+
+    it('should not require confirmation for small row deletes below the policy threshold', () => {
+      const dimensionsHandler = new TestHandler('sheets_dimensions', createMockContext());
+
+      expect(
+        dimensionsHandler.testShouldRequireConfirmation({
+          operationType: 'delete',
+          actionName: 'delete_rows',
+          isDestructive: true,
+          affectedRows: 5,
+        })
+      ).toBe(false);
+    });
+
+    it('should block confirmation-required operations when elicitation is unavailable', async () => {
+      const confirmed = await handler.testConfirmOperation(
+        'Delete rows',
+        'Delete 11 rows',
+        {
+          operationType: 'delete',
+          isDestructive: true,
+          affectedRows: 11,
+        }
+      );
+
+      expect(confirmed).toBe(false);
+    });
+
+    it('should allow an explicit compatibility override when elicitation is unavailable', async () => {
+      const confirmed = await handler.testConfirmOperation(
+        'Delete rows',
+        'Delete 11 rows',
+        {
+          operationType: 'delete',
+          isDestructive: true,
+          affectedRows: 11,
+        },
+        { skipIfElicitationUnavailable: true }
+      );
+
+      expect(confirmed).toBe(true);
     });
   });
 });

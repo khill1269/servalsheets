@@ -22,6 +22,12 @@ vi.mock('../../src/utils/logger.js', () => ({
 
 vi.mock('../../src/utils/safety-helpers.js', () => ({
   createSnapshotIfNeeded: vi.fn().mockResolvedValue(undefined),
+  requestSafetyConfirmation: vi.fn().mockResolvedValue({
+    confirmed: true,
+    required: true,
+    outcome: 'accepted',
+    source: 'policy',
+  }),
 }));
 
 vi.mock('../../src/mcp/elicitation.js', () => ({
@@ -725,10 +731,8 @@ describe('CollaborateHandler — Approval Actions', () => {
       expect(response.error.code).toBe('NOT_FOUND');
     });
 
-    it('should call createSnapshotIfNeeded before confirmation (safety rail order fixed, ISSUE-013)', async () => {
-      // Verifies that approval_cancel now calls createSnapshotIfNeeded() as required by
-      // the safety rail invariant (snapshot → confirm → execute). Fixed by ISSUE-013.
-      const { createSnapshotIfNeeded: mockSnapshot } = await import(
+    it('should call createSnapshotIfNeeded after confirmation when cancellation proceeds', async () => {
+      const { createSnapshotIfNeeded: mockSnapshot, requestSafetyConfirmation } = await import(
         '../../src/utils/safety-helpers.js'
       );
 
@@ -738,7 +742,7 @@ describe('CollaborateHandler — Approval Actions', () => {
         approvalId: APPROVAL_ID,
       } as any);
 
-      // Snapshot fires (safety rail now active)
+      expect(requestSafetyConfirmation).toHaveBeenCalled();
       expect(mockSnapshot).toHaveBeenCalled();
     });
   });

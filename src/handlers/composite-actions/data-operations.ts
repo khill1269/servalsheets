@@ -10,10 +10,12 @@
 
 import { ErrorCodes } from '../error-codes.js';
 import { getRequestLogger, sendProgress } from '../../utils/request-context.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { getEnv } from '../../config/env.js';
 import { withTimeout } from '../../utils/timeout.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import type {
   CompositeImportCsvInput,
   CompositeSmartAppendInput,
@@ -213,25 +215,38 @@ export async function handleBulkUpdateAction(
     };
   }
 
-  // Request confirmation if elicitation available and large update
   const estimatedUpdates = input.updates.length;
-  if (estimatedUpdates > 10 && access.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      access.context.elicitationServer,
-      'bulk_update',
-      `Perform bulk update of ${estimatedUpdates} records in spreadsheet ${input.spreadsheetId}. This will modify multiple cells based on key column matches. This action cannot be easily undone.`
+  const estimatedCells =
+    estimatedUpdates *
+    Math.max(
+      1,
+      ...input.updates.map((update) => Object.keys(update as Record<string, unknown>).length)
     );
+  const confirmation = await requestSafetyConfirmation({
+    server: access.context.server ?? access.context.elicitationServer,
+    operation: 'bulk_update',
+    details: `Perform bulk update of ${estimatedUpdates} record(s) in spreadsheet ${input.spreadsheetId}. This will modify multiple cells based on key column matches. This action cannot be easily undone.`,
+    context: {
+      toolName: 'sheets_composite',
+      actionName: 'bulk_update',
+      operationType: 'bulk_update',
+      isDestructive: false,
+      affectedRows: estimatedUpdates,
+      affectedCells: estimatedCells,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: access.context.logger,
+  });
 
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-        },
-      } as CompositeOutput['response'];
-    }
+  if (!confirmation.confirmed) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCodes.PRECONDITION_FAILED,
+        message: confirmation.reason || 'User cancelled the operation',
+        retryable: false,
+      },
+    } as CompositeOutput['response'];
   }
 
   // Create snapshot if requested
@@ -241,7 +256,7 @@ export async function handleBulkUpdateAction(
       operationType: 'bulk_update',
       isDestructive: true,
       spreadsheetId: input.spreadsheetId,
-      affectedCells: estimatedUpdates * Object.keys(input.updates[0] || {}).length,
+      affectedCells: estimatedCells,
     },
     input.safety
   );
@@ -390,24 +405,30 @@ export async function handleDeduplicateAction(
     preview: true,
   });
 
-  // Request confirmation if elicitation available and many duplicates found
-  if (previewResult.duplicatesFound > 0 && access.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      access.context.elicitationServer,
-      'deduplicate',
-      `Remove ${previewResult.duplicatesFound} duplicate rows from spreadsheet ${resolvedInput.spreadsheetId}. Keeping ${resolvedInput.keep || 'first'} occurrence of each duplicate. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: access.context.server ?? access.context.elicitationServer,
+    operation: 'deduplicate',
+    details: `Remove ${previewResult.duplicatesFound} duplicate row(s) from spreadsheet ${resolvedInput.spreadsheetId}. Keeping ${resolvedInput.keep || 'first'} occurrence of each duplicate. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_composite',
+      actionName: 'deduplicate',
+      operationType: 'deduplicate',
+      isDestructive: true,
+      affectedRows: previewResult.duplicatesFound,
+      spreadsheetId: resolvedInput.spreadsheetId,
+    },
+    logger: access.context.logger,
+  });
 
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-        },
-      } as CompositeOutput['response'];
-    }
+  if (!confirmation.confirmed) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCodes.PRECONDITION_FAILED,
+        message: confirmation.reason || 'User cancelled the operation',
+        retryable: false,
+      },
+    } as CompositeOutput['response'];
   }
 
   // Create snapshot if requested

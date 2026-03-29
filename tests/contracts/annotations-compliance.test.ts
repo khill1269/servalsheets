@@ -4,8 +4,8 @@
  * Validates that tool-level annotations (readOnlyHint, destructiveHint)
  * are consistent with actual handler behavior:
  *
- * 1. Tools with destructiveHint: true must call confirmDestructiveAction()
- *    in at least one handler file
+ * 1. Tools with destructiveHint: true must route through a confirmation or
+ *    snapshot safety mechanism in at least one handler file
  * 2. Tools with readOnlyHint: true must NOT call any write/update/delete
  *    Google API methods in their handler
  * 3. Every tool in TOOL_ANNOTATIONS maps to a real tool definition
@@ -185,7 +185,7 @@ describe('Annotation Compliance Contract', () => {
 
     for (const toolName of destructiveTools) {
       if (CONFIRM_EXEMPT_TOOLS[toolName]) {
-        it(`${toolName} (destructiveHint: true) is exempt from confirmDestructiveAction: ${CONFIRM_EXEMPT_TOOLS[toolName]}`, () => {
+        it(`${toolName} (destructiveHint: true) is exempt from direct confirmation: ${CONFIRM_EXEMPT_TOOLS[toolName]}`, () => {
           // Exempt tools must still have SOME safety mechanism:
           // either createSnapshotIfNeeded or at least dryRun support
           const files = getHandlerFiles(toolName);
@@ -203,19 +203,21 @@ describe('Annotation Compliance Contract', () => {
         if (files.length === 0) return;
 
         // Check for any safety mechanism:
-        // - confirmDestructiveAction (standalone handlers import this directly)
+        // - confirmDestructiveAction (legacy standalone handlers)
+        // - requestSafetyConfirmation / requestDestructiveConfirmation (shared helpers)
         // - confirmOperation (BaseHandler subclasses use this.confirmOperation())
         // - createSnapshotIfNeeded (standalone handlers)
         // - createSnapshot (BaseHandler subclasses use this.createSnapshot())
         const hasSafety = handlerFilesContain(
           toolName,
-          /confirmDestructiveAction|confirmOperation|createSnapshotIfNeeded|this\.createSnapshot/
+          /confirmDestructiveAction|requestSafetyConfirmation|requestDestructiveConfirmation|confirmOperation|createSnapshotIfNeeded|this\.createSnapshot/
         );
 
         expect(
           hasSafety,
           `${toolName} is marked destructiveHint: true but no handler uses safety mechanisms ` +
-            `(confirmDestructiveAction, confirmOperation, createSnapshotIfNeeded, or this.createSnapshot). ` +
+            `(confirmDestructiveAction, requestSafetyConfirmation, requestDestructiveConfirmation, ` +
+            `confirmOperation, createSnapshotIfNeeded, or this.createSnapshot). ` +
             `Files checked: ${files.map((f) => f.replace(SRC_ROOT, 'src')).join(', ')}`
         ).toBe(true);
       });

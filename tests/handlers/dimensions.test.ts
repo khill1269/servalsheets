@@ -34,6 +34,19 @@ const createMockContext = (): HandlerContext => ({
       sheetName: 'Sheet1',
     }),
   } as any,
+  elicitationServer: {
+    request: vi.fn().mockResolvedValue({
+      confirmed: true,
+      reason: '',
+    }),
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({
+      elicitation: { form: true },
+    }),
+  } as any,
 });
 
 describe('DimensionsHandler', () => {
@@ -189,6 +202,24 @@ describe('DimensionsHandler', () => {
           ],
         },
       });
+    });
+
+    it('should fail closed for large inserts when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new DimensionsHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'insert',
+        dimension: 'ROWS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        startIndex: 1,
+        count: 11,
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -350,6 +381,74 @@ describe('DimensionsHandler', () => {
           ],
         },
       });
+    });
+
+    it('should block large row deletions when confirmation is required but elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new DimensionsHandler(mockContext, mockApi as any);
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'delete',
+        dimension: 'ROWS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        startIndex: 0,
+        endIndex: 11,
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error.code).toBe('PRECONDITION_FAILED');
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should respect explicit user approval for large column deletions', async () => {
+      mockContext.elicitationServer = {
+        getClientCapabilities: vi.fn().mockReturnValue({
+          elicitation: {
+            form: true,
+            url: true,
+          },
+        }),
+        elicitInput: vi.fn().mockResolvedValue({
+          action: 'accept',
+          content: { confirm: true, reason: 'Approved' },
+        }),
+      } as any;
+      handler = new DimensionsHandler(mockContext, mockApi as any);
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'delete',
+        dimension: 'COLUMNS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        startIndex: 1,
+        endIndex: 5,
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
+      expect(mockContext.elicitationServer?.elicitInput).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fail closed for move when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new DimensionsHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'move',
+        dimension: 'ROWS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        startIndex: 5,
+        endIndex: 10,
+        destinationIndex: 15,
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -844,6 +943,23 @@ describe('DimensionsHandler', () => {
           ],
         },
       });
+    });
+
+    it('should fail closed for large appends when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new DimensionsHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'append',
+        dimension: 'ROWS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        count: 11,
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -1442,6 +1558,21 @@ describe('DimensionsHandler', () => {
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
+
+      it('should fail closed when elicitation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new DimensionsHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'clear_basic_filter',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
     });
 
     describe('get_basic_filter', () => {
@@ -1810,6 +1941,21 @@ describe('DimensionsHandler', () => {
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
+
+      it('should fail closed when elicitation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new DimensionsHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'delete_filter_view',
+          spreadsheetId: 'test-sheet-id',
+          filterViewId: 42,
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
     });
 
     describe('list_filter_views', () => {
@@ -2127,6 +2273,21 @@ describe('DimensionsHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should fail closed when elicitation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new DimensionsHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'delete_slicer',
+          spreadsheetId: 'test-sheet-id',
+          slicerId: 5,
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
     });

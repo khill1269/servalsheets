@@ -7,7 +7,7 @@ import { getHistoryService } from '../../services/history-service.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import type { HistoryResponse } from '../../schemas/history.js';
 import type { ElicitationServer } from '../../mcp/elicitation.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
+import { requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 
 interface ListReq {
   action: 'list';
@@ -121,25 +121,30 @@ export async function handleStats(_req: StatsReq): Promise<HistoryResponse> {
 export async function handleClear(req: ClearReq, server?: ElicitationServer): Promise<HistoryResponse> {
   const historyService = getHistoryService();
 
-  if (server) {
-    const clearScope = req.spreadsheetId
-      ? `operation history for spreadsheet ${req.spreadsheetId}`
-      : 'all operation history';
-    const confirmation = await confirmDestructiveAction(
-      server,
-      'Clear operation history',
-      `Permanently deletes ${clearScope}. The history log cannot be recovered.`
-    );
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.OPERATION_CANCELLED,
-          message: 'Clear cancelled by user',
-          retryable: false,
-        },
-      };
-    }
+  const clearScope = req.spreadsheetId
+    ? `operation history for spreadsheet ${req.spreadsheetId}`
+    : 'all operation history';
+  const confirmation = await requestSafetyConfirmation({
+    server,
+    operation: 'clear_history',
+    details: `Permanently deletes ${clearScope}. The history log cannot be recovered.`,
+    context: {
+      toolName: 'sheets_history',
+      actionName: 'clear',
+      operationType: 'clear',
+      isDestructive: true,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
+  if (!confirmation.confirmed) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCodes.OPERATION_CANCELLED,
+        message: confirmation.reason || 'Clear cancelled by user',
+        retryable: false,
+      },
+    };
   }
 
   let cleared: number;

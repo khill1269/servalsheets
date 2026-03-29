@@ -3,8 +3,10 @@ import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 
 type SetMetadataRequest = Extract<SheetsAdvancedInput['request'], { action: 'set_metadata' }>;
 type GetMetadataRequest = Extract<SheetsAdvancedInput['request'], { action: 'get_metadata' }>;
@@ -126,22 +128,26 @@ export async function handleDeleteMetadataAction(
     return deps.success('delete_metadata', {}, undefined, true);
   }
 
-  // Request confirmation if elicitation available
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'delete_metadata',
-      `Delete developer metadata (ID: ${req.metadataId}) from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'delete_metadata',
+    details: `Delete developer metadata (ID: ${req.metadataId}) from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_advanced',
+      actionName: 'delete_metadata',
+      operationType: 'delete_metadata',
+      isDestructive: true,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Create snapshot if requested

@@ -165,8 +165,8 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
       z.number(),
       z.boolean(),
       z.null(),
-      z.array(z.any()),
-      z.record(z.string(), z.any()),
+      z.array(z.unknown()),
+      z.record(z.string(), z.unknown()),
     ])
     .optional()
     .describe(
@@ -186,8 +186,8 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
         z.number(),
         z.boolean(),
         z.null(),
-        z.array(z.any()),
-        z.record(z.string(), z.any()),
+        z.array(z.unknown()),
+        z.record(z.string(), z.unknown()),
       ])
     )
     .optional()
@@ -250,8 +250,8 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
             z.number(),
             z.boolean(),
             z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
+            z.array(z.unknown()),
+            z.record(z.string(), z.unknown()),
           ])
         )
         .optional()
@@ -334,8 +334,8 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
               z.number(),
               z.boolean(),
               z.null(),
-              z.array(z.any()),
-              z.record(z.string(), z.any()),
+              z.array(z.unknown()),
+              z.record(z.string(), z.unknown()),
             ])
             .optional(),
           expectedValue: z
@@ -344,8 +344,8 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
               z.number(),
               z.boolean(),
               z.null(),
-              z.array(z.any()),
-              z.record(z.string(), z.any()),
+              z.array(z.unknown()),
+              z.record(z.string(), z.unknown()),
             ])
             .optional(),
           path: z.string().optional(),
@@ -398,16 +398,16 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
             z.number(),
             z.boolean(),
             z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
+            z.array(z.unknown()),
+            z.record(z.string(), z.unknown()),
           ]),
           remoteValue: z.union([
             z.string(),
             z.number(),
             z.boolean(),
             z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
+            z.array(z.unknown()),
+            z.record(z.string(), z.unknown()),
           ]),
           conflictType: z.enum(['concurrent_write', 'version_mismatch', 'data_race']),
           severity: z.enum(['low', 'medium', 'high', 'critical']),
@@ -427,8 +427,8 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
           z.number(),
           z.boolean(),
           z.null(),
-          z.array(z.any()),
-          z.record(z.string(), z.any()),
+          z.array(z.unknown()),
+          z.record(z.string(), z.unknown()),
         ]),
         version: z.coerce.number(),
       })

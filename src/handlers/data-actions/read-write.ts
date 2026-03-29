@@ -11,6 +11,11 @@ import { getETagCache } from '../../services/etag-cache.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getBackgroundAnalyzer } from '../../services/background-analyzer.js';
 import { getRequestLogger } from '../../utils/request-context.js';
+import {
+  calculateAffectedCells,
+  getConfirmationDecision,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import type { DataHandlerAccess, ResponseFormat } from './internal.js';
 import {
   a1ToGridRange,
@@ -961,16 +966,43 @@ export async function handleClear(
   ha: DataHandlerAccess,
   input: DataRequest & { action: 'clear' }
 ): Promise<DataResponse> {
-  // Request confirmation for destructive clear operations
-  const { requestDestructiveConfirmation } = await import('./helpers.js');
-  const confirmation = await requestDestructiveConfirmation(
-    ha,
-    'clear',
-    `Clear all values in range${input.range ? ` ${input.range}` : ' (dataFilter)'}`,
-    1000, // Assume large impact — clear is always destructive
-    100
-  );
-  if (!confirmation.proceed) {
+  let resolvedRangeA1: string | undefined;
+  let estimatedCells = 0;
+
+  if (input.range) {
+    const resolvedRange = await ha.context.rangeResolver.resolve(
+      input.spreadsheetId,
+      typeof input.range === 'string' ? { a1: input.range } : input.range
+    );
+    resolvedRangeA1 = resolvedRange.a1Notation;
+    estimatedCells = calculateAffectedCells(resolvedRangeA1);
+  }
+
+  const confirmationContext = {
+    toolName: ha.toolName,
+    actionName: 'clear' as const,
+    operationType: 'clear',
+    isDestructive: true,
+    affectedCells: estimatedCells,
+    spreadsheetId: input.spreadsheetId,
+  };
+  const confirmationServer = ha.context.server ?? ha.context.elicitationServer;
+  const confirmationDecision = getConfirmationDecision(confirmationContext);
+  if (confirmationDecision.required && !confirmationServer) {
+    return ha.makeSuccess('clear', {
+      _cancelled: true,
+      reason: 'Interactive confirmation is unavailable for an operation that requires confirmation.',
+    });
+  }
+
+  const confirmation = await requestSafetyConfirmation({
+    server: confirmationServer,
+    operation: 'clear',
+    details: `Clear all values in range${resolvedRangeA1 ? ` ${resolvedRangeA1}` : ' (dataFilter)'}`,
+    context: confirmationContext,
+    logger: ha.context.logger,
+  });
+  if (!confirmation.confirmed) {
     return ha.makeSuccess('clear', {
       _cancelled: true,
       reason: confirmation.reason ?? 'User cancelled the clear operation',
@@ -1114,7 +1146,7 @@ export async function handleClear(
       retryable: false,
     });
   }
-  const range = await resolveRangeToA1(ha, input.spreadsheetId, input.range);
+  const range = resolvedRangeA1 ?? (await resolveRangeToA1(ha, input.spreadsheetId, input.range));
 
   if (input.safety?.dryRun) {
     return ha.makeSuccess('clear', { updatedRange: range }, undefined, true);

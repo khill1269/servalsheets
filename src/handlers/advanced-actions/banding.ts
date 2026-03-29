@@ -5,8 +5,10 @@ import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { recordBandingId } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
@@ -210,22 +212,26 @@ export async function handleDeleteBandingAction(
     return deps.success('delete_banding', {}, undefined, true);
   }
 
-  // Request confirmation if elicitation available
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'delete_banding',
-      `Delete banding (ID: ${req.bandedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove alternating color formatting. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'delete_banding',
+    details: `Delete banding (ID: ${req.bandedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove alternating color formatting. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_advanced',
+      actionName: 'delete_banding',
+      operationType: 'delete_banding',
+      isDestructive: true,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Create snapshot if requested

@@ -5,8 +5,8 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { glob } from 'glob';
 
 interface DocFreshness {
   file: string;
@@ -59,15 +59,7 @@ function getFreshnessStatus(days: number): DocFreshness['status'] {
 }
 
 async function checkFreshness(): Promise<DocFreshness[]> {
-  const files = await glob('docs/**/*.md', {
-    ignore: [
-      '**/node_modules/**',
-      '**/docs/.vitepress/**',
-      '**/docs/.templates/**',
-      '**/docs/archive/**',
-      '**/docs/DOCS_CATALOG.md',
-    ],
-  });
+  const files = walkMarkdownFiles('docs');
 
   const results: DocFreshness[] = [];
 
@@ -95,6 +87,43 @@ async function checkFreshness(): Promise<DocFreshness[]> {
   }
 
   return results.sort((a, b) => b.daysSinceUpdate - a.daysSinceUpdate);
+}
+
+function shouldIgnoreDoc(filePath: string): boolean {
+  const normalized = filePath.split(path.sep).join('/');
+  return (
+    normalized.includes('/node_modules/') ||
+    normalized.startsWith('docs/.vitepress/') ||
+    normalized.startsWith('docs/.templates/') ||
+    normalized.startsWith('docs/archive/') ||
+    normalized.startsWith('docs/audits/') ||
+    normalized.startsWith('docs/review/') ||
+    normalized.startsWith('docs/generated/') ||
+    normalized === 'docs/DOCS_CATALOG.md'
+  );
+}
+
+function walkMarkdownFiles(rootDir: string): string[] {
+  const results: string[] = [];
+
+  function walk(currentDir: string): void {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (shouldIgnoreDoc(fullPath)) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+      if (entry.isFile() && fullPath.endsWith('.md')) {
+        results.push(fullPath);
+      }
+    }
+  }
+
+  walk(rootDir);
+  return results;
 }
 
 function formatDate(date: Date): string {

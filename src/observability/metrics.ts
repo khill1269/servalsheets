@@ -5,7 +5,10 @@
  * Access via GET /metrics endpoint.
  */
 
+import { createRequire } from 'node:module';
 import { register, Counter, Histogram, Gauge, Summary } from 'prom-client';
+
+const require = createRequire(import.meta.url);
 
 /**
  * Helper: get an existing metric or create a new one.
@@ -829,23 +832,34 @@ export interface HealthSnapshot {
  */
 export function getHealthSnapshot(): HealthSnapshot {
   // Import dynamically to avoid circular dependencies
-  const { circuitBreakerRegistry } =
-    require('../services/circuit-breaker-registry.js') as typeof import('../services/circuit-breaker-registry.js');
-  const { cacheManager } =
-    require('../utils/cache-manager.js') as typeof import('../utils/cache-manager.js');
+  // try/catch: bare require() in ESM fails on Node <22.12 — degrade gracefully
+  let circuitBreakerRegistry:
+    | (typeof import('../services/circuit-breaker-registry.js'))['circuitBreakerRegistry']
+    | null = null;
+  let cacheManager: (typeof import('../utils/cache-manager.js'))['cacheManager'] | null = null;
+  try {
+    ({ circuitBreakerRegistry } =
+      require('../services/circuit-breaker-registry.js') as typeof import('../services/circuit-breaker-registry.js'));
+    ({ cacheManager } =
+      require('../utils/cache-manager.js') as typeof import('../utils/cache-manager.js'));
+  } catch {
+    // Module unavailable (e.g. Node <22.12 ESM require, or circular dep at init time)
+  }
 
   // 1. Circuit breaker states from registry
   const circuitBreakers: Record<string, 'open' | 'closed' | 'half-open'> = {};
-  const breakers = circuitBreakerRegistry.getAll();
-  for (const entry of breakers) {
-    const stats = entry.breaker.getStats();
-    const state = stats.state as 'open' | 'closed' | 'half_open';
-    // Normalize half_open -> half-open for the response
-    circuitBreakers[entry.name] = state === 'half_open' ? 'half-open' : state;
+  if (circuitBreakerRegistry) {
+    const breakers = circuitBreakerRegistry.getAll();
+    for (const entry of breakers) {
+      const stats = entry.breaker.getStats();
+      const state = stats.state as 'open' | 'closed' | 'half_open';
+      // Normalize half_open -> half-open for the response
+      circuitBreakers[entry.name] = state === 'half_open' ? 'half-open' : state;
+    }
   }
 
   // 2. Cache metrics from cache manager
-  const cacheStats = cacheManager.getStats();
+  const cacheStats = cacheManager ? cacheManager.getStats() : { hits: 0, misses: 0, totalSize: 0 };
   const cacheHitRate =
     cacheStats.hits + cacheStats.misses > 0
       ? cacheStats.hits / (cacheStats.hits + cacheStats.misses)

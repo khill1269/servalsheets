@@ -49,6 +49,15 @@ const createMockSnapshotService = (): SnapshotService =>
     clear: vi.fn(),
   }) as any;
 
+const createMockElicitationServer = () =>
+  ({
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
+  }) as any;
+
 // Helper to create mock operations
 const createMockOperation = (overrides?: Partial<OperationHistory>): OperationHistory => ({
   id: 'op-123',
@@ -88,6 +97,7 @@ describe('HistoryHandler', () => {
   let handler: HistoryHandler;
   let mockHistoryService: HistoryService;
   let mockSnapshotService: SnapshotService;
+  let mockElicitationServer: ReturnType<typeof createMockElicitationServer>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -99,12 +109,16 @@ describe('HistoryHandler', () => {
     // Create fresh mocks
     mockHistoryService = createMockHistoryService();
     mockSnapshotService = createMockSnapshotService();
+    mockElicitationServer = createMockElicitationServer();
 
     // Set the mock
     setHistoryService(mockHistoryService);
 
     // Create handler with snapshot service
-    handler = new HistoryHandler({ snapshotService: mockSnapshotService });
+    handler = new HistoryHandler({
+      snapshotService: mockSnapshotService,
+      server: mockElicitationServer,
+    });
   });
 
   afterEach(() => {
@@ -526,6 +540,31 @@ describe('HistoryHandler', () => {
         expect(result.response.error.retryable).toBe(true);
       }
     });
+
+    it('should block undo when elicitation is unavailable', async () => {
+      const mockOperation = createMockOperation({
+        id: 'op-no-elicitation',
+        spreadsheetId: 'sheet-123',
+        snapshotId: 'snap-before-write',
+      });
+
+      mockHistoryService.getLastUndoable = vi.fn().mockReturnValue(mockOperation);
+      const handlerWithoutServer = new HistoryHandler({
+        snapshotService: mockSnapshotService,
+      });
+
+      const result = await handlerWithoutServer.handle({
+        action: 'undo',
+        spreadsheetId: 'sheet-123',
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('OPERATION_CANCELLED');
+        expect(result.response.error.message).toContain('Interactive confirmation is unavailable');
+      }
+      expect(mockSnapshotService.restore).not.toHaveBeenCalled();
+    });
   });
 
   describe('redo action', () => {
@@ -568,6 +607,29 @@ describe('HistoryHandler', () => {
         expect(result.response.error.code).toBe('NOT_FOUND');
         expect(result.response.error.message).toMatch(/Operation.*not found/i);
       }
+    });
+
+    it('should block redo when elicitation is unavailable', async () => {
+      const mockOperation = createMockOperation({
+        spreadsheetId: 'sheet-123',
+        snapshotId: 'snap-before-redo',
+      });
+
+      mockHistoryService.getLastRedoable = vi.fn().mockReturnValue(mockOperation);
+      const handlerWithoutServer = new HistoryHandler({
+        snapshotService: mockSnapshotService,
+      });
+
+      const result = await handlerWithoutServer.handle({
+        action: 'redo',
+        spreadsheetId: 'sheet-123',
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('OPERATION_CANCELLED');
+      }
+      expect(mockSnapshotService.restore).not.toHaveBeenCalled();
     });
   });
 
@@ -683,6 +745,30 @@ describe('HistoryHandler', () => {
         expect(result.response.error.retryable).toBe(true);
       }
     });
+
+    it('should block revert_to when elicitation is unavailable', async () => {
+      const mockOperation = createMockOperation({
+        id: 'op-revert-target',
+        snapshotId: 'snap-before-format',
+        spreadsheetId: 'sheet-123',
+      });
+
+      mockHistoryService.getById = vi.fn().mockReturnValue(mockOperation);
+      const handlerWithoutServer = new HistoryHandler({
+        snapshotService: mockSnapshotService,
+      });
+
+      const result = await handlerWithoutServer.handle({
+        action: 'revert_to',
+        operationId: 'op-revert-target',
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('OPERATION_CANCELLED');
+      }
+      expect(mockSnapshotService.restore).not.toHaveBeenCalled();
+    });
   });
 
   describe('clear action', () => {
@@ -738,6 +824,24 @@ describe('HistoryHandler', () => {
       if (result.response.success) {
         expect(result.response.operationsCleared).toBe(0);
       }
+    });
+
+    it('should block clear when elicitation is unavailable', async () => {
+      mockHistoryService.clearForSpreadsheet = vi.fn().mockReturnValue(15);
+      const handlerWithoutServer = new HistoryHandler({
+        snapshotService: mockSnapshotService,
+      });
+
+      const result = await handlerWithoutServer.handle({
+        action: 'clear',
+        spreadsheetId: 'sheet-clear-me',
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('OPERATION_CANCELLED');
+      }
+      expect(mockHistoryService.clearForSpreadsheet).not.toHaveBeenCalled();
     });
   });
 

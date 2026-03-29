@@ -55,7 +55,8 @@ import {
   buildServerStdioStartOptions,
 } from './server/build-server-stdio-lifecycle.js';
 import {
-  initializeStdioRuntime,
+  prepareStdioRuntime,
+  type PreparedStdioRuntime,
   type InitializeStdioRuntimeDependencies,
   type InitializeStdioRuntimeState,
 } from './server/initialize-stdio-runtime.js';
@@ -95,8 +96,24 @@ export class ServalSheetsServer {
   private loggingBridgeInstalled = false;
   private forwardingMcpLog = false;
   private mcpLogRateLimitState = createMcpLogRateLimitState();
+  private preparedRuntime: PreparedStdioRuntime | null = null;
   private ensureToolIntegrityVerified = createAsyncOnce(async () => {
     await verifyToolIntegrity();
+  });
+  private ensureRuntimePrepared = createAsyncOnce(async () => {
+    this.preparedRuntime = await prepareStdioRuntime(
+      this.createRuntimeState(),
+      this.createRuntimeDependencies()
+    );
+  });
+  private ensureRuntimeInitialized = createAsyncOnce(async () => {
+    await this.ensureRuntimePrepared.run();
+
+    if (!this.preparedRuntime) {
+      throw new Error('STDIO runtime preparation did not provide a post-connect initializer');
+    }
+
+    await this.preparedRuntime.finalizePostConnect();
   });
 
   // Cached handler map (rebuilt only when handlers change)
@@ -165,7 +182,15 @@ export class ServalSheetsServer {
    * Initialize the server
    */
   async initialize(): Promise<void> {
-    await initializeStdioRuntime(this.createRuntimeState(), this.createRuntimeDependencies());
+    await this.ensureRuntimeInitialized.run();
+  }
+
+  private async initializeForConnect(): Promise<void> {
+    await this.ensureRuntimePrepared.run();
+  }
+
+  private async initializeAfterConnect(): Promise<void> {
+    await this.ensureRuntimeInitialized.run();
   }
 
   private createRuntimeState(): InitializeStdioRuntimeState<
@@ -305,7 +330,7 @@ export class ServalSheetsServer {
     return this.toolRuntime.registerResources();
   }
 
-  private ensureResourcesRegistered(): Promise<void> {
+  ensureResourcesRegistered(): Promise<void> {
     if (!this.resourcesRegistered) {
       return this.registerResources().then(() => {
         this.resourcesRegistered = true;
@@ -381,12 +406,12 @@ export class ServalSheetsServer {
     await startStdioRuntime(
       buildServerStdioStartOptions({
         verifyToolIntegrity: () => this.ensureToolIntegrityVerified.run(),
-        initialize: () => this.initialize(),
+        initializeForConnect: () => this.initializeForConnect(),
+        initializeAfterConnect: () => this.initializeAfterConnect(),
         shutdown: () => this.shutdown(),
         getResourcesRegistered: () => this.resourcesRegistered,
         getResourceRegistrationFailed: () => this.resourceRegistrationFailed,
         server: this._server,
-        ensureResourcesRegistered: () => this.ensureResourcesRegistered(),
         isShutdown: () => this.isShutdown,
         log: baseLogger,
       })

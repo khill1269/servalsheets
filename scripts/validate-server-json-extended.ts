@@ -18,6 +18,7 @@
 
 import { readFileSync } from 'fs';
 import { TOOL_COUNT, ACTION_COUNT } from '../src/schemas/index.js';
+import { SERVER_INFO } from '../src/version.js';
 
 console.log('🔍 Running extended server.json validation...\n');
 
@@ -58,16 +59,45 @@ type ServerJson = {
   [key: string]: unknown;
 };
 
+type PackageJson = {
+  name?: string;
+  mcpName?: string;
+  version?: string;
+  [key: string]: unknown;
+};
+
+type ManifestJson = {
+  name?: string;
+  version?: string;
+  [key: string]: unknown;
+};
+
 // ============================================================================
 // LOAD server.json
 // ============================================================================
 
 let serverJson: ServerJson;
+let packageJson: PackageJson;
+let manifestJson: ManifestJson;
 
 try {
   serverJson = JSON.parse(readFileSync('./server.json', 'utf-8'));
 } catch (error) {
   console.error('❌ Failed to load server.json:', (error as Error).message);
+  process.exit(1);
+}
+
+try {
+  packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
+} catch (error) {
+  console.error('❌ Failed to load package.json:', (error as Error).message);
+  process.exit(1);
+}
+
+try {
+  manifestJson = JSON.parse(readFileSync('./manifest.json', 'utf-8'));
+} catch (error) {
+  console.error('❌ Failed to load manifest.json:', (error as Error).message);
   process.exit(1);
 }
 
@@ -301,7 +331,46 @@ if (!serverJson.icons || !Array.isArray(serverJson.icons) || serverJson.icons.le
 }
 
 // ============================================================================
-// VALIDATION 5: Package Metadata (for Claude Registry)
+// VALIDATION 5: Server Identity Surfaces
+// ============================================================================
+
+console.log('\nValidating server identity surfaces...');
+
+if (packageJson.name && manifestJson.name !== packageJson.name) {
+  errors.push(`manifest.json.name (${manifestJson.name}) !== package.json.name (${packageJson.name})`);
+} else if (packageJson.name) {
+  console.log(`  ✅ manifest package name: ${manifestJson.name}`);
+}
+
+if (packageJson.mcpName && serverJson.name !== packageJson.mcpName) {
+  errors.push(`server.json.name (${serverJson.name}) !== package.json.mcpName (${packageJson.mcpName})`);
+} else if (packageJson.mcpName) {
+  console.log(`  ✅ registry server name: ${serverJson.name}`);
+}
+
+const npmPackageEntry =
+  serverJson.packages?.find((pkg) => pkg.registryType === 'npm') ?? serverJson.packages?.[0];
+
+if (packageJson.name && npmPackageEntry?.identifier !== packageJson.name) {
+  errors.push(
+    `server.json.packages[0].identifier (${npmPackageEntry?.identifier}) !== package.json.name (${packageJson.name})`
+  );
+} else if (packageJson.name && npmPackageEntry?.identifier) {
+  console.log(`  ✅ npm package identifier: ${npmPackageEntry.identifier}`);
+}
+
+if (SERVER_INFO.name === serverJson.name) {
+  warnings.push(
+    `server.json.name matches runtime server name (${SERVER_INFO.name}); registry and runtime identities should remain distinct when package.json.mcpName is configured`
+  );
+} else {
+  console.log(
+    `  ✅ runtime/server-card name (${SERVER_INFO.name}) remains distinct from registry name (${serverJson.name})`
+  );
+}
+
+// ============================================================================
+// VALIDATION 6: Package Metadata (for Claude Registry)
 // ============================================================================
 
 console.log('\nValidating package metadata...');
@@ -333,7 +402,7 @@ if (!serverJson.packages || !Array.isArray(serverJson.packages)) {
 }
 
 // ============================================================================
-// VALIDATION 6: Sanity Checks
+// VALIDATION 7: Sanity Checks
 // ============================================================================
 
 console.log('\nRunning sanity checks...');

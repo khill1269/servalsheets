@@ -524,13 +524,27 @@ export async function elicitSharingSettings(
 /**
  * Confirm a destructive action
  */
+export type DestructiveConfirmationOutcome =
+  | 'accepted'
+  | 'declined'
+  | 'cancelled'
+  | 'unavailable'
+  | 'timed_out';
+
+export interface DestructiveConfirmationResult {
+  confirmed: boolean;
+  outcome: DestructiveConfirmationOutcome;
+  reason?: string;
+}
+
 export async function confirmDestructiveAction(
   server: ElicitationServer,
   action: string,
   details: string
-): Promise<{ confirmed: boolean; reason?: string }> {
+): Promise<DestructiveConfirmationResult> {
   // Add timeout to prevent hanging when client doesn't respond
   const ELICITATION_TIMEOUT_MS = 5000;
+  let timeoutId: NodeJS.Timeout | undefined;
 
   try {
     const elicitPromise = server.elicitInput({
@@ -540,27 +554,58 @@ export async function confirmDestructiveAction(
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Elicitation timeout')), ELICITATION_TIMEOUT_MS);
+      timeoutId = setTimeout(
+        () => reject(new Error('Elicitation timeout')),
+        ELICITATION_TIMEOUT_MS
+      );
     });
 
     const result = await Promise.race([elicitPromise, timeoutPromise]);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
 
-    recordElicitationRequest(action, 'accepted');
     if (result.action === 'accept' && result.content?.['confirm'] === true) {
+      recordElicitationRequest(action, 'accepted');
       return {
         confirmed: true,
+        outcome: 'accepted',
         reason: result.content['reason'] as string | undefined,
       };
     }
+
     recordElicitationRequest(action, 'declined');
 
-    // User declined or cancelled
-    return { confirmed: false };
-  } catch (_error) {
-    // Client doesn't support elicitation or timed out — proceed by default since
-    // user explicitly requested the action (safe per MCP spec backward compatibility)
+    const outcome = result.action === 'cancel' ? 'cancelled' : 'declined';
+    const reason =
+      (result.content?.['reason'] as string | undefined) ??
+      (outcome === 'cancelled'
+        ? 'User cancelled the destructive action'
+        : 'User declined the destructive action');
+
+    return { confirmed: false, outcome, reason };
+  } catch (error) {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    if (error instanceof Error && error.message === 'Elicitation timeout') {
+      recordElicitationRequest(action, 'unavailable');
+      return {
+        confirmed: false,
+        outcome: 'timed_out',
+        reason:
+          'Interactive confirmation timed out before approval was received. No destructive changes were made.',
+      };
+    }
+
     recordElicitationRequest(action, 'unavailable');
-    return { confirmed: true };
+    return {
+      confirmed: false,
+      outcome: 'unavailable',
+      reason:
+        'Interactive confirmation is unavailable for this client. No destructive changes were made.',
+    };
   }
 }
 

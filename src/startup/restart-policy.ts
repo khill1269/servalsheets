@@ -32,6 +32,17 @@ function getSuccessThresholdMs(): number {
   return parseInt(process.env['SUCCESS_THRESHOLD_MS'] || '30000', 10);
 }
 
+function shouldBypassRestartBackoff(): boolean {
+  if (process.env['DISABLE_RESTART_BACKOFF'] === 'true') {
+    return true;
+  }
+
+  return (
+    process.env['MCP_TRANSPORT'] === 'stdio' &&
+    process.env['ENABLE_STDIO_RESTART_BACKOFF'] !== 'true'
+  );
+}
+
 function getStateFile(): string {
   if (process.env['RESTART_STATE_FILE']) {
     return process.env['RESTART_STATE_FILE'];
@@ -137,6 +148,13 @@ async function saveRestartState(state: RestartState): Promise<void> {
  * Returns delay in milliseconds (0 = start immediately)
  */
 export async function checkRestartBackoff(): Promise<number> {
+  if (shouldBypassRestartBackoff()) {
+    logger.debug('Restart backoff bypassed for current process mode', {
+      transport: process.env['MCP_TRANSPORT'] ?? 'unspecified',
+    });
+    return 0;
+  }
+
   const state = await loadRestartState();
   const now = Date.now();
 
@@ -178,6 +196,10 @@ export async function checkRestartBackoff(): Promise<number> {
  * Increments failure counter for exponential backoff calculation
  */
 export async function recordStartupAttempt(): Promise<void> {
+  if (shouldBypassRestartBackoff()) {
+    return;
+  }
+
   const state = await loadRestartState();
   state.lastStartAttempt = Date.now();
   state.consecutiveFailures += 1;
@@ -195,6 +217,10 @@ export async function recordStartupAttempt(): Promise<void> {
  * Resets failure counter
  */
 export async function recordSuccessfulStartup(): Promise<void> {
+  if (shouldBypassRestartBackoff()) {
+    return;
+  }
+
   const state = await loadRestartState();
   const now = Date.now();
   const uptime = now - state.lastStartAttempt;

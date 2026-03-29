@@ -14,8 +14,10 @@ import type {
 } from '../../schemas/index.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
 import { logger } from '../../utils/logger.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../../utils/error-factory.js';
 import { parseA1Notation } from '../../utils/google-sheets-helpers.js';
 
@@ -489,6 +491,28 @@ export async function handleApprovalCancelAction(
       });
     }
 
+    const confirmation = await requestSafetyConfirmation({
+      server: deps.context.server ?? deps.context.elicitationServer,
+      operation: 'approval_cancel',
+      details: `Cancel approval request (ID: ${input.approvalId}) on spreadsheet ${input.spreadsheetId}. The approval workflow and sheet protection will be removed. This action cannot be undone.`,
+      context: {
+        toolName: 'sheets_collaborate',
+        actionName: 'approval_cancel',
+        operationType: 'approval_cancel',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      logger: deps.context.logger,
+    });
+
+    if (!confirmation.confirmed) {
+      return deps.error({
+        code: ErrorCodes.OPERATION_CANCELLED,
+        message: confirmation.reason ?? 'Operation cancelled by user',
+        retryable: false,
+      });
+    }
+
     await createSnapshotIfNeeded(
       deps.context.snapshotService,
       {
@@ -498,22 +522,6 @@ export async function handleApprovalCancelAction(
       },
       input.safety
     );
-
-    if (deps.context.elicitationServer) {
-      const confirmation = await confirmDestructiveAction(
-        deps.context.elicitationServer,
-        'approval_cancel',
-        `Cancel approval request (ID: ${input.approvalId}) on spreadsheet ${input.spreadsheetId}. The approval workflow and sheet protection will be removed. This action cannot be undone.`
-      );
-
-      if (!confirmation.confirmed) {
-        return deps.error({
-          code: ErrorCodes.OPERATION_CANCELLED,
-          message: confirmation.reason ?? 'Operation cancelled by user',
-          retryable: false,
-        });
-      }
-    }
 
     approval.status = 'cancelled';
 

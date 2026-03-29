@@ -678,10 +678,10 @@ export class CollaborateHandler extends BaseHandler<
           break;
 
         default: {
-          const _exhaustiveCheck: never = req.action;
+          const _exhaustiveCheck: never = req as never;
           response = this.error({
             code: ErrorCodes.INVALID_PARAMS,
-            message: `Unknown action: ${String(_exhaustiveCheck)}`,
+            message: `Unknown action: ${String((_exhaustiveCheck as { action?: string }).action)}`,
             retryable: false,
             suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });

@@ -34,7 +34,7 @@ export class SecEdgarConnector implements SpreadsheetConnector {
     'U.S. SEC EDGAR database: company filings, financial statements (10-K, 10-Q), insider transactions, and XBRL data';
   readonly authType = 'api_key' as const;
 
-  private userAgent: string = 'ServalSheets (https://github.com/anthropics/servalsheets)';
+  private userAgent: string = 'ServalSheets security@servalsheets.dev';
   private configured = false;
   private requestCount = 0;
   private lastRequestTime = 0;

@@ -17,8 +17,10 @@ import type {
   CollaborateVersionSnapshotStatusInput,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { logger } from '../../utils/logger.js';
 import { registerCleanup } from '../../utils/resource-cleanup.js';
@@ -552,21 +554,27 @@ export async function handleVersionDeleteSnapshotAction(
     return deps.success('version_delete_snapshot', {}, undefined, true);
   }
 
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'version_delete_snapshot',
-      `Delete Drive snapshot (ID: ${input.snapshotId}). This will permanently remove the snapshot file from Drive. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.server ?? deps.context.elicitationServer,
+    operation: 'version_delete_snapshot',
+    details: `Delete Drive snapshot (ID: ${input.snapshotId}). This will permanently remove the snapshot file from Drive. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_collaborate',
+      actionName: 'version_delete_snapshot',
+      operationType: 'version_delete_snapshot',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: deps.context.logger,
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(

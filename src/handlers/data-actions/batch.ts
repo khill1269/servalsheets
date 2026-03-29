@@ -9,7 +9,7 @@ import type { ValuesArray, RangeInput } from '../../schemas/index.js';
 import { getEnv } from '../../config/env.js';
 import { getETagCache } from '../../services/etag-cache.js';
 import { sendProgress } from '../../utils/request-context.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
+import { calculateAffectedCells } from '../../utils/safety-helpers.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.js';
 import { validateSamplingOutput } from '../../services/sampling-validator.js';
 import { parseA1Notation, toGridRange } from '../../utils/google-sheets-helpers.js';
@@ -26,6 +26,7 @@ import {
   validateValuesBatchPayloadIfEnabled,
   a1ToGridRange,
   checkFormulaInjection,
+  requestDestructiveConfirmation,
 } from './helpers.js';
 
 type DataRequest = SheetsDataInput['request'];
@@ -533,20 +534,20 @@ export async function handleBatchWrite(
     0
   );
 
-  if (totalCells > 1000 && ha.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'batch_write',
-      `Batch write will overwrite ${totalCells} cells across ${input.data.length} ranges in spreadsheet ${input.spreadsheetId}. This action cannot be undone without a snapshot.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.makeError({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  const batchWriteConfirmation = await requestDestructiveConfirmation(
+    ha,
+    'batch_write',
+    `Batch write will overwrite ${totalCells} cells across ${input.data.length} ranges in spreadsheet ${input.spreadsheetId}. This action cannot be undone without a snapshot.`,
+    totalCells,
+    1000
+  );
+  if (!batchWriteConfirmation.proceed) {
+    return ha.makeError({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: batchWriteConfirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const hasDataFilters = input.data.some((d) => (d as { dataFilter?: unknown }).dataFilter);
@@ -824,27 +825,21 @@ export async function handleBatchClear(
   ha: DataHandlerAccess,
   input: DataRequest & { action: 'batch_clear' }
 ): Promise<DataResponse> {
-  if (ha.context.elicitationServer) {
-    const rangeCount = Array.isArray(input.ranges) ? input.ranges.length : 0;
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'batch_clear',
-      `Clear ${rangeCount} range(s) in spreadsheet ${input.spreadsheetId}. All cell values in the specified ranges will be permanently erased. This action cannot be undone.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.makeError({
-        code: ErrorCodes.OPERATION_CANCELLED,
-        message: confirmation.reason ?? 'Operation cancelled by user',
-        retryable: false,
-      });
-    }
-  } else {
-    ha.context.metrics?.recordConfirmationSkip({
-      action: 'sheets_data.batch_clear',
-      reason: 'elicitation_disabled',
-      timestamp: Date.now(),
-      spreadsheetId: input.spreadsheetId,
-      destructive: true,
+  const batchClearTargets =
+    (Array.isArray(input.ranges) ? input.ranges.length : 0) +
+    (Array.isArray(input.dataFilters) ? input.dataFilters.length : 0);
+  const batchClearConfirmation = await requestDestructiveConfirmation(
+    ha,
+    'batch_clear',
+    `Clear ${batchClearTargets} range(s) in spreadsheet ${input.spreadsheetId}. All cell values in the specified ranges will be permanently erased. This action cannot be undone.`,
+    Math.max(batchClearTargets, 1),
+    0
+  );
+  if (!batchClearConfirmation.proceed) {
+    return ha.makeError({
+      code: ErrorCodes.OPERATION_CANCELLED,
+      message: batchClearConfirmation.reason ?? 'Operation cancelled by user',
+      retryable: false,
     });
   }
 
@@ -1153,18 +1148,27 @@ export async function handleFindReplace(
     }
   }
 
-  // Request confirmation for destructive find-replace operations
-  const { requestDestructiveConfirmation } = await import('./helpers.js');
+  const confirmationRanges = await resolveFindReplaceSearchRanges(
+    ha,
+    resolvedInput.spreadsheetId,
+    resolvedRange,
+    resolvedInput.allSheets
+  );
+  const estimatedAffectedCells = confirmationRanges.reduce(
+    (sum, range) => sum + calculateAffectedCells(range),
+    0
+  );
   const frConfirmation = await requestDestructiveConfirmation(
     ha,
     'find_replace',
     `Replace "${resolvedInput.find}" with "${resolvedInput.replacement}" across ${
-      resolvedRange ??
-      (resolvedInput.allSheets
-        ? 'all sheets'
-        : await resolveDefaultFindReplaceRange(ha, resolvedInput.spreadsheetId))
+      confirmationRanges.length === 1
+        ? confirmationRanges[0]
+        : resolvedInput.allSheets
+          ? 'all sheets'
+          : `${confirmationRanges.length} ranges`
     }`,
-    1000, // find_replace can affect many cells
+    estimatedAffectedCells || 1000,
     100
   );
   if (!frConfirmation.proceed) {
@@ -1189,7 +1193,9 @@ export async function handleFindReplace(
   } else if (resolvedInput.allSheets) {
     findReplaceRequest.allSheets = true;
   } else {
-    const defaultScopeRange = await resolveDefaultFindReplaceRange(ha, resolvedInput.spreadsheetId);
+    const defaultScopeRange =
+      confirmationRanges[0] ??
+      (await resolveDefaultFindReplaceRange(ha, resolvedInput.spreadsheetId));
     const gridRange = await a1ToGridRange(ha, resolvedInput.spreadsheetId, defaultScopeRange);
     findReplaceRequest.range = toGridRange(gridRange);
   }

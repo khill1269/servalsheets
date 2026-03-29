@@ -15,6 +15,7 @@ import {
   resolveRangeToA1,
   a1ToGridRange,
   buildCellRef,
+  estimateCellsFromGridRange,
   requestDestructiveConfirmation,
 } from './helpers.js';
 
@@ -77,7 +78,7 @@ export async function handleUnmergeCells(
     ha,
     'unmerge_cells',
     `Unmerge cells in ${rangeA1}. Merged cell formatting will be lost.`,
-    1000,
+    estimateCellsFromGridRange(gridRange),
     100
   );
   if (!unmergeConfirmation.proceed) {
@@ -161,7 +162,7 @@ export async function handleCutPaste(
     ha,
     'cut_paste',
     `Cut data from ${rangeA1} and paste to ${input.destination}. Source cells will be cleared.`,
-    1000,
+    estimateCellsFromGridRange(sourceRange),
     100
   );
   if (!cutConfirmation.proceed) {

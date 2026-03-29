@@ -798,13 +798,13 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         addNamedRange: {
           namedRange: {
             name: rangeName,
-            range: {
-              sheetId: lookupSheetId,
-              startRowIndex: rowIndex,
-              endRowIndex: rowIndex + 1,
-              startColumnIndex: 1,
-              endColumnIndex: 1 + children.length,
-            },
+            range: buildGridRangeInput(
+              lookupSheetId,
+              rowIndex,
+              rowIndex + 1,
+              1,
+              1 + children.length
+            ),
           },
         },
       });

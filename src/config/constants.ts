@@ -319,6 +319,66 @@ export const STRIP_SCHEMA_DESCRIPTIONS = process.env['SERVAL_STRIP_SCHEMA_DESCRI
  */
 export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] === 'true';
 
+// ============================================================================
+// Tool Presentation Mode
+// ============================================================================
+
+/**
+ * Tool presentation mode
+ *
+ * Controls how tools are exposed to LLM clients:
+ *
+ * - 'bundled' (legacy): 25 compound tools with discriminated union schemas.
+ *   Each tool contains multiple actions selected via an 'action' parameter.
+ *   Compatible with existing integrations but violates MCP's 1-tool-1-operation
+ *   convention and causes LLM routing confusion.
+ *
+ * - 'flat': ~407 individual tools, one per action, each with a flat z.object()
+ *   schema. All but ~15 core tools are marked defer_loading: true for on-demand
+ *   discovery via tool_search / sheets_discover. Follows MCP best practices.
+ *   Token cost: ~1,500 tokens (vs ~53K bundled).
+ *
+ * - 'auto' (default): Detects transport/runtime context.
+ *   - MCP_TRANSPORT=stdio → 'flat' (optimized for Claude Desktop / Claude Code)
+ *   - MCP_TRANSPORT=http and other explicit non-stdio transports → 'bundled'
+ *   - Direct HTTP entry points (`--http`, `http-server.js`) → 'bundled'
+ *   - Unattached/in-memory server instances default to 'bundled'
+ *   - Override: SERVAL_TOOL_MODE=flat|bundled always takes precedence
+ *
+ * @see src/mcp/registration/flat-tool-registry.ts
+ * @see src/mcp/registration/flat-tool-routing.ts
+ */
+export type ToolMode = 'flat' | 'bundled' | 'auto';
+
+function resolveToolMode(): ToolMode {
+  const envVal = process.env['SERVAL_TOOL_MODE']?.toLowerCase();
+  if (envVal === 'flat') return 'flat';
+  if (envVal === 'bundled') return 'bundled';
+  return 'auto';
+}
+
+export const TOOL_MODE: ToolMode = resolveToolMode();
+
+/**
+ * Resolve the effective tool mode at runtime.
+ * 'auto' resolves based on transport type.
+ */
+export function getEffectiveToolMode(): 'flat' | 'bundled' {
+  if (TOOL_MODE === 'flat') return 'flat';
+  if (TOOL_MODE === 'bundled') return 'bundled';
+  const transport = process.env['MCP_TRANSPORT']?.toLowerCase();
+  if (transport === 'stdio') {
+    return 'flat';
+  }
+  if (transport) {
+    return 'bundled';
+  }
+  // Fallback to entrypoint detection for direct HTTP launches without MCP_TRANSPORT.
+  const entry = path.basename(process.argv[1] ?? '');
+  const isHttp =
+    process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
+  return isHttp ? 'bundled' : 'bundled';
+}
 export type ToolStage = 1 | 2 | 3;
 
 /** Stage 1: Bootstrap tools — always available, no auth required for discovery */

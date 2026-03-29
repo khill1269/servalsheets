@@ -4,7 +4,13 @@ import {
   type StdioConnectableServer,
   type StartStdioTransportOptions as PackagedStartStdioTransportOptions,
 } from '../../packages/mcp-stdio/dist/start-stdio-transport.js';
-import { logger as defaultLogger } from '../utils/logger.js';
+
+type StdioTransportLogger = {
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+  debug: (...args: unknown[]) => void;
+};
 
 export type StartStdioTransportOptions<
   TServer extends StdioConnectableServer<StdioServerTransport>,
@@ -12,7 +18,7 @@ export type StartStdioTransportOptions<
   PackagedStartStdioTransportOptions<StdioServerTransport, TServer>,
   'createTransport' | 'log'
 > & {
-  readonly log?: typeof defaultLogger;
+  readonly log?: StdioTransportLogger;
 };
 
 export async function startStdioTransport<
@@ -21,6 +27,6 @@ export async function startStdioTransport<
   await startPackagedStdioTransport({
     ...options,
     createTransport: () => new StdioServerTransport(),
-    log: options.log ?? defaultLogger,
+    log: options.log ?? (await import('../utils/logger.js')).logger,
   });
 }

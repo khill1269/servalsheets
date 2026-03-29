@@ -149,6 +149,28 @@ describe('ConfirmationPolicy', () => {
         expect(analysis.risk.warning).toContain('5 columns');
       });
 
+      it('should not require confirmation for small row deletions below threshold', () => {
+        const analysis = analyzeOperation({
+          tool: 'sheets_dimensions',
+          action: 'delete_rows',
+          rowCount: 5,
+        });
+
+        expect(analysis.risk.level).toBe('medium');
+        expect(analysis.risk.requiresConfirmation).toBe(false);
+      });
+
+      it('should not require confirmation for small column deletions at threshold', () => {
+        const analysis = analyzeOperation({
+          tool: 'sheets_dimensions',
+          action: 'delete_columns',
+          columnCount: 3,
+        });
+
+        expect(analysis.risk.level).toBe('medium');
+        expect(analysis.risk.requiresConfirmation).toBe(false);
+      });
+
       it('should have medium risk for small delete operations', () => {
         const analysis = analyzeOperation({
           tool: 'sheets_data',
@@ -158,6 +180,29 @@ describe('ConfirmationPolicy', () => {
 
         expect(analysis.risk.level).toBe('medium');
         expect(analysis.risk.requiresConfirmation).toBe(false);
+      });
+
+      it('should classify sheets_history:undo as destructive and require confirmation', () => {
+        const analysis = analyzeOperation({
+          tool: 'sheets_history',
+          action: 'undo',
+          cellCount: 25,
+        });
+
+        expect(analysis.isDestructive).toBe(true);
+        expect(analysis.risk.level).toBe('high');
+        expect(analysis.risk.requiresConfirmation).toBe(true);
+      });
+
+      it('should classify sheets_history:clear as destructive and require confirmation', () => {
+        const analysis = analyzeOperation({
+          tool: 'sheets_history',
+          action: 'clear',
+        });
+
+        expect(analysis.isDestructive).toBe(true);
+        expect(analysis.risk.level).toBe('high');
+        expect(analysis.risk.requiresConfirmation).toBe(true);
       });
     });
 
@@ -207,6 +252,30 @@ describe('ConfirmationPolicy', () => {
         expect(analysis.risk.requiresConfirmation).toBe(true);
         expect(analysis.risk.warning).toContain('dryRun');
         expect(analysis.suggestedSafety.dryRun).toBe(true);
+      });
+
+      it('should not require confirmation for small historical cell restores', () => {
+        const analysis = analyzeOperation({
+          tool: 'sheets_history',
+          action: 'restore_cells',
+          cellCount: 5,
+        });
+
+        expect(analysis.isDestructive).toBe(false);
+        expect(analysis.risk.level).toBe('medium');
+        expect(analysis.risk.requiresConfirmation).toBe(false);
+      });
+
+      it('should require confirmation for bulk historical cell restores', () => {
+        const analysis = analyzeOperation({
+          tool: 'sheets_history',
+          action: 'restore_cells',
+          cellCount: 12,
+        });
+
+        expect(analysis.risk.level).toBe('high');
+        expect(analysis.risk.requiresConfirmation).toBe(true);
+        expect(analysis.risk.warning).toContain('12 current cells');
       });
     });
 
@@ -468,6 +537,17 @@ describe('ConfirmationPolicy', () => {
         expect(result.suggestSnapshot).toBe(true);
       });
 
+      it('should confirm history recovery operations', () => {
+        const result = shouldConfirm({
+          tool: 'sheets_history',
+          action: 'undo',
+          cellCount: 25,
+        });
+
+        expect(result.confirm).toBe(true);
+        expect(result.suggestSnapshot).toBe(true);
+      });
+
       it('should not confirm low-risk operations', () => {
         const result = shouldConfirm({
           tool: 'sheets_data',
@@ -501,6 +581,16 @@ describe('ConfirmationPolicy', () => {
 
         expect(result.confirm).toBe(true);
         expect(result.reason).toContain('50 rows');
+      });
+
+      it('should confirm bulk restore_cells operations', () => {
+        const result = shouldConfirm({
+          tool: 'sheets_history',
+          action: 'restore_cells',
+          cellCount: 12,
+        });
+
+        expect(result.confirm).toBe(true);
       });
     });
 

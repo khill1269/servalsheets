@@ -841,9 +841,14 @@ export function registerServalSheetsResources(
   );
 
   // Server health snapshot — no auth required, returns in-process metrics
-  server.resource(
+  server.registerResource(
+    'server_health',
     'metrics://servalsheets/health',
-    'Server health snapshot including circuit breakers, cache, quota, and error rates',
+    {
+      title: 'Server Health Snapshot',
+      description: 'Server health snapshot including circuit breakers, cache, quota, and error rates',
+      mimeType: 'application/json',
+    },
     async () => ({
       contents: [
         {
@@ -895,9 +900,14 @@ export function registerServalSheetsResources(
     },
   ];
   for (const guide of guideResources) {
-    server.resource(
+    server.registerResource(
+      guide.uri.replace('guide://', 'guide_').replace(/-/g, '_'),
       guide.uri,
-      guide.description,
+      {
+        title: guide.uri.replace('guide://', ''),
+        description: guide.description,
+        mimeType: 'text/markdown',
+      },
       async () => ({
         contents: [
           {

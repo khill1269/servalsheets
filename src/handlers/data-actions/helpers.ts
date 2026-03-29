@@ -12,7 +12,7 @@ import {
   parseCellReference,
   type GridRangeInput,
 } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
+import { requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import {
   validateValuesPayload,
   validateValuesBatchPayload,
@@ -646,31 +646,33 @@ export async function requestDestructiveConfirmation(
   estimatedCells: number,
   threshold: number = 100
 ): Promise<{ proceed: boolean; reason?: string }> {
-  if (estimatedCells <= threshold) {
-    return { proceed: true };
-  }
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.server ?? ha.context.elicitationServer,
+    operation: action,
+    details: description,
+    context: {
+      toolName: ha.toolName,
+      actionName: action,
+      operationType: action,
+      isDestructive: true,
+      affectedCells: estimatedCells,
+      spreadsheetId: ha.currentSpreadsheetId,
+    },
+    logger: ha.context.logger,
+  });
 
-  if (!ha.context.elicitationServer) {
-    return { proceed: true };
-  }
-
-  try {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      action,
-      description
-    );
-
-    if (!confirmation.confirmed) {
-      return { proceed: false, reason: confirmation.reason || 'User cancelled the operation' };
+  if (!confirmation.confirmed) {
+    if (
+      confirmation.outcome === 'not_required' &&
+      estimatedCells <= threshold
+    ) {
+      return { proceed: true };
     }
-
-    return { proceed: true };
-  } catch (err) {
-    ha.context.logger?.warn('Elicitation failed, proceeding with operation', {
-      action,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { proceed: true };
+    return {
+      proceed: false,
+      reason: confirmation.reason || 'User cancelled the operation',
+    };
   }
+
+  return { proceed: true };
 }

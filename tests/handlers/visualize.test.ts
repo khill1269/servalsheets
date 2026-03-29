@@ -142,6 +142,15 @@ const createMockSheetsApi = () => ({
 });
 
 // Create mock context
+const createMockElicitationServer = () =>
+  ({
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
+  }) as any;
+
 const createMockContext = (overrides?: Partial<HandlerContext>): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {
@@ -178,7 +187,7 @@ const createMockContext = (overrides?: Partial<HandlerContext>): HandlerContext 
     }),
     getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
   } as any,
-  elicitationServer: undefined,
+  elicitationServer: createMockElicitationServer(),
   snapshotService: undefined,
   ...overrides,
 });
@@ -988,6 +997,21 @@ describe('VisualizeHandler', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
+    it('should block chart delete when elicitation is unavailable', async () => {
+      mockContext = createMockContext({ elicitationServer: undefined });
+      handler = new VisualizeHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'chart_delete',
+        spreadsheetId: 'test-spreadsheet-id',
+        chartId: 123,
+      } as any);
+
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+
     it('should delete with dry run mode', async () => {
       const result = await handler.handle({
         action: 'chart_delete',
@@ -1274,6 +1298,21 @@ describe('VisualizeHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+    });
+
+    it('should block pivot delete when elicitation is unavailable', async () => {
+      mockContext = createMockContext({ elicitationServer: undefined });
+      handler = new VisualizeHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'pivot_delete',
+        spreadsheetId: 'test-spreadsheet-id',
+        sheetId: 0,
+      } as any);
+
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
 
     it('should delete pivot with dry run', async () => {

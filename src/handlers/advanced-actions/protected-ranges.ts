@@ -5,8 +5,10 @@ import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { recordProtectedRangeId } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
@@ -114,31 +116,26 @@ export async function handleAddProtectedRangeAction(
     req.safety
   );
 
-  // Request confirmation if elicitation available
-  if (deps.context.elicitationServer) {
-    try {
-      const confirmation = await confirmDestructiveAction(
-        deps.context.elicitationServer,
-        'add_protected_range',
-        `Add protection to range ${req.range} in spreadsheet ${req.spreadsheetId}. This will restrict editing for the specified range.`
-      );
+  const addConfirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'add_protected_range',
+    details: `Add protection to range ${req.range} in spreadsheet ${req.spreadsheetId}. This will restrict editing for the specified range.`,
+    context: {
+      toolName: 'sheets_advanced',
+      actionName: 'add_protected_range',
+      operationType: 'add_protected_range',
+      isDestructive: false,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
 
-      if (!confirmation.confirmed) {
-        return deps.error({
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: confirmation.reason || 'User cancelled the operation',
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    } catch (err) {
-      deps.context.logger?.warn(
-        `Elicitation failed for add_protected_range, proceeding with operation`,
-        {
-          error: err,
-        }
-      );
-    }
+  if (!addConfirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: addConfirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range!);
@@ -248,22 +245,26 @@ export async function handleDeleteProtectedRangeAction(
     return deps.success('delete_protected_range', {}, undefined, true);
   }
 
-  // Request confirmation if elicitation available
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'delete_protected_range',
-      `Delete protected range (ID: ${req.protectedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove all protection settings. This action cannot be undone.`
-    );
+  const deleteConfirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'delete_protected_range',
+    details: `Delete protected range (ID: ${req.protectedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove all protection settings. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_advanced',
+      actionName: 'delete_protected_range',
+      operationType: 'delete_protected_range',
+      isDestructive: true,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!deleteConfirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: deleteConfirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Create snapshot if requested

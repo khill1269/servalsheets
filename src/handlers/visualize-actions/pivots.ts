@@ -17,8 +17,10 @@ import {
   toGridRange as toApiGridRange,
   type GridRangeInput,
 } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 
 interface PivotsDeps {
   sheetsApi: sheets_v4.Sheets;
@@ -224,22 +226,26 @@ export async function handlePivotDeleteAction(
     return deps.success('pivot_delete', {}, undefined, true);
   }
 
-  // Request confirmation if elicitation available (CRITICAL: deletes entire sheet)
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'pivot_delete',
-      `Delete pivot table by removing entire sheet (ID: ${input.sheetId}) from spreadsheet ${input.spreadsheetId}. This will delete ALL data on the sheet. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'pivot_delete',
+    details: `Delete pivot table by removing entire sheet (ID: ${input.sheetId}) from spreadsheet ${input.spreadsheetId}. This will delete ALL data on the sheet. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_visualize',
+      actionName: 'pivot_delete',
+      operationType: 'pivot_delete',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Create snapshot if requested (CRITICAL operation)

@@ -44,11 +44,11 @@ describe('buildServerStdioLifecycle', () => {
   it('builds start options with runtime diagnostics and counts', () => {
     const options = buildServerStdioStartOptions({
       verifyToolIntegrity: vi.fn(async () => undefined),
-      initialize: vi.fn(async () => undefined),
+      initializeForConnect: vi.fn(async () => undefined),
+      initializeAfterConnect: vi.fn(async () => undefined),
       shutdown: vi.fn(async () => undefined),
       getResourcesRegistered: () => true,
       getResourceRegistrationFailed: () => false,
-      ensureResourcesRegistered: vi.fn(async () => undefined),
       isShutdown: () => false,
       server: { kind: 'server' } as never,
     });

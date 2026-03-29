@@ -590,7 +590,7 @@ const serverJson = {
   packages: [
     {
       registryType: 'npm',
-      identifier: 'servalsheets',
+      identifier: pkg.name,
       version: pkg.version,
       transport: {
         type: 'stdio',

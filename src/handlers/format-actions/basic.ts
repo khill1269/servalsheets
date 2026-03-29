@@ -7,8 +7,10 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import type { FormatResponse, FormatRequest } from '../../schemas/index.js';
 import type { FormatHandlerAccess } from './internal.js';
 
@@ -336,27 +338,27 @@ export async function handleClearFormat(
   const googleRange = toGridRange(gridRange);
   const estimatedCells = ha.exactCellCount(googleRange);
 
-  if (ha.context.elicitationServer && estimatedCells > 500) {
-    try {
-      const confirmation = await confirmDestructiveAction(
-        ha.context.elicitationServer,
-        'Clear Formatting',
-        `You are about to clear all formatting from approximately ${estimatedCells.toLocaleString()} cells in range ${rangeA1}.\n\nAll number formats, colors, borders, and text styling will be removed. Cell values will not be affected.`
-      );
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.elicitationServer,
+    operation: 'clear_format',
+    details: `You are about to clear all formatting from approximately ${estimatedCells.toLocaleString()} cells in range ${rangeA1}.\n\nAll number formats, colors, borders, and text styling will be removed. Cell values will not be affected.`,
+    context: {
+      toolName: 'sheets_format',
+      actionName: 'clear_format',
+      operationType: 'clear_format',
+      isDestructive: true,
+      affectedCells: estimatedCells,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
 
-      if (!confirmation.confirmed) {
-        return ha.makeError({
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: 'Clear formatting operation cancelled by user',
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    } catch (err) {
-      ha.context.logger?.warn('Elicitation failed for clear_format, proceeding with operation', {
-        error: err,
-      });
-    }
+  if (!confirmation.confirmed) {
+    return ha.makeError({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'Clear formatting operation cancelled by user',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   if (input.safety?.dryRun) {

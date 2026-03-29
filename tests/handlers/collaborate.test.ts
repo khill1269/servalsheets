@@ -44,6 +44,7 @@ const createMockDriveApi = () => ({
     export: vi.fn().mockResolvedValue({
       data: Buffer.from('test data'),
     }),
+    delete: vi.fn().mockResolvedValue({}),
   },
   permissions: {
     list: vi.fn().mockResolvedValue({
@@ -184,7 +185,20 @@ const createMockContext = (): HandlerContext => ({
       'https://www.googleapis.com/auth/drive.file',
     ],
   },
-});
+  elicitationServer: {
+    request: vi.fn().mockResolvedValue({
+      confirmed: true,
+      reason: '',
+    }),
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({
+      elicitation: { form: true },
+    }),
+  } as any,
+} as unknown as HandlerContext);
 
 describe('CollaborateHandler', () => {
   let handler: CollaborateHandler;
@@ -319,6 +333,21 @@ describe('CollaborateHandler', () => {
 
       expect(result.response.success).toBe(true);
     });
+
+    it('should fail closed when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new CollaborateHandler(mockContext, mockDriveApi as any);
+
+      const result = await handler.handle({
+        action: 'share_remove',
+        spreadsheetId: 'test-spreadsheet-id',
+        permissionId: 'perm-123',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockDriveApi.permissions.delete).not.toHaveBeenCalled();
+    });
   });
 
   // ===== COMMENT ACTIONS =====
@@ -381,6 +410,24 @@ describe('CollaborateHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('comment_delete_reply', () => {
+    it('should fail closed when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new CollaborateHandler(mockContext, mockDriveApi as any);
+
+      const result = await handler.handle({
+        action: 'comment_delete_reply',
+        spreadsheetId: 'test-spreadsheet-id',
+        commentId: 'comment-1',
+        replyId: 'reply-1',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockDriveApi.replies.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -506,6 +553,23 @@ describe('CollaborateHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+    });
+  });
+
+  describe('version_delete_snapshot', () => {
+    it('should fail closed when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new CollaborateHandler(mockContext, mockDriveApi as any);
+
+      const result = await handler.handle({
+        action: 'version_delete_snapshot',
+        spreadsheetId: 'test-spreadsheet-id',
+        snapshotId: 'snapshot-id',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockDriveApi.files.delete).not.toHaveBeenCalled();
     });
   });
 

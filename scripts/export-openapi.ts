@@ -227,7 +227,7 @@ MCP resources for monitoring:
 `.trim(),
       contact: {
         name: 'ServalSheets',
-        url: 'https://github.com/yourusername/servalsheets',
+        url: 'https://github.com/khill1269/servalsheets',
       },
     },
     servers: [

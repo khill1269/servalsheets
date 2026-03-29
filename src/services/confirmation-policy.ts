@@ -102,14 +102,32 @@ export const DESTRUCTIVE_OPERATIONS = new Set([
   'sheets_data:batch_clear',
   'sheets_data:cut_paste',
   'sheets_core:delete_sheet',
+  'sheets_core:batch_delete_sheets',
+  'sheets_core:clear_sheet',
+  'sheets_dimensions:clear_basic_filter',
+  'sheets_dimensions:delete_duplicates',
   'sheets_dimensions:delete_rows',
   'sheets_dimensions:delete_columns',
+  'sheets_dimensions:delete_filter_view',
+  'sheets_dimensions:delete_slicer',
   'sheets_format:rule_delete_conditional_format',
+  'sheets_format:clear_data_validation',
   'sheets_visualize:chart_delete',
   'sheets_visualize:pivot_delete',
+  'sheets_advanced:delete_named_range',
   'sheets_advanced:delete_protected_range',
+  'sheets_advanced:delete_metadata',
+  'sheets_advanced:delete_banding',
   'sheets_collaborate:share_remove',
   'sheets_collaborate:comment_delete',
+  'sheets_collaborate:comment_delete_reply',
+  'sheets_collaborate:version_delete_snapshot',
+  'sheets_collaborate:approval_cancel',
+  'sheets_composite:deduplicate',
+  'sheets_history:undo',
+  'sheets_history:redo',
+  'sheets_history:revert_to',
+  'sheets_history:clear',
 ]);
 
 /**
@@ -127,8 +145,13 @@ export const MODIFYING_OPERATIONS = new Set([
   'sheets_format:set_borders',
   'sheets_format:set_number_format',
   'sheets_format:rule_add_conditional_format',
+  'sheets_format:clear_format',
   'sheets_dimensions:insert_rows',
   'sheets_dimensions:insert_columns',
+  'sheets_dimensions:move_rows',
+  'sheets_dimensions:move_columns',
+  'sheets_dimensions:append_rows',
+  'sheets_dimensions:append_columns',
   'sheets_dimensions:resize_rows',
   'sheets_dimensions:resize_columns',
   'sheets_dimensions:auto_resize',
@@ -139,6 +162,9 @@ export const MODIFYING_OPERATIONS = new Set([
   'sheets_data:set_validation',
   'sheets_dimensions:set_basic_filter',
   'sheets_dimensions:sort_range',
+  'sheets_history:restore_cells',
+  'sheets_advanced:add_protected_range',
+  'sheets_composite:bulk_update',
 ]);
 
 /**
@@ -152,7 +178,6 @@ export const READONLY_OPERATIONS = new Set([
   'sheets_core:list_sheets',
   'sheets_data:read',
   'sheets_data:batch_read',
-  'sheets_data:find_replace',
   'sheets_analyze:analyze_quality',
   'sheets_analyze:analyze_formulas',
   'sheets_analyze:analyze_data',
@@ -232,19 +257,69 @@ export function analyzeOperation(params: {
         requiresConfirmation: true,
         warning: '⚠️ CRITICAL: This will permanently delete the entire sheet and all its data!',
       };
-    } else if (rowCount && rowCount > CONFIRMATION_THRESHOLDS.delete.rows) {
+    } else if (tool === 'sheets_core' && action === 'batch_delete_sheets') {
       risk = {
-        level: 'high',
-        reason: `Deleting ${rowCount} rows`,
+        level: 'critical',
+        reason: 'Deleting multiple sheets',
         requiresConfirmation: true,
-        warning: `⚠️ This will delete ${rowCount} rows of data`,
+        warning: '⚠️ CRITICAL: This will permanently delete multiple sheets and all of their data!',
       };
-    } else if (columnCount && columnCount > CONFIRMATION_THRESHOLDS.delete.columns) {
+    } else if (tool === 'sheets_core' && action === 'clear_sheet') {
+      risk = {
+        level: estimatedCells > CONFIRMATION_THRESHOLDS.cells.high ? 'high' : 'medium',
+        reason: 'Clearing an entire sheet',
+        requiresConfirmation: true,
+        warning: '⚠️ This will clear all values or artifacts from the selected sheet',
+      };
+    } else if (tool === 'sheets_composite' && action === 'deduplicate') {
+      const duplicateRows = rowCount ?? estimatedCells;
+      risk = {
+        level: duplicateRows > CONFIRMATION_THRESHOLDS.delete.rows ? 'high' : 'medium',
+        reason: `Removing ${duplicateRows} duplicate rows`,
+        requiresConfirmation: duplicateRows > 0,
+        warning:
+          duplicateRows > 0
+            ? `⚠️ This will permanently remove ${duplicateRows} duplicate rows`
+            : undefined,
+      };
+    } else if (tool === 'sheets_history' && action === 'clear') {
       risk = {
         level: 'high',
-        reason: `Deleting ${columnCount} columns`,
+        reason: 'Clearing recorded operation history',
         requiresConfirmation: true,
-        warning: `⚠️ This will delete ${columnCount} columns of data`,
+        warning: '⚠️ This permanently removes operation history and audit context',
+      };
+    } else if (
+      tool === 'sheets_history' &&
+      (action === 'undo' || action === 'redo' || action === 'revert_to')
+    ) {
+      risk = {
+        level: 'high',
+        reason: `History recovery operation: ${action}`,
+        requiresConfirmation: true,
+        warning: '⚠️ This will overwrite the current spreadsheet state with a prior snapshot',
+      };
+    } else if (action === 'delete_rows') {
+      const rowsToDelete = rowCount ?? 0;
+      risk = {
+        level: rowsToDelete > CONFIRMATION_THRESHOLDS.delete.rows ? 'high' : 'medium',
+        reason: `Deleting ${rowsToDelete} rows`,
+        requiresConfirmation: rowsToDelete > CONFIRMATION_THRESHOLDS.delete.rows,
+        warning:
+          rowsToDelete > CONFIRMATION_THRESHOLDS.delete.rows
+            ? `⚠️ This will delete ${rowsToDelete} rows of data`
+            : undefined,
+      };
+    } else if (action === 'delete_columns') {
+      const columnsToDelete = columnCount ?? 0;
+      risk = {
+        level: columnsToDelete > CONFIRMATION_THRESHOLDS.delete.columns ? 'high' : 'medium',
+        reason: `Deleting ${columnsToDelete} columns`,
+        requiresConfirmation: columnsToDelete > CONFIRMATION_THRESHOLDS.delete.columns,
+        warning:
+          columnsToDelete > CONFIRMATION_THRESHOLDS.delete.columns
+            ? `⚠️ This will delete ${columnsToDelete} columns of data`
+            : undefined,
       };
     } else if (action === 'clear') {
       risk = {
@@ -262,7 +337,90 @@ export function analyzeOperation(params: {
     }
   } else if (isModifying) {
     // Modifying operations - risk based on cell count
-    if (estimatedCells > CONFIRMATION_THRESHOLDS.cells.critical) {
+    if (tool === 'sheets_history' && action === 'restore_cells') {
+      risk = {
+        level: estimatedCells > 10 ? 'high' : 'medium',
+        reason: `Restoring ${estimatedCells} historical cells`,
+        requiresConfirmation: estimatedCells > 10,
+        warning:
+          estimatedCells > 10
+            ? `⚠️ This will overwrite ${estimatedCells} current cells with historical values`
+            : undefined,
+      };
+    } else if (tool === 'sheets_advanced' && action === 'add_protected_range') {
+      risk = {
+        level: 'high',
+        reason: 'Changing spreadsheet edit permissions with a protected range',
+        requiresConfirmation: true,
+        warning: '⚠️ This will restrict editing access for the targeted range',
+      };
+    } else if (
+      tool === 'sheets_dimensions' &&
+      (action === 'insert_rows' || action === 'insert_columns')
+    ) {
+      const count = action === 'insert_rows' ? (rowCount ?? 0) : (columnCount ?? 0);
+      risk = {
+        level: count > 10 ? 'high' : 'medium',
+        reason: `Inserting ${count} ${action === 'insert_rows' ? 'rows' : 'columns'}`,
+        requiresConfirmation: count > 10,
+        warning:
+          count > 10
+            ? `⚠️ This will shift existing ${action === 'insert_rows' ? 'rows' : 'columns'} and modify sheet structure`
+            : undefined,
+      };
+    } else if (
+      tool === 'sheets_dimensions' &&
+      (action === 'append_rows' || action === 'append_columns')
+    ) {
+      const count = action === 'append_rows' ? (rowCount ?? 0) : (columnCount ?? 0);
+      risk = {
+        level: count > 10 ? 'high' : 'medium',
+        reason: `Appending ${count} ${action === 'append_rows' ? 'rows' : 'columns'}`,
+        requiresConfirmation: count > 10,
+        warning:
+          count > 10
+            ? `⚠️ This will increase sheet dimensions by ${count} ${action === 'append_rows' ? 'rows' : 'columns'}`
+            : undefined,
+      };
+    } else if (
+      tool === 'sheets_dimensions' &&
+      (action === 'move_rows' || action === 'move_columns')
+    ) {
+      const count = action === 'move_rows' ? (rowCount ?? 0) : (columnCount ?? 0);
+      risk = {
+        level: 'medium',
+        reason: `Reordering ${count} ${action === 'move_rows' ? 'rows' : 'columns'}`,
+        requiresConfirmation: true,
+        warning: `⚠️ This will reorder existing ${action === 'move_rows' ? 'rows' : 'columns'} and may disrupt formulas or filters`,
+      };
+    } else if (tool === 'sheets_composite' && action === 'bulk_update') {
+      const rowsToUpdate = rowCount ?? 0;
+      risk = {
+        level:
+          rowsToUpdate > 10 || estimatedCells > CONFIRMATION_THRESHOLDS.cells.high
+            ? 'high'
+            : estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium
+              ? 'medium'
+              : 'low',
+        reason: `Bulk updating ${rowsToUpdate || estimatedCells} record(s)`,
+        requiresConfirmation:
+          rowsToUpdate > 10 || estimatedCells > CONFIRMATION_THRESHOLDS.cells.high,
+        warning:
+          rowsToUpdate > 10 || estimatedCells > CONFIRMATION_THRESHOLDS.cells.high
+            ? `⚠️ This will update ${rowsToUpdate || estimatedCells} records across multiple rows`
+            : undefined,
+      };
+    } else if (tool === 'sheets_format' && action === 'clear_format') {
+      risk = {
+        level: estimatedCells > CONFIRMATION_THRESHOLDS.cells.high ? 'high' : 'medium',
+        reason: `Clearing formatting for ${estimatedCells} cells`,
+        requiresConfirmation: estimatedCells > CONFIRMATION_THRESHOLDS.cells.high,
+        warning:
+          estimatedCells > CONFIRMATION_THRESHOLDS.cells.high
+            ? `⚠️ This will remove formatting from ${estimatedCells} cells`
+            : undefined,
+      };
+    } else if (estimatedCells > CONFIRMATION_THRESHOLDS.cells.critical) {
       risk = {
         level: 'high',
         reason: `Modifying ${estimatedCells} cells (large operation)`,

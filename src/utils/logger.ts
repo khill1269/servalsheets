@@ -11,7 +11,10 @@
  */
 
 import * as winston from 'winston';
+import { createRequire } from 'node:module';
 import { baseLogger } from './base-logger.js';
+
+const require = createRequire(import.meta.url);
 
 /**
  * Add request context (requestId, traceId, spanId) to all log entries

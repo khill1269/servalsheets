@@ -52,6 +52,14 @@ const createMockSnapshotService = (): SnapshotService =>
 
 const createMockDriveApi = () => ({}) as any;
 const createMockSheetsApi = () => ({}) as any;
+const createMockElicitationServer = () =>
+  ({
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
+  }) as any;
 
 describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
   let handler: HistoryHandler;
@@ -276,6 +284,51 @@ describe('HistoryHandler — time-travel actions (ISSUE-238)', () => {
       if (!result.response.success) {
         expect(result.response.error.code).toBe('INTERNAL_ERROR');
       }
+    });
+
+    it('should block bulk restore_cells when elicitation is unavailable', async () => {
+      const { restoreCells } = await import('../../src/services/revision-timeline.js');
+
+      const result = await handler.handle({
+        request: {
+          action: 'restore_cells',
+          spreadsheetId: 'sheet-abc',
+          revisionId: 'r1',
+          cells: Array.from({ length: 12 }, (_, index) => `Sheet1!A${index + 1}`),
+        } as any,
+      });
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('PRECONDITION_FAILED');
+      }
+      expect(vi.mocked(restoreCells)).not.toHaveBeenCalled();
+    });
+
+    it('should allow bulk restore_cells when confirmation is available', async () => {
+      const { restoreCells } = await import('../../src/services/revision-timeline.js');
+      vi.mocked(restoreCells).mockResolvedValue([
+        { cell: 'Sheet1!A1', restoredValue: 'old' },
+      ] as any);
+
+      handler = new HistoryHandler({
+        snapshotService: mockSnapshotService,
+        driveApi: createMockDriveApi(),
+        sheetsApi: createMockSheetsApi(),
+        server: createMockElicitationServer(),
+      });
+
+      const result = await handler.handle({
+        request: {
+          action: 'restore_cells',
+          spreadsheetId: 'sheet-abc',
+          revisionId: 'r1',
+          cells: Array.from({ length: 12 }, (_, index) => `Sheet1!A${index + 1}`),
+        } as any,
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(vi.mocked(restoreCells)).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -21,8 +21,10 @@ import {
   toGridRange as toApiGridRange,
   type GridRangeInput,
 } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { logger } from '../../utils/logger.js';
 import { recordChartId } from '../../mcp/completions.js';
 
@@ -487,22 +489,26 @@ export async function handleChartDeleteAction(
     return deps.success('chart_delete', {}, undefined, true);
   }
 
-  // Request confirmation if elicitation available
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'chart_delete',
-      `Delete chart (ID: ${input.chartId}) from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'chart_delete',
+    details: `Delete chart (ID: ${input.chartId}) from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_visualize',
+      actionName: 'chart_delete',
+      operationType: 'chart_delete',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Create snapshot if requested

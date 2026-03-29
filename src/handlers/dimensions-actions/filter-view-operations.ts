@@ -16,11 +16,13 @@ import type {
   DimensionsResponse,
 } from '../../schemas/index.js';
 import {
-  confirmDestructiveAction,
   safeElicit,
   FILTER_SETTINGS_SCHEMA,
 } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import {
   mapDimensionsCriteria,
@@ -234,7 +236,28 @@ export async function handleDeleteFilterView(
     return ha.success('delete_filter_view', {}, undefined, true);
   }
 
-  // Safety: snapshot BEFORE confirmation (backup must exist before user approves)
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.server ?? ha.context.elicitationServer,
+    operation: 'delete_filter_view',
+    details: `Delete filter view ${input.filterViewId} from spreadsheet ${input.spreadsheetId}. This cannot be undone.`,
+    context: {
+      toolName: 'sheets_dimensions',
+      actionName: 'delete_filter_view',
+      operationType: 'delete_filter_view',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: ha.context.logger,
+  });
+  if (!confirmation.confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
+  }
+
   await createSnapshotIfNeeded(
     ha.context.snapshotService,
     {
@@ -244,22 +267,6 @@ export async function handleDeleteFilterView(
     },
     input.safety
   );
-
-  if (ha.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'delete_filter_view',
-      `Delete filter view ${input.filterViewId} from spreadsheet ${input.spreadsheetId}. This cannot be undone.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
-  }
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,

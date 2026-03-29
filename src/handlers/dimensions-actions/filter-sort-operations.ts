@@ -19,8 +19,10 @@ import type {
   DimensionsResponse,
 } from '../../schemas/index.js';
 import type { RangeInput } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { mapDimensionsCriteria } from '../dimensions-filter-helpers.js';
 import type { DimensionsHandlerAccess } from './internal.js';
@@ -247,7 +249,28 @@ export async function handleClearBasicFilter(
     return ha.success('clear_basic_filter', {}, undefined, true);
   }
 
-  // Safety: snapshot BEFORE confirmation (backup must exist before user approves)
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.server ?? ha.context.elicitationServer,
+    operation: 'clear_basic_filter',
+    details: `Remove the basic filter from sheet ${input.sheetId} in spreadsheet ${input.spreadsheetId}. Filtered rows will become visible again.`,
+    context: {
+      toolName: 'sheets_dimensions',
+      actionName: 'clear_basic_filter',
+      operationType: 'clear_basic_filter',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: ha.context.logger,
+  });
+  if (!confirmation.confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
+  }
+
   await createSnapshotIfNeeded(
     ha.context.snapshotService,
     {
@@ -257,22 +280,6 @@ export async function handleClearBasicFilter(
     },
     input.safety
   );
-
-  if (ha.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'clear_basic_filter',
-      `Remove the basic filter from sheet ${input.sheetId} in spreadsheet ${input.spreadsheetId}. Filtered rows will become visible again.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
-  }
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
@@ -466,7 +473,28 @@ export async function handleDeleteDuplicates(
     return ha.success('delete_duplicates', { rowsAffected: 0 }, undefined, true);
   }
 
-  // Safety: snapshot BEFORE confirmation (backup must exist before user approves)
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.server ?? ha.context.elicitationServer,
+    operation: 'delete_duplicates',
+    details: `Remove duplicate rows from range ${input.range} in spreadsheet ${input.spreadsheetId}. Duplicate rows will be permanently deleted.`,
+    context: {
+      toolName: 'sheets_dimensions',
+      actionName: 'delete_duplicates',
+      operationType: 'delete_duplicates',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: ha.context.logger,
+  });
+  if (!confirmation.confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
+  }
+
   await createSnapshotIfNeeded(
     ha.context.snapshotService,
     {
@@ -476,22 +504,6 @@ export async function handleDeleteDuplicates(
     },
     input.safety
   );
-
-  if (ha.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'delete_duplicates',
-      `Remove duplicate rows from range ${input.range} in spreadsheet ${input.spreadsheetId}. Duplicate rows will be permanently deleted.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
-  }
 
   const gridRange = await ha.rangeToGridRange(input.spreadsheetId, input.range, ha.sheetsApi);
   const resolvedRange = toGridRange(gridRange);

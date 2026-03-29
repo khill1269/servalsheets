@@ -51,7 +51,11 @@ export interface InitializeStdioRuntimeDependencies<
   readonly startHealthMonitor: () => Promise<void>;
 }
 
-export async function initializeStdioRuntime<
+export interface PreparedStdioRuntime {
+  readonly finalizePostConnect: () => Promise<void>;
+}
+
+export async function prepareStdioRuntime<
   TEnvConfig,
   TGoogleClient,
   TAuthHandler,
@@ -66,7 +70,7 @@ export async function initializeStdioRuntime<
     TContext,
     THandlers
   >
-): Promise<void> {
+): Promise<PreparedStdioRuntime> {
   await dependencies.ensureToolIntegrityVerified();
 
   const { envConfig, costTrackingEnabled } = dependencies.prepareRuntimePreflight();
@@ -92,7 +96,6 @@ export async function initializeStdioRuntime<
       context: googleRuntime.context,
       envConfig,
     });
-    dependencies.preloadPythonCompute?.(envConfig);
   }
 
   dependencies.initializeBuiltinConnectors();
@@ -111,7 +114,62 @@ export async function initializeStdioRuntime<
   dependencies.registerPrompts();
   dependencies.registerTaskCancelHandler();
   dependencies.registerLogging();
-  dependencies.startCacheCleanupTask();
-  dependencies.startHeapWatchdog();
-  await dependencies.startHealthMonitor();
+
+  let postConnectCompleted = false;
+  let postConnectInFlight: Promise<void> | null = null;
+
+  return {
+    finalizePostConnect(): Promise<void> {
+      if (postConnectCompleted) {
+        return Promise.resolve();
+      }
+
+      if (postConnectInFlight) {
+        return postConnectInFlight;
+      }
+
+      postConnectInFlight = (async () => {
+        if (state.getGoogleClient()) {
+          dependencies.preloadPythonCompute?.(envConfig);
+        }
+
+        dependencies.startCacheCleanupTask();
+        dependencies.startHeapWatchdog();
+        await dependencies.startHealthMonitor();
+      })()
+        .then(() => {
+          postConnectCompleted = true;
+        })
+        .finally(() => {
+          if (!postConnectCompleted) {
+            postConnectInFlight = null;
+            return;
+          }
+
+          postConnectInFlight = Promise.resolve();
+        });
+
+      return postConnectInFlight;
+    },
+  };
+}
+
+export async function initializeStdioRuntime<
+  TEnvConfig,
+  TGoogleClient,
+  TAuthHandler,
+  TContext,
+  THandlers,
+>(
+  state: InitializeStdioRuntimeState<TGoogleClient, TAuthHandler, TContext, THandlers>,
+  dependencies: InitializeStdioRuntimeDependencies<
+    TEnvConfig,
+    TGoogleClient,
+    TAuthHandler,
+    TContext,
+    THandlers
+  >
+): Promise<void> {
+  const preparedRuntime = await prepareStdioRuntime(state, dependencies);
+  await preparedRuntime.finalizePostConnect();
 }

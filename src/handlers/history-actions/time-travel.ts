@@ -12,7 +12,6 @@ import type {
 } from '../../schemas/history.js';
 import { getTimeline, diffRevisions, restoreCells } from '../../services/revision-timeline.js';
 import type { ElicitationServer } from '../../mcp/elicitation.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import type { SamplingServer } from '../../mcp/sampling.js';
 import {
   withSamplingTimeout,
@@ -26,6 +25,7 @@ import { sendProgress } from '../../utils/request-context.js';
 import type { SnapshotService } from '../../services/snapshot.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
 import type { SessionContextManager } from '../../services/session-context.js';
+import { requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 
 export async function handleTimeline(
   req: HistoryTimelineInput,
@@ -251,24 +251,29 @@ export async function handleRestoreCells(
     snapshotId = await snapshotService.create(req.spreadsheetId, 'Pre-restore backup');
   }
 
-  // Require confirmation when restoring >10 cells (bulk operation threshold)
-  if (req.cells.length > 10 && server) {
-    const confirmation = await confirmDestructiveAction(
-      server,
-      'restore_cells',
-      `Restore ${req.cells.length} cells from revision ${req.revisionId} in spreadsheet ${req.spreadsheetId}. This will overwrite current cell values.`
-    );
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: confirmation.reason || 'User cancelled the bulk restore operation',
-          retryable: false,
-          suggestedFix: 'Restore fewer cells at a time, or use safety.dryRun to preview first',
-        },
-      };
-    }
+  const confirmation = await requestSafetyConfirmation({
+    server,
+    operation: 'restore_cells',
+    details: `Restore ${req.cells.length} cells from revision ${req.revisionId} in spreadsheet ${req.spreadsheetId}. This will overwrite current cell values.`,
+    context: {
+      toolName: 'sheets_history',
+      actionName: 'restore_cells',
+      operationType: 'restore_cells',
+      isDestructive: true,
+      affectedCells: req.cells.length,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
+  if (!confirmation.confirmed) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCodes.PRECONDITION_FAILED,
+        message: confirmation.reason || 'User cancelled the bulk restore operation',
+        retryable: false,
+        suggestedFix: 'Restore fewer cells at a time, or use safety.dryRun to preview first',
+      },
+    };
   }
 
   const restored = await restoreCells(

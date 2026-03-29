@@ -6,7 +6,7 @@
 
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
-import { toGridRange } from '../../utils/google-sheets-helpers.js';
+import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
 import { RangeResolutionError } from '../../core/range-resolver.js';
 import type { FormatResponse, FormatRequest } from '../../schemas/index.js';
 import type { FormatHandlerAccess } from './internal.js';
@@ -274,13 +274,7 @@ export async function handleAutoFit(
     const rangeA1 = await ha.resolveRange(input.spreadsheetId, input.range);
     gridRange = await ha.a1ToGridRange(input.spreadsheetId, rangeA1);
   } else if (input.sheetId !== undefined) {
-    gridRange = {
-      sheetId: input.sheetId,
-      startRowIndex: 0,
-      endRowIndex: 1000000,
-      startColumnIndex: 0,
-      endColumnIndex: 26,
-    };
+    gridRange = buildGridRangeInput(input.sheetId, 0, 1000000, 0, 26);
   } else {
     throw new RangeResolutionError('Either range or sheetId must be provided');
   }

@@ -45,7 +45,7 @@ function computeETag(content: unknown): string {
  * Describes server capabilities for discovery
  */
 export interface McpServerConfiguration {
-  /** Server name (package name) */
+  /** Runtime MCP server name surfaced during initialize */
   name: string;
   /** Server version (semver) */
   version: string;
@@ -141,7 +141,7 @@ export interface McpServerCard {
   $schema?: string;
   /** MCP protocol version supported */
   mcp_version: string;
-  /** Server name (unique identifier) */
+  /** Runtime MCP server name exposed to MCP clients */
   server_name: string;
   /** Server version (semver) */
   server_version: string;

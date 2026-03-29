@@ -13,8 +13,11 @@ import type {
   CollaborateShareUpdateInput,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import { elicitSharingSettings, confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import { elicitSharingSettings } from '../../mcp/elicitation.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { driveRateLimiter } from '../../utils/drive-rate-limiter.js';
 import { TimeoutError, withTimeout } from '../../utils/timeout.js';
 
@@ -488,21 +491,27 @@ export async function handleShareRemoveAction(
     return deps.success('share_remove', {}, undefined, true);
   }
 
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'share_remove',
-      `Remove permission (ID: ${input.permissionId}) from spreadsheet ${input.spreadsheetId}. This will revoke access for the user. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.server ?? deps.context.elicitationServer,
+    operation: 'share_remove',
+    details: `Remove permission (ID: ${input.permissionId}) from spreadsheet ${input.spreadsheetId}. This will revoke access for the user. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_collaborate',
+      actionName: 'share_remove',
+      operationType: 'share_remove',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: deps.context.logger,
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(

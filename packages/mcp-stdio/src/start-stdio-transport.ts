@@ -19,7 +19,7 @@ export interface StartStdioTransportOptions<
 > {
   readonly createTransport: () => TTransport;
   readonly server: TServer;
-  readonly ensureResourcesRegistered: () => Promise<void>;
+  readonly initializeAfterConnect: () => Promise<void>;
   readonly shutdown: () => Promise<void>;
   readonly getIsShutdown: () => boolean;
   readonly getProcessBreadcrumbs: () => Record<string, unknown>;
@@ -66,8 +66,6 @@ export async function startStdioTransport<
     });
   };
 
-  await options.ensureResourcesRegistered();
-
   options.log.info('[Phase 3/3] Connecting transport');
   const connectStart = performance.now();
 
@@ -87,6 +85,8 @@ export async function startStdioTransport<
         },
       }
     );
+
+    await options.initializeAfterConnect();
   } catch (error) {
     options.log.error('[Phase 3/3] \u2717 Connection failed', {
       error: error instanceof Error ? error.message : String(error),

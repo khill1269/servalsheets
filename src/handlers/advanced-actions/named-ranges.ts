@@ -5,8 +5,10 @@ import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { recordNamedRange } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
@@ -147,22 +149,26 @@ export async function handleDeleteNamedRangeAction(
     return deps.success('delete_named_range', {}, undefined, true);
   }
 
-  // Request confirmation if elicitation available
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'delete_named_range',
-      `Delete named range (ID: ${req.namedRangeId}) from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'delete_named_range',
+    details: `Delete named range (ID: ${req.namedRangeId}) from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_advanced',
+      actionName: 'delete_named_range',
+      operationType: 'delete_named_range',
+      isDestructive: true,
+      spreadsheetId: req.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Create snapshot if requested

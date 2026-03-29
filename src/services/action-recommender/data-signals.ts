@@ -5,6 +5,7 @@
  * and suggesting contextual actions based on actual spreadsheet content.
  */
 
+import { createRequire } from 'node:module';
 import { logger } from '../../utils/logger.js';
 import {
   type SuggestedAction,
@@ -14,6 +15,8 @@ import {
 } from './recommendation-rules.js';
 
 type CellValue = string | number | boolean | null;
+
+const require = createRequire(import.meta.url);
 
 // Date-like detection helpers (mirrors lightweight-quality-scanner logic without import)
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;

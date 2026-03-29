@@ -52,6 +52,19 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {
     sheets: vi.fn(),
   } as any,
+  elicitationServer: {
+    request: vi.fn().mockResolvedValue({
+      confirmed: true,
+      reason: '',
+    }),
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({
+      elicitation: { form: true },
+    }),
+  } as any,
 });
 
 describe('FormatHandler', () => {
@@ -367,6 +380,38 @@ describe('FormatHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(result.response.dryRun).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should fail closed when confirmation is required but elicitation is unavailable', async () => {
+      mockContext.rangeResolver.resolve = vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:AD30',
+        sheetId: 0,
+        sheetName: 'Sheet1',
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 30,
+          startColumnIndex: 0,
+          endColumnIndex: 30,
+        },
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1.0,
+          path: '',
+        },
+      });
+      mockContext.elicitationServer = undefined;
+      handler = new FormatHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'clear_format',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:AD30' },
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
@@ -1294,6 +1339,22 @@ describe('FormatHandler', () => {
       expect(result.response.success).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
+
+    it('should cancel when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new FormatHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'rule_delete_conditional_format',
+        spreadsheetId: 'test-id',
+        sheetId: 0,
+        ruleIndex: 0,
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any)._cancelled).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
   });
 
   // ============================================================
@@ -1473,6 +1534,21 @@ describe('FormatHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should cancel when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new FormatHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'clear_data_validation',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:A100' },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any)._cancelled).toBe(true);
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });

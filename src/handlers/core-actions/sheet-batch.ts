@@ -9,8 +9,10 @@ import type {
   CoreResponse,
 } from '../../schemas/index.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../../utils/error-factory.js';
 import { createMetadataCache } from '../../services/metadata-cache.js';
 import type { SheetResolutionResult } from '../../services/sheet-resolver.js';
@@ -99,21 +101,26 @@ export async function handleBatchDeleteSheetsAction(
     );
   }
 
-  // Safety: confirm destructive batch deletion
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'batch_delete_sheets',
-      `Delete ${sheetsToDelete.length} sheet(s) from spreadsheet ${input.spreadsheetId}. All data in these sheets will be permanently removed.`
-    );
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.OPERATION_CANCELLED,
-        message: confirmation.reason || 'User cancelled the batch delete operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  const deleteConfirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'batch_delete_sheets',
+    details: `Delete ${sheetsToDelete.length} sheet(s) from spreadsheet ${input.spreadsheetId}. All data in these sheets will be permanently removed.`,
+    context: {
+      toolName: 'sheets_core',
+      actionName: 'batch_delete_sheets',
+      operationType: 'batch_delete_sheets',
+      isDestructive: true,
+      affectedCells: sheetsToDelete.length,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
+  if (!deleteConfirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.OPERATION_CANCELLED,
+      message: deleteConfirmation.reason || 'User cancelled the batch delete operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   // Safety: snapshot before destructive operation
@@ -326,25 +333,30 @@ export async function handleClearSheetAction(
 
   const sheetTitle = targetSheet.properties.title;
 
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'clear_sheet',
-      `Clear all data from sheet "${sheetTitle}" in spreadsheet ${input.spreadsheetId}. This will remove all cell values${
-        resetSheet
-          ? ', formatting, notes, banding, basic filters, filter views, and tables'
-          : `${input.clearFormats ? ', formatting' : ''}${input.clearNotes ? ', and notes' : ''}`
-      }. This action cannot be undone without a snapshot.`
-    );
+  const clearConfirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'clear_sheet',
+    details: `Clear all data from sheet "${sheetTitle}" in spreadsheet ${input.spreadsheetId}. This will remove all cell values${
+      resetSheet
+        ? ', formatting, notes, banding, basic filters, filter views, and tables'
+        : `${input.clearFormats ? ', formatting' : ''}${input.clearNotes ? ', and notes' : ''}`
+    }. This action cannot be undone without a snapshot.`,
+    context: {
+      toolName: 'sheets_core',
+      actionName: 'clear_sheet',
+      operationType: 'clear_sheet',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!clearConfirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: clearConfirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const clearValues = resetSheet ? true : input.clearValues !== false;

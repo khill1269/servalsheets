@@ -272,6 +272,7 @@
     "benchmark:http": "autocannon -c 100 -d 30 http://localhost:3000/health",
     "benchmarks:run": "RUN_BENCHMARKS=true vitest run tests/benchmarks && node scripts/track-benchmarks.mjs",
     "benchmarks:track": "vitest run tests/benchmarks && node scripts/track-benchmarks.mjs",
+    "prebuild": "rm -f .tsbuildinfo.build",
     "build": "npm run build:core && npm run build:mcp-runtime && npm run build:mcp-http && npm run build:mcp-stdio && npm run build:mcp-client && npm run gen:metadata && tsc -p tsconfig.build.json && npm run build:copy-assets",
     "build:full": "npm run build:core && npm run build:mcp-runtime && npm run build:mcp-http && npm run build:mcp-stdio && npm run build:mcp-client && npm run gen:metadata && npm run gen:openapi && tsc -p tsconfig.build.json && npm run build:copy-assets",
     "build:mcp-client": "npm run build --workspace @serval/mcp-client",

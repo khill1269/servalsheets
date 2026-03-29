@@ -1,4 +1,6 @@
 export {
+  prepareStdioRuntime,
+  type PreparedStdioRuntime,
   initializeStdioRuntime,
   type InitializeStdioRuntimeDependencies,
   type InitializeStdioRuntimeState,

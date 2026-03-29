@@ -69,12 +69,16 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(instructions).toContain('1. **Auth check:**');
       expect(instructions).toContain('sheets_auth');
       expect(instructions).toContain('authenticated: false');
+      expect(instructions).toContain('action:"status"');
+      expect(instructions).toContain('BEFORE any other tool');
     });
 
     it('should include session context as STEP 2', () => {
+      expect(instructions).toContain('sheets_session action:"get_context"');
       expect(instructions).toContain('sheets_session');
       expect(instructions).toContain('get_context');
       expect(instructions).toContain('set_active');
+      expect(instructions).toContain('connectorOnboarding');
     });
 
     it('should include tool selection decision tree', () => {
@@ -94,11 +98,13 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(instructions).toContain('analyze.scout');
       expect(instructions).toContain('quality.validate');
       expect(instructions).toContain('record_operation');
+      expect(instructions).toContain('sheets_agent action:"plan"');
     });
 
     it('should include anti-patterns', () => {
-      expect(instructions).toContain("don't use find_replace for targeted updates");
       expect(instructions).toContain('Do NOT use `execute_pipeline`');
+      expect(instructions).toContain('scout only when needed');
+      expect(instructions).toContain("don't use find_replace for targeted updates");
     });
 
     it('should include error recovery table', () => {
@@ -120,8 +126,9 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should include quota awareness section', () => {
-      expect(instructions).toContain('batch_write');
+      expect(instructions).toContain('Operation batching strategy');
       expect(instructions).toContain('sheets_transaction');
+      expect(instructions).toContain('batch_write');
       expect(instructions).toContain('80-95% API savings');
     });
 
@@ -129,13 +136,17 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(instructions).toContain('Formula locale');
       expect(instructions).toContain('spreadsheetLocale');
       expect(instructions).toContain('guide://advanced-usage');
+      expect(instructions).toContain('USER_ENTERED');
+      expect(instructions).toContain('UNFORMATTED_VALUE');
     });
 
     it('should include collaborative workflow pattern', () => {
       expect(instructions).toContain('connectorOnboarding');
+      expect(instructions).toContain('ASK the user which connectors they want');
+      expect(instructions).toContain('structured next-call guidance');
+      expect(instructions).toContain('wizard_start');
       expect(instructions).toContain('interactiveMode:true');
       expect(instructions).toContain('history.undo');
-      expect(instructions).toContain('wizard_start');
     });
 
     it('should include Tier 7 tools in decision tree', () => {

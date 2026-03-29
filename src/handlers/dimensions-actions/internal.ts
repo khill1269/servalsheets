@@ -31,6 +31,12 @@ export type DimensionsHandlerAccess = {
     result?: Record<string, unknown>,
     options?: { cellsAffected?: number; apiCallsMade?: number; duration?: number }
   ) => ResponseMeta;
+  confirmOperation: (
+    operation: string,
+    details: string,
+    safetyContext: SafetyContext,
+    options?: { skipIfElicitationUnavailable?: boolean }
+  ) => Promise<boolean>;
   getSafetyWarnings: (safetyContext: SafetyContext, safety?: SafetyOptions) => SafetyWarning[];
   formatWarnings: (warnings: SafetyWarning[]) => string[];
   createSafetySnapshot: (safetyContext: SafetyContext, safety?: SafetyOptions) => Promise<unknown>;

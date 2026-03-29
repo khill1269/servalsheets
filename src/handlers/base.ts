@@ -54,6 +54,7 @@ import type { sheets_v4 } from 'googleapis';
 import { getContextManager } from '../services/context-manager.js';
 import {
   requiresConfirmation,
+  requestSafetyConfirmation,
   generateSafetyWarnings,
   createSnapshotIfNeeded,
   formatSafetyWarnings,
@@ -1132,7 +1133,10 @@ export abstract class BaseHandler<TInput, TOutput> {
    * Check if operation requires confirmation
    */
   protected shouldRequireConfirmation(context: SafetyContext): boolean {
-    return requiresConfirmation(context);
+    return requiresConfirmation({
+      ...context,
+      toolName: context.toolName ?? this.toolName,
+    });
   }
 
   /**
@@ -1177,57 +1181,38 @@ export abstract class BaseHandler<TInput, TOutput> {
     options?: { skipIfElicitationUnavailable?: boolean }
   ): Promise<boolean> {
     const logger = getRequestLogger();
+    const safetyContext = {
+      ...context,
+      toolName: context.toolName ?? this.toolName,
+    };
+    const confirmation = await requestSafetyConfirmation({
+      server: this.context.server ?? this.context.elicitationServer,
+      operation,
+      details,
+      context: safetyContext,
+      skipIfElicitationUnavailable: options?.skipIfElicitationUnavailable,
+      logger,
+    });
 
-    // Check if confirmation is required based on safety rules
-    if (!this.shouldRequireConfirmation(context)) {
+    if (!confirmation.required) {
       logger.debug('Operation does not require confirmation', {
         operation,
         isDestructive: context.isDestructive,
         affectedCells: context.affectedCells,
         affectedRows: context.affectedRows,
       });
-      return true; // Safe to proceed
+      return true;
     }
 
-    // Check if elicitation server is available
-    if (!this.context.server) {
-      logger.warn('Elicitation not available for destructive operation', {
-        operation,
-        skipIfUnavailable: options?.skipIfElicitationUnavailable,
-      });
+    logger.info('User confirmation received', {
+      operation,
+      confirmed: confirmation.confirmed,
+      outcome: confirmation.outcome,
+      reason: confirmation.reason,
+      source: confirmation.source,
+    });
 
-      // If skipIfElicitationUnavailable is true, proceed without confirmation
-      // (backward compatibility for clients that don't support elicitation)
-      if (options?.skipIfElicitationUnavailable) {
-        return true;
-      }
-
-      // Otherwise, block the operation for safety
-      return false;
-    }
-
-    // Import confirmDestructiveAction dynamically to avoid circular dependencies
-    const { confirmDestructiveAction } = await import('../mcp/elicitation.js');
-
-    try {
-      const confirmation = await confirmDestructiveAction(this.context.server, operation, details);
-
-      logger.info('User confirmation received', {
-        operation,
-        confirmed: confirmation.confirmed,
-        reason: confirmation.reason,
-      });
-
-      return confirmation.confirmed;
-    } catch (error) {
-      logger.error('Confirmation request failed', {
-        operation,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // On error, err on the side of safety (block the operation)
-      return false;
-    }
+    return confirmation.confirmed;
   }
 
   /**
@@ -1237,7 +1222,13 @@ export abstract class BaseHandler<TInput, TOutput> {
     context: SafetyContext,
     safetyOptions?: SafetyOptions
   ): SafetyWarning[] {
-    return generateSafetyWarnings(context, safetyOptions);
+    return generateSafetyWarnings(
+      {
+        ...context,
+        toolName: context.toolName ?? this.toolName,
+      },
+      safetyOptions
+    );
   }
 
   /**

@@ -69,6 +69,20 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {
     sheets: vi.fn(),
   } as any,
+  elicitationServer: {
+    request: vi.fn().mockResolvedValue({
+      confirmed: true,
+      reason: '',
+      outcome: 'accepted',
+    }),
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({
+      elicitation: { form: true },
+    }),
+  } as any,
 });
 
 describe('Category 3: Formatting & Visual Presentation', () => {

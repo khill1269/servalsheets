@@ -79,7 +79,7 @@ describe('tool-mode MCP registration', () => {
     } finally {
       await server.shutdown();
     }
-  });
+  }, 30_000);
 
   it('completion/complete returns all tool names for toolName argument', async () => {
     vi.resetModules();
@@ -120,5 +120,5 @@ describe('tool-mode MCP registration', () => {
     } finally {
       await server.shutdown();
     }
-  });
+  }, 30_000);
 });

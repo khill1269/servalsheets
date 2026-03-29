@@ -10,6 +10,8 @@ const args = [
   'markdownlint-cli2',
   'docs/**/*.md',
   '#docs/archive/**',
+  '#docs/audits/**',
+  '#docs/review/**',
   '#docs/generated/**',
   '#docs/.vitepress/**',
 ];

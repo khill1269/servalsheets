@@ -223,7 +223,11 @@ const PlanStepSchema = z.object({
   stepId: z.string().describe('Unique step identifier'),
   tool: z.string().describe('Tool name (e.g., "sheets_data")'),
   action: z.string().describe('Action name (e.g., "write")'),
-  params: z.record(z.string(), z.any()).describe('Parameters for the action'),
+  params: z
+    .record(z.string(), z.unknown())
+    .describe(
+      "Parameters for the action (tool-specific; see the target tool's action schema for valid keys)"
+    ),
   description: z.string().describe('Human-readable description of what this step does'),
   dependsOn: z
     .array(z.string())
@@ -270,7 +274,7 @@ const AgentResponseSchema = z.discriminatedUnion('success', [
         z.object({
           stepId: z.string(),
           success: z.boolean(),
-          result: z.any().optional(),
+          result: z.unknown().optional(),
           error: z.string().optional(),
         })
       )
@@ -279,12 +283,12 @@ const AgentResponseSchema = z.discriminatedUnion('success', [
     // EXECUTE_STEP response fields
     stepId: z.string().optional().describe('Step ID that was executed'),
     completed: z.boolean().optional().describe('Whether the step completed successfully'),
-    result: z.any().optional().describe('Result data from the executed step'),
+    result: z.unknown().optional().describe('Result data from the executed step'),
     error: z.string().optional().describe('Error message if step failed'),
     // OBSERVE response fields
     checkpointId: z.string().optional().describe('Unique checkpoint identifier'),
     snapshot: z
-      .record(z.string(), z.any())
+      .record(z.string(), z.unknown())
       .optional()
       .describe('Current spreadsheet state snapshot'),
     timestamp: z

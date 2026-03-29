@@ -153,6 +153,7 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
           MCP_TRANSPORT: 'stdio',
           SKIP_PREFLIGHT: 'true',
           ENABLE_PYTHON_COMPUTE: 'false',
+          SERVALSHEETS_LOAD_DOTENV: 'false',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
       });

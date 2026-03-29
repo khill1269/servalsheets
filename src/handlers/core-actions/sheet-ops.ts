@@ -14,8 +14,10 @@ import type {
   SheetInfo,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { recordSheetName } from '../../mcp/completions.js';
 
@@ -249,21 +251,26 @@ export async function handleDeleteSheetAction(
     return deps.success('delete_sheet', {}, undefined, true);
   }
 
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'delete_sheet',
-      `Delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This will permanently remove the entire sheet and all its data. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.elicitationServer,
+    operation: 'delete_sheet',
+    details: `Delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This will permanently remove the entire sheet and all its data. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_core',
+      actionName: 'delete_sheet',
+      operationType: 'delete_sheet',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(

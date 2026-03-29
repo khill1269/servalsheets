@@ -19,53 +19,33 @@ const __dirname = dirname(__filename);
 // Go up one level from dist/ or src/ to find .env in project root
 const projectRoot = join(__dirname, '..');
 
+function shouldLoadDotenv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const explicitSetting = env['SERVALSHEETS_LOAD_DOTENV'];
+  if (explicitSetting === 'true') {
+    return true;
+  }
+
+  if (explicitSetting === 'false') {
+    return false;
+  }
+
+  return env['NODE_ENV'] !== 'test';
+}
+
 // Suppress dotenv's informational banner to prevent Claude Desktop JSON parsing errors
 // The banner "[dotenv@17.2.3] injecting env..." breaks STDIO transport JSON parsing
 // Load from project root so it works regardless of CWD
-dotenv.config({ quiet: true, path: join(projectRoot, '.env') });
+if (shouldLoadDotenv()) {
+  dotenv.config({ quiet: true, path: join(projectRoot, '.env') });
+}
 
 import { type ServalSheetsServerOptions } from './server.js';
-import { logger } from './utils/logger.js';
 import { VERSION } from './version.js';
 import { buildCliServerOptions } from './cli/build-server-options.js';
 import { parseCliCommand } from './cli/command-parsing.js';
 import { dispatchCliCommand } from './cli/command-dispatch.js';
-import {
-  startBackgroundTasks,
-  registerSignalHandlers,
-  logEnvironmentConfig,
-  requireEncryptionKeyInProduction,
-  ensureEncryptionKey,
-} from './startup/lifecycle.js';
-import { runPreflightChecks } from './startup/preflight-validation.js';
 import { enhanceStartupError } from './utils/enhanced-errors.js';
-import {
-  checkRestartBackoff,
-  recordStartupAttempt,
-  recordSuccessfulStartup,
-} from './startup/restart-policy.js';
 import { startCliRuntime } from './cli/start-runtime.js';
-import { startStdioCli } from './cli/start-stdio.js';
-import { startSelectedCliTransport } from './cli/start-selected-transport.js';
-
-// Global crash handlers — prevent silent exits that leave Claude Desktop with "Server disconnected"
-// These write to stderr (safe in STDIO mode — only stdout is the MCP channel)
-process.on('unhandledRejection', (reason) => {
-  console.error('ServalSheets unhandled rejection:', reason);
-  logger.error('Unhandled promise rejection', {
-    error: reason instanceof Error ? reason.message : String(reason),
-    stack: reason instanceof Error ? reason.stack : undefined,
-  });
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('ServalSheets uncaught exception:', error);
-  logger.error('Uncaught exception — shutting down', {
-    error: error.message,
-    stack: error.stack,
-  });
-  process.exit(1);
-});
 
 // Record startup start time for metrics
 process.env['SERVALSHEETS_STARTUP_TIME'] = Date.now().toString();
@@ -93,6 +73,32 @@ if (dispatchedCommand.kind === 'handled') {
 }
 
 const cliOptions = dispatchedCommand.cliOptions;
+process.env['MCP_TRANSPORT'] = cliOptions.transport;
+const [
+  { logger },
+  {
+    startBackgroundTasks,
+    registerSignalHandlers,
+    logEnvironmentConfig,
+    requireEncryptionKeyInProduction,
+    ensureEncryptionKey,
+  },
+  { runPreflightChecks },
+  {
+    checkRestartBackoff,
+    recordStartupAttempt,
+    recordSuccessfulStartup,
+  },
+  { startStdioCli },
+  { startSelectedCliTransport },
+] = await Promise.all([
+  import('./utils/logger.js'),
+  import('./startup/lifecycle.js'),
+  import('./startup/preflight-validation.js'),
+  import('./startup/restart-policy.js'),
+  import('./cli/start-stdio.js'),
+  import('./cli/start-selected-transport.js'),
+]);
 
 const serverOptions: ServalSheetsServerOptions = buildCliServerOptions(cliOptions, process.env);
 

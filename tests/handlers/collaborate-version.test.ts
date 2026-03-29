@@ -21,6 +21,12 @@ vi.mock('../../src/utils/logger.js', () => ({
 
 vi.mock('../../src/utils/safety-helpers.js', () => ({
   createSnapshotIfNeeded: vi.fn().mockResolvedValue(undefined),
+  requestSafetyConfirmation: vi.fn().mockResolvedValue({
+    confirmed: true,
+    required: true,
+    outcome: 'accepted',
+    source: 'policy',
+  }),
 }));
 
 vi.mock('../../src/mcp/elicitation.js', () => ({
@@ -303,9 +309,11 @@ describe('CollaborateHandler — Version Actions', () => {
       expect(mockDriveApi.files.delete).not.toHaveBeenCalled();
     });
 
-    it('should call createSnapshotIfNeeded before deleting', async () => {
+    it('should call createSnapshotIfNeeded after confirmation when deletion proceeds', async () => {
       // Arrange
-      const { createSnapshotIfNeeded } = await import('../../src/utils/safety-helpers.js');
+      const { createSnapshotIfNeeded, requestSafetyConfirmation } = await import(
+        '../../src/utils/safety-helpers.js'
+      );
 
       // Act
       await handler.handle({
@@ -314,13 +322,12 @@ describe('CollaborateHandler — Version Actions', () => {
         snapshotId: SNAPSHOT_ID,
       } as any);
 
-      // Assert — snapshot is created before deletion (safety rail)
+      expect(requestSafetyConfirmation).toHaveBeenCalledOnce();
       expect(createSnapshotIfNeeded).toHaveBeenCalledOnce();
     });
 
-    it('should skip confirmDestructiveAction when elicitationServer is undefined', async () => {
-      // Arrange — mockContext.elicitationServer is undefined (set in createMockContext)
-      const { confirmDestructiveAction } = await import('../../src/mcp/elicitation.js');
+    it('should route destructive deletion through the shared confirmation helper', async () => {
+      const { requestSafetyConfirmation } = await import('../../src/utils/safety-helpers.js');
 
       // Act
       await handler.handle({
@@ -329,8 +336,7 @@ describe('CollaborateHandler — Version Actions', () => {
         snapshotId: SNAPSHOT_ID,
       } as any);
 
-      // Assert — elicitation is skipped when server is unavailable
-      expect(confirmDestructiveAction).not.toHaveBeenCalled();
+      expect(requestSafetyConfirmation).toHaveBeenCalledOnce();
     });
   });
 

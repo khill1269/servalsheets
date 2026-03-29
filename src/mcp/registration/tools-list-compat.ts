@@ -8,12 +8,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { DEFER_SCHEMAS } from '../../config/constants.js';
-import { TOOL_ICONS } from '../features-2025-11-25.js';
+import { DEFER_SCHEMAS, getEffectiveToolMode } from '../../config/constants.js';
+import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { logger } from '../../utils/logger.js';
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
 import { getSessionContext } from '../../services/session-context.js';
 import { ACTION_COUNTS } from '../../schemas/action-counts.js';
+import { getAvailableToolNames } from '../tool-registry-state.js';
 import {
   filterAvailableActions,
   getToolAvailabilityMetadata,
@@ -24,6 +25,8 @@ import {
   buildDeferredFallbackSchema,
 } from './schema-helpers.js';
 import { getToolDiscoveryHint, getActionCostEstimates } from './tool-discovery-hints.js';
+import { getFlatToolRegistry, type FlatToolDefinition } from './flat-tool-registry.js';
+import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
 
@@ -49,35 +52,95 @@ interface ToolTierMeta {
 
 const TOOL_TIERS: Record<string, ToolTierMeta> = {
   // Tier 1 — Essential (used in 80%+ of sessions)
-  sheets_data:    { tier: 1, group: 'data-io',    primaryVerbs: ['read', 'write', 'append', 'find'] },
-  sheets_core:    { tier: 1, group: 'structure',   primaryVerbs: ['create', 'list', 'delete', 'duplicate'] },
-  sheets_format:  { tier: 1, group: 'appearance',  primaryVerbs: ['format', 'bold', 'color', 'number format'] },
-  sheets_analyze: { tier: 1, group: 'analysis',    primaryVerbs: ['scout', 'analyze', 'generate formula'] },
-  sheets_auth:    { tier: 1, group: 'automation',   primaryVerbs: ['login', 'status', 'logout'] },
+  sheets_data: { tier: 1, group: 'data-io', primaryVerbs: ['read', 'write', 'append', 'find'] },
+  sheets_core: {
+    tier: 1,
+    group: 'structure',
+    primaryVerbs: ['create', 'list', 'delete', 'duplicate'],
+  },
+  sheets_format: {
+    tier: 1,
+    group: 'appearance',
+    primaryVerbs: ['format', 'bold', 'color', 'number format'],
+  },
+  sheets_analyze: {
+    tier: 1,
+    group: 'analysis',
+    primaryVerbs: ['scout', 'analyze', 'generate formula'],
+  },
+  sheets_auth: { tier: 1, group: 'automation', primaryVerbs: ['login', 'status', 'logout'] },
 
   // Tier 2 — Common (used in 40-80% of sessions)
-  sheets_dimensions: { tier: 2, group: 'appearance',  primaryVerbs: ['freeze', 'sort', 'filter', 'resize', 'hide'] },
-  sheets_visualize:  { tier: 2, group: 'appearance',  primaryVerbs: ['chart', 'sparkline', 'slicer'] },
-  sheets_composite:  { tier: 2, group: 'data-io',     primaryVerbs: ['import', 'export', 'generate'] },
-  sheets_session:    { tier: 2, group: 'automation',   primaryVerbs: ['set active', 'preferences', 'pipeline'] },
-  sheets_fix:        { tier: 2, group: 'analysis',     primaryVerbs: ['clean', 'standardize', 'fill missing'] },
-  sheets_compute:    { tier: 2, group: 'data-io',     primaryVerbs: ['stats', 'regression', 'forecast'] },
-  sheets_history:    { tier: 2, group: 'automation',   primaryVerbs: ['undo', 'timeline', 'diff', 'snapshot'] },
-  sheets_collaborate:{ tier: 2, group: 'structure',    primaryVerbs: ['share', 'protect', 'comment', 'versions'] },
+  sheets_dimensions: {
+    tier: 2,
+    group: 'appearance',
+    primaryVerbs: ['freeze', 'sort', 'filter', 'resize', 'hide'],
+  },
+  sheets_visualize: {
+    tier: 2,
+    group: 'appearance',
+    primaryVerbs: ['chart', 'sparkline', 'slicer'],
+  },
+  sheets_composite: { tier: 2, group: 'data-io', primaryVerbs: ['import', 'export', 'generate'] },
+  sheets_session: {
+    tier: 2,
+    group: 'automation',
+    primaryVerbs: ['set active', 'preferences', 'pipeline'],
+  },
+  sheets_fix: {
+    tier: 2,
+    group: 'analysis',
+    primaryVerbs: ['clean', 'standardize', 'fill missing'],
+  },
+  sheets_compute: { tier: 2, group: 'data-io', primaryVerbs: ['stats', 'regression', 'forecast'] },
+  sheets_history: {
+    tier: 2,
+    group: 'automation',
+    primaryVerbs: ['undo', 'timeline', 'diff', 'snapshot'],
+  },
+  sheets_collaborate: {
+    tier: 2,
+    group: 'structure',
+    primaryVerbs: ['share', 'protect', 'comment', 'versions'],
+  },
 
   // Tier 3 — Specialized (used in <40% of sessions)
-  sheets_advanced:     { tier: 3, group: 'structure',   primaryVerbs: ['named range', 'pivot', 'slicer', 'banding'] },
-  sheets_quality:      { tier: 3, group: 'analysis',    primaryVerbs: ['validate', 'conflicts'] },
-  sheets_dependencies: { tier: 3, group: 'analysis',    primaryVerbs: ['dependency graph', 'what-if', 'scenario'] },
-  sheets_templates:    { tier: 3, group: 'structure',   primaryVerbs: ['save template', 'instantiate'] },
-  sheets_transaction:  { tier: 3, group: 'automation',  primaryVerbs: ['begin', 'queue', 'commit', 'rollback'] },
-  sheets_agent:        { tier: 3, group: 'automation',  primaryVerbs: ['plan', 'execute', 'rollback'] },
-  sheets_confirm:      { tier: 3, group: 'automation',  primaryVerbs: ['confirm', 'wizard'] },
-  sheets_webhook:      { tier: 3, group: 'automation',  primaryVerbs: ['watch', 'subscribe', 'trigger'] },
-  sheets_appsscript:   { tier: 3, group: 'automation',  primaryVerbs: ['run script', 'deploy', 'manage'] },
-  sheets_bigquery:     { tier: 3, group: 'data-io',    primaryVerbs: ['query', 'import', 'export', 'dataset'] },
-  sheets_federation:   { tier: 3, group: 'automation',  primaryVerbs: ['remote call', 'list servers'] },
-  sheets_connectors:   { tier: 3, group: 'data-io',    primaryVerbs: ['discover', 'connect', 'fetch'] },
+  sheets_advanced: {
+    tier: 3,
+    group: 'structure',
+    primaryVerbs: ['named range', 'pivot', 'slicer', 'banding'],
+  },
+  sheets_quality: { tier: 3, group: 'analysis', primaryVerbs: ['validate', 'conflicts'] },
+  sheets_dependencies: {
+    tier: 3,
+    group: 'analysis',
+    primaryVerbs: ['dependency graph', 'what-if', 'scenario'],
+  },
+  sheets_templates: { tier: 3, group: 'structure', primaryVerbs: ['save template', 'instantiate'] },
+  sheets_transaction: {
+    tier: 3,
+    group: 'automation',
+    primaryVerbs: ['begin', 'queue', 'commit', 'rollback'],
+  },
+  sheets_agent: { tier: 3, group: 'automation', primaryVerbs: ['plan', 'execute', 'rollback'] },
+  sheets_confirm: { tier: 3, group: 'automation', primaryVerbs: ['confirm', 'wizard'] },
+  sheets_webhook: { tier: 3, group: 'automation', primaryVerbs: ['watch', 'subscribe', 'trigger'] },
+  sheets_appsscript: {
+    tier: 3,
+    group: 'automation',
+    primaryVerbs: ['run script', 'deploy', 'manage'],
+  },
+  sheets_bigquery: {
+    tier: 3,
+    group: 'data-io',
+    primaryVerbs: ['query', 'import', 'export', 'dataset'],
+  },
+  sheets_federation: {
+    tier: 3,
+    group: 'automation',
+    primaryVerbs: ['remote call', 'list servers'],
+  },
+  sheets_connectors: { tier: 3, group: 'data-io', primaryVerbs: ['discover', 'connect', 'fetch'] },
 };
 
 /**
@@ -96,47 +159,137 @@ const TOOL_TIERS: Record<string, ToolTierMeta> = {
  * Tells LLM clients what OAuth scope category each tool needs,
  * so they can pre-flight scope checks before invocation.
  */
-const TOOL_SCOPE_REQUIREMENTS: Record<string, { primary: string; elevated?: string; note?: string }> = {
-  sheets_auth:         { primary: 'none', note: 'No Google API scopes required' },
-  sheets_session:      { primary: 'none', note: 'Local session state only' },
-  sheets_confirm:      { primary: 'none', note: 'MCP elicitation only' },
-  sheets_core:         { primary: 'spreadsheets', elevated: 'drive.file', note: 'create requires drive.file scope' },
-  sheets_data:         { primary: 'spreadsheets' },
-  sheets_format:       { primary: 'spreadsheets' },
-  sheets_dimensions:   { primary: 'spreadsheets' },
-  sheets_visualize:    { primary: 'spreadsheets' },
-  sheets_advanced:     { primary: 'spreadsheets' },
-  sheets_compute:      { primary: 'spreadsheets' },
-  sheets_fix:          { primary: 'spreadsheets' },
-  sheets_quality:      { primary: 'spreadsheets' },
-  sheets_analyze:      { primary: 'spreadsheets.readonly', elevated: 'spreadsheets', note: 'Read-only for analysis; full scope for semantic_search indexing' },
-  sheets_collaborate:  { primary: 'spreadsheets', elevated: 'drive', note: 'Sharing/comments/versions require full drive scope' },
-  sheets_history:      { primary: 'spreadsheets', elevated: 'drive.readonly', note: 'timeline/diff need drive revision access' },
+const TOOL_SCOPE_REQUIREMENTS: Record<
+  string,
+  { primary: string; elevated?: string; note?: string }
+> = {
+  sheets_auth: { primary: 'none', note: 'No Google API scopes required' },
+  sheets_session: { primary: 'none', note: 'Local session state only' },
+  sheets_confirm: { primary: 'none', note: 'MCP elicitation only' },
+  sheets_core: {
+    primary: 'spreadsheets',
+    elevated: 'drive.file',
+    note: 'create requires drive.file scope',
+  },
+  sheets_data: { primary: 'spreadsheets' },
+  sheets_format: { primary: 'spreadsheets' },
+  sheets_dimensions: { primary: 'spreadsheets' },
+  sheets_visualize: { primary: 'spreadsheets' },
+  sheets_advanced: { primary: 'spreadsheets' },
+  sheets_compute: { primary: 'spreadsheets' },
+  sheets_fix: { primary: 'spreadsheets' },
+  sheets_quality: { primary: 'spreadsheets' },
+  sheets_analyze: {
+    primary: 'spreadsheets.readonly',
+    elevated: 'spreadsheets',
+    note: 'Read-only for analysis; full scope for semantic_search indexing',
+  },
+  sheets_collaborate: {
+    primary: 'spreadsheets',
+    elevated: 'drive',
+    note: 'Sharing/comments/versions require full drive scope',
+  },
+  sheets_history: {
+    primary: 'spreadsheets',
+    elevated: 'drive.readonly',
+    note: 'timeline/diff need drive revision access',
+  },
   sheets_dependencies: { primary: 'spreadsheets' },
-  sheets_composite:    { primary: 'spreadsheets', elevated: 'drive.file', note: 'generate_sheet/import may create new files' },
-  sheets_templates:    { primary: 'drive.appdata', elevated: 'drive.file', note: 'All actions require appdata scope; apply needs drive.file' },
-  sheets_transaction:  { primary: 'spreadsheets' },
-  sheets_bigquery:     { primary: 'spreadsheets', elevated: 'bigquery', note: 'Query/import/export need BigQuery scope' },
-  sheets_appsscript:   { primary: 'spreadsheets', elevated: 'script.projects', note: 'Create/execute/deploy need Apps Script scope' },
-  sheets_webhook:      { primary: 'spreadsheets', elevated: 'drive', note: 'Register/unregister need drive scope' },
-  sheets_federation:   { primary: 'none', note: 'Delegates to remote MCP servers' },
-  sheets_connectors:   { primary: 'none', elevated: 'spreadsheets', note: 'configure needs no scope; query/subscribe need sheets access' },
-  sheets_agent:        { primary: 'spreadsheets', elevated: 'drive', note: 'Agent may invoke any tool — inherits all scope requirements' },
+  sheets_composite: {
+    primary: 'spreadsheets',
+    elevated: 'drive.file',
+    note: 'generate_sheet/import may create new files',
+  },
+  sheets_templates: {
+    primary: 'drive.appdata',
+    elevated: 'drive.file',
+    note: 'All actions require appdata scope; apply needs drive.file',
+  },
+  sheets_transaction: { primary: 'spreadsheets' },
+  sheets_bigquery: {
+    primary: 'spreadsheets',
+    elevated: 'bigquery',
+    note: 'Query/import/export need BigQuery scope',
+  },
+  sheets_appsscript: {
+    primary: 'spreadsheets',
+    elevated: 'script.projects',
+    note: 'Create/execute/deploy need Apps Script scope',
+  },
+  sheets_webhook: {
+    primary: 'spreadsheets',
+    elevated: 'drive',
+    note: 'Register/unregister need drive scope',
+  },
+  sheets_federation: { primary: 'none', note: 'Delegates to remote MCP servers' },
+  sheets_connectors: {
+    primary: 'none',
+    elevated: 'spreadsheets',
+    note: 'configure needs no scope; query/subscribe need sheets access',
+  },
+  sheets_agent: {
+    primary: 'spreadsheets',
+    elevated: 'drive',
+    note: 'Agent may invoke any tool — inherits all scope requirements',
+  },
 };
 
-const TOOL_AGENCY_HINTS: Record<string, { level: 'autonomous' | 'orchestrated' | 'direct'; reason: string }> = {
-  sheets_agent:        { level: 'autonomous',   reason: 'Plan/execute/observe loop with rollback — designed for autonomous multi-step workflows' },
-  sheets_composite:    { level: 'orchestrated',  reason: 'Multi-step operations (import, generate, setup) that chain internal tool calls' },
-  sheets_analyze:      { level: 'orchestrated',  reason: 'AI sampling-powered analysis that benefits from iterative scout → comprehensive flow' },
-  sheets_fix:          { level: 'orchestrated',  reason: 'Cleaning pipelines that chain detect → preview → apply with user confirmation' },
-  sheets_transaction:  { level: 'orchestrated',  reason: 'Queue → commit → verify pattern requires multi-step sequencing' },
-  sheets_dependencies: { level: 'orchestrated',  reason: 'Scenario modeling benefits from iterative what-if → compare → materialize flow' },
-  sheets_confirm:      { level: 'direct',        reason: 'Single user interaction — confirmation or wizard step' },
-  sheets_session:      { level: 'direct',        reason: 'Context management — single-call set/get operations' },
-  sheets_auth:         { level: 'direct',        reason: 'Authentication — single-call status/login/callback' },
-  sheets_compute:      { level: 'direct',        reason: 'Stateless computation — same input always produces same output' },
+const TOOL_AGENCY_HINTS: Record<
+  string,
+  { level: 'autonomous' | 'orchestrated' | 'direct'; reason: string }
+> = {
+  sheets_agent: {
+    level: 'autonomous',
+    reason:
+      'Plan/execute/observe loop with rollback — designed for autonomous multi-step workflows',
+  },
+  sheets_composite: {
+    level: 'orchestrated',
+    reason: 'Multi-step operations (import, generate, setup) that chain internal tool calls',
+  },
+  sheets_analyze: {
+    level: 'orchestrated',
+    reason: 'AI sampling-powered analysis that benefits from iterative scout → comprehensive flow',
+  },
+  sheets_fix: {
+    level: 'orchestrated',
+    reason: 'Cleaning pipelines that chain detect → preview → apply with user confirmation',
+  },
+  sheets_transaction: {
+    level: 'orchestrated',
+    reason: 'Queue → commit → verify pattern requires multi-step sequencing',
+  },
+  sheets_dependencies: {
+    level: 'orchestrated',
+    reason: 'Scenario modeling benefits from iterative what-if → compare → materialize flow',
+  },
+  sheets_confirm: {
+    level: 'direct',
+    reason: 'Single user interaction — confirmation or wizard step',
+  },
+  sheets_session: {
+    level: 'direct',
+    reason: 'Context management — single-call set/get operations',
+  },
+  sheets_auth: { level: 'direct', reason: 'Authentication — single-call status/login/callback' },
+  sheets_compute: {
+    level: 'direct',
+    reason: 'Stateless computation — same input always produces same output',
+  },
 };
 
+/**
+ * Detect Zod schemas by their internal shape markers.
+ *
+ * `_def` is the private metadata property on all Zod v3 schemas.
+ * `_zod` is the equivalent marker introduced in Zod v4.
+ * Both are undocumented internals — if Zod releases a breaking change that
+ * removes both markers, this check will return false and toJsonSchema() will
+ * fall through to the EMPTY_OBJECT_JSON_SCHEMA fallback (safe degradation).
+ *
+ * If upgrading Zod and flat-tool schemas start rendering as {} for all tools,
+ * this is the first place to check.
+ */
 function isZodSchema(schema: unknown): boolean {
   return Boolean(
     schema &&
@@ -144,9 +297,6 @@ function isZodSchema(schema: unknown): boolean {
     ('_def' in (schema as Record<string, unknown>) || '_zod' in (schema as Record<string, unknown>))
   );
 }
-
-// P1-2 fix: Track tools that failed schema conversion so we can annotate them
-const schemaConversionErrors = new Map<string, string>();
 
 function toJsonSchema(
   schema: unknown,
@@ -167,9 +317,9 @@ function toJsonSchema(
     try {
       result = zodSchemaToJsonSchema(schemaForSerialization as unknown as import('zod').ZodTypeAny);
     } catch (err) {
-      // P1-2: Full conversion failed — try deferred fallback before giving up.
-      // The deferred builder extracts action enums + property names from the Zod
-      // schema, producing a useful ~300-800 byte schema instead of empty {}.
+      // Full conversion failed — try deferred fallback before giving up.
+      // If fallback also fails, surface the error instead of silently dropping
+      // the tool from tools/list. CI/runtime validation should catch this.
       if (toolName) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn('Full schema conversion failed, trying deferred fallback', {
@@ -188,10 +338,11 @@ function toJsonSchema(
             error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
           });
         }
-
-        schemaConversionErrors.set(toolName, msg);
+        throw new Error(
+          `Failed to convert ${schemaType} schema for ${toolName} to JSON Schema: ${msg}`
+        );
       }
-      return EMPTY_OBJECT_JSON_SCHEMA;
+      throw err instanceof Error ? err : new Error(String(err));
     }
   } else if (typeof schemaForSerialization === 'object') {
     result = schemaForSerialization as Record<string, unknown>;
@@ -377,17 +528,309 @@ function filterRequestSchemaActions(
   return filtered;
 }
 
+/**
+ * Build flat tool entries for the tools/list response.
+ *
+ * Each flat tool has a simple z.object schema with just the action's parameters
+ * (no discriminated union, no 'action' field, no 'request' envelope).
+ *
+ * Tools marked defer_loading: true are discoverable via tool_search but
+ * not loaded into the LLM's initial context.
+ */
+/**
+ * Per-action schemas for always-loaded tools.
+ * These are the ~15 tools the LLM sees immediately — they need accurate schemas
+ * so the LLM can call them without discovery. Keyed by "parentTool.action".
+ *
+ * Deferred tools get a minimal schema (just spreadsheetId) since they're only
+ * loaded after discovery and the actual validation runs in the compound handler.
+ */
+const ALWAYS_LOADED_SCHEMAS: Record<string, Record<string, unknown>> = {
+  'sheets_auth.status': {
+    type: 'object',
+    properties: {
+      verbosity: { type: 'string', enum: ['minimal', 'standard', 'detailed'] },
+    },
+  },
+  'sheets_auth.login': {
+    type: 'object',
+    properties: {
+      scopes: { type: 'array', items: { type: 'string' }, description: 'OAuth scopes to request' },
+      verbosity: { type: 'string', enum: ['minimal', 'standard', 'detailed'] },
+    },
+  },
+  'sheets_auth.callback': {
+    type: 'object',
+    properties: {
+      code: { type: 'string', description: 'OAuth authorization code' },
+      state: { type: 'string', description: 'OAuth state parameter' },
+    },
+    required: ['code'],
+  },
+  'sheets_session.get_context': {
+    type: 'object',
+    properties: {
+      verbosity: { type: 'string', enum: ['minimal', 'standard', 'detailed'] },
+    },
+  },
+  'sheets_session.set_active': {
+    type: 'object',
+    properties: {
+      spreadsheetId: { type: 'string', description: 'The spreadsheet to set as active' },
+      title: { type: 'string', description: 'Display title for the spreadsheet' },
+      sheetNames: { type: 'array', items: { type: 'string' }, description: 'Sheet names to track' },
+    },
+    required: ['spreadsheetId'],
+  },
+  'sheets_session.get_active': {
+    type: 'object',
+    properties: {
+      verbosity: { type: 'string', enum: ['minimal', 'standard', 'detailed'] },
+    },
+  },
+  'sheets_session.record_operation': {
+    type: 'object',
+    properties: {
+      tool: { type: 'string', description: 'Tool that performed the operation' },
+      toolAction: { type: 'string', description: 'Action that was performed' },
+      spreadsheetId: { type: 'string', description: 'Target spreadsheet ID' },
+      description: { type: 'string', description: 'Human-readable operation description' },
+      undoable: { type: 'boolean', description: 'Whether the operation can be undone' },
+      range: { type: 'string', description: 'A1 range affected' },
+      snapshotId: { type: 'string', description: 'Pre-operation snapshot ID' },
+      cellsAffected: { type: 'number', description: 'Number of cells affected' },
+    },
+    required: ['tool', 'toolAction', 'spreadsheetId', 'description'],
+  },
+  'sheets_session.update_preferences': {
+    type: 'object',
+    properties: {
+      confirmationLevel: {
+        type: 'string',
+        enum: ['always', 'destructive', 'never'],
+        description: 'When to ask for confirmation',
+      },
+      dryRunDefault: { type: 'boolean', description: 'Default dry-run mode for mutations' },
+      snapshotDefault: { type: 'boolean', description: 'Default snapshot before mutations' },
+      autoRecord: { type: 'boolean', description: 'Auto-record operations in session history' },
+    },
+  },
+  'sheets_data.read': {
+    type: 'object',
+    properties: {
+      spreadsheetId: { type: 'string', description: 'The Google Sheets spreadsheet ID' },
+      range: { type: 'string', description: 'A1 notation range (e.g., Sheet1!A1:D10)' },
+      valueRenderOption: {
+        type: 'string',
+        enum: ['FORMATTED_VALUE', 'UNFORMATTED_VALUE', 'FORMULA'],
+        description: 'How values should be rendered',
+      },
+      dateTimeRenderOption: { type: 'string', enum: ['SERIAL_NUMBER', 'FORMATTED_STRING'] },
+      majorDimension: { type: 'string', enum: ['ROWS', 'COLUMNS'] },
+      response_format: { type: 'string', enum: ['full', 'compact', 'preview'] },
+    },
+    required: ['spreadsheetId'],
+  },
+  'sheets_data.write': {
+    type: 'object',
+    properties: {
+      spreadsheetId: { type: 'string', description: 'The Google Sheets spreadsheet ID' },
+      range: { type: 'string', description: 'A1 notation range (e.g., Sheet1!A1:D10)' },
+      values: {
+        type: 'array',
+        items: { type: 'array' },
+        description: 'Array of row arrays to write',
+      },
+      valueInputOption: {
+        type: 'string',
+        enum: ['RAW', 'USER_ENTERED'],
+        description: 'How input values should be interpreted',
+      },
+      includeValuesInResponse: {
+        type: 'boolean',
+        description: 'Include written values in response',
+      },
+    },
+    required: ['spreadsheetId', 'values'],
+  },
+  'sheets_data.append': {
+    type: 'object',
+    properties: {
+      spreadsheetId: { type: 'string', description: 'The Google Sheets spreadsheet ID' },
+      range: { type: 'string', description: 'A1 notation range to append after (e.g., Sheet1!A1)' },
+      values: {
+        type: 'array',
+        items: { type: 'array' },
+        description: 'Array of row arrays to append',
+      },
+      valueInputOption: {
+        type: 'string',
+        enum: ['RAW', 'USER_ENTERED'],
+        description: 'How input values should be interpreted',
+      },
+      insertDataOption: {
+        type: 'string',
+        enum: ['OVERWRITE', 'INSERT_ROWS'],
+        description: 'How to insert data',
+      },
+    },
+    required: ['spreadsheetId', 'values'],
+  },
+  'sheets_core.list': {
+    type: 'object',
+    properties: {
+      maxResults: { type: 'number', description: 'Maximum spreadsheets to return (default 100)' },
+      query: { type: 'string', description: 'Search query to filter spreadsheets' },
+      orderBy: { type: 'string', enum: ['createdTime', 'modifiedTime', 'name', 'viewedByMeTime'] },
+      pageToken: { type: 'string', description: 'Pagination token for next page' },
+      response_format: { type: 'string', enum: ['full', 'compact', 'preview'] },
+    },
+  },
+  'sheets_core.list_sheets': {
+    type: 'object',
+    properties: {
+      spreadsheetId: { type: 'string', description: 'The Google Sheets spreadsheet ID' },
+      response_format: { type: 'string', enum: ['full', 'compact', 'preview'] },
+    },
+    required: ['spreadsheetId'],
+  },
+  'sheets_core.get': {
+    type: 'object',
+    properties: {
+      spreadsheetId: { type: 'string', description: 'The Google Sheets spreadsheet ID' },
+      includeGridData: { type: 'boolean', description: 'Include cell data (requires ranges)' },
+      ranges: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Ranges to include grid data for',
+      },
+      response_format: { type: 'string', enum: ['full', 'compact', 'preview'] },
+    },
+    required: ['spreadsheetId'],
+  },
+  'sheets_core.create': {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Title for the new spreadsheet' },
+      locale: { type: 'string', description: 'Locale (e.g., en_US)' },
+      timeZone: { type: 'string', description: 'Time zone (e.g., America/New_York)' },
+    },
+    required: ['title'],
+  },
+};
+
+function buildFlatToolListEntries(): Record<string, unknown>[] {
+  const flatTools = getFlatToolRegistry();
+
+  return flatTools.map((flat: FlatToolDefinition) => {
+    const actionKey = `${flat.parentTool}.${flat.action}`;
+
+    // Always-loaded tools get detailed per-action schemas
+    const detailedSchema = ALWAYS_LOADED_SCHEMAS[actionKey];
+    let inputSchema: Record<string, unknown>;
+
+    if (detailedSchema) {
+      inputSchema = detailedSchema;
+    } else {
+      // Deferred tools get a minimal schema — the LLM discovers them via
+      // sheets_discover/tool_search, and actual validation runs in the compound handler.
+      inputSchema = {
+        type: 'object',
+        properties: {
+          spreadsheetId: {
+            type: 'string',
+            description: 'The Google Sheets spreadsheet ID',
+          },
+        },
+      };
+
+      // Add common fields based on the action's domain
+      if (
+        flat.parentTool === 'sheets_data' ||
+        flat.parentTool === 'sheets_format' ||
+        flat.parentTool === 'sheets_dimensions'
+      ) {
+        (inputSchema['properties'] as Record<string, unknown>)['range'] = {
+          type: 'string',
+          description: 'A1 notation range (e.g., Sheet1!A1:D10)',
+        };
+      }
+
+      // For write-type actions, add values
+      if (flat.action === 'write' || flat.action === 'append' || flat.action === 'batch_write') {
+        (inputSchema['properties'] as Record<string, unknown>)['values'] = {
+          type: 'array',
+          description: 'Array of row arrays to write',
+          items: { type: 'array' },
+        };
+      }
+    }
+
+    return {
+      name: flat.name,
+      title: flat.title,
+      description: flat.description,
+      inputSchema,
+      annotations: flat.annotations,
+      // Signal to Anthropic API that this tool should be deferred
+      ...(flat.deferLoading ? { 'x-defer-loading': true } : {}),
+    };
+  });
+}
+
+/**
+ * Build the sheets_discover meta-tool entry for flat mode.
+ * This is always loaded and serves as the gateway to all 407 actions.
+ */
+function buildDiscoverToolEntry(): Record<string, unknown> {
+  return {
+    name: 'sheets_discover',
+    title: 'Discover ServalSheets Actions',
+    description:
+      'Search for the right ServalSheets tool by describing what you want to do. ' +
+      'Returns the top matching tools with confidence scores. Use this when you are ' +
+      'unsure which tool to call. Example queries: "sort by date", "add a chart", ' +
+      '"share with someone", "undo last change".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Natural language description of what you want to do',
+        },
+        category: {
+          type: 'string',
+          enum: ['data', 'format', 'analysis', 'structure', 'collaboration', 'automation', 'all'],
+          description: 'Optional category filter to narrow results',
+        },
+        maxResults: {
+          type: 'number',
+          description: 'Maximum results to return (1-10, default 5)',
+        },
+      },
+      required: ['query'],
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  };
+}
+
+function getBundledToolsForList(): readonly (typeof ACTIVE_TOOL_DEFINITIONS)[number][] {
+  const availableToolNames = new Set(
+    getAvailableToolNames(ACTIVE_TOOL_DEFINITIONS.map((tool) => tool.name))
+  );
+
+  return ACTIVE_TOOL_DEFINITIONS.filter((tool) => availableToolNames.has(tool.name));
+}
+
 export function registerToolsListCompatibilityHandler(server: McpServer): void {
   const protocolServer = server.server as unknown as {
     setRequestHandler: typeof server.server.setRequestHandler;
   };
-
-  const registeredTools = (
-    server as unknown as {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK internal property type
-      _registeredTools?: Record<string, any>;
-    }
-  )._registeredTools;
 
   protocolServer.setRequestHandler(
     ListToolsRequestSchema,
@@ -395,41 +838,54 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
       // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤25 tools)
       // cursor is intentionally ignored — single-page response for ≤25 tools
 
+      const effectiveMode = getEffectiveToolMode();
+
+      // ── FLAT MODE ──────────────────────────────────────────────────────
+      // Return ~407 individual tools (most deferred) + sheets_discover
+      if (effectiveMode === 'flat') {
+        const flatEntries = buildFlatToolListEntries();
+        const discoverEntry = buildDiscoverToolEntry();
+
+        logger.info('tools/list serving flat mode', {
+          totalTools: flatEntries.length + 1,
+          alwaysLoaded: flatEntries.filter((t) => !t['x-defer-loading']).length + 1,
+          deferred: flatEntries.filter((t) => t['x-defer-loading']).length,
+        });
+
+        return {
+          tools: [discoverEntry, ...flatEntries],
+          nextCursor: undefined,
+        };
+      }
+
+      // ── BUNDLED MODE (legacy) ──────────────────────────────────────────
+      // Return 25 compound tools with discriminated union schemas
       return {
-        tools: Object.entries(registeredTools ?? {})
-          .filter(([name, tool]) => {
-            if (tool?.enabled === false) return false;
-            // P1-2: Exclude tools whose schemas failed to convert — they'll crash at runtime
-            if (schemaConversionErrors.has(name)) {
-              logger.error('Excluding tool from tools/list due to schema error', {
-                tool: name,
-                error: schemaConversionErrors.get(name),
-              });
-              return false;
-            }
+        tools: getBundledToolsForList()
+          .filter((tool) => {
             // Hide tools whose backing service is completely unavailable
-            if (isToolFullyUnavailable(name)) {
+            if (isToolFullyUnavailable(tool.name)) {
               logger.debug('Excluding tool from tools/list: backing service unavailable', {
-                tool: name,
+                tool: tool.name,
               });
               return false;
             }
             return true;
           })
-          .map(([name, tool]) => {
+          .map((tool) => {
+            const name = tool.name;
             const inputSchema = enrichInputSchema(
               name,
               toJsonSchema(tool.inputSchema, { toolName: name, schemaType: 'input' })
             );
             const toolDefinition: Record<string, unknown> = {
               name,
-              title: tool.title,
+              title: tool.annotations.title ?? tool.title,
               description: enrichToolDescription(name, tool.description),
               inputSchema,
               annotations: tool.annotations,
-              icons: tool.icons ?? TOOL_ICONS[name],
-              execution: tool.execution,
-              _meta: tool._meta,
+              icons: TOOL_ICONS[name],
+              execution: TOOL_EXECUTION_CONFIG[name],
             };
 
             if (tool.outputSchema) {

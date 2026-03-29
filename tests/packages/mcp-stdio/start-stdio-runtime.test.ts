@@ -8,17 +8,20 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
       await options.startTransport();
     });
     const startTransport = vi.fn(async () => undefined);
+    const server = {
+      connect: vi.fn(async () => undefined),
+    } as unknown as import('../../../packages/mcp-stdio/src/start-stdio-transport.js').StdioConnectableServer<import('@modelcontextprotocol/sdk/server/stdio.js').StdioServerTransport>;
 
     await startStdioRuntime(
       {
         initTelemetry: vi.fn(async () => undefined),
         validateEnv: vi.fn(),
         verifyToolIntegrity: vi.fn(async () => undefined),
-        initialize: vi.fn(async () => undefined),
+        initializeForConnect: vi.fn(async () => undefined),
+        initializeAfterConnect: vi.fn(async () => undefined),
         shutdown: vi.fn(async () => undefined),
         getProcessBreadcrumbs: () => ({ phase: 'start' }),
-        server: { kind: 'server' },
-        ensureResourcesRegistered: vi.fn(async () => undefined),
+        server,
         getIsShutdown: vi.fn(() => false),
         toolCount: 25,
         actionCount: 407,
@@ -39,7 +42,7 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
     expect(startTransport).toHaveBeenCalledOnce();
     expect(startTransport).toHaveBeenCalledWith(
       expect.objectContaining({
-        server: { kind: 'server' },
+        server,
         toolCount: 25,
         actionCount: 407,
       })

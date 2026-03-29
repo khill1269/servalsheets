@@ -170,8 +170,8 @@ describe('Deferred Schema Mode', () => {
         totalSize += JSON.stringify(outputJson).length;
       }
 
-      // Current deferred payload includes 25 tools / 407 actions and stays
-      // compact enough for initial registration while allowing inline hints.
+      // 25 tools, 407 actions: flat input schemas plus minimal output schemas.
+      // Keep enough headroom for small inline hint growth while still catching regressions.
       expect(totalSize).toBeLessThan(56_000);
     });
   });

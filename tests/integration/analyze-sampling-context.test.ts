@@ -128,6 +128,15 @@ vi.mock('../../src/services/google-api.js', async () => {
     GoogleApiClient: class MockGoogleApiClient {},
   };
 });
+vi.mock('../../src/startup/google-client-bootstrap.js', () => ({
+  createOptionalGoogleClient: vi.fn(
+    async (options: { googleApiOptions?: unknown }) =>
+      options.googleApiOptions ? await mockCreateGoogleApiClient(options.googleApiOptions) : null
+  ),
+  createTokenBackedGoogleClient: vi.fn(
+    async (options: unknown) => await mockCreateGoogleApiClient(options)
+  ),
+}));
 
 vi.mock('../../src/startup/performance-init.js', () => ({
   initializePerformanceOptimizations: vi.fn(async () => ({

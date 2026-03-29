@@ -12,6 +12,7 @@ import type {
 } from '../../services/composite-operations.js';
 import type { SheetResolver } from '../../services/sheet-resolver.js';
 import type { ResponseMeta } from '../../schemas/shared.js';
+import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
 
 type GenerateMetaFn = (
   action: string,
@@ -55,13 +56,7 @@ export async function handleSetupSheetAction(
     if (input.headerFormat) {
       reqs.push({
         repeatCell: {
-          range: {
-            sheetId: id,
-            startRowIndex: 0,
-            endRowIndex: 1,
-            startColumnIndex: 0,
-            endColumnIndex: input.headers.length,
-          },
+          range: toGridRange(buildGridRangeInput(id, 0, 1, 0, input.headers.length)),
           cell: {
             userEnteredFormat: {
               textFormat: {
@@ -195,13 +190,7 @@ export async function handleImportAndFormatAction(
   if (input.hasHeader && input.headerFormat) {
     formatRequests.push({
       repeatCell: {
-        range: {
-          sheetId: importResult.sheetId,
-          startRowIndex: 0,
-          endRowIndex: 1,
-          startColumnIndex: 0,
-          endColumnIndex: importResult.columnsImported,
-        },
+        range: toGridRange(buildGridRangeInput(importResult.sheetId, 0, 1, 0, importResult.columnsImported)),
         cell: {
           userEnteredFormat: {
             textFormat: {
@@ -334,11 +323,7 @@ export async function handleCloneStructureAction(
   const headerRowCount = input.headerRowCount ?? 1;
   requests.push({
     updateCells: {
-      range: {
-        sheetId: newSheetId,
-        startRowIndex: headerRowCount,
-        startColumnIndex: 0,
-      },
+      range: toGridRange(buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)),
       fields: 'userEnteredValue',
     },
   });
@@ -346,11 +331,7 @@ export async function handleCloneStructureAction(
   if (!input.includeFormatting) {
     requests.push({
       updateCells: {
-        range: {
-          sheetId: newSheetId,
-          startRowIndex: headerRowCount,
-          startColumnIndex: 0,
-        },
+        range: toGridRange(buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)),
         fields: 'userEnteredFormat',
       },
     });
@@ -374,11 +355,7 @@ export async function handleCloneStructureAction(
   if (!input.includeDataValidation) {
     requests.push({
       setDataValidation: {
-        range: {
-          sheetId: newSheetId,
-          startRowIndex: headerRowCount,
-          startColumnIndex: 0,
-        },
+        range: toGridRange(buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)),
         rule: undefined,
       },
     });

@@ -8,6 +8,7 @@ import { createNotFoundError } from '../../utils/error-factory.js';
 import type { HistoryResponse } from '../../schemas/history.js';
 import type { SnapshotService } from '../../services/snapshot.js';
 import type { ElicitationServer } from '../../mcp/elicitation.js';
+import { requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 
 interface UndoReq {
   action: 'undo';
@@ -23,6 +24,42 @@ interface RevertToReq {
   action: 'revert_to';
   operationId?: string;
   safety?: { dryRun?: boolean };
+}
+
+async function confirmHistoryMutation(params: {
+  server: ElicitationServer | undefined;
+  action: 'undo' | 'redo' | 'revert_to';
+  spreadsheetId?: string;
+  details: string;
+  affectedCells?: number;
+  cancelledMessage: string;
+}): Promise<HistoryResponse | null> {
+  const confirmation = await requestSafetyConfirmation({
+    server: params.server,
+    operation: params.action,
+    details: params.details,
+    context: {
+      toolName: 'sheets_history',
+      actionName: params.action,
+      operationType: params.action,
+      isDestructive: true,
+      affectedCells: params.affectedCells,
+      spreadsheetId: params.spreadsheetId,
+    },
+  });
+
+  if (confirmation.confirmed) {
+    return null;
+  }
+
+  return {
+    success: false,
+    error: {
+      code: ErrorCodes.OPERATION_CANCELLED,
+      message: confirmation.reason || params.cancelledMessage,
+      retryable: false,
+    },
+  };
 }
 
 export async function handleUndo(
@@ -72,24 +109,16 @@ export async function handleUndo(
   // Create safety snapshot before undoing
   await snapshotService.create(req.spreadsheetId!, 'pre-undo backup');
 
-  // Confirm destructive action
-  if (server) {
-    const { confirmDestructiveAction } = await import('../../mcp/elicitation.js');
-    const confirmation = await confirmDestructiveAction(
-      server,
-      'Undo last operation',
-      'Reverts the most recent change to this spreadsheet'
-    );
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.OPERATION_CANCELLED,
-          message: 'Undo cancelled by user',
-          retryable: false,
-        },
-      };
-    }
+  const undoBlocked = await confirmHistoryMutation({
+    server,
+    action: 'undo',
+    spreadsheetId: req.spreadsheetId,
+    details: 'Reverts the most recent change to this spreadsheet',
+    affectedCells: operation.cellsAffected,
+    cancelledMessage: 'Undo cancelled by user',
+  });
+  if (undoBlocked) {
+    return undoBlocked;
   }
 
   try {
@@ -167,24 +196,16 @@ export async function handleRedo(
   // Create safety snapshot before redoing
   await snapshotService.create(req.spreadsheetId!, 'pre-redo backup');
 
-  // Confirm destructive action
-  if (server) {
-    const { confirmDestructiveAction } = await import('../../mcp/elicitation.js');
-    const confirmation = await confirmDestructiveAction(
-      server,
-      'Redo last undone operation',
-      'Re-applies the previously undone change'
-    );
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.OPERATION_CANCELLED,
-          message: 'Redo cancelled by user',
-          retryable: false,
-        },
-      };
-    }
+  const redoBlocked = await confirmHistoryMutation({
+    server,
+    action: 'redo',
+    spreadsheetId: req.spreadsheetId,
+    details: 'Re-applies the previously undone change',
+    affectedCells: operation.cellsAffected,
+    cancelledMessage: 'Redo cancelled by user',
+  });
+  if (redoBlocked) {
+    return redoBlocked;
   }
 
   try {
@@ -278,24 +299,16 @@ export async function handleRevertTo(
   // Create safety snapshot before reverting
   await snapshotService.create(operation.spreadsheetId!, 'pre-revert backup');
 
-  // Confirm destructive action
-  if (server) {
-    const { confirmDestructiveAction } = await import('../../mcp/elicitation.js');
-    const confirmation = await confirmDestructiveAction(
-      server,
-      `Revert to revision ${req.operationId}`,
-      'All changes after this revision will be lost'
-    );
-    if (!confirmation.confirmed) {
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.OPERATION_CANCELLED,
-          message: 'Revert cancelled by user',
-          retryable: false,
-        },
-      };
-    }
+  const revertBlocked = await confirmHistoryMutation({
+    server,
+    action: 'revert_to',
+    spreadsheetId: operation.spreadsheetId,
+    details: `Restore the spreadsheet to the snapshot captured before operation ${req.operationId}. All later changes will be discarded.`,
+    affectedCells: operation.cellsAffected,
+    cancelledMessage: 'Revert cancelled by user',
+  });
+  if (revertBlocked) {
+    return revertBlocked;
   }
 
   try {

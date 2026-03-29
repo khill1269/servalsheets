@@ -440,6 +440,12 @@ Classify the user's intent into a group, then pick the tool:
 
 **Tiebreaker:** GROUP 1 for cell values, GROUP 2 for appearance only.
 
+**Common routing anchors:**
+- Delete a worksheet/tab → \`sheets_core action:"delete_sheet"\`
+- Share or comment → \`sheets_collaborate action:"share_add"\` / \`comment_add\`
+- Preview risky mutations → add \`safety: { dryRun: true }\` or use \`sheets_confirm\`
+- Large datasets (\`>10K rows\`) → prefer \`batch_read\` / batching first; for warehouse-scale joins use \`sheets_bigquery\`
+
 ## CRITICAL RULES
 
 **Data Integrity:**

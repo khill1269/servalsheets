@@ -57,11 +57,11 @@ export function buildServerStdioShutdownArgs(input: {
 
 export function buildServerStdioStartOptions(input: {
   verifyToolIntegrity: () => Promise<void>;
-  initialize: () => Promise<void>;
+  initializeForConnect: () => Promise<void>;
+  initializeAfterConnect: () => Promise<void>;
   shutdown: () => Promise<void>;
   getResourcesRegistered: () => boolean;
   getResourceRegistrationFailed: () => boolean;
-  ensureResourcesRegistered: () => Promise<void>;
   isShutdown: () => boolean;
   server: McpServer;
   log?: typeof baseLogger;
@@ -70,7 +70,8 @@ export function buildServerStdioStartOptions(input: {
     initTelemetry,
     validateEnv,
     verifyToolIntegrity: input.verifyToolIntegrity,
-    initialize: input.initialize,
+    initializeForConnect: input.initializeForConnect,
+    initializeAfterConnect: input.initializeAfterConnect,
     shutdown: input.shutdown,
     getProcessBreadcrumbs: () =>
       getProcessBreadcrumbs({
@@ -78,7 +79,6 @@ export function buildServerStdioStartOptions(input: {
         resourceRegistrationFailed: input.getResourceRegistrationFailed(),
       }),
     server: input.server,
-    ensureResourcesRegistered: input.ensureResourcesRegistered,
     isShutdown: input.isShutdown,
     toolCount: TOOL_COUNT,
     actionCount: ACTION_COUNT,

@@ -1090,6 +1090,63 @@ describe('SheetsCoreHandler', () => {
       });
     });
 
+    describe('batch_delete_sheets action', () => {
+      it('should delete multiple sheets with confirmation', async () => {
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              { properties: { sheetId: 123 } },
+              { properties: { sheetId: 456 } },
+            ],
+          },
+        });
+
+        const result = await (handler as any).handle({
+          action: 'batch_delete_sheets',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetIds: [123],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'batch_delete_sheets');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            spreadsheetId: 'test-spreadsheet-id',
+            requestBody: {
+              requests: [{ deleteSheet: { sheetId: 123 } }],
+            },
+          })
+        );
+      });
+
+      it('should fail closed when confirmation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new SheetsCoreHandler(
+          mockContext,
+          mockApi as any as sheets_v4.Sheets,
+          mockDriveApi as any as drive_v3.Drive
+        );
+        mockApi.spreadsheets.get.mockResolvedValueOnce({
+          data: {
+            sheets: [
+              { properties: { sheetId: 123 } },
+              { properties: { sheetId: 456 } },
+            ],
+          },
+        });
+
+        const result = await (handler as any).handle({
+          action: 'batch_delete_sheets',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetIds: [123],
+        });
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error.code).toBe('OPERATION_CANCELLED');
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
     describe('duplicate_sheet action', () => {
       it('should duplicate a sheet', async () => {
         mockApi.spreadsheets.batchUpdate.mockResolvedValueOnce({

@@ -86,10 +86,10 @@ export interface BuildServerStdioStartOptionsInput<TServer> {
   readonly initTelemetry: () => Promise<void>;
   readonly validateEnv: () => void;
   readonly verifyToolIntegrity: () => Promise<void>;
-  readonly initialize: () => Promise<void>;
+  readonly initializeForConnect: () => Promise<void>;
+  readonly initializeAfterConnect: () => Promise<void>;
   readonly shutdown: () => Promise<void>;
   readonly getProcessBreadcrumbs: () => Record<string, unknown>;
-  readonly ensureResourcesRegistered: () => Promise<void>;
   readonly isShutdown: () => boolean;
   readonly server: TServer;
   readonly toolCount: number;
@@ -104,11 +104,11 @@ export function buildServerStdioStartOptions<TServer>(
     initTelemetry: input.initTelemetry,
     validateEnv: input.validateEnv,
     verifyToolIntegrity: input.verifyToolIntegrity,
-    initialize: input.initialize,
+    initializeForConnect: input.initializeForConnect,
+    initializeAfterConnect: input.initializeAfterConnect,
     shutdown: input.shutdown,
     getProcessBreadcrumbs: input.getProcessBreadcrumbs,
     server: input.server,
-    ensureResourcesRegistered: input.ensureResourcesRegistered,
     getIsShutdown: input.isShutdown,
     toolCount: input.toolCount,
     actionCount: input.actionCount,

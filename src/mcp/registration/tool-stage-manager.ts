@@ -20,6 +20,7 @@
 import { STAGED_REGISTRATION, getToolStage, type ToolStage } from '../../config/constants.js';
 import { logger } from '../../utils/logger.js';
 import { resourceNotifications } from '../../resources/notifications.js';
+import { replaceAvailableToolNames, resetAvailableToolNames } from '../tool-registry-state.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { clearDiscoveryHintCache } from './tool-discovery-hints.js';
 
@@ -71,6 +72,7 @@ export class ToolStageManager {
     this._currentStage = 1;
     this._registeredTools.clear();
     this._transitions = [];
+    resetAvailableToolNames();
   }
 
   /**
@@ -122,6 +124,7 @@ export class ToolStageManager {
     for (const name of toolNames) {
       this._registeredTools.add(name);
     }
+    replaceAvailableToolNames([...this._registeredTools]);
   }
 
   /**
@@ -183,6 +186,7 @@ export class ToolStageManager {
     // Notify LLM of new tools
     if (newTools.length > 0) {
       clearDiscoveryHintCache();
+      replaceAvailableToolNames([...this._registeredTools]);
       resourceNotifications.syncToolList([...this._registeredTools], {
         emitOnFirstSet: true,
         reason: `stage ${targetStage} tools registered: ${newTools.map((t) => t.name).join(', ')}`,

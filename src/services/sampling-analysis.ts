@@ -14,7 +14,10 @@
  * // { patterns: [...], insights: [...], recommendations: [...], confidence: 0.92 }
  */
 
+import { createRequire } from 'node:module';
 import { ServiceError } from '../core/errors.js';
+
+const require = createRequire(import.meta.url);
 
 /**
  * Analysis type options

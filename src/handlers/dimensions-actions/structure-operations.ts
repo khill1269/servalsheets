@@ -13,7 +13,6 @@ import type {
   DimensionsAppendInput,
   DimensionsResponse,
 } from '../../schemas/index.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { getBackgroundAnalyzer } from '../../services/background-analyzer.js';
 import { getBackgroundAnalysisConfig } from '../../config/env.js';
 import type { DimensionsHandlerAccess } from './internal.js';
@@ -27,39 +26,36 @@ export async function handleInsert(
   const count = input.count ?? 1;
   const isRows = input.dimension === 'ROWS';
 
-  // Create snapshot before mutating (allows rollback)
+  const confirmed = await ha.confirmOperation(
+    `Insert ${isRows ? 'Rows' : 'Columns'}`,
+    `You are about to insert ${count} ${isRows ? 'rows' : 'columns'} at index ${input.startIndex + 1}. This will shift existing data.`,
+    {
+      toolName: 'sheets_dimensions',
+      actionName: isRows ? 'insert_rows' : 'insert_columns',
+      operationType: isRows ? 'insert_rows' : 'insert_columns',
+      [isRows ? 'affectedRows' : 'affectedColumns']: count,
+      isDestructive: false,
+      spreadsheetId: input.spreadsheetId,
+    }
+  );
+
+  if (!confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: `${isRows ? 'Row' : 'Column'} insertion cancelled by user`,
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
+  }
+
   await ha.createSafetySnapshot(
     {
-      operationType: 'insert',
+      operationType: isRows ? 'insert_rows' : 'insert_columns',
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
     },
     input.safety
   );
-
-  // Request confirmation for larger inserts
-  if (ha.context.elicitationServer && count > 10) {
-    try {
-      const confirmation = await confirmDestructiveAction(
-        ha.context.elicitationServer,
-        `Insert ${isRows ? 'Rows' : 'Columns'}`,
-        `You are about to insert ${count} ${isRows ? 'rows' : 'columns'} at index ${input.startIndex + 1}. This will shift existing data.`
-      );
-
-      if (!confirmation.confirmed) {
-        return ha.error({
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: `${isRows ? 'Row' : 'Column'} insertion cancelled by user`,
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    } catch (err) {
-      ha.context.logger?.warn(`Elicitation failed for insert, proceeding with operation`, {
-        error: err,
-      });
-    }
-  }
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
@@ -110,39 +106,30 @@ export async function handleDelete(
   const count = input.endIndex - input.startIndex;
   const isRows = input.dimension === 'ROWS';
   const label = isRows ? 'rows' : 'columns';
-  const threshold = isRows ? 5 : 3;
 
   // Generate safety warnings
   const safetyContext = {
     [isRows ? 'affectedRows' : 'affectedColumns']: count,
     isDestructive: true,
-    operationType: `delete`,
+    operationType: 'delete',
+    actionName: isRows ? 'delete_rows' : 'delete_columns',
     spreadsheetId: input.spreadsheetId,
   };
   const warnings = ha.getSafetyWarnings(safetyContext, input.safety);
 
-  // Request confirmation for destructive operation if elicitation is supported
-  if (ha.context.elicitationServer && count > threshold) {
-    try {
-      const confirmation = await confirmDestructiveAction(
-        ha.context.elicitationServer,
-        `Delete ${isRows ? 'Rows' : 'Columns'}`,
-        `You are about to delete ${count} ${label} (${label} ${input.startIndex + 1}-${input.endIndex}).\n\nAll data, formatting, and formulas will be permanently removed.`
-      );
+  const confirmed = await ha.confirmOperation(
+    `Delete ${isRows ? 'Rows' : 'Columns'}`,
+    `You are about to delete ${count} ${label} (${label} ${input.startIndex + 1}-${input.endIndex}).\n\nAll data, formatting, and formulas will be permanently removed.`,
+    safetyContext
+  );
 
-      if (!confirmation.confirmed) {
-        return ha.error({
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: `${isRows ? 'Row' : 'Column'} deletion cancelled by user`,
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    } catch (err) {
-      ha.context.logger?.warn(`Elicitation failed for delete, proceeding with operation`, {
-        error: err,
-      });
-    }
+  if (!confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: `${isRows ? 'Row' : 'Column'} deletion cancelled or confirmation unavailable`,
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   if (input.safety?.dryRun) {
@@ -259,39 +246,36 @@ export async function handleMove(
     );
   }
 
-  // Create snapshot before mutating (allows rollback)
+  const confirmed = await ha.confirmOperation(
+    `Move ${isRows ? 'Rows' : 'Columns'}`,
+    `You are about to move ${count} ${isRows ? 'rows' : 'columns'} (indices ${input.startIndex + 1}-${input.endIndex}) to index ${input.destinationIndex + 1}. This will reorder existing data.`,
+    {
+      toolName: 'sheets_dimensions',
+      actionName: isRows ? 'move_rows' : 'move_columns',
+      operationType: isRows ? 'move_rows' : 'move_columns',
+      [isRows ? 'affectedRows' : 'affectedColumns']: count,
+      isDestructive: false,
+      spreadsheetId: input.spreadsheetId,
+    }
+  );
+
+  if (!confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: `${isRows ? 'Row' : 'Column'} move cancelled by user`,
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
+  }
+
   await ha.createSafetySnapshot(
     {
-      operationType: 'move',
+      operationType: isRows ? 'move_rows' : 'move_columns',
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
     },
     input.safety
   );
-
-  // Request confirmation for move operations
-  if (ha.context.elicitationServer) {
-    try {
-      const confirmation = await confirmDestructiveAction(
-        ha.context.elicitationServer,
-        `Move ${isRows ? 'Rows' : 'Columns'}`,
-        `You are about to move ${count} ${isRows ? 'rows' : 'columns'} (indices ${input.startIndex + 1}-${input.endIndex}) to index ${input.destinationIndex + 1}. This will reorder existing data.`
-      );
-
-      if (!confirmation.confirmed) {
-        return ha.error({
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: `${isRows ? 'Row' : 'Column'} move cancelled by user`,
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    } catch (err) {
-      ha.context.logger?.warn(`Elicitation failed for move, proceeding with operation`, {
-        error: err,
-      });
-    }
-  }
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
@@ -428,39 +412,37 @@ export async function handleAppend(
 ): Promise<DimensionsResponse> {
   const isRows = input.dimension === 'ROWS';
 
-  // Create snapshot before mutating (allows rollback)
+  const count = input.count ?? 1;
+  const confirmed = await ha.confirmOperation(
+    `Append ${isRows ? 'Rows' : 'Columns'}`,
+    `You are about to append ${count} ${isRows ? 'rows' : 'columns'} to the sheet. This will increase the sheet dimensions.`,
+    {
+      toolName: 'sheets_dimensions',
+      actionName: isRows ? 'append_rows' : 'append_columns',
+      operationType: isRows ? 'append_rows' : 'append_columns',
+      [isRows ? 'affectedRows' : 'affectedColumns']: count,
+      isDestructive: false,
+      spreadsheetId: input.spreadsheetId,
+    }
+  );
+
+  if (!confirmed) {
+    return ha.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: `${isRows ? 'Row' : 'Column'} append cancelled by user`,
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
+  }
+
   await ha.createSafetySnapshot(
     {
-      operationType: 'append',
+      operationType: isRows ? 'append_rows' : 'append_columns',
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
     },
     input.safety
   );
-
-  // Request confirmation for larger appends
-  if (ha.context.elicitationServer && (input.count ?? 1) > 10) {
-    try {
-      const confirmation = await confirmDestructiveAction(
-        ha.context.elicitationServer,
-        `Append ${isRows ? 'Rows' : 'Columns'}`,
-        `You are about to append ${input.count} ${isRows ? 'rows' : 'columns'} to the sheet. This will increase the sheet dimensions.`
-      );
-
-      if (!confirmation.confirmed) {
-        return ha.error({
-          code: ErrorCodes.PRECONDITION_FAILED,
-          message: `${isRows ? 'Row' : 'Column'} append cancelled by user`,
-          retryable: false,
-          suggestedFix: 'Review the operation requirements and try again',
-        });
-      }
-    } catch (err) {
-      ha.context.logger?.warn(`Elicitation failed for append, proceeding with operation`, {
-        error: err,
-      });
-    }
-  }
 
   await ha.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
@@ -470,7 +452,7 @@ export async function handleAppend(
           appendDimension: {
             sheetId: input.sheetId,
             dimension: input.dimension,
-            length: input.count,
+            length: count,
           },
         },
       ],
@@ -479,6 +461,6 @@ export async function handleAppend(
 
   return ha.success(
     'append',
-    isRows ? { rowsAffected: input.count } : { columnsAffected: input.count }
+    isRows ? { rowsAffected: count } : { columnsAffected: count }
   );
 }

@@ -25,6 +25,15 @@ const createMockSheetsApi = () => ({
   },
 });
 
+const createMockElicitationServer = () =>
+  ({
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
+  }) as any;
+
 const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
@@ -34,6 +43,7 @@ const createMockContext = (): HandlerContext => ({
   auth: {
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   } as any,
+  elicitationServer: createMockElicitationServer(),
 });
 
 describe('AdvancedHandler', () => {
@@ -125,6 +135,24 @@ describe('AdvancedHandler', () => {
     expect(parsed.success).toBe(true);
     expect(result.response.success).toBe(true);
     expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+  });
+
+  it('blocks named range deletion when elicitation is unavailable', async () => {
+    mockContext = {
+      ...createMockContext(),
+      elicitationServer: undefined,
+    };
+    handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
+
+    const result = await (handler as any).handle({
+      action: 'delete_named_range',
+      spreadsheetId: 'sheet-id',
+      namedRangeId: 'nr1',
+    });
+
+    expect(result.response.success).toBe(false);
+    expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
 
   it('lists named ranges', async () => {
@@ -230,6 +258,26 @@ describe('AdvancedHandler', () => {
       expect(result.response.protectedRange?.protectedRangeId).toBe(42);
       expect(result.response.protectedRange?.warningOnly).toBe(false);
     }
+  });
+
+  it('blocks protected range creation when elicitation is unavailable', async () => {
+    mockContext = {
+      ...createMockContext(),
+      elicitationServer: undefined,
+    };
+    handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
+
+    const result = await (handler as any).handle({
+      action: 'add_protected_range',
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B2' },
+      description: 'Protected header row',
+      warningOnly: false,
+    });
+
+    expect(result.response.success).toBe(false);
+    expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
 
   it('updates a protected range', async () => {
@@ -403,6 +451,24 @@ describe('AdvancedHandler', () => {
     expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
   });
 
+  it('blocks developer metadata deletion when elicitation is unavailable', async () => {
+    mockContext = {
+      ...createMockContext(),
+      elicitationServer: undefined,
+    };
+    handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
+
+    const result = await (handler as any).handle({
+      action: 'delete_metadata',
+      spreadsheetId: 'sheet-id',
+      metadataId: 101,
+    });
+
+    expect(result.response.success).toBe(false);
+    expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+  });
+
   // ============================================================
   // Banding
   // ============================================================
@@ -474,6 +540,24 @@ describe('AdvancedHandler', () => {
     expect(parsed.success).toBe(true);
     expect(result.response.success).toBe(true);
     expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+  });
+
+  it('blocks banding deletion when elicitation is unavailable', async () => {
+    mockContext = {
+      ...createMockContext(),
+      elicitationServer: undefined,
+    };
+    handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
+
+    const result = await (handler as any).handle({
+      action: 'delete_banding',
+      spreadsheetId: 'sheet-id',
+      bandedRangeId: 5,
+    });
+
+    expect(result.response.success).toBe(false);
+    expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+    expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
 
   it('lists banding', async () => {

@@ -15,9 +15,11 @@ import type {
   CollaborateResponse,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 
@@ -126,21 +128,27 @@ export async function handleCommentDeleteAction(
     return deps.success('comment_delete', {}, undefined, true);
   }
 
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'comment_delete',
-      `Delete comment (ID: ${input.commentId}) from spreadsheet ${input.spreadsheetId}. This will permanently remove the comment and all its replies. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.server ?? deps.context.elicitationServer,
+    operation: 'comment_delete',
+    details: `Delete comment (ID: ${input.commentId}) from spreadsheet ${input.spreadsheetId}. This will permanently remove the comment and all its replies. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_collaborate',
+      actionName: 'comment_delete',
+      operationType: 'comment_delete',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: deps.context.logger,
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(
@@ -307,21 +315,27 @@ export async function handleCommentDeleteReplyAction(
     return deps.success('comment_delete_reply', {}, undefined, true);
   }
 
-  if (deps.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      deps.context.elicitationServer,
-      'comment_delete_reply',
-      `Delete reply (ID: ${input.replyId}) from comment ${input.commentId} in spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
-    );
+  const confirmation = await requestSafetyConfirmation({
+    server: deps.context.server ?? deps.context.elicitationServer,
+    operation: 'comment_delete_reply',
+    details: `Delete reply (ID: ${input.replyId}) from comment ${input.commentId} in spreadsheet ${input.spreadsheetId}. This action cannot be undone.`,
+    context: {
+      toolName: 'sheets_collaborate',
+      actionName: 'comment_delete_reply',
+      operationType: 'comment_delete_reply',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+    logger: deps.context.logger,
+  });
 
-    if (!confirmation.confirmed) {
-      return deps.error({
-        code: ErrorCodes.PRECONDITION_FAILED,
-        message: confirmation.reason || 'User cancelled the operation',
-        retryable: false,
-        suggestedFix: 'Review the operation requirements and try again',
-      });
-    }
+  if (!confirmation.confirmed) {
+    return deps.error({
+      code: ErrorCodes.PRECONDITION_FAILED,
+      message: confirmation.reason || 'User cancelled the operation',
+      retryable: false,
+      suggestedFix: 'Review the operation requirements and try again',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(

@@ -6,6 +6,7 @@
  */
 
 import { getRequestLogger } from '../../utils/request-context.js';
+import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
 import type { CompositeBuildDashboardInput, CompositeOutput } from '../../schemas/composite.js';
 import type { CompositeHandlerAccess } from './internal.js';
 
@@ -66,13 +67,7 @@ export async function handleBuildDashboardAction(
         requests: [
           {
             repeatCell: {
-              range: {
-                sheetId: dashboardSheetId,
-                startRowIndex: 0,
-                endRowIndex: 1,
-                startColumnIndex: 0,
-                endColumnIndex: kpis.length,
-              },
+              range: toGridRange(buildGridRangeInput(dashboardSheetId, 0, 1, 0, kpis.length)),
               cell: {
                 userEnteredFormat: {
                   textFormat: { bold: true },
@@ -154,13 +149,15 @@ export async function handleBuildDashboardAction(
               addSlicer: {
                 slicer: {
                   spec: {
-                    dataRange: {
-                      sheetId: dataSheetId,
-                      startRowIndex: 0,
-                      endRowIndex: 1000,
-                      startColumnIndex: slicer.filterColumn,
-                      endColumnIndex: slicer.filterColumn + 1,
-                    },
+                    dataRange: toGridRange(
+                      buildGridRangeInput(
+                        dataSheetId,
+                        0,
+                        1000,
+                        slicer.filterColumn,
+                        slicer.filterColumn + 1
+                      )
+                    ),
                     columnIndex: slicer.filterColumn,
                     title: slicer.title,
                   },

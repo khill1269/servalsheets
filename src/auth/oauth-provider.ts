@@ -757,11 +757,11 @@ export class OAuthProvider {
 
       // Validate client
       const clientIdMatch = client_id === this.config.clientId;
-      const providedClientSecret = client_secret ?? '';
-      const expectedClientSecret = this.config.clientSecret;
+      const providedSecret = Buffer.from(client_secret ?? '');
+      const expectedSecret = Buffer.from(this.config.clientSecret);
       const clientSecretMatch =
-        providedClientSecret.length === expectedClientSecret.length &&
-        timingSafeEqual(Buffer.from(providedClientSecret), Buffer.from(expectedClientSecret));
+        providedSecret.length === expectedSecret.length &&
+        timingSafeEqual(providedSecret, expectedSecret);
       if (!clientIdMatch || !clientSecretMatch) {
         res.status(401).json({ error: 'invalid_client' });
         return;

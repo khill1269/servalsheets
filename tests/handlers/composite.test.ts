@@ -43,6 +43,19 @@ describe('Composite Handler', () => {
         requireCapability: vi.fn(),
         getCapability: vi.fn(),
       },
+      elicitationServer: {
+        request: vi.fn().mockResolvedValue({
+          confirmed: true,
+          reason: '',
+        }),
+        elicitInput: vi.fn().mockResolvedValue({
+          action: 'accept',
+          content: { confirm: true },
+        }),
+        getClientCapabilities: vi.fn().mockReturnValue({
+          elicitation: { form: true },
+        }),
+      } as any,
       snapshotService: {} as HandlerContext['snapshotService'],
       auth: {
         scopes: [
@@ -529,6 +542,29 @@ describe('Composite Handler', () => {
         expect(result.response).toHaveProperty('cellsModified');
       }
     });
+
+    it('should fail closed for large bulk updates when elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new CompositeHandler(mockContext, mockSheetsApi);
+
+      const input = {
+        action: 'bulk_update' as const,
+        spreadsheetId: 'test123',
+        sheet: 0,
+        keyColumn: 'Name',
+        updates: Array.from({ length: 11 }, (_, index) => ({
+          Name: `User ${index + 1}`,
+          Age: 20 + index,
+        })),
+      };
+
+      const result = await handler.handle(input as any);
+
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockSheetsApi.spreadsheets.values.update).not.toHaveBeenCalled();
+      expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
   });
 
   // ============================================================================
@@ -653,6 +689,35 @@ describe('Composite Handler', () => {
       if (result.response.success && result.response.rowsDeleted > 0) {
         expect(result.response).toHaveProperty('mutation');
       }
+    });
+
+    it('should fail closed when deduplication requires confirmation and elicitation is unavailable', async () => {
+      mockContext.elicitationServer = undefined;
+      handler = new CompositeHandler(mockContext, mockSheetsApi);
+      mockSheetsApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:C10',
+          values: [
+            ['Name', 'Age', 'Email'],
+            ['Alice', '30', 'alice@test.com'],
+            ['Alice', '31', 'alice-duplicate@test.com'],
+            ['Bob', '25', 'bob@test.com'],
+          ],
+        },
+      });
+
+      const input = {
+        action: 'deduplicate' as const,
+        spreadsheetId: 'test123',
+        sheet: 0,
+        keyColumns: ['Name'],
+      };
+
+      const result = await handler.handle(input as any);
+
+      expect((result.response as any).success).toBe(false);
+      expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+      expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 

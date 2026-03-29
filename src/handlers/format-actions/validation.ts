@@ -6,8 +6,10 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
-import { confirmDestructiveAction } from '../../mcp/elicitation.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
 import {
   assertSamplingConsent,
   checkSamplingSupport,
@@ -70,19 +72,23 @@ export async function handleClearDataValidation(
 
   const gridRange = await ha.resolveRangeInput(input.spreadsheetId, input.range!);
 
-  // Safety: confirm before clearing data validation rules
-  if (ha.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'clear_data_validation',
-      `Clear all data validation rules from the specified range in spreadsheet ${input.spreadsheetId}. Dropdown lists and validation constraints will be removed.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.makeSuccess('clear_data_validation', {
-        _cancelled: true,
-        reason: confirmation.reason || 'User cancelled the operation',
-      });
-    }
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.elicitationServer,
+    operation: 'clear_data_validation',
+    details: `Clear all data validation rules from the specified range in spreadsheet ${input.spreadsheetId}. Dropdown lists and validation constraints will be removed.`,
+    context: {
+      toolName: 'sheets_format',
+      actionName: 'clear_data_validation',
+      operationType: 'clear_data_validation',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
+  if (!confirmation.confirmed) {
+    return ha.makeSuccess('clear_data_validation', {
+      _cancelled: true,
+      reason: confirmation.reason || 'User cancelled the operation',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(

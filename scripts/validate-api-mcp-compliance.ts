@@ -550,6 +550,10 @@ function detectCommonPitfalls() {
 
   // Check for manual GridRange construction (should use helpers)
   const srcFiles = getAllTsFiles(path.join(__dirname, '../src'));
+  const gridRangeSourceOfTruthFiles = new Set([
+    path.join(__dirname, '../src/schemas/shared.ts'),
+    path.join(__dirname, '../src/utils/google-sheets-helpers.ts'),
+  ]);
 
   let manualGridRangeCount = 0;
   let properHelperUsage = 0;
@@ -559,7 +563,10 @@ function detectCommonPitfalls() {
       const content = fs.readFileSync(file, 'utf-8');
 
       // Check for manual GridRange object literals
-      if (content.match(/\{\s*sheetId\s*:\s*.*,\s*startRowIndex\s*:/)) {
+      if (
+        !gridRangeSourceOfTruthFiles.has(file) &&
+        content.match(/\{\s*sheetId\s*:\s*.*,\s*startRowIndex\s*:/)
+      ) {
         manualGridRangeCount++;
       }
 

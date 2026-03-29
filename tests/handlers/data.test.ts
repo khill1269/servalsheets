@@ -116,6 +116,11 @@ const createMockSheetsApi = () => ({
           totalUpdatedCells: 4,
         },
       }),
+      batchClear: vi.fn().mockResolvedValue({
+        data: {
+          clearedRanges: ['Sheet1!A1:B2'],
+        },
+      }),
       batchClearByDataFilter: vi.fn().mockResolvedValue({
         data: {
           clearedRanges: ['Sheet1!A1:B2'],
@@ -618,6 +623,27 @@ describe('SheetsDataHandler', () => {
         expect(mockApi.spreadsheets.values.batchUpdateByDataFilter).toHaveBeenCalled();
       });
 
+      it('should block large batch_write operations when confirmation is required but elicitation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const values = Array.from({ length: 20 }, () => Array.from({ length: 30 }, () => 'x'));
+        const result = await handler.handle({
+          action: 'batch_write',
+          spreadsheetId: 'test-id',
+          data: [
+            {
+              range: 'Sheet1!A1:AD20',
+              values,
+            },
+          ],
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error.code).toBe('PRECONDITION_FAILED');
+        expect(mockApi.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
+      });
+
       it('should batch_clear with dataFilters', async () => {
         const result = await handler.handle({
           action: 'batch_clear',
@@ -628,11 +654,64 @@ describe('SheetsDataHandler', () => {
         expect(result.response.success).toBe(true);
         expect(mockApi.spreadsheets.values.batchClearByDataFilter).toHaveBeenCalled();
       });
+
+      it('should block batch_clear operations when elicitation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'batch_clear',
+          spreadsheetId: 'test-id',
+          ranges: ['Sheet1!A1:B2'],
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error.code).toBe('OPERATION_CANCELLED');
+        expect(mockApi.spreadsheets.values.batchClear).not.toHaveBeenCalled();
+      });
     });
 
     describe('clear action', () => {
       it('should clear values', async () => {
-        // Note: Elicitation confirmation disabled in handler to avoid MCP hang issues
+        mockContext.rangeResolver = {
+          resolve: vi.fn().mockResolvedValue({
+            a1Notation: 'Sheet1!A1:B2',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            gridRange: {
+              sheetId: 0,
+              startRowIndex: 0,
+              endRowIndex: 2,
+              startColumnIndex: 0,
+              endColumnIndex: 2,
+            },
+            resolution: {
+              method: 'a1_direct',
+              confidence: 1.0,
+              path: '',
+            },
+          }),
+        } as any;
+
+        mockContext.elicitationServer = undefined;
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+        } as any);
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'clear');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should block large clears when confirmation is required but elicitation is unavailable', async () => {
         mockContext.rangeResolver = {
           resolve: vi.fn().mockResolvedValue({
             a1Notation: 'Sheet1!A1:Z10',
@@ -653,6 +732,7 @@ describe('SheetsDataHandler', () => {
           }),
         } as any;
 
+        mockContext.elicitationServer = undefined;
         handler = new SheetsDataHandler(mockContext, mockApi as any);
 
         const result = await handler.handle({
@@ -661,14 +741,9 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:Z10',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'clear');
-        // Elicitation disabled for reliability - direct API call
-        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
-
-        const parseResult = SheetsDataOutputSchema.safeParse(result);
-        expect(parseResult.success).toBe(true);
+        expect((result.response as any)._cancelled).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
 
       it('should ignore snapshot request when snapshot feature is disabled', async () => {
@@ -958,6 +1033,42 @@ describe('SheetsDataHandler', () => {
         expect((result.response as any).replacementsCount).toBeGreaterThanOrEqual(0);
       });
 
+      it('should block large replace operations when confirmation is required but elicitation is unavailable', async () => {
+        mockContext.rangeResolver = {
+          resolve: vi.fn().mockResolvedValue({
+            a1Notation: 'Sheet1!A1:ZZ10000',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            gridRange: {
+              sheetId: 0,
+              startRowIndex: 0,
+              endRowIndex: 10000,
+              startColumnIndex: 0,
+              endColumnIndex: 702,
+            },
+            resolution: {
+              method: 'a1_direct',
+              confidence: 1.0,
+              path: '',
+            },
+          }),
+        } as any;
+        mockContext.elicitationServer = undefined;
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'find_replace',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:ZZ10000',
+          find: 'pending',
+          replacement: 'completed',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any)._cancelled).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
       it('should default replace mode to the current sheet instead of all sheets when range is omitted', async () => {
         mockContext.sessionContext = {
           getActiveSpreadsheet: vi.fn().mockReturnValue({
@@ -1129,7 +1240,6 @@ describe('SheetsDataHandler', () => {
 
     describe('cut action', () => {
       it('should cut cells with confirmation', async () => {
-        // Cut operates on small ranges and skips confirmation for < 100 cells
         const result = await handler.handle({
           action: 'cut_paste',
           spreadsheetId: 'test-id',
@@ -1191,7 +1301,23 @@ describe('SheetsDataHandler', () => {
         expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       });
 
-      it('should skip confirmation for small operations', async () => {
+      it('should cancel cut operations when confirmation is required but elicitation is unavailable', async () => {
+        mockContext.elicitationServer = undefined;
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'cut_paste',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1:B2',
+          destination: 'Sheet1!D1',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any)._cancelled).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should still complete small cut operations when confirmation is available', async () => {
         mockContext.impactAnalyzer = {
           analyzeOperation: vi.fn().mockResolvedValue({
             severity: 'low',

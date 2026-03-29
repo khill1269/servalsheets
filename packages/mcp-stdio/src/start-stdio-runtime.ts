@@ -16,11 +16,11 @@ export interface StartStdioRuntimeOptions<
   readonly initTelemetry: () => Promise<void>;
   readonly validateEnv: () => void;
   readonly verifyToolIntegrity: () => Promise<void>;
-  readonly initialize: () => Promise<void>;
+  readonly initializeForConnect: () => Promise<void>;
+  readonly initializeAfterConnect: () => Promise<void>;
   readonly shutdown: () => Promise<void>;
   readonly getProcessBreadcrumbs: () => Record<string, unknown>;
   readonly server: TServer;
-  readonly ensureResourcesRegistered: () => Promise<void>;
   readonly getIsShutdown: () => boolean;
   readonly toolCount: number;
   readonly actionCount: number;
@@ -34,7 +34,7 @@ export interface StartStdioRuntimeDependencies<
   readonly startServer?: (options: StartStdioServerOptions) => Promise<void>;
   readonly startTransport?: (options: {
     server: TServer;
-    ensureResourcesRegistered: () => Promise<void>;
+    initializeAfterConnect: () => Promise<void>;
     shutdown: () => Promise<void>;
     getIsShutdown: () => boolean;
     getProcessBreadcrumbs: () => Record<string, unknown>;
@@ -63,14 +63,14 @@ export async function startStdioRuntime<
     initTelemetry: options.initTelemetry,
     validateEnv: options.validateEnv,
     verifyToolIntegrity: options.verifyToolIntegrity,
-    initialize: options.initialize,
+    initialize: options.initializeForConnect,
     shutdown: options.shutdown,
     getProcessBreadcrumbs: options.getProcessBreadcrumbs,
     processLike: options.processLike,
     startTransport: () =>
       startTransportImpl({
         server: options.server,
-        ensureResourcesRegistered: options.ensureResourcesRegistered,
+        initializeAfterConnect: options.initializeAfterConnect,
         shutdown: options.shutdown,
         getIsShutdown: options.getIsShutdown,
         getProcessBreadcrumbs: options.getProcessBreadcrumbs,

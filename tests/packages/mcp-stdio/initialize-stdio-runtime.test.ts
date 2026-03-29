@@ -1,8 +1,89 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { initializeStdioRuntime } from '../../../packages/mcp-stdio/src/initialize-stdio-runtime.js';
+import {
+  initializeStdioRuntime,
+  prepareStdioRuntime,
+} from '../../../packages/mcp-stdio/src/initialize-stdio-runtime.js';
 
 describe('@serval/mcp-stdio initializeStdioRuntime', () => {
+  it('prepares capabilities before connect and defers only background bootstrap work', async () => {
+    const state = {
+      googleClient: null as { id: string } | null,
+      authHandler: null as { mode: string } | null,
+      context: null as { tenant: string } | null,
+      handlers: null as { count: number } | null,
+    };
+
+    const createOptionalGoogleClient = vi.fn(async () => ({ id: 'google-client' }));
+    const initializeGoogleRuntime = vi.fn(async () => ({
+      context: { tenant: 'tenant-1' },
+      handlers: { count: 25 },
+    }));
+    const registerResources = vi.fn(async () => {});
+    const startHealthMonitor = vi.fn(async () => {});
+
+    const preparedRuntime = await prepareStdioRuntime(
+      {
+        getGoogleClient: () => state.googleClient,
+        setGoogleClient: (value) => {
+          state.googleClient = value;
+        },
+        setAuthHandler: (value) => {
+          state.authHandler = value;
+        },
+        setContext: (value) => {
+          state.context = value;
+        },
+        setHandlers: (value) => {
+          state.handlers = value;
+        },
+        invalidateCachedHandlerMap: vi.fn(),
+      },
+      {
+        ensureToolIntegrityVerified: vi.fn(async () => {}),
+        prepareRuntimePreflight: vi.fn(() => ({
+          envConfig: { DATA_DIR: '/tmp/data', ENABLE_PYTHON_COMPUTE: true },
+          costTrackingEnabled: true,
+        })),
+        createAuthHandler: vi.fn((options?: { googleClient?: { id: string } }) =>
+          options?.googleClient ? { mode: 'google' } : { mode: 'local' }
+        ),
+        createOptionalGoogleClient,
+        initializeGoogleRuntime,
+        afterGoogleRuntimeInitialized: vi.fn(),
+        preloadPythonCompute: vi.fn(),
+        initializeBuiltinConnectors: vi.fn(),
+        configureConnectorSheetWriter: vi.fn(),
+        initializeBilling: vi.fn(),
+        registerTools: vi.fn(),
+        registerCompletions: vi.fn(),
+        registerResources,
+        shouldDeferResourceDiscovery: vi.fn(() => false),
+        onResourceDiscoveryDeferred: vi.fn(),
+        markResourcesRegistered: vi.fn(),
+        registerPrompts: vi.fn(),
+        registerTaskCancelHandler: vi.fn(),
+        registerLogging: vi.fn(),
+        startCacheCleanupTask: vi.fn(),
+        startHeapWatchdog: vi.fn(),
+        startHealthMonitor,
+      }
+    );
+
+    expect(state.googleClient).toEqual({ id: 'google-client' });
+    expect(state.authHandler).toEqual({ mode: 'google' });
+    expect(state.context).toEqual({ tenant: 'tenant-1' });
+    expect(state.handlers).toEqual({ count: 25 });
+    expect(createOptionalGoogleClient).toHaveBeenCalledOnce();
+    expect(initializeGoogleRuntime).toHaveBeenCalledOnce();
+    expect(registerResources).toHaveBeenCalledOnce();
+    expect(startHealthMonitor).not.toHaveBeenCalled();
+
+    await preparedRuntime.finalizePostConnect();
+
+    expect(startHealthMonitor).toHaveBeenCalledOnce();
+  });
+
   it('initializes the local runtime and defers resource discovery when configured', async () => {
     const state = {
       googleClient: null as { id: string } | null,

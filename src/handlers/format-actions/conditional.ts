@@ -12,8 +12,11 @@ import {
   toGridRange,
   parseA1Notation,
 } from '../../utils/google-sheets-helpers.js';
-import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
-import { confirmDestructiveAction, elicitConditionalFormatPreset } from '../../mcp/elicitation.js';
+import {
+  createSnapshotIfNeeded,
+  requestSafetyConfirmation,
+} from '../../utils/safety-helpers.js';
+import { elicitConditionalFormatPreset } from '../../mcp/elicitation.js';
 import type { FormatResponse, FormatRequest } from '../../schemas/index.js';
 import type { FormatHandlerAccess } from './internal.js';
 import { isElicitableRulePreset, type ConditionType } from './internal.js';
@@ -279,19 +282,23 @@ export async function handleRuleDeleteConditionalFormat(
     return ha.makeSuccess('rule_delete_conditional_format', {}, undefined, true);
   }
 
-  // Safety: confirm before deleting conditional format rule
-  if (ha.context.elicitationServer) {
-    const confirmation = await confirmDestructiveAction(
-      ha.context.elicitationServer,
-      'rule_delete_conditional_format',
-      `Delete conditional format rule at index ${input.ruleIndex} from sheet ${input.sheetId} in spreadsheet ${input.spreadsheetId}.`
-    );
-    if (!confirmation.confirmed) {
-      return ha.makeSuccess('rule_delete_conditional_format', {
-        _cancelled: true,
-        reason: confirmation.reason || 'User cancelled the operation',
-      });
-    }
+  const confirmation = await requestSafetyConfirmation({
+    server: ha.context.elicitationServer,
+    operation: 'rule_delete_conditional_format',
+    details: `Delete conditional format rule at index ${input.ruleIndex} from sheet ${input.sheetId} in spreadsheet ${input.spreadsheetId}.`,
+    context: {
+      toolName: 'sheets_format',
+      actionName: 'rule_delete_conditional_format',
+      operationType: 'rule_delete_conditional_format',
+      isDestructive: true,
+      spreadsheetId: input.spreadsheetId,
+    },
+  });
+  if (!confirmation.confirmed) {
+    return ha.makeSuccess('rule_delete_conditional_format', {
+      _cancelled: true,
+      reason: confirmation.reason || 'User cancelled the operation',
+    });
   }
 
   const snapshot = await createSnapshotIfNeeded(

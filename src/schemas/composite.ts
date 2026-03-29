@@ -154,8 +154,8 @@ export const SmartAppendInputSchema = z.object({
           z.number(),
           z.boolean(),
           z.null(),
-          z.array(z.any()),
-          z.record(z.string(), z.any()),
+          z.array(z.unknown()),
+          z.record(z.string(), z.unknown()),
         ])
       )
     )
@@ -220,8 +220,8 @@ export const BulkUpdateInputSchema = z.object({
           z.number(),
           z.boolean(),
           z.null(),
-          z.array(z.any()),
-          z.record(z.string(), z.any()),
+          z.array(z.unknown()),
+          z.record(z.string(), z.unknown()),
         ])
       )
     )
@@ -298,8 +298,8 @@ export const DuplicatePreviewItemSchema = z.object({
       z.number(),
       z.boolean(),
       z.null(),
-      z.array(z.any()),
-      z.record(z.string(), z.any()),
+      z.array(z.unknown()),
+      z.record(z.string(), z.unknown()),
     ])
   ),
   keepStatus: z.enum(['keep', 'delete']),
@@ -405,8 +405,8 @@ export const GetFormResponsesOutputSchema = z.object({
         z.number(),
         z.boolean(),
         z.null(),
-        z.array(z.any()),
-        z.record(z.string(), z.any()),
+        z.array(z.unknown()),
+        z.record(z.string(), z.unknown()),
       ])
     )
     .optional()
@@ -421,8 +421,8 @@ export const GetFormResponsesOutputSchema = z.object({
         z.number(),
         z.boolean(),
         z.null(),
-        z.array(z.any()),
-        z.record(z.string(), z.any()),
+        z.array(z.unknown()),
+        z.record(z.string(), z.unknown()),
       ])
     )
     .optional()

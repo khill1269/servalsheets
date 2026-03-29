@@ -414,6 +414,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       error: this.error.bind(this),
       notFoundError: (t: string, id: string | number) => this.notFoundError(t, String(id)),
       generateMeta: this.generateMeta.bind(this),
+      confirmOperation: this.confirmOperation.bind(this),
       getSafetyWarnings: this.getSafetyWarnings.bind(this),
       formatWarnings: this.formatWarnings.bind(this),
       createSafetySnapshot: this.createSafetySnapshot.bind(this),
