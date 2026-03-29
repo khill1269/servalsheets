@@ -489,7 +489,7 @@
     "test:e2e:all": "TEST_E2E=true TEST_E2E_HEAVY=true TEST_REAL_API=true vitest run --maxWorkers 1 tests/e2e/workflows",
     "test:e2e:heavy": "TEST_E2E=true TEST_E2E_HEAVY=true vitest run --maxWorkers 1 tests/e2e/workflows/multi-step-workflows.test.ts",
     "test:e2e:real": "TEST_REAL_API=true vitest run --maxWorkers 1 tests/e2e/workflows/analysis-workflow.test.ts tests/e2e/workflows/collaboration-workflow.test.ts tests/e2e/workflows/transaction-workflow.test.ts",
-    "test:fast": "vitest run tests/unit tests/schemas tests/utils tests/core tests/handlers --exclude='**/*.snapshot.test.ts' --exclude='**/analyze.test.ts' --exclude='**/benchmarks/**' --pool=threads",
+    "test:fast": "vitest run tests/unit tests/schemas tests/utils tests/core tests/handlers tests/examples --exclude='**/*.snapshot.test.ts' --exclude='**/analyze.test.ts' --exclude='**/benchmarks/**' --pool=threads",
     "test:handlers": "vitest run tests/handlers --exclude='**/*.snapshot.test.ts'",
     "test:health": "echo 'REMOVED: scripts/test-health-monitoring.ts no longer exists'",
     "test:http-transport-failover": "vitest run tests/http-server/http-transport-failover.test.ts",
