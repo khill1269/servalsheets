@@ -204,7 +204,10 @@ jobs:
     name: Update Baseline (main)
     runs-on: ubuntu-latest
     needs: performance-regression-tests
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      needs.performance-regression-tests.result == 'success'
 
     steps:
       - name: Checkout code
@@ -226,7 +229,10 @@ jobs:
     name: Publish Dashboard
     runs-on: ubuntu-latest
     needs: performance-regression-tests
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      needs.performance-regression-tests.result == 'success'
     permissions:
       contents: write
 

@@ -21,6 +21,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.check-pages.outputs.enabled }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -39,15 +41,46 @@ jobs:
       - name: Build docs
         run: npm run docs:site
 
+      - name: Check GitHub Pages availability
+        id: check-pages
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            try {
+              await github.rest.repos.getPages({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              core.setOutput('enabled', 'true');
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning('GitHub Pages is not enabled for this repository; skipping deployment steps.');
+                core.setOutput('enabled', 'false');
+                return;
+              }
+              throw error;
+            }
+
       - name: Setup Pages
+        if: steps.check-pages.outputs.enabled == 'true'
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Upload artifact
+        if: steps.check-pages.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: docs/.vitepress/dist
 
+      - name: Summarize skipped deployment
+        if: steps.check-pages.outputs.enabled != 'true'
+        run: |
+          echo "## Deploy Docs" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Docs site build completed." >> "$GITHUB_STEP_SUMMARY"
+          echo "- GitHub Pages is not enabled for this repository, so deployment was skipped." >> "$GITHUB_STEP_SUMMARY"
+
   deploy:
+    if: needs.build.outputs.pages_enabled == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

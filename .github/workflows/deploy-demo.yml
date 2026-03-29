@@ -31,7 +31,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      - name: Check required deployment secrets
+        id: check-secrets
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$GCP_PROJECT_ID" ] && [ -n "$GCP_WORKLOAD_IDENTITY_PROVIDER" ] && [ -n "$GCP_SERVICE_ACCOUNT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Required deployment secrets are configured"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "## Demo Deployment Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Required GCP deployment secrets are missing, so demo deployment was skipped." >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Authenticate to Google Cloud
+        if: steps.check-secrets.outputs.ready == 'true'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -40,14 +58,17 @@ jobs:
           cleanup_credentials: true
 
       - name: Set up Cloud SDK
+        if: steps.check-secrets.outputs.ready == 'true'
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
         with:
           project_id: ${{ env.PROJECT_ID }}
 
       - name: Configure Docker
+        if: steps.check-secrets.outputs.ready == 'true'
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and Push Container
+        if: steps.check-secrets.outputs.ready == 'true'
         run: |
           docker build \
             -f deployment/demo/Dockerfile \
@@ -58,6 +79,7 @@ jobs:
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:latest
 
       - name: Deploy to Cloud Run
+        if: steps.check-secrets.outputs.ready == 'true'
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.sha }} \
@@ -72,6 +94,7 @@ jobs:
             --set-secrets "GOOGLE_APPLICATION_CREDENTIALS_JSON=servalsheets-demo-credentials:latest"
 
       - name: Show Service URL
+        if: steps.check-secrets.outputs.ready == 'true'
         run: |
           gcloud run services describe ${{ env.SERVICE_NAME }} \
             --region ${{ env.REGION }} \

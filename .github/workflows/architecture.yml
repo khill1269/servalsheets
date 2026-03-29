@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**/*.ts'
+      - 'scripts/check-file-sizes.sh'
       - '.dependency-cruiser.cjs'
       - 'package.json'
       - 'package-lock.json'
@@ -14,6 +15,7 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**/*.ts'
+      - 'scripts/check-file-sizes.sh'
       - '.dependency-cruiser.cjs'
       - 'package.json'
       - 'package-lock.json'
@@ -28,6 +30,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-change-detect:
+    name: Dependency Change Detect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect dependency-related changes
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+            CHANGED_FILES=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
+          else
+            CHANGED_FILES=$(git show --pretty="" --name-only "${{ github.sha }}")
+          fi
+
+          echo "$CHANGED_FILES"
+
+          if printf '%s\n' "$CHANGED_FILES" | grep -Eq '(^|/)(package\.json|package-lock\.json)$'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   dependency-analysis:
     name: Dependency Analysis
     runs-on: ubuntu-latest
@@ -148,11 +183,84 @@ jobs:
           path: knip-output.txt
           retention-days: 30
 
+  validate-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: dependency-change-detect
+    if: needs.dependency-change-detect.outputs.should_run == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Security Audit
+        # continue-on-error: node-saml → xml-encryption → node-forge has GHSA-65ch-62r8-g69g
+        # (node-forge v1.3.3 ASN.1 OID truncation) with no upstream fix available.
+        # xmldom critical vulns are resolved via package.json overrides to @xmldom/xmldom.
+        # Tracked: https://github.com/node-saml/node-saml/issues — re-evaluate when node-saml v4 stable ships.
+        continue-on-error: true
+        run: npm audit --audit-level=critical
+
+      - name: Check Outdated Packages
+        run: |
+          echo "📊 Checking for outdated packages..."
+          npm outdated || true
+
+      - name: Validate Package Versions Exist
+        run: |
+          echo "🔍 Validating all package versions exist on npm..."
+          npx tsx scripts/validate-package-versions.ts
+
+      - name: Check Version Synchronization (Syncpack)
+        run: |
+          echo "🔄 Checking version synchronization across monorepo..."
+          npx syncpack lint
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Main Project
+        run: npm run build
+
+      - name: Build All MCP Servers
+        run: |
+          echo "📦 Building all MCP servers..."
+          cd tools/google-docs-server && npm ci && npm run build
+          cd ../test-intelligence-server && npm ci && npm run build
+          cd ../gcloud-console-server && npm ci && npm run build
+
+      - name: Run Fast Tests
+        run: npm run test:fast
+
+      - name: Check Metadata Drift
+        run: npm run check:drift
+
+  check-file-sizes:
+    name: Check File Sizes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Make script executable
+        run: chmod +x scripts/check-file-sizes.sh
+
+      - name: Check file sizes
+        run: bash scripts/check-file-sizes.sh
+
   architecture-summary:
     name: Architecture Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [dependency-analysis, dead-code-analysis]
+    needs: [dependency-change-detect, dependency-analysis, dead-code-analysis, validate-dependencies, check-file-sizes]
     if: always()
 
     steps:
@@ -176,6 +284,22 @@ jobs:
             echo "✅ **Dead Code Analysis**: Passed" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️  **Dead Code Analysis**: Warning" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Dependency validation status
+          if [ "${{ needs.validate-dependencies.result }}" == "success" ]; then
+            echo "✅ **Dependency Validation**: Passed" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.validate-dependencies.result }}" == "skipped" ]; then
+            echo "⏭️ **Dependency Validation**: Skipped (no package manifest changes)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Dependency Validation**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # File size status
+          if [ "${{ needs.check-file-sizes.result }}" == "success" ]; then
+            echo "✅ **Check File Sizes**: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Check File Sizes**: Failed" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY

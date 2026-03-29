@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
+      actions: read
       contents: write
       pull-requests: write
       issues: write
@@ -65,6 +66,7 @@ jobs:
         if: steps.failure-type.outputs.lint_only != 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
           prompt: |
             CI failed on this commit. Diagnose the failure, fix it with a minimal patch
             (per CLAUDE.md: ≤3 src/ files unless tests require more), and open a PR with the fix.
