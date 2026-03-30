@@ -7,8 +7,8 @@ const thresholdRaw = process.env['AUDIT_QUICK_THRESHOLD'];
 const threshold = Number.isFinite(Number(thresholdRaw)) ? Number(thresholdRaw) : 85;
 
 if (!fs.existsSync(reportPath)) {
-  console.warn('⚠️  Quick audit results not found, skipping score check');
-  process.exit(0);
+  console.error(`❌ Quick audit results not found: ${reportPath}`);
+  process.exit(1);
 }
 
 let score;

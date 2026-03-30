@@ -2,12 +2,10 @@
 name: Deploy Demo
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'deployment/demo/**'
-      - '.github/workflows/deploy-demo.yml'
+    types: [completed]
   workflow_dispatch:
 
 concurrency:
@@ -21,6 +19,7 @@ env:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     permissions:
@@ -30,6 +29,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
 
       - name: Check required deployment secrets
         id: check-secrets
@@ -72,17 +74,17 @@ jobs:
         run: |
           docker build \
             -f deployment/demo/Dockerfile \
-            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.event.workflow_run.head_sha || github.sha }} \
             -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:latest \
             .
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.event.workflow_run.head_sha || github.sha }}
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:latest
 
       - name: Deploy to Cloud Run
         if: steps.check-secrets.outputs.ready == 'true'
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/servalsheets/${{ env.SERVICE_NAME }}:${{ github.event.workflow_run.head_sha || github.sha }} \
             --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated \

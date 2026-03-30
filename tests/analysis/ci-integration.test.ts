@@ -30,13 +30,14 @@ describe('CI Integration', () => {
       expect(workflow.name).toBe('Multi-Agent Analysis');
     });
 
-    it('should trigger on pushes to main', () => {
+    it('should trigger on pull requests to main and support manual dispatch', () => {
       const content = fs.readFileSync(workflowPath, 'utf-8');
       const workflow = yaml.parse(content);
 
       expect(workflow.on).toBeDefined();
-      expect(workflow.on.push).toBeDefined();
-      expect(workflow.on.push.branches).toContain('main');
+      expect(workflow.on.pull_request).toBeDefined();
+      expect(workflow.on.pull_request.branches).toContain('main');
+      expect(workflow.on.workflow_dispatch).toBeDefined();
     });
 
     it('should have analyze job', () => {

@@ -43,7 +43,6 @@ export default defineConfig({
       'dist/**',
       'tests/.tmp/**',
       'tests/manual/**',
-      'tests/examples/**',
       'tests/fixtures/**',
     ],
     coverage: {

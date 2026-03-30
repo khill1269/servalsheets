@@ -86,6 +86,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check security exception review dates
+        id: security_exceptions
+        run: npm run check:security-exceptions
+
       - name: Run npm audit (fail on high/critical)
         # SECURITY EXCEPTION: node-saml → xml-encryption → node-forge has unfixable high/critical
         # vulns (GHSA-65ch-62r8-g69g etc.) with no upstream fix. xmldom patched via overrides.
@@ -104,6 +108,39 @@ jobs:
         if: always()
         run: |
           npm audit --json > npm-audit-report.json || true
+
+      - name: Open issue for overdue security exception review
+        if: github.event_name == 'schedule' && failure() && steps.security_exceptions.outcome == 'failure'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const title = 'Security exception review overdue';
+            const body = [
+              'The scheduled security workflow detected an overdue entry in `SECURITY_EXCEPTIONS.md`.',
+              '',
+              'Run `npm run check:security-exceptions` locally and either update the exception, resolve it, or remove the waiver.',
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              creator: 'github-actions[bot]',
+              per_page: 100,
+            });
+
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              core.info(`Issue already open: #${existing.number}`);
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+            });
 
       - name: Upload audit report
         if: always()
