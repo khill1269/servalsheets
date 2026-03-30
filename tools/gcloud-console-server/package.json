@@ -7,7 +7,7 @@
     "@google-cloud/logging": "^11.2.1",
     "@google-cloud/monitoring": "^5.3.1",
     "@google-cloud/resource-manager": "^6.2.1",
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "google-auth-library": "^9.14.1",
     "googleapis": "^171.4.0",
     "zod": "^4.3.6"
