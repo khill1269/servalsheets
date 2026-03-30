@@ -675,3 +675,33 @@ jobs:
       - name: Run security audit (warn on moderate)
         run: npm audit --audit-level=moderate
         continue-on-error: true
+
+  ci-required:
+    name: CI Required
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [quick-checks, build, mutation-testing, coverage, security]
+
+    steps:
+      - name: Verify required CI jobs succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module <<'EOF'
+          const needs = JSON.parse(process.env.NEEDS_JSON);
+          const allowedSkipped = new Set(['coverage']);
+          const failures = [];
+
+          for (const [job, result] of Object.entries(needs)) {
+            if (result.result === 'success') continue;
+            if (result.result === 'skipped' && allowedSkipped.has(job)) continue;
+            failures.push(`${job}=${result.result}`);
+          }
+
+          if (failures.length > 0) {
+            console.error(`Required CI jobs failed: ${failures.join(', ')}`);
+            process.exit(1);
+          }
+
+          console.log('All required CI jobs passed.');
+          EOF
