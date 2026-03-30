@@ -276,7 +276,7 @@ tags: [api, mcp, sheets]
 capabilities: {
   tools: { enabled: true },          // ✅ 25 tools, 408 actions
   resources: { enabled: true },      // ✅ URI templates + knowledge
-  prompts: { enabled: true },        // ✅ 6 guided workflows
+  prompts: { enabled: true },        // ✅ 40 guided workflows
   completions: { enabled: true },    // ✅ Argument autocompletion
   tasks: { enabled: true },          // ✅ SEP-1686 background tasks
   logging: { enabled: true }         // ✅ Dynamic log level control

@@ -40,8 +40,9 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 | --------------------------- | ---------------- | ------------------------------------------------------------------------- |
 | Tools                       | 25               | `TOOL_COUNT`, `TOOL_DEFINITIONS.length`, runtime `listTools()`            |
 | Actions                     | 408              | `ACTION_COUNT`, `TOOL_ACTIONS`, metadata consistency tests                |
-| Prompts                     | 48               | `getPromptsCatalogCount()`, runtime `listPrompts()`                       |
-| Resources                   | 48               | runtime `listResources()` via `createServalSheetsTestHarness()`           |
+| Prompts                     | 40               | `getPromptsCatalogCount()`, runtime `listPrompts()`                       |
+| Resources                   | 56               | runtime `listResources()` via `createServalSheetsTestHarness()`           |
+| Resource templates          | 12               | runtime `listResourceTemplates()` via `createServalSheetsTestHarness()`   |
 | Tool icons                  | 25 tools covered | `Object.keys(TOOL_ICONS).length`, `tests/compliance/mcp-features.test.ts` |
 | Task-support optional tools | 17               | `TOOL_EXECUTION_CONFIG`                                                   |
 
@@ -49,16 +50,16 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 
 ### 1. Core MCP Surface
 
-| Requirement                                             | Status | Repo Surface                                                              | Test Evidence                                                                                             | Notes                                            |
-| ------------------------------------------------------- | ------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `initialize` uses protocol version `2025-11-25`         | ✅     | `src/version.ts`, `src/server.ts`                                         | `tests/compliance/mcp-2025-11-25.test.ts`                                                                 | Server/runtime pinned to 2025-11-25.             |
-| Server instructions are emitted during initialization   | ✅     | `src/mcp/features-2025-11-25.ts`                                          | `tests/compliance/mcp-features.test.ts`                                                                   | Counts are runtime-derived.                      |
-| Tool list returns current tool catalog with JSON Schema | ✅     | `src/mcp/registration/tools-list-compat.ts`                               | `tests/integration/mcp-tools-list.test.ts`, `tests/contracts/schema-registration.test.ts`                 | Compatibility handler strips Zod artifacts.      |
-| Tool results include `content` and `structuredContent`  | ✅     | `src/mcp/registration/tool-handlers.ts`                                   | `tests/compliance/response-format-jsonrpc.test.ts`                                                        | `isError` is set only for retryable/error flows. |
-| Prompts are listed and retrievable                      | ✅     | `src/mcp/registration/prompt-registration.ts`                             | `tests/mcp/prompt-args-compat.test.ts`, `tests/integration/mcp-capability-workflow.test.ts`               | 40 prompts at runtime.                           |
-| Resources are listed and readable                       | ✅     | `src/mcp/registration/resource-registration.ts`, `src/resources/*.ts`     | `tests/server-runtime/resource-registration.test.ts`, `tests/integration/mcp-capability-workflow.test.ts` | 49 resources at runtime.                         |
-| Completion works for resource refs                      | ✅     | `src/mcp/completions.ts`, `src/mcp/registration/resource-registration.ts` | `tests/integration/tool-mode-registration.test.ts`, `tests/mcp/tool-registry-completions.test.ts`         | Tool/action/range completions verified.          |
-| Completion works for prompt refs                        | ✅     | `src/mcp/registration/prompt-registration.ts`, `src/schemas/prompts.ts`   | `tests/integration/prompt-completion.test.ts`                                                             | Direct coverage added during this audit.         |
+| Requirement                                             | Status | Repo Surface                                                              | Test Evidence                                                                                             | Notes                                              |
+| ------------------------------------------------------- | ------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `initialize` uses protocol version `2025-11-25`         | ✅     | `src/version.ts`, `src/server.ts`                                         | `tests/compliance/mcp-2025-11-25.test.ts`                                                                 | Server/runtime pinned to 2025-11-25.               |
+| Server instructions are emitted during initialization   | ✅     | `src/mcp/features-2025-11-25.ts`                                          | `tests/compliance/mcp-features.test.ts`                                                                   | Counts are runtime-derived.                        |
+| Tool list returns current tool catalog with JSON Schema | ✅     | `src/mcp/registration/tools-list-compat.ts`                               | `tests/integration/mcp-tools-list.test.ts`, `tests/contracts/schema-registration.test.ts`                 | Compatibility handler strips Zod artifacts.        |
+| Tool results include `content` and `structuredContent`  | ✅     | `src/mcp/registration/tool-handlers.ts`                                   | `tests/compliance/response-format-jsonrpc.test.ts`                                                        | `isError` is set only for retryable/error flows.   |
+| Prompts are listed and retrievable                      | ✅     | `src/mcp/registration/prompt-registration.ts`                             | `tests/mcp/prompt-args-compat.test.ts`, `tests/integration/mcp-capability-workflow.test.ts`               | 40 prompts at runtime.                             |
+| Resources are listed and readable                       | ✅     | `src/mcp/registration/resource-registration.ts`, `src/resources/*.ts`     | `tests/server-runtime/resource-registration.test.ts`, `tests/integration/mcp-capability-workflow.test.ts` | 56 resources and 12 resource templates at runtime. |
+| Completion works for resource refs                      | ✅     | `src/mcp/completions.ts`, `src/mcp/registration/resource-registration.ts` | `tests/integration/tool-mode-registration.test.ts`, `tests/mcp/tool-registry-completions.test.ts`         | Tool/action/range completions verified.            |
+| Completion works for prompt refs                        | ✅     | `src/mcp/registration/prompt-registration.ts`, `src/schemas/prompts.ts`   | `tests/integration/prompt-completion.test.ts`                                                             | Direct coverage added during this audit.           |
 
 ### 2. Tasks, Sampling, and Elicitation
 

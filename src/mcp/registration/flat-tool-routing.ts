@@ -11,7 +11,7 @@
  * @module mcp/registration/flat-tool-routing
  */
 
-import { parseFlatToolName, getFlatToolRegistry } from './flat-tool-registry.js';
+import { parseFlatToolName } from './flat-tool-registry.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -102,26 +102,4 @@ export function routeFlatToolCall(
     compoundToolName: parentTool,
     normalizedArgs,
   };
-}
-
-/**
- * Build a reverse lookup map from flat tool names to compound tool names.
- * Used for batch operations and pre-flight checks.
- */
-export function buildFlatToCompoundMap(): Map<string, { parentTool: string; action: string }> {
-  const map = new Map<string, { parentTool: string; action: string }>();
-  for (const entry of getFlatToolRegistry()) {
-    map.set(entry.name, { parentTool: entry.parentTool, action: entry.action });
-  }
-  return map;
-}
-
-/**
- * Get the compound tool name for a flat tool name.
- * Returns the flat name itself if it's not a flat tool (compound passthrough).
- */
-export function resolveCompoundToolName(toolName: string): string {
-  if (COMPOUND_TOOL_NAMES.has(toolName)) return toolName;
-  const parsed = parseFlatToolName(toolName);
-  return parsed?.parentTool ?? toolName;
 }

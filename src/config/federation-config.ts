@@ -132,18 +132,3 @@ export function parseFederationServers(jsonString: string | undefined): Federati
     return [];
   }
 }
-
-/**
- * Validate a single federation server configuration
- *
- * @param config - Server configuration object
- * @returns Validated configuration or null if invalid
- */
-export function validateServerConfig(config: unknown): FederationServerConfig | null {
-  try {
-    return FederationServerSchema.parse(config);
-  } catch (error) {
-    console.error('Invalid federation server config:', error);
-    return null;
-  }
-}

@@ -6,7 +6,7 @@ Production-grade Google Sheets MCP Server with 25 tools, 408 actions, safety rai
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-8500%2B%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
-[![Coverage](https://img.shields.io/badge/coverage-CI%20reported-blue)](https://github.com/khill1269/servalsheets/actions/workflows/coverage.yml)
+[![Coverage](https://img.shields.io/badge/coverage-CI%20reported-blue)](https://github.com/khill1269/servalsheets/actions/workflows/ci.yml)
 
 <p align="center">
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
@@ -125,15 +125,15 @@ MCP 2025-11-25 server support includes:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
 - ✅ **Tools**: 25 tools with 408 actions using discriminated unions
-- ✅ **Resources**: 6 URI templates + 7 knowledge resources
+- ✅ **Resources**: 56 MCP resources + 12 resource templates
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
   - `sheets:///{spreadsheetId}/charts` - Chart specifications
   - `sheets:///{spreadsheetId}/charts/{chartId}` - Individual chart details
   - `sheets:///{spreadsheetId}/pivots` - Pivot table configurations
   - `sheets:///{spreadsheetId}/quality` - Data quality analysis
-  - Knowledge resources for formulas, colors, formats
-- ✅ **Prompts**: 48 guided workflows for common operations
+  - Additional schema, guide, decision, pattern, monitor, and knowledge resources via `resources/list`
+- ✅ **Prompts**: 40 guided workflows for common operations
 - ✅ **Completions**: Argument autocompletion for prompts/resources
 - ✅ **Tasks**: Background execution with full cancellation support (SEP-1686)
 - ✅ **Elicitation**: Plan confirmation via sheets_confirm (SEP-1036)
@@ -2134,8 +2134,8 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 | ---------------- | ------- | ---------- | ------------------------------------------- |
 | **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
 | **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 408 actions, discriminated unions |
-| **Resources**    | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources     |
-| **Prompts**      | ✅ Full | 2025-11-25 | 48 guided workflows with arguments          |
+| **Resources**    | ✅ Full | 2025-11-25 | 56 MCP resources + 12 resource templates    |
+| **Prompts**      | ✅ Full | 2025-11-25 | 40 guided workflows with arguments          |
 | **Completions**  | ✅ Full | 2025-11-25 | Argument autocompletion                     |
 | **Tasks**        | ✅ Full | SEP-1686   | Background execution, cancellation          |
 | **Elicitation**  | ✅ Full | SEP-1036   | User confirmations for destructive ops      |
@@ -2158,7 +2158,7 @@ All 25 tools are implemented and exercised in the test suite. See the [Tool Summ
 - Exhaustiveness checking at compile time
 - Runtime validation via Zod
 
-#### Resources (6 URI templates ✅)
+#### Resources (56 MCP resources + 12 templates ✅)
 
 **Implemented & Tested**:
 
@@ -2182,29 +2182,29 @@ All 25 tools are implemented and exercised in the test suite. See the [Tool Summ
    └─ Data quality analysis results
 ```
 
-**Knowledge Resources** (7 resources):
+**Representative resource families**:
 
 ```
-✅ Formulas Reference - All supported Google Sheets functions
-✅ Colors Reference - RGB color codes and named colors
-✅ Formats Reference - Number, date, currency formats
-✅ Conditional Rules - Formatting rule types
-✅ Data Validation - Validation condition types
-✅ Named Ranges - Documentation and examples
-✅ Charts - Chart types and configurations
+✅ Live sheet resources - spreadsheet metadata, ranges, charts, pivots, quality
+✅ Schema resources - tool schemas and per-action guidance
+✅ Guide resources - quota, batching, caching, and recovery guidance
+✅ Decision trees - tool/strategy selection references
+✅ Pattern and example libraries - workflow references and code examples
+✅ Monitor resources - history, cache, metrics, discovery, transaction state
+✅ Knowledge resources - formulas, templates, API notes, best practices
 ```
 
-#### Prompts (6 workflows ✅)
+#### Prompts (40 workflows ✅)
 
 **Implemented & Tested**:
 
 ```
-✅ Create Spreadsheet - Guided sheet creation
-✅ Import Data - CSV to Sheets import workflow
-✅ Format Data - Formatting and styling guide
-✅ Analyze Data - Data analysis workflow
-✅ Create Dashboard - Dashboard creation guide
-✅ Troubleshoot Issues - Error diagnosis workflow
+✅ First-time setup - readiness, connection, first operation, full setup
+✅ Analysis flows - auto analysis, comparison, history-aware analysis, performance audit
+✅ Data quality flows - cleaning, automated remediation, quality masterclass
+✅ Import/export flows - CSV, Excel, migration, bulk import
+✅ Automation flows - sheet generation, batch optimization, pipelines
+✅ Collaboration, visualization, troubleshooting, connector, and advanced scenario workflows
 ```
 
 #### Tasks (SEP-1686 ✅)

@@ -121,7 +121,7 @@ Client → MCP Request (STDIO / Streamable HTTP / legacy SSE compatibility)
 | Legacy SSE Compatibility | ✅     | http-server.ts                            | Optional compatibility endpoints         |
 | Streamable HTTP          | ✅     | http-server.ts, mcp/event-store.ts        | Primary hosted transport + resumability  |
 | Tool Registration        | ✅     | mcp/registration/tool-handlers.ts         | 25 tools, discriminated union schemas    |
-| Resources                | ✅     | mcp/registration/resource-registration.ts | 2 URI templates + knowledge resources    |
+| Resources                | ✅     | mcp/registration/resource-registration.ts | 56 resources + 12 resource templates     |
 | Prompts                  | ✅     | mcp/registration/prompt-registration.ts   | 40 guided workflows                      |
 | Sampling (SEP-1577)      | ✅     | mcp/sampling.ts (960 lines)               | AI analysis, formula gen, chart suggest  |
 | Elicitation (SEP-1036)   | ✅     | mcp/elicitation.ts (759 lines)            | 5 form schemas + URL flows + wizards     |

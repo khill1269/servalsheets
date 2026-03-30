@@ -181,15 +181,15 @@ function updateSheet() {
 
 ### MCP Protocol Features
 
-| MCP Feature       | ServalSheets             | Availability Elsewhere |
-| ----------------- | ------------------------ | ---------------------- |
-| Tools             | ✅ 25 tools, 408 actions | ❌ Not MCP             |
-| Resources         | ✅ 6 URI templates       | ❌ Not MCP             |
-| Prompts           | ✅ 6 guided workflows    | ❌ Not MCP             |
-| Task cancellation | ✅ Full AbortController  | ❌ Not MCP             |
-| Elicitation       | ✅ User confirmations    | ❌ Not MCP             |
-| Sampling          | ✅ AI analysis           | ❌ Not MCP             |
-| Logging           | ✅ Dynamic levels        | ❌ Not MCP             |
+| MCP Feature       | ServalSheets                   | Availability Elsewhere |
+| ----------------- | ------------------------------ | ---------------------- |
+| Tools             | ✅ 25 tools, 408 actions       | ❌ Not MCP             |
+| Resources         | ✅ 56 resources + 12 templates | ❌ Not MCP             |
+| Prompts           | ✅ 40 guided workflows         | ❌ Not MCP             |
+| Task cancellation | ✅ Full AbortController        | ❌ Not MCP             |
+| Elicitation       | ✅ User confirmations          | ❌ Not MCP             |
+| Sampling          | ✅ AI analysis                 | ❌ Not MCP             |
+| Logging           | ✅ Dynamic levels              | ❌ Not MCP             |
 
 ### Performance Comparison
 
