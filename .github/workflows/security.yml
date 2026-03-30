@@ -218,3 +218,33 @@ jobs:
         with:
           path: ./
           extra_args: --debug --only-verified
+
+  security-summary:
+    name: Security Scanning Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [dependency-review, codeql, npm-audit, sbom, secret-scanning]
+
+    steps:
+      - name: Verify required security jobs succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module <<'EOF'
+          const needs = JSON.parse(process.env.NEEDS_JSON);
+          const allowedSkipped = new Set(['dependency-review']);
+          const failures = [];
+
+          for (const [job, result] of Object.entries(needs)) {
+            if (result.result === 'success') continue;
+            if (result.result === 'skipped' && allowedSkipped.has(job)) continue;
+            failures.push(`${job}=${result.result}`);
+          }
+
+          if (failures.length > 0) {
+            console.error(`Required security jobs failed: ${failures.join(', ')}`);
+            process.exit(1);
+          }
+
+          console.log('All required security jobs passed.');
+          EOF
