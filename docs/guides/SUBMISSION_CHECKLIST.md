@@ -28,54 +28,54 @@ documentation source of truth.
 ## 2. Transport And Protocol
 
 - [ ] Public HTTPS base URL is stable and reachable
-- [ ] Streamable HTTP endpoint is available at `/mcp`
-- [ ] `/.well-known/mcp.json` is served correctly
-- [ ] `/.well-known/oauth-authorization-server` is served correctly when auth is enabled
-- [ ] `/.well-known/oauth-protected-resource` is served correctly when auth is enabled
-- [ ] MCP protocol version matches [`docs/generated/facts.json`](../generated/facts.json)
+- [x] Streamable HTTP endpoint is available at `/mcp`
+- [x] `/.well-known/mcp.json` is served correctly
+- [x] `/.well-known/oauth-authorization-server` is served correctly when auth is enabled
+- [x] `/.well-known/oauth-protected-resource` is served correctly when auth is enabled
+- [x] MCP protocol version matches [`docs/generated/facts.json`](../generated/facts.json)
 - [ ] Claude.ai, Claude Desktop, and Claude Code connection flows have all been tested
 
 ## 3. OAuth And Auth
 
-- [ ] OAuth authorization code flow is working end to end
-- [ ] PKCE is enforced
-- [ ] Allowed redirect URIs include the current Claude callback URLs
-- [ ] Localhost redirect URIs used for Claude Code / MCP Inspector testing are allowlisted separately
+- [x] OAuth authorization code flow is working end to end
+- [x] PKCE is enforced
+- [x] Allowed redirect URIs include the current Claude callback URLs
+- [x] Localhost redirect URIs used for Claude Code / MCP Inspector testing are allowlisted separately
 - [ ] Production token storage and session configuration are documented
 - [ ] Reviewer test access can stay active after initial review
 
 ## 4. Tool Quality
 
-- [ ] All submitted tools have accurate descriptions
-- [ ] All submitted tools include correct `readOnlyHint`
-- [ ] All submitted tools include correct `destructiveHint`
-- [ ] All submitted tools include `title` where applicable
-- [ ] Tool names are no longer than 64 characters
-- [ ] Tool results are token-efficient and do not return unnecessary payloads
+- [x] All submitted tools have accurate descriptions
+- [x] All submitted tools include correct `readOnlyHint`
+- [x] All submitted tools include correct `destructiveHint`
+- [x] All submitted tools include `title` where applicable
+- [x] Tool names are no longer than 64 characters
+- [x] Tool results are token-efficient and do not return unnecessary payloads
 
 ## 5. Reviewer Experience
 
-- [ ] At least 3 working examples are documented
+- [x] At least 3 working examples are documented
 - [ ] A reviewer test account is prepared if authentication is required
 - [ ] Representative sample spreadsheets are available in the reviewer environment
-- [ ] Reviewer instructions are captured in [`TEST_ACCOUNT_SETUP.md`](./TEST_ACCOUNT_SETUP.md)
-- [ ] Remote OAuth setup is captured in [`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md)
+- [x] Reviewer instructions are captured in [`TEST_ACCOUNT_SETUP.md`](./TEST_ACCOUNT_SETUP.md)
+- [x] Remote OAuth setup is captured in [`OAUTH_USER_SETUP.md`](./OAUTH_USER_SETUP.md)
 
 ## 6. Infrastructure And Security
 
 - [ ] TLS certificate is valid and trusted
 - [ ] Firewall / reverse proxy rules are documented without hardcoded stale Claude IP ranges
 - [ ] CORS allows the required Claude origins
-- [ ] Rate limiting is enabled
-- [ ] Health and readiness endpoints are working
-- [ ] Logs and metrics are available for reviewer troubleshooting
+- [x] Rate limiting is enabled
+- [x] Health and readiness endpoints are working
+- [x] Logs and metrics are available for reviewer troubleshooting
 
 ## 7. Metadata Consistency
 
-- [ ] `package.json`, `server.json`, and `manifest.json` agree on version and product description
-- [ ] Active docs use [`docs/generated/facts.json`](../generated/facts.json) or generated sections for mutable counts
-- [ ] `npm run check:doc-action-counts` passes
-- [ ] `npm run validate:doc-tables` passes
+- [x] `package.json`, `server.json`, and `manifest.json` agree on version and product description
+- [x] Active docs use [`docs/generated/facts.json`](../generated/facts.json) or generated sections for mutable counts
+- [x] `npm run check:doc-action-counts` passes
+- [x] `npm run validate:doc-tables` passes
 
 ## 8. Required Validation
 

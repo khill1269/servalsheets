@@ -626,5 +626,8 @@
       "url": "https://servalsheets.dev/privacy",
       "description": "ServalSheets Privacy Policy"
     }
-  ]
+  ],
+  "privacy_policy": "https://github.com/khill1269/servalsheets/blob/main/PRIVACY.md",
+  "support": "https://github.com/khill1269/servalsheets/issues",
+  "support_email": "support@servalsheets.com"
 }
