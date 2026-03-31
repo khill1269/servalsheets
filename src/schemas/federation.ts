@@ -8,7 +8,7 @@
  * @module schemas/federation
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { ErrorDetailSchema } from './shared.js';
 
 /**

@@ -29,7 +29,7 @@
 
 import { createHash } from 'crypto';
 import { cacheManager } from './cache-manager.js';
-import type { ZodSchema } from 'zod';
+import type { ZodSchema } from '../lib/schema.js';
 import { logger } from './logger.js';
 
 const VALIDATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes

@@ -14,7 +14,7 @@
  * IMPORTANT: Does NOT work with service accounts - requires OAuth user auth
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   ErrorDetailSchema,
   ResponseMetaSchema,

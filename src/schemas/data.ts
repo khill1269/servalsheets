@@ -6,7 +6,7 @@
  * v2.0: Validation actions moved to sheets_format (set_validation, clear_validation)
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

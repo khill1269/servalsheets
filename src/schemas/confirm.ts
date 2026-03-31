@@ -10,7 +10,7 @@
  * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
 /**

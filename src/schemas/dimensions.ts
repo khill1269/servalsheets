@@ -3,7 +3,7 @@
  * Row and column operations, filtering, and sorting
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

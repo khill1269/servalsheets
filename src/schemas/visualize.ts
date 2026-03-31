@@ -4,7 +4,7 @@
  * Charts (11 actions) + Pivot tables (7 actions) = 18 actions
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

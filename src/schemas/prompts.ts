@@ -9,7 +9,7 @@
  * https://github.com/modelcontextprotocol/typescript-sdk/issues/494
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
 import { completeRangeContextAware, completeSpreadsheetId } from '../mcp/completions.js';
 

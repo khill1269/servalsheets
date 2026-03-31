@@ -3,7 +3,7 @@
  * Authentication management for OAuth-based usage.
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { URL_REGEX } from '../config/google-limits.js';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 

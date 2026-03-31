@@ -8,7 +8,7 @@
  * @module config/federation-config
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { ValidationError } from '../core/errors.js';
 
 /** RFC 1918 / loopback / link-local ranges blocked to prevent SSRF */

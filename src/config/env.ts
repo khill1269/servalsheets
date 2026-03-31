@@ -11,7 +11,7 @@
  * - Validates early (fail fast)
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { tmpdir } from 'os';
 import { resolve, sep } from 'path';
 import { logger } from '../utils/logger.js';

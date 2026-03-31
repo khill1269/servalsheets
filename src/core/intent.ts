@@ -5,7 +5,7 @@
  * Tighten-up #8: Intent-based architecture
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 
 export const IntentTypeSchema = z.enum([
   // Values

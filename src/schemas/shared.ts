@@ -5,7 +5,7 @@
  * Google Sheets API: v4
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SPREADSHEET_ID_REGEX,
   A1_NOTATION_REGEX,

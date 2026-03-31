@@ -13,7 +13,7 @@
  * - resume: Resume interrupted plan execution
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   ErrorDetailSchema,
   ResponseMetaSchema,

@@ -31,7 +31,7 @@
  * @module utils/schema-inspection
  */
 
-import { z, type ZodTypeAny } from 'zod';
+import { z, type ZodTypeAny } from '../lib/schema.js';
 
 type DefCarrier = ZodTypeAny & {
   _def?: Record<string, unknown>;

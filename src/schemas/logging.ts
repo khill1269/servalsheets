@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 
 /**
  * MCP LoggingLevel enum

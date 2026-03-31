@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from '../../lib/schema.js';
 import { recordErrorCodeCompatibility } from '../../observability/metrics.js';
 import { getTemporaryResourceStore } from '../../resources/temporary-storage.js';
 import { getConcurrencyCoordinator } from '../../services/concurrency-coordinator.js';
@@ -7,7 +7,11 @@ import { getSessionContext } from '../../services/session-context.js';
 import { redactSensitiveData } from '../../middleware/redaction.js';
 import { getErrorCodeCompatibility } from '../../utils/error-code-compat.js';
 import { logger } from '../../utils/logger.js';
-import { getRequestContext, getRequestLlmProvenance, getRequestVerbosity } from '../../utils/request-context.js';
+import {
+  getRequestContext,
+  getRequestLlmProvenance,
+  getRequestVerbosity,
+} from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { applyResponseIntelligence } from './response-intelligence.js';
 import { applyVerbosityFilter } from '../../handlers/helpers/verbosity-filter.js';
@@ -107,14 +111,45 @@ function getTaskRoutingHint(
  * No need to waste tokens reporting this.
  */
 const DETERMINISTIC_ACTIONS = new Set([
-  'read', 'batch_read', 'write', 'batch_write', 'append', 'clear',
-  'list_sheets', 'get_sheet', 'create', 'delete_sheet', 'duplicate_sheet',
-  'set_format', 'batch_format', 'set_background', 'set_borders', 'set_number_format',
-  'insert', 'delete', 'freeze', 'auto_resize', 'sort_range', 'hide', 'unhide',
-  'share_add', 'share_remove', 'share_list', 'comment_add', 'comment_list',
-  'login', 'logout', 'status', 'callback',
-  'begin', 'commit', 'rollback', 'queue',
-  'register', 'unregister', 'list',
+  'read',
+  'batch_read',
+  'write',
+  'batch_write',
+  'append',
+  'clear',
+  'list_sheets',
+  'get_sheet',
+  'create',
+  'delete_sheet',
+  'duplicate_sheet',
+  'set_format',
+  'batch_format',
+  'set_background',
+  'set_borders',
+  'set_number_format',
+  'insert',
+  'delete',
+  'freeze',
+  'auto_resize',
+  'sort_range',
+  'hide',
+  'unhide',
+  'share_add',
+  'share_remove',
+  'share_list',
+  'comment_add',
+  'comment_list',
+  'login',
+  'logout',
+  'status',
+  'callback',
+  'begin',
+  'commit',
+  'rollback',
+  'queue',
+  'register',
+  'unregister',
+  'list',
 ]);
 
 /**
@@ -164,9 +199,15 @@ function extractResponseConfidence(
 
   // 5. Heuristic analysis actions without explicit scores
   const heuristicActions = new Set([
-    'suggest_next_actions', 'auto_enhance', 'suggest_cleaning',
-    'suggest_format', 'suggest_chart', 'suggest_pivot',
-    'detect_anomalies', 'generate_formula', 'preview_generation',
+    'suggest_next_actions',
+    'auto_enhance',
+    'suggest_cleaning',
+    'suggest_format',
+    'suggest_chart',
+    'suggest_pivot',
+    'detect_anomalies',
+    'generate_formula',
+    'preview_generation',
   ]);
   if (heuristicActions.has(actionName)) return 0.7;
 

@@ -4,7 +4,7 @@
  * Format (10) + Batch (1) + Rich Text (1) + Sparklines (3) + Rules (8) = 23 actions
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

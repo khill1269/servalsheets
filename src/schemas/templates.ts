@@ -10,7 +10,7 @@
  * MCP Protocol: 2025-11-25
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   ErrorDetailSchema,

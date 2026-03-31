@@ -13,7 +13,7 @@
  * Smart Chips (4): add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

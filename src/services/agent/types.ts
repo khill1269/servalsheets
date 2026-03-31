@@ -6,7 +6,7 @@
  * need to reference the same interfaces.
  */
 
-import type { ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from '../../lib/schema.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
 
 // ============================================================================

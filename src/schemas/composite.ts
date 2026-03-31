@@ -10,7 +10,7 @@
  * @module schemas/composite
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import type { ToolAnnotations } from './shared.js';
 import {
   SpreadsheetIdSchema,

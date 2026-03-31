@@ -5,7 +5,7 @@
  */
 
 import { GraphQLError } from 'graphql';
-import type { ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from '../lib/schema.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { VERSION, MCP_PROTOCOL_VERSION } from '../version.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';

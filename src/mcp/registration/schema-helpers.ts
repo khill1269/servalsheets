@@ -7,7 +7,7 @@
  */
 
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
-import { z } from 'zod';
+import { z } from '../../lib/schema.js';
 import {
   verifyJsonSchema,
   USE_SCHEMA_REFS,

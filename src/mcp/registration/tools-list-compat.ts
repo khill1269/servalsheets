@@ -7,7 +7,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
+import { z } from '../../lib/schema.js';
 import { DEFER_SCHEMAS, getEffectiveToolMode } from '../../config/constants.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { logger } from '../../utils/logger.js';

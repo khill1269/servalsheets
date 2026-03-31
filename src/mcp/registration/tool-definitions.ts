@@ -7,7 +7,7 @@
  */
 
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from '../../lib/schema.js';
 
 import { DEFER_DESCRIPTIONS } from '../../config/constants.js';
 import { getLazyLoadTools } from '../../config/schema-optimization.js';
