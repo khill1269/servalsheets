@@ -25,8 +25,8 @@ NC='\033[0m' # No Color
 echo "🔍 Comprehensive documentation validation..."
 echo ""
 
-# Get source of truth from TypeScript source (no build required)
-COUNTS_FILE="src/schemas/action-counts.ts"
+# Get source of truth from the generated metadata (the schema file is a re-export shim)
+COUNTS_FILE="src/generated/action-counts.ts"
 
 if [ ! -f "$COUNTS_FILE" ]; then
   echo "❌ Source file not found: $COUNTS_FILE"

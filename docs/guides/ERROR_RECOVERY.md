@@ -1063,4 +1063,4 @@ async function batchWriteWithRetry(spreadsheetId, batches) {
 
 ---
 
-**Last Updated**: 2026-01-30 (v1.6.0)
+**Last Updated**: 2026-01-30 (v2.0.0)

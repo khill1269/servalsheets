@@ -326,7 +326,7 @@ capabilities: {
 | Sheets API v4 | 50+ batchUpdate types | 140+ mapped actions  | **~95%**  |
 | Values API    | 10 methods            | 7 actions (+ batch)  | **100%**  |
 | Drive API v3  | 14 endpoints used     | 28 actions           | **100%**  |
-| **Total**     | 74+ API operations    | 407 actions          | **>100%** |
+| **Total**     | 74+ API operations    | 408 actions          | **>100%** |
 
 ---
 

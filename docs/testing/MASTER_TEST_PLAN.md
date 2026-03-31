@@ -6,7 +6,7 @@ status: active
 
 # ServalSheets — Master Test Plan
 
-> 13 test categories covering all 407 actions, 27 error patterns, 4 agent workflows,
+> 13 test categories covering all 408 actions, 27 error patterns, 4 agent workflows,
 > 8 user personas, and every MCP interaction pattern.
 > Generated: 2026-03-19. Source: action registry, server capabilities, real-world workflow research.
 
@@ -201,16 +201,16 @@ status: active
 
 ### Scenarios
 
-| #   | Scenario                     | Actions                                                   | What to Verify                                 |
-| --- | ---------------------------- | --------------------------------------------------------- | ---------------------------------------------- |
-| 7.1 | Named range CRUD             | `add_named_range` through `delete_named_range`            | Full lifecycle; used by dependent dropdowns    |
+| #   | Scenario                     | Actions                                                   | What to Verify                                                                                                                 |
+| --- | ---------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 7.1 | Named range CRUD             | `add_named_range` through `delete_named_range`            | Full lifecycle; used by dependent dropdowns                                                                                    |
 | 7.2 | Protected range permissions  | `add_protected_range`, `list_protected_ranges`            | Editor lists; warning-only mode; scope = `range` / `sheet` / `named_range`; `unprotectedRanges` preserved on sheet protections |
-| 7.3 | Developer metadata           | `set_metadata`, `get_metadata`, `delete_metadata`         | Key-value store on cells/sheets                |
-| 7.4 | Banding (alternating colors) | `add_banding`, `update_banding`, `delete_banding`         | Header/footer rows; color schemes              |
-| 7.5 | Structured tables            | `create_table`, `update_table`, `rename_table_column`     | Table boundaries; column properties            |
-| 7.6 | Smart chips                  | `add_person_chip`, `add_drive_chip`, `add_rich_link_chip` | People/file/URL chips inserted correctly       |
-| 7.7 | Named functions              | `create_named_function` through `delete_named_function`   | Custom function registration; formula usage    |
-| 7.8 | Template lifecycle           | `create`, `apply`, `preview`, `import_builtin`            | Idempotency on create; parameterized templates |
+| 7.3 | Developer metadata           | `set_metadata`, `get_metadata`, `delete_metadata`         | Key-value store on cells/sheets                                                                                                |
+| 7.4 | Banding (alternating colors) | `add_banding`, `update_banding`, `delete_banding`         | Header/footer rows; color schemes                                                                                              |
+| 7.5 | Structured tables            | `create_table`, `update_table`, `rename_table_column`     | Table boundaries; column properties                                                                                            |
+| 7.6 | Smart chips                  | `add_person_chip`, `add_drive_chip`, `add_rich_link_chip` | People/file/URL chips inserted correctly                                                                                       |
+| 7.7 | Named functions              | `create_named_function` through `delete_named_function`   | Custom function registration; formula usage                                                                                    |
+| 7.8 | Template lifecycle           | `create`, `apply`, `preview`, `import_builtin`            | Idempotency on create; parameterized templates                                                                                 |
 
 ### Personas: Data Engineer (metadata), Financial Analyst (protected ranges), Small Business Owner (templates)
 
@@ -362,7 +362,7 @@ status: active
 | 12.9  | `_meta.apiCallsMade` accuracy    | Count matches actual Google API calls made                          |
 | 12.10 | `_meta.executionTimeMs` accuracy | Wall-clock time from request start                                  |
 | 12.11 | Completions: spreadsheetId       | Session-recorded IDs returned as completions                        |
-| 12.12 | Completions: action names        | All 407 actions available as completions                            |
+| 12.12 | Completions: action names        | All 408 actions available as completions                            |
 | 12.13 | Completions: enum values         | Chart types, format presets, strategies all completable             |
 | 12.14 | Tool discovery hints             | `actionParams` in tools/list with required fields per action        |
 | 12.15 | Server instructions quality      | 5-GROUP mental model complete; error recovery table accurate        |

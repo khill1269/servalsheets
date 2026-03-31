@@ -12,7 +12,7 @@ Production-grade Google Sheets MCP Server with 25 tools, 408 actions, safety rai
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
 </p>
 
-## What's New (Post-v1.7.0, 2026-02-17 → Present)
+## What's New (Post-v2.0.0, 2026-02-17 → Present)
 
 🧠 **LLM Intelligence Sprint, Advanced Compute & Production Hardening**
 
@@ -33,7 +33,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ---
 
-### v1.7.0 (2026-02-17)
+### v2.0.0 (2026-02-17)
 
 🚀 **Modern Formula Intelligence & Marketplace Release**
 
@@ -76,7 +76,7 @@ Claude Desktop connects to the local STDIO process. Hosted HTTP is a separate tr
 Historical release snapshots are kept here for upgrade context.
 
 <details>
-<summary>v1.6.0 - Enterprise Deployment & Infrastructure (2026-01-26)</summary>
+<summary>v2.0.0 - Enterprise Deployment & Infrastructure (2026-01-26)</summary>
 
 - Helm Charts, Terraform Modules (AWS/GCP), Health Monitoring
 - W3C Trace Context, Schema Caching, Webhook Support
@@ -85,7 +85,7 @@ Historical release snapshots are kept here for upgrade context.
 </details>
 
 <details>
-<summary>v1.6.0 - Zod v4 & Performance (2026-01-10)</summary>
+<summary>v2.0.0 - Zod v4 & Performance (2026-01-10)</summary>
 
 - Upgraded Zod 3.25 → 4.3.5 with native JSON Schema
 - 14x faster string parsing, 7x faster arrays
@@ -94,7 +94,7 @@ Historical release snapshots are kept here for upgrade context.
 </details>
 
 <details>
-<summary>v1.6.0 - MCP Protocol Native (2026-01-06)</summary>
+<summary>v2.0.0 - MCP Protocol Native (2026-01-06)</summary>
 
 - MCP Logging, Tasks, Elicitation, Sampling support
 - 6 URI resource templates, Full AbortController cancellation
@@ -102,7 +102,7 @@ Historical release snapshots are kept here for upgrade context.
 </details>
 
 <details>
-<summary>v1.6.0 - Advanced Analytics (2026-01-05)</summary>
+<summary>v2.0.0 - Advanced Analytics (2026-01-05)</summary>
 
 - Pattern Detection, Column Analysis
 - AI-Powered formula generation & chart recommendations

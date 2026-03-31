@@ -532,4 +532,4 @@ Formula dependency graph.
 
 ---
 
-_ServalSheets v1.6.0 | 21 Tools | 272 Actions_
+_ServalSheets v2.0.0 | 21 Tools | 272 Actions_

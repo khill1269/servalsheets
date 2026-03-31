@@ -10,15 +10,16 @@
 **Full audit documented in:** `audit_2026-03-22_alignment.md`
 
 **Key Findings:**
-- ✅ All 407 actions have corresponding handler cases
-- ✅ All 407 actions have cache invalidation rules
+
+- ✅ All 408 actions have corresponding handler cases
+- ✅ All 408 actions have cache invalidation rules
 - ✅ semantic_search (Session 95) properly wired everywhere
 - ✅ MUTATION_ACTIONS parity verified (audit-middleware == write-lock-middleware)
 - ✅ Handler deviations properly documented (sheets_core aliases only)
 - ✅ Annotations complete for all tools
 - ✅ Session context wiring verified for 15+ actions
 
-**Audit Scope:** 25 tools, 407 actions, 53%+ systematic sampling + pattern verification
+**Audit Scope:** 25 tools, 408 actions, 53%+ systematic sampling + pattern verification
 **Status:** PASS (Zero blocking issues)
 
 ---
@@ -28,6 +29,7 @@
 ### Status: 4 RESOLVED, 7 STILL OPEN
 
 **Newly Resolved in this audit:**
+
 - **Issue #7**: TOOL_EXECUTION_CONFIG — All 3 tools (sheets_dependencies, sheets_fix, sheets_history) CORRECTLY set to `taskSupport: 'optional'` at src/mcp/features-2025-11-25.ts:276,278,286
 - **Issue #8**: CLAUDE.md stale count — FIXED. Line 15 now correctly states "22 tools and 341 actions" (was 315)
 - **Issue #10**: MCP_PROTOCOL_VERSION duplication — RESOLVED. Single source at src/constants/protocol.ts:6, re-exported by version.ts and schemas/shared.ts
@@ -181,6 +183,7 @@ npm run test:fast    # 8 seconds
 ## Action Count Verification (2026-02-25 Audit)
 
 **341 actions confirmed across 22 tools** via case statement audit:
+
 - composite.ts: 19 cases verified (line 148-204)
 - analyze.ts: 18 cases verified (lines 292-2002, excluding nested parameter switches at 1774-1792)
 - data.ts: 23 cases verified (lines 207-255)
@@ -191,12 +194,12 @@ npm run test:fast    # 8 seconds
 
 ## Code Quality Metrics (2026-02-25 Audit)
 
-| Metric | Finding | Confidence |
-|--------|---------|-----------|
-| Silent fallbacks in handlers | 0 (only intentional `return {}` with comments) | 100% |
-| Console logs in handlers | 0 | 100% |
-| Bare `new Error()` in handlers | 0 (all typed errors) | 100% |
-| Dead code detected | 0 (knip.json correct) | 100% |
-| TODO/FIXME (legitimate) | 11 (all documented deprecations) | 100% |
-| Handler exhaustiveness checks | 22/22 use `never` type | 100% |
-| MCP version duplications | 0 (single source at constants/protocol.ts) | 100% |
+| Metric                         | Finding                                        | Confidence |
+| ------------------------------ | ---------------------------------------------- | ---------- |
+| Silent fallbacks in handlers   | 0 (only intentional `return {}` with comments) | 100%       |
+| Console logs in handlers       | 0                                              | 100%       |
+| Bare `new Error()` in handlers | 0 (all typed errors)                           | 100%       |
+| Dead code detected             | 0 (knip.json correct)                          | 100%       |
+| TODO/FIXME (legitimate)        | 11 (all documented deprecations)               | 100%       |
+| Handler exhaustiveness checks  | 22/22 use `never` type                         | 100%       |
+| MCP version duplications       | 0 (single source at constants/protocol.ts)     | 100%       |

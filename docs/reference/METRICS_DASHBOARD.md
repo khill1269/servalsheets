@@ -86,14 +86,14 @@ last_updated: 2026-01-31
 | ---------- | ---------------------------------------- | -------------------------------------------------- |
 | 2026-01-30 | MCP_2025-11-25_COMPLIANCE_CHECKLIST.md   | docs: Complete Phase 0 improvements (OTEL, vers... |
 | 2026-01-30 | BUG_FIXES_2026-01-30.md                  | fix(retry): Add HTTP/2 GOAWAY error handling fo... |
-| 2026-01-30 | API_MCP_MAPPING_MATRIX.md                | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | architecture-diagrams.md                 | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | development/ADVANCED_TESTING_STRATEGY.md | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | development/DOCUMENTATION.md             | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | guides/CLAUDE_DESKTOP_SETUP.md           | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | guides/ERROR_HANDLING.md                 | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | guides/INSTALLATION_GUIDE.md             | docs: Update all version references to v1.6.0      |
-| 2026-01-30 | guides/USAGE_GUIDE.md                    | docs: Update all version references to v1.6.0      |
+| 2026-01-30 | API_MCP_MAPPING_MATRIX.md                | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | architecture-diagrams.md                 | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | development/ADVANCED_TESTING_STRATEGY.md | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | development/DOCUMENTATION.md             | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | guides/CLAUDE_DESKTOP_SETUP.md           | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | guides/ERROR_HANDLING.md                 | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | guides/INSTALLATION_GUIDE.md             | docs: Update all version references to v2.0.0      |
+| 2026-01-30 | guides/USAGE_GUIDE.md                    | docs: Update all version references to v2.0.0      |
 
 ---
 

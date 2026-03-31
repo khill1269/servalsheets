@@ -1141,7 +1141,7 @@ describe('E2E: Read-Write Flow', () => {
 
 ## E2E Workflow Tests (Phase 2B)
 
-> **New in v1.6.0**: Workflow-based E2E tests for multi-step operations
+> **New in v2.0.0**: Workflow-based E2E tests for multi-step operations
 
 E2E workflow tests validate complete user journeys across multiple tools. These tests use the Test Orchestrator to coordinate complex multi-step operations.
 

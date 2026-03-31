@@ -209,7 +209,7 @@ Enable these features via environment variables:
 | [README.md](../../README.md)                                   | Project overview        | Everyone        |
 | [CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md)           | Claude Desktop setup    | Desktop users   |
 | [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md)               | This document           | Everyone        |
-| [RELEASE_NOTES_v1.6.0.md](../releases/RELEASE_NOTES_v1.6.0.md) | v1.6.0 details          | Upgrading users |
+| [RELEASE_NOTES_v1.6.0.md](../releases/RELEASE_NOTES_v1.6.0.md) | v2.0.0 details          | Upgrading users |
 | [CHANGELOG.md](../../CHANGELOG.md)                             | All versions            | Everyone        |
 | [.env.example](../../.env.example)                             | Environment variables   | Deployers       |
 | [DEPLOYMENT.md](./DEPLOYMENT.md)                               | Production deployment   | DevOps          |

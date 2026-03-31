@@ -7,40 +7,40 @@
 
 ### Core Development
 
-| Agent | File | Purpose |
-|-------|------|----------|
-| **ServalSheets Implementation** | `servalsheets-implementation.md` | TDD-based feature implementation — adding actions, fixing bugs, modifying handlers/schemas |
-| **ServalSheets Research** | `servalsheets-research.md` | Fast read-only codebase research — pattern discovery, architectural analysis, code examples |
-| **ServalSheets Validation** | `servalsheets-validation.md` | Automated gate pipeline (G0–G4) for pre-commit checks and phase completion |
-| **Debug Tracer** | `debug-tracer.md` | Execution path tracer for the 4-layer pipeline to pinpoint failure origins |
+| Agent                           | File                             | Purpose                                                                                     |
+| ------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| **ServalSheets Implementation** | `servalsheets-implementation.md` | TDD-based feature implementation — adding actions, fixing bugs, modifying handlers/schemas  |
+| **ServalSheets Research**       | `servalsheets-research.md`       | Fast read-only codebase research — pattern discovery, architectural analysis, code examples |
+| **ServalSheets Validation**     | `servalsheets-validation.md`     | Automated gate pipeline (G0–G4) for pre-commit checks and phase completion                  |
+| **Debug Tracer**                | `debug-tracer.md`                | Execution path tracer for the 4-layer pipeline to pinpoint failure origins                  |
 
 ### Quality & Testing
 
-| Agent | File | Purpose |
-|-------|------|----------|
-| **Testing Specialist** | `testing-specialist.md` | Test strategy design — property-based tests, mutation testing, critical path coverage |
-| **Comprehensive Tester** | `servalsheets-comprehensive-tester.md` | Real-API testing of all 25 tools / 407 actions with performance analysis |
-| **Code Review Orchestrator** | `code-review-orchestrator.md` | Multi-perspective review — type checking, linting, MCP compliance, security, tests |
-| **Security Auditor** | `security-auditor.md` | OWASP review, OAuth/credential handling, SQL injection, authorization gaps |
-| **Performance Optimizer** | `performance-optimizer.md` | Profiling, bottleneck identification, quota optimization, regression validation |
+| Agent                        | File                                   | Purpose                                                                               |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Testing Specialist**       | `testing-specialist.md`                | Test strategy design — property-based tests, mutation testing, critical path coverage |
+| **Comprehensive Tester**     | `servalsheets-comprehensive-tester.md` | Real-API testing of all 25 tools / 408 actions with performance analysis              |
+| **Code Review Orchestrator** | `code-review-orchestrator.md`          | Multi-perspective review — type checking, linting, MCP compliance, security, tests    |
+| **Security Auditor**         | `security-auditor.md`                  | OWASP review, OAuth/credential handling, SQL injection, authorization gaps            |
+| **Performance Optimizer**    | `performance-optimizer.md`             | Profiling, bottleneck identification, quota optimization, regression validation       |
 
 ### Google API Expertise
 
-| Agent | File | Purpose |
-|-------|------|----------|
-| **Google API Architect** | `google-api-architect.md` | Expert guidance on Sheets/Drive/Apps Script/BigQuery implementation and optimization |
-| **Google API Expert** | `google-api-expert.md` | Sheets API v4 specialist — real-time docs access, quota optimization |
-| **Google Apps Script Expert** | `google-appsscript-expert.md` | Apps Script API — custom functions, automation patterns |
-| **Google BigQuery Expert** | `google-bigquery-expert.md` | BigQuery API — Sheets-BigQuery integration patterns |
-| **Google Drive Expert** | `google-drive-expert.md` | Drive API v3 — file operations, permissions, real-time docs access |
+| Agent                         | File                          | Purpose                                                                              |
+| ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------ |
+| **Google API Architect**      | `google-api-architect.md`     | Expert guidance on Sheets/Drive/Apps Script/BigQuery implementation and optimization |
+| **Google API Expert**         | `google-api-expert.md`        | Sheets API v4 specialist — real-time docs access, quota optimization                 |
+| **Google Apps Script Expert** | `google-appsscript-expert.md` | Apps Script API — custom functions, automation patterns                              |
+| **Google BigQuery Expert**    | `google-bigquery-expert.md`   | BigQuery API — Sheets-BigQuery integration patterns                                  |
+| **Google Drive Expert**       | `google-drive-expert.md`      | Drive API v3 — file operations, permissions, real-time docs access                   |
 
 ### Protocol & Configuration
 
-| Agent | File | Purpose |
-|-------|------|----------|
-| **MCP Protocol Expert** | `mcp-protocol-expert.md` | Protocol compliance validation against MCP 2025-11-25 spec |
+| Agent                       | File                         | Purpose                                                                          |
+| --------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| **MCP Protocol Expert**     | `mcp-protocol-expert.md`     | Protocol compliance validation against MCP 2025-11-25 spec                       |
 | **MCP Protocol Specialist** | `mcp-protocol-specialist.md` | Elite protocol specialist — compliance, implementation, transport layer guidance |
-| **Claude Config Optimizer** | `claude-config-optimizer.md` | Meta-agent for optimizing Claude Code configuration and MCP server usage |
+| **Claude Config Optimizer** | `claude-config-optimizer.md` | Meta-agent for optimizing Claude Code configuration and MCP server usage         |
 
 ## Usage
 

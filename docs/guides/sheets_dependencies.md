@@ -1055,4 +1055,4 @@ dot -Tpng -Gconcentrate=true dependencies.dot -o deps.png
 
 ---
 
-**Last Updated**: 2026-01-30 (v1.6.0)
+**Last Updated**: 2026-01-30 (v2.0.0)

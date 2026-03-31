@@ -192,7 +192,7 @@ Knowledge is maintained for:
 
 - **Google Sheets API**: v4 (current)
 - **MCP Protocol**: 2025-11-25
-- **ServalSheets**: v1.6.0
+- **ServalSheets**: v2.0.0
 
 ### Update Frequency
 

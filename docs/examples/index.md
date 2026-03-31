@@ -83,7 +83,7 @@ If you have examples to share:
 
 All examples are tested with:
 
-- **ServalSheets**: v1.6.0
+- **ServalSheets**: v2.0.0
 - **MCP Protocol**: 2025-11-25
 - **Google Sheets API**: v4
 
