@@ -136,6 +136,7 @@ test-replay.jsonl
 
 # Documentation - Auto-generated (TypeDoc)
 docs/generated/
+!docs/generated/facts.json
 docs/.vitepress/dist/
 docs/development/complete-file-audit/
 

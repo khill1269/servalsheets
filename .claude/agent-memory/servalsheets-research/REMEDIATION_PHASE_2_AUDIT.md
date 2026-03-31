@@ -24,20 +24,22 @@
 
 ### Summary Table
 
-| Tool | Schema Count | Handler Cases | Match | Confidence |
-|------|-------------|---------------|-------|-----------|
-| sheets_composite | 19 | 19 unique | ✅ | 100% |
-| sheets_analyze | 18 | 18 unique | ✅ | 100% |
-| sheets_data | 23 | 23 unique | ✅ | 100% |
-| sheets_fix | 6 | 6 unique | ✅ | 100% |
-| **TOTAL** | **341** | **341 unique** | ✅ | **100%** |
+| Tool             | Schema Count | Handler Cases  | Match | Confidence |
+| ---------------- | ------------ | -------------- | ----- | ---------- |
+| sheets_composite | 19           | 19 unique      | ✅    | 100%       |
+| sheets_analyze   | 18           | 18 unique      | ✅    | 100%       |
+| sheets_data      | 23           | 23 unique      | ✅    | 100%       |
+| sheets_fix       | 6            | 6 unique       | ✅    | 100%       |
+| **TOTAL**        | **341**      | **341 unique** | ✅    | **100%**   |
 
 ### Detailed Findings
 
 #### sheets_composite (19 actions)
+
 **Source:** `src/handlers/composite.ts:148-204`
 
 Verified case statements:
+
 ```
 import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx,
 get_form_responses, setup_sheet, import_and_format, clone_structure,
@@ -49,9 +51,11 @@ migrate_spreadsheet
 **Implementation Status:** All 19 have dedicated handler methods (lines 148-204 show dispatch, individual methods follow)
 
 #### sheets_analyze (18 actions)
+
 **Source:** `src/handlers/analyze.ts:292-2002`
 
 Verified unique case statements at lines:
+
 ```
 292(analyze_data), 301(generate_formula), 311(suggest_visualization), 434(detect_patterns),
 607(analyze_structure), 683(analyze_quality), 789(analyze_performance), 975(analyze_formulas),
@@ -63,9 +67,11 @@ Verified unique case statements at lines:
 **Note:** Lines 1774-1792 are nested `case` statements within a parameter switch (drill_down category filter), not top-level actions. Correctly identified.
 
 #### sheets_data (23 actions)
+
 **Source:** `src/handlers/data.ts:158-255`
 
 Verified unique case statements:
+
 ```
 read, write, append, clear, batch_read, batch_write, batch_clear, find_replace,
 add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells,
@@ -76,9 +82,11 @@ cross_read, cross_query, cross_write, cross_compare
 **Implementation Status:** All 23 implementations verified
 
 #### sheets_fix (6 actions)
+
 **Source:** `src/handlers/fix.ts:52-77`
 
 Verified case statements:
+
 ```
 fix, clean, standardize_formats, fill_missing, detect_anomalies, suggest_cleaning
 ```
@@ -90,6 +98,7 @@ fix, clean, standardize_formats, fill_missing, detect_anomalies, suggest_cleanin
 **VERDICT:** 100% implementation coverage. Schema definitions at `src/schemas/action-counts.ts:10-33` match handler implementations exactly.
 
 All 341 actions have:
+
 - ✅ Case statement dispatch in handler
 - ✅ Private handler method implementation
 - ✅ Error handling (try/catch wrapper or mapError)
@@ -106,14 +115,16 @@ All 341 actions have:
 File: `/Users/thomascahill/Documents/servalsheets 2/knip.json`
 
 Configuration correctly:
-- Includes all entry points (src/cli.ts, src/server.ts, src/http-server.ts, tests/**)
-- Ignores properly (docs/, **/*.test.ts, **/*.spec.ts, src/**/*.d.ts)
-- Marks external dependencies as non-unused (@types/*, googleapis, redis, etc.)
+
+- Includes all entry points (src/cli.ts, src/server.ts, src/http-server.ts, tests/\*\*)
+- Ignores properly (docs/, **/\*.test.ts, **/_.spec.ts, src/\*\*/_.d.ts)
+- Marks external dependencies as non-unused (@types/\*, googleapis, redis, etc.)
 - Uses `ignoreExportsUsedInFile: true` to avoid false positives from same-file exports
 
 ### Dead Code Search Results
 
 **TODO/FIXME/HACK/DEPRECATED:**
+
 - 11 findings, all legitimate (documented deprecations):
   - `DEPRECATED_VERSIONS` in middleware/schema-version.ts (intentional tracking)
   - 3 deprecated schema fields (backwards compatibility) with `.describe('DEPRECATED: ...')`
@@ -121,15 +132,18 @@ Configuration correctly:
   - 1 deprecated chart trendline (Google API limitation documented)
 
 **Silent Fallbacks (`return {}`):**
+
 - 3 found in handlers (all with intent comments):
   - `appsscript.ts:494` — `return {} as unknown as T` with comment "OK: Explicit empty for void operations"
   - `templates.ts:716, 724` — `return {}` with comment "OK: Explicit empty for invalid format"
   - All 3 are intentional (void operations or graceful degradation)
 
 **Console Logs:**
+
 - 0 found in handlers (verified across `src/handlers/`)
 
 **Generic Error Throws:**
+
 - 0 bare `new Error()` in handlers (all use typed errors from core/errors.ts)
 
 ### Verdict
@@ -145,6 +159,7 @@ Configuration correctly:
 #### BaseHandler Pattern (13 handlers)
 
 All BaseHandler extensions follow correct pattern:
+
 ```typescript
 class ToolHandler extends BaseHandler<Input, Output> {
   async handle(input: Input): Promise<Output> {
@@ -164,6 +179,7 @@ class ToolHandler extends BaseHandler<Input, Output> {
 #### Standalone Handler Pattern (9 handlers)
 
 All standalone handlers correctly implement:
+
 ```typescript
 class StandaloneHandler {
   async handle(input: Input): Promise<Output> {
@@ -172,7 +188,7 @@ class StandaloneHandler {
       case 'action':
         return { response: { success: true, action: 'action', ...data } };
       default:
-        // error handling
+      // error handling
     }
   }
 }
@@ -183,6 +199,7 @@ class StandaloneHandler {
 #### Default Case Exhaustiveness
 
 **Finding:** All 22 handlers use `never` exhaustiveness check in default case:
+
 ```typescript
 default: {
   const _exhaustiveCheck: never = req;
@@ -197,6 +214,7 @@ default: {
 **Status:** ✅ **PROPERLY CENTRALIZED**
 
 All handlers correctly import from extracted helpers:
+
 - `./helpers/error-mapping.js` — 6 standalone handlers (auth, transaction, dependencies, federation, quality, webhooks)
 - `./helpers/verbosity-filter.js` — 4 handlers (auth, transaction, quality, confirm)
 - `./helpers/validation-helpers.js` — 3+ handlers
@@ -216,11 +234,13 @@ All handlers correctly import from extracted helpers:
 **Current Status:** ✅ **RESOLVED**
 
 **Single Source of Truth:** `src/constants/protocol.ts:6`
+
 ```typescript
 export const MCP_PROTOCOL_VERSION = '2025-11-25';
 ```
 
 **Re-exports:**
+
 - `src/version.ts:9` — imports and re-exports
 - `src/schemas/shared.ts:22` — re-exports from constants/protocol.js
 
@@ -280,6 +300,7 @@ export function waitFor(ms: number): Promise<void> {
 **Status:** ✅ **CORRECT RE-EXPORT PATTERN**
 
 Re-exports from:
+
 - validation-helpers.js
 - verbosity-filter.js
 - column-helpers.js
@@ -296,19 +317,19 @@ All files exist and are properly used.
 
 ### Issues Still Open (11/11 remain)
 
-| Issue | Location | Status | Priority | Notes |
-|-------|----------|--------|----------|-------|
-| 1 | batch_clear confirmation skip | ⚠️ OPEN | HIGH | Line 2365: "Skip elicitation confirmation to avoid MCP hang" |
-| 2 | approval_cancel no confirmation | ⚠️ OPEN | HIGH | Line 1809 needs confirmDestructiveAction() |
-| 3 | restore_cells missing confirmation | ⚠️ OPEN | HIGH | Has snapshot but no user approval request |
-| 4 | sampling.ts bare createMessage calls | ⚠️ OPEN | MEDIUM | 7 calls lacking fallback (lines 325, 383, 443, 488, 535, 873, 930) |
-| 5 | batch-reply-parser.ts missing | ⚠️ OPEN | MEDIUM | File referenced but not found |
-| 6 | deleteProfile() not implemented | ⚠️ OPEN | LOW | user-profile-manager.ts missing delete method |
-| 7 | TOOL_EXECUTION_CONFIG task support | ✅ RESOLVED | — | All 3 tools (sheets_dependencies, sheets_fix, sheets_history) correctly set to 'optional' |
-| 8 | CLAUDE.md outdated action count | ✅ RESOLVED | — | Now correctly states 341 actions (was 315) |
-| 9 | suggest_format strict sampling | ⚠️ OPEN | MEDIUM | Returns FEATURE_UNAVAILABLE without fallback |
-| 10 | MCP_PROTOCOL_VERSION duplication | ✅ RESOLVED | — | Single source at constants/protocol.ts |
-| 11 | history.timeline session context | ✅ RESOLVED | — | Correctly wires via getSessionContext() |
+| Issue | Location                             | Status      | Priority | Notes                                                                                     |
+| ----- | ------------------------------------ | ----------- | -------- | ----------------------------------------------------------------------------------------- |
+| 1     | batch_clear confirmation skip        | ⚠️ OPEN     | HIGH     | Line 2365: "Skip elicitation confirmation to avoid MCP hang"                              |
+| 2     | approval_cancel no confirmation      | ⚠️ OPEN     | HIGH     | Line 1809 needs confirmDestructiveAction()                                                |
+| 3     | restore_cells missing confirmation   | ⚠️ OPEN     | HIGH     | Has snapshot but no user approval request                                                 |
+| 4     | sampling.ts bare createMessage calls | ⚠️ OPEN     | MEDIUM   | 7 calls lacking fallback (lines 325, 383, 443, 488, 535, 873, 930)                        |
+| 5     | batch-reply-parser.ts missing        | ⚠️ OPEN     | MEDIUM   | File referenced but not found                                                             |
+| 6     | deleteProfile() not implemented      | ⚠️ OPEN     | LOW      | user-profile-manager.ts missing delete method                                             |
+| 7     | TOOL_EXECUTION_CONFIG task support   | ✅ RESOLVED | —        | All 3 tools (sheets_dependencies, sheets_fix, sheets_history) correctly set to 'optional' |
+| 8     | CLAUDE.md outdated action count      | ✅ RESOLVED | —        | Now correctly states 341 actions (was 315)                                                |
+| 9     | suggest_format strict sampling       | ⚠️ OPEN     | MEDIUM   | Returns FEATURE_UNAVAILABLE without fallback                                              |
+| 10    | MCP_PROTOCOL_VERSION duplication     | ✅ RESOLVED | —        | Single source at constants/protocol.ts                                                    |
+| 11    | history.timeline session context     | ✅ RESOLVED | —        | Correctly wires via getSessionContext()                                                   |
 
 **Summary:** 4 newly resolved this audit (7, 8, 10, 11), 7 remain open awaiting targeted fixes.
 
@@ -359,27 +380,28 @@ Result: 341 actions confirmed.
 
 ### Configuration & Metadata
 
-| File | Status | Notes |
-|------|--------|-------|
-| src/schemas/action-counts.ts | ✅ Current | 22 tools, 341 actions (post-P14) |
-| src/constants/protocol.ts | ✅ Current | MCP 2025-11-25 (single source) |
-| src/version.ts | ✅ Current | v1.7.0, re-exports MCP version |
-| CLAUDE.md | ✅ Current | Line 15 correctly updated to 341 |
-| .serval/state.md | ✅ Current | Auto-generated, matches action counts |
-| knip.json | ✅ Proper | Dead code config correct, no issues |
+| File                         | Status     | Notes                                 |
+| ---------------------------- | ---------- | ------------------------------------- |
+| src/schemas/action-counts.ts | ✅ Current | 22 tools, 341 actions (post-P14)      |
+| src/constants/protocol.ts    | ✅ Current | MCP 2025-11-25 (single source)        |
+| src/version.ts               | ✅ Current | v2.0.0, re-exports MCP version        |
+| CLAUDE.md                    | ✅ Current | Line 15 correctly updated to 341      |
+| .serval/state.md             | ✅ Current | Auto-generated, matches action counts |
+| knip.json                    | ✅ Proper  | Dead code config correct, no issues   |
 
 ### New Utilities Added
 
-| File | Purpose | Status |
-|------|---------|--------|
-| src/constants/protocol.ts | Centralize MCP version | ✅ Well-placed |
+| File                                | Purpose                               | Status              |
+| ----------------------------------- | ------------------------------------- | ------------------- |
+| src/constants/protocol.ts           | Centralize MCP version                | ✅ Well-placed      |
 | src/services/understanding-store.ts | Progressive understanding accumulator | ✅ No circular deps |
-| src/utils/tenant-identification.ts | Multi-tenant attribution | ✅ Safe crypto |
-| tests/helpers/wait-for.ts | Test utility | ✅ Minimal |
+| src/utils/tenant-identification.ts  | Multi-tenant attribution              | ✅ Safe crypto      |
+| tests/helpers/wait-for.ts           | Test utility                          | ✅ Minimal          |
 
 ### Deleted Files (Properly Handled)
 
 Per git status, 5 files were deleted in remediation phase:
+
 - src/constants/extraction-fields.ts
 - src/types/google-api-extensions.ts
 - src/types/operation-plan.ts
@@ -413,7 +435,7 @@ All deletions are clean (no orphaned imports detected in grep).
 4. **sampling.ts missing fallback** — 7 bare createMessage() calls
 5. **batch-reply-parser.ts missing** — referenced but file not found
 6. **deleteProfile() not implemented** — user-profile-manager gap
-9. **suggest_format missing fallback** — returns FEATURE_UNAVAILABLE instead of graceful degrade
+7. **suggest_format missing fallback** — returns FEATURE_UNAVAILABLE instead of graceful degrade
 
 ### Red Flags ❌ (None)
 
@@ -451,6 +473,7 @@ No blocking issues found.
 ### Verification Gates
 
 Run after fixes:
+
 ```bash
 npm run test:fast        # 2253/2253 unit + contract tests
 npm run verify:safe      # TypeCheck + test + drift (skip lint)

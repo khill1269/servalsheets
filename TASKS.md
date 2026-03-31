@@ -25,7 +25,7 @@ Goal: Execute the post-readiness backlog focused on maintainability decompositio
 - [x] P18-D9D: Extract `src/http-server.ts` middleware + observability/admin route modules. (`src/http-server/{middleware,routes-observability}.ts` extracted; `src/http-server.ts` `3259 -> 2168`; typecheck + focused HTTP suites green)
 - [x] P18-D9E: Extract `src/http-server.ts` transport/session/webhook/lifecycle modules and remove the `src/http-server.ts` size-budget override. (`src/http-server/{transport-helpers,routes-webhooks,graphql-admin,routes-transport}.ts` extracted; `src/http-server.ts` `3259 -> 956`; override removed from `scripts/check-file-sizes.sh`; typecheck + targeted ESLint + focused HTTP suites green)
 - [x] P18-D10: Complete final gate verification (`verify:safe`) for decomposition closure. (`check:file-sizes` green after `src/handlers/dimensions.ts` reduction to `2033`; `verify:safe` now passing)
-- [ ] P18-D11: Decompose `src/services/cleaning-engine-rules.ts` enough to remove its temporary size-budget override after the post-merge CI stabilization work.
+- [x] P18-D11: Decompose `src/services/cleaning-engine-rules.ts` enough to remove its temporary size-budget override after the post-merge CI stabilization work.
 
 ## Completed Phase: Remediation & Architecture (P16)
 

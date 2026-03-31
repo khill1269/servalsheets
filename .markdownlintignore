@@ -42,3 +42,6 @@ docs/development/**
 # Research and planning docs (dense structured format, not public-facing)
 docs/research/**
 docs/testing/**
+
+# Internal codebase audit reports (auto-generated analysis, dense structured format)
+audit/**
