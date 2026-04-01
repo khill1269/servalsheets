@@ -205,7 +205,7 @@ jobs:
 
       - name: TruffleHog OSS (diff scan)
         if: steps.trufflehog-range.outputs.mode == 'diff'
-        uses: trufflesecurity/trufflehog@821e8b9e5cdf8dc484dd23e06f78941fcf6b9191 # v3.91.2
+        uses: trufflesecurity/trufflehog@586f66d7886cd0b037c7c245d4a6e34ef357ab10 # v3.94.1
         with:
           path: ./
           base: ${{ steps.trufflehog-range.outputs.base }}
@@ -214,7 +214,7 @@ jobs:
 
       - name: TruffleHog OSS (full scan)
         if: steps.trufflehog-range.outputs.mode == 'full'
-        uses: trufflesecurity/trufflehog@821e8b9e5cdf8dc484dd23e06f78941fcf6b9191 # v3.91.2
+        uses: trufflesecurity/trufflehog@586f66d7886cd0b037c7c245d4a6e34ef357ab10 # v3.94.1
         with:
           path: ./
           extra_args: --debug --only-verified
