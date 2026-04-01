@@ -13,7 +13,7 @@ import { getAvailableToolActions, getAvailableToolNames } from '../mcp/tool-regi
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 408 actions across 25 tools
+ * Total: 409 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -413,6 +413,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'list_checkpoints',
     'delete_checkpoint',
     'reset',
+    'compact_session',
     'get_alerts',
     'acknowledge_alert',
     'clear_alerts',

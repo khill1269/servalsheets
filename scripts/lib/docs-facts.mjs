@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 
@@ -33,6 +34,26 @@ export function loadSourceDocFacts(rootDir) {
   const serverJson = JSON.parse(readFileSync(serverJsonPath, 'utf8'));
   const manifestJson = JSON.parse(readFileSync(manifestJsonPath, 'utf8'));
   const actionCountsSource = readFileSync(actionCountsPath, 'utf8');
+  const runtimeCountsResult = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', join(rootDir, 'scripts/runtime-doc-facts.ts')],
+    {
+      cwd: rootDir,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        LOG_LEVEL: process.env.LOG_LEVEL ?? 'error',
+      },
+    },
+  );
+
+  if (runtimeCountsResult.status !== 0) {
+    throw new Error(
+      `Failed to collect runtime doc facts: ${runtimeCountsResult.stderr || runtimeCountsResult.stdout || 'unknown error'}`,
+    );
+  }
+
+  const runtimeCounts = JSON.parse(runtimeCountsResult.stdout);
 
   const parsedCounts = parseActionCounts(actionCountsSource);
   const tools = manifestJson.tools.map(tool => ({
@@ -57,6 +78,9 @@ export function loadSourceDocFacts(rootDir) {
     counts: {
       tools: parsedCounts.toolCount,
       actions: parsedCounts.actionCount,
+      prompts: runtimeCounts.prompts,
+      resources: runtimeCounts.resources,
+      resourceTemplates: runtimeCounts.resourceTemplates,
     },
     tools,
     sources: {
@@ -64,6 +88,7 @@ export function loadSourceDocFacts(rootDir) {
       serverJson: relative(rootDir, serverJsonPath),
       generatedManifest: relative(rootDir, manifestJsonPath),
       generatedActionCounts: relative(rootDir, actionCountsPath),
+      runtimeCounts: relative(rootDir, join(rootDir, 'scripts/runtime-doc-facts.ts')),
     },
   };
 }

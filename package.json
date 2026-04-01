@@ -1,6 +1,6 @@
 {
   "name": "servalsheets",
-  "description": "Production-grade Google Sheets MCP server - 25 tools, 408 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 25 tools, 409 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "version": "2.0.0",
   "author": {
     "name": "Thomas Lee Cahill",
@@ -61,6 +61,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@flydotio/dockerfile": "^0.7.10",
     "@stryker-mutator/core": "^9.6.0",
     "@stryker-mutator/jest-runner": "^9.6.0",
     "@stryker-mutator/typescript-checker": "^9.6.0",
@@ -312,6 +313,7 @@
     "check:tautologies": "bash scripts/check-tautological-assertions.sh",
     "check:handler-types": "bash scripts/check-handler-type-safety.sh",
     "check:jwt-scope": "bash scripts/check-jwt-scope.sh",
+    "check:zod-markers": "node scripts/check-zod-markers.mjs",
     "check:secrets": "bash scripts/check-hardcoded-secrets.sh",
     "check:sheets-fields": "bash scripts/check-sheets-fields-param.sh",
     "check:worktree": "bash scripts/check-worktree-hygiene.sh",

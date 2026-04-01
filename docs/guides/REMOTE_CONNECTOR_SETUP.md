@@ -14,7 +14,7 @@ This guide covers connecting ServalSheets to Claude as a **remote MCP connector*
 via the Connectors Directory. This is the primary supported connection method for
 Claude.ai and Claude Desktop.
 
-> **Counts from generated facts** — 25 tools, 408 actions (v2.0.0, MCP 2025-11-25)
+> **Counts from generated facts** — 25 tools, 409 actions (v2.0.0, MCP 2025-11-25)
 
 ## Prerequisites
 
@@ -165,7 +165,7 @@ Then restart Claude Desktop. Authentication runs interactively on first use.
 
 **"Tool not found: sheets_data"**
 
-- Ensure you are connected to ServalSheets v2.0.0 (25 tools, 408 actions)
+- Ensure you are connected to ServalSheets v2.0.0 (25 tools, 409 actions)
 - Older versions used different tool names (sheets_values, sheets_spreadsheet)
 
 ## Related guides

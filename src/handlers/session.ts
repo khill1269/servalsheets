@@ -333,6 +333,44 @@ export async function handleSheetsSession(
         );
       }
 
+      case 'compact_session': {
+        const keepRecent = (req as { keepRecent?: number }).keepRecent ?? 5;
+        const history = session.getOperationHistory(20);
+        const operationsBeforeCompact = history.length;
+
+        if (operationsBeforeCompact <= keepRecent) {
+          return {
+            response: {
+              success: true,
+              action: 'compact_session',
+              message: `History has ${operationsBeforeCompact} operation(s) — nothing to compact (keepRecent=${keepRecent}).`,
+              operationsBefore: operationsBeforeCompact,
+              operationsAfter: operationsBeforeCompact,
+              compacted: 0,
+            },
+          };
+        }
+
+        // Generate a text digest from operations that will be replaced
+        const toSummarize = history.slice(keepRecent);
+        const digestLines = toSummarize.map((op) => `${op.tool}.${op.action}: ${op.description}`);
+        const digest = `[Compacted ${toSummarize.length} operations] ${digestLines.join('; ')}`;
+
+        session.compactHistory(digest, keepRecent);
+        const afterCount = session.getOperationHistory(20).length;
+
+        return {
+          response: {
+            success: true,
+            action: 'compact_session',
+            message: `Compacted ${toSummarize.length} older operations into a digest. Kept ${keepRecent} recent operations.`,
+            operationsBefore: operationsBeforeCompact,
+            operationsAfter: afterCount,
+            compacted: toSummarize.length,
+          },
+        };
+      }
+
       default: {
         const exhaustiveCheck: never = action;
         throw new ValidationError(`Unknown action: ${exhaustiveCheck}`, 'action');

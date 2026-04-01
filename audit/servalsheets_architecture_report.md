@@ -135,11 +135,11 @@ These implement `handle()` directly and manage their own error handling.
 
 | Feature                                | Status | Implementation                                              |
 | -------------------------------------- | ------ | ----------------------------------------------------------- |
-| Tools (25 tools, 408 actions)          | ✅     | `src/generated/action-counts.ts`                            |
+| Tools (25 tools, 409 actions)          | ✅     | `src/generated/action-counts.ts`                            |
 | Tool Annotations (4 fields × 25 tools) | ✅     | `src/generated/annotations.ts` (10,679 lines)               |
 | Resources (static + dynamic)           | ✅     | `src/mcp/registration/resource-registration.ts` (917 lines) |
 | Prompts (40 registered)                | ✅     | `src/mcp/registration/prompt-registration.ts` (2,818 lines) |
-| Completions (408 actions)              | ✅     | `src/generated/completions.ts` (1,391 lines)                |
+| Completions (409 actions)              | ✅     | `src/generated/completions.ts` (1,391 lines)                |
 | Logging (dynamic level control)        | ✅     | `src/handlers/logging.ts`                                   |
 | Tasks (SEP-1686)                       | ✅     | `src/core/task-store-adapter.ts`                            |
 | Icons (SEP-973)                        | ✅     | `src/mcp/features-2025-11-25.ts:74+`                        |
@@ -200,7 +200,7 @@ These implement `handle()` directly and manage their own error handling.
 
 1. **ETag conditional requests** (`src/services/cached-sheets-api.ts`): `If-None-Match` → 304 Not Modified
 2. **LRU cache with TTL** (5min, 5K max entries): 80-100x API call reduction for repeat reads
-3. **Cache-invalidation graph** (`src/services/cache-invalidation-graph.ts`, 805 lines): Operation-based invalidation for 408 actions
+3. **Cache-invalidation graph** (`src/services/cache-invalidation-graph.ts`, 805 lines): Operation-based invalidation for 409 actions
 
 ### Batching
 
@@ -329,7 +329,7 @@ All implement the `SpreadsheetConnector` interface from `packages/serval-core/sr
 
 ```
 servalsheets/
-├── src/                    — Main MCP server (25 tools, 408 actions)
+├── src/                    — Main MCP server (25 tools, 409 actions)
 ├── packages/
 │   ├── serval-core/        — @serval/core: shared types, retry, circuit-breaker
 │   ├── mcp-http/           — @serval/mcp-http: generic HTTP transport (publishable)

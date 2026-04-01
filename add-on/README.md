@@ -24,7 +24,7 @@ AI-powered Google Sheets assistant that runs inside Google Sheets, powered by th
     ┌──────────▼──────────────────────┐
     │  ServalSheets MCP Server        │
     │  (localhost:3000 or production) │
-    │  - 25 tools, 408 actions        │
+    │  - 25 tools, 409 actions        │
     │  - Billing integration          │
     └─────────────────────────────────┘
 ```
@@ -203,7 +203,7 @@ The add-on exposes these MCP tools:
 | sheets_format    | set_format, set_background, set_borders          | "Format as currency" |
 | sheets_core      | get, list_sheets, add_sheet                      | "List all sheets"    |
 
-Full tool list: 25 tools with 408 actions (see [../README.md](../README.md))
+Full tool list: 25 tools with 409 actions (see [../README.md](../README.md))
 
 ## Development Workflow
 
