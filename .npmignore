@@ -1,4 +1,9 @@
-# Source files (dist/ includes compiled versions)
+# Build and compilation artifacts (keep dist/ - it's published)
+*.tsbuildinfo
+*.map
+.tsbuildinfo
+
+# Source code (compiled to dist/)
 src/
 tests/
 *.test.ts
@@ -9,54 +14,84 @@ tsconfig.json
 tsconfig.*.json
 tsconfig.build.json
 vitest.config.ts
+vitest.config.*.ts
 eslint.config.js
 .eslintrc.*
 .prettierrc.*
+.dependency-cruiser*
 
-# Build artifacts
-*.tsbuildinfo
-*.map
-coverage/
-
-# Development files
-.github/
+# Development utilities
+scripts/
+tools/
 .vscode/
 .devcontainer/
 .husky/
 .serval/
-.dependency-cruiser*
+.agent-context/
 
-# Git files
+# Repository and CI/CD files
+.github/
 .git/
 .gitignore
 .gitattributes
-
-# Development documentation (GitHub only, not in npm package)
-
-# Scripts
-scripts/
-
-# Deployment configs (not needed in npm package)
 deployment/
+k8s/
+infra/
 
-# Lock files
+# Testing and quality
+coverage/
+benchmarks/
+audit-logs/
+
+# Build locks and caches
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Environment files
+# Environment and credentials (CRITICAL - never publish)
 .env
 .env.*
+.env.local
+.env.*.local
+credentials*
+client_secret*
+*.pem
+*.key
+.vaultrc
 
-# OS files
+# Deployment and Docker
+docker-compose.yml
+Dockerfile
+Dockerfile.*
+docker-compose.*.yml
+.dockerignore
+.docker/
+deployment/
+k8s/
+infra/
+fly.toml
+.fly/
+
+# OS and editor files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Editor files
 *.swp
 *.swo
 *~
 .idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+*.sublime-*
 
 # Temporary files
 tmp/
@@ -64,3 +99,29 @@ temp/
 *.tmp
 *.bak
 *.bak*
+.cache/
+dist-cache/
+
+# Database and cache
+*.db
+*.sqlite
+*.sqlite3
+.redis/
+
+# Documentation (internal dev docs)
+docs/development/
+docs/guides/README*.md
+TASKS.md
+ARCHITECTURE.md
+CODEBASE_CONTEXT.md
+
+# Miscellaneous
+storybook-static/
+.vercel
+.netlify
+.env.example
+!.npmignore
+!LICENSE
+!README.md
+!CHANGELOG.md
+!SECURITY.md

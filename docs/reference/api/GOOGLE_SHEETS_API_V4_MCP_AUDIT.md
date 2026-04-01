@@ -274,9 +274,9 @@ tags: [api, mcp, sheets]
 
 ```typescript
 capabilities: {
-  tools: { enabled: true },          // ✅ 25 tools, 408 actions
+  tools: { enabled: true },          // ✅ 25 tools, 409 actions
   resources: { enabled: true },      // ✅ URI templates + knowledge
-  prompts: { enabled: true },        // ✅ 6 guided workflows
+  prompts: { enabled: true },        // ✅ 40 guided workflows
   completions: { enabled: true },    // ✅ Argument autocompletion
   tasks: { enabled: true },          // ✅ SEP-1686 background tasks
   logging: { enabled: true }         // ✅ Dynamic log level control
@@ -298,7 +298,7 @@ capabilities: {
 
 ## Part 5: ServalSheets Tool Summary
 
-### 5.1 Tools by Category (25 tools, 408 actions)
+### 5.1 Tools by Category (25 tools, 409 actions)
 
 | Tool                 | Actions | Google API         | Category                         |
 | -------------------- | ------- | ------------------ | -------------------------------- |
@@ -326,7 +326,7 @@ capabilities: {
 | Sheets API v4 | 50+ batchUpdate types | 140+ mapped actions  | **~95%**  |
 | Values API    | 10 methods            | 7 actions (+ batch)  | **100%**  |
 | Drive API v3  | 14 endpoints used     | 28 actions           | **100%**  |
-| **Total**     | 74+ API operations    | 408 actions          | **>100%** |
+| **Total**     | 74+ API operations    | 409 actions          | **>100%** |
 
 ---
 
@@ -419,8 +419,8 @@ src/core/request-builder.ts (1544 lines)
    - Pattern: Add `?? undefined` for null coalescing
 
 2. **Update Documentation**
-   - CLAUDE.md shows 25 tools/408 actions
-   - Actual: 25 tools/408 actions
+   - CLAUDE.md shows 25 tools/409 actions
+   - Actual: 25 tools/409 actions
 
 ### 8.2 Future Enhancements (Optional)
 
@@ -451,7 +451,7 @@ src/core/request-builder.ts (1544 lines)
 
 ```bash
 # npm run test:fast — 2654/2654 passing (2026-03-15)
-# npm run validate:alignment — Schema: 25 tools, 408 actions match handler cases
+# npm run validate:alignment — Schema: 25 tools, 409 actions match handler cases
 ```
 
-Schema-Handler Alignment: 25/25 tools aligned (25 tools, 408 actions each with matching handler switch cases).
+Schema-Handler Alignment: 25/25 tools aligned (25 tools, 409 actions each with matching handler switch cases).

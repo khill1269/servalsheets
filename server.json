@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade Google Sheets MCP server with 25 tools and 408 actions",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 409 actions",
   "icons": [
     {
       "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTZXJ2YWxTaGVldHMiPjxyZWN0IHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiByeD0iMzIiIGZpbGw9IiMwZjE3MmEiLz48cmVjdCB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxNzYiIGhlaWdodD0iMTc2IiByeD0iMTYiIGZpbGw9IiNmOGZhZmMiLz48cmVjdCB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxNzYiIGhlaWdodD0iMzIiIHJ4PSIxNiIgZmlsbD0iIzIyYzU1ZSIvPjxsaW5lIHgxPSI4NCIgeTE9Ijg0IiB4Mj0iODQiIHkyPSIyMDAiIHN0cm9rZT0iI2NiZDVmNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGxpbmUgeDE9IjEyOCIgeTE9Ijg0IiB4Mj0iMTI4IiB5Mj0iMjAwIiBzdHJva2U9IiNjYmQ1ZjUiIHN0cm9rZS13aWR0aD0iMiIvPjxsaW5lIHgxPSIxNzIiIHkxPSI4NCIgeDI9IjE3MiIgeTI9IjIwMCIgc3Ryb2tlPSIjY2JkNWY1IiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iNTIiIHkxPSIxMTIiIHgyPSIyMDQiIHkyPSIxMTIiIHN0cm9rZT0iI2NiZDVmNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGxpbmUgeDE9IjUyIiB5MT0iMTQwIiB4Mj0iMjA0IiB5Mj0iMTQwIiBzdHJva2U9IiNjYmQ1ZjUiIHN0cm9rZS13aWR0aD0iMiIvPjxsaW5lIHgxPSI1MiIgeTE9IjE2OCIgeDI9IjIwNCIgeTI9IjE2OCIgc3Ryb2tlPSIjY2JkNWY1IiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=",
@@ -22,7 +22,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade Google Sheets MCP server - 25 tools, 408 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 25 tools, 409 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -482,7 +482,7 @@
     },
     {
       "name": "sheets_session",
-      "description": "session operations (31 actions)",
+      "description": "session operations (32 actions)",
       "actions": [
         "set_active",
         "get_active",
@@ -501,6 +501,7 @@
         "list_checkpoints",
         "delete_checkpoint",
         "reset",
+        "compact_session",
         "get_alerts",
         "acknowledge_alert",
         "clear_alerts",
@@ -595,7 +596,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 408,
+    "actionCount": 409,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visual Analytics (1 tool): visualize",

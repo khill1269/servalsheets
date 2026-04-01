@@ -347,6 +347,18 @@ export const serverStartupDuration = getOrCreate(
     })
 );
 
+export const serverStartupPhaseDuration = getOrCreate(
+  'servalsheets_server_startup_phase_duration_seconds',
+  () =>
+    new Histogram({
+      name: 'servalsheets_server_startup_phase_duration_seconds',
+      help: 'Duration of individual server startup phases',
+      labelNames: ['phase', 'transport'],
+      buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0],
+      registers: [register],
+    })
+);
+
 // OTLP export metrics (Phase 0, Priority 3)
 export const otlpSpansExportedTotal = getOrCreate(
   'servalsheets_otlp_spans_exported_total',

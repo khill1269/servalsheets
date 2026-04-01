@@ -9,11 +9,14 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from '../../lib/schema.js';
 import { DEFER_SCHEMAS, getEffectiveToolMode } from '../../config/constants.js';
+import { getEnv } from '../../config/env.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { logger } from '../../utils/logger.js';
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
 import { getSessionContext } from '../../services/session-context.js';
 import { ACTION_COUNTS } from '../../schemas/action-counts.js';
+import { TOOL_ACTIONS } from '../../schemas/index.js';
+import { getRbacManager } from '../../services/rbac-manager.js';
 import { getAvailableToolNames } from '../tool-registry-state.js';
 import {
   filterAvailableActions,
@@ -27,256 +30,30 @@ import {
 import { getToolDiscoveryHint, getActionCostEstimates } from './tool-discovery-hints.js';
 import { getFlatToolRegistry, type FlatToolDefinition } from './flat-tool-registry.js';
 import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
+import { getToolSurfaceMetadata } from '../tool-surface-metadata.js';
+import { getOutputSchemaForTool, clearOutputSchemaCache } from './output-schema-registry.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
+const ACTIVE_TOOL_DEFINITION_MAP = new Map(
+  ACTIVE_TOOL_DEFINITIONS.map((tool) => [tool.name, tool] as const)
+);
 
 function getToolActionCount(toolName: string): number {
   return ACTION_COUNTS[toolName] ?? 0;
 }
 
-/**
- * Tool tier metadata for hierarchical discovery.
- * Helps LLMs prioritize tool selection without scanning all 25 tools.
- *
- * - tier 1 (essential): Used in 80%+ of sessions — always consider first
- * - tier 2 (common): Used in 40-80% of sessions — consider for specific intents
- * - tier 3 (specialized): Used in <40% of sessions — only when explicitly needed
- *
- * group: Maps to the 5-group mental model from server instructions
- */
-interface ToolTierMeta {
-  tier: 1 | 2 | 3;
-  group: 'data-io' | 'appearance' | 'structure' | 'analysis' | 'automation';
-  primaryVerbs: string[];
+interface ToolsListRequestExtra {
+  sessionId?: string;
+  principalId?: string;
+  authenticated?: boolean;
+  headers?: Record<string, string | string[] | undefined>;
 }
 
-const TOOL_TIERS: Record<string, ToolTierMeta> = {
-  // Tier 1 — Essential (used in 80%+ of sessions)
-  sheets_data: { tier: 1, group: 'data-io', primaryVerbs: ['read', 'write', 'append', 'find'] },
-  sheets_core: {
-    tier: 1,
-    group: 'structure',
-    primaryVerbs: ['create', 'list', 'delete', 'duplicate'],
-  },
-  sheets_format: {
-    tier: 1,
-    group: 'appearance',
-    primaryVerbs: ['format', 'bold', 'color', 'number format'],
-  },
-  sheets_analyze: {
-    tier: 1,
-    group: 'analysis',
-    primaryVerbs: ['scout', 'analyze', 'generate formula'],
-  },
-  sheets_auth: { tier: 1, group: 'automation', primaryVerbs: ['login', 'status', 'logout'] },
-
-  // Tier 2 — Common (used in 40-80% of sessions)
-  sheets_dimensions: {
-    tier: 2,
-    group: 'appearance',
-    primaryVerbs: ['freeze', 'sort', 'filter', 'resize', 'hide'],
-  },
-  sheets_visualize: {
-    tier: 2,
-    group: 'appearance',
-    primaryVerbs: ['chart', 'sparkline', 'slicer'],
-  },
-  sheets_composite: { tier: 2, group: 'data-io', primaryVerbs: ['import', 'export', 'generate'] },
-  sheets_session: {
-    tier: 2,
-    group: 'automation',
-    primaryVerbs: ['set active', 'preferences', 'pipeline'],
-  },
-  sheets_fix: {
-    tier: 2,
-    group: 'analysis',
-    primaryVerbs: ['clean', 'standardize', 'fill missing'],
-  },
-  sheets_compute: { tier: 2, group: 'data-io', primaryVerbs: ['stats', 'regression', 'forecast'] },
-  sheets_history: {
-    tier: 2,
-    group: 'automation',
-    primaryVerbs: ['undo', 'timeline', 'diff', 'snapshot'],
-  },
-  sheets_collaborate: {
-    tier: 2,
-    group: 'structure',
-    primaryVerbs: ['share', 'protect', 'comment', 'versions'],
-  },
-
-  // Tier 3 — Specialized (used in <40% of sessions)
-  sheets_advanced: {
-    tier: 3,
-    group: 'structure',
-    primaryVerbs: ['named range', 'pivot', 'slicer', 'banding'],
-  },
-  sheets_quality: { tier: 3, group: 'analysis', primaryVerbs: ['validate', 'conflicts'] },
-  sheets_dependencies: {
-    tier: 3,
-    group: 'analysis',
-    primaryVerbs: ['dependency graph', 'what-if', 'scenario'],
-  },
-  sheets_templates: { tier: 3, group: 'structure', primaryVerbs: ['save template', 'instantiate'] },
-  sheets_transaction: {
-    tier: 3,
-    group: 'automation',
-    primaryVerbs: ['begin', 'queue', 'commit', 'rollback'],
-  },
-  sheets_agent: { tier: 3, group: 'automation', primaryVerbs: ['plan', 'execute', 'rollback'] },
-  sheets_confirm: { tier: 3, group: 'automation', primaryVerbs: ['confirm', 'wizard'] },
-  sheets_webhook: { tier: 3, group: 'automation', primaryVerbs: ['watch', 'subscribe', 'trigger'] },
-  sheets_appsscript: {
-    tier: 3,
-    group: 'automation',
-    primaryVerbs: ['run script', 'deploy', 'manage'],
-  },
-  sheets_bigquery: {
-    tier: 3,
-    group: 'data-io',
-    primaryVerbs: ['query', 'import', 'export', 'dataset'],
-  },
-  sheets_federation: {
-    tier: 3,
-    group: 'automation',
-    primaryVerbs: ['remote call', 'list servers'],
-  },
-  sheets_connectors: { tier: 3, group: 'data-io', primaryVerbs: ['discover', 'connect', 'fetch'] },
-};
-
-/**
- * Agency hints (SEP-1792 draft) — tells LLM clients which tools benefit
- * from autonomous agent orchestration vs direct single-call execution.
- *
- * - 'autonomous': Tool is designed for multi-step agent loops (plan/execute/observe)
- * - 'orchestrated': Tool benefits from being sequenced with others in a pipeline
- * - 'direct': Tool works best as a single direct call
- *
- * Exposed via x-servalsheets.agencyHint in tools/list inputSchema.
- */
-/**
- * Per-tool scope requirements (SEP-1880 draft readiness).
- * Derived from OPERATION_SCOPES in src/security/incremental-scope.ts.
- * Tells LLM clients what OAuth scope category each tool needs,
- * so they can pre-flight scope checks before invocation.
- */
-const TOOL_SCOPE_REQUIREMENTS: Record<
-  string,
-  { primary: string; elevated?: string; note?: string }
-> = {
-  sheets_auth: { primary: 'none', note: 'No Google API scopes required' },
-  sheets_session: { primary: 'none', note: 'Local session state only' },
-  sheets_confirm: { primary: 'none', note: 'MCP elicitation only' },
-  sheets_core: {
-    primary: 'spreadsheets',
-    elevated: 'drive.file',
-    note: 'create requires drive.file scope',
-  },
-  sheets_data: { primary: 'spreadsheets' },
-  sheets_format: { primary: 'spreadsheets' },
-  sheets_dimensions: { primary: 'spreadsheets' },
-  sheets_visualize: { primary: 'spreadsheets' },
-  sheets_advanced: { primary: 'spreadsheets' },
-  sheets_compute: { primary: 'spreadsheets' },
-  sheets_fix: { primary: 'spreadsheets' },
-  sheets_quality: { primary: 'spreadsheets' },
-  sheets_analyze: {
-    primary: 'spreadsheets.readonly',
-    elevated: 'spreadsheets',
-    note: 'Read-only for analysis; full scope for semantic_search indexing',
-  },
-  sheets_collaborate: {
-    primary: 'spreadsheets',
-    elevated: 'drive',
-    note: 'Sharing/comments/versions require full drive scope',
-  },
-  sheets_history: {
-    primary: 'spreadsheets',
-    elevated: 'drive.readonly',
-    note: 'timeline/diff need drive revision access',
-  },
-  sheets_dependencies: { primary: 'spreadsheets' },
-  sheets_composite: {
-    primary: 'spreadsheets',
-    elevated: 'drive.file',
-    note: 'generate_sheet/import may create new files',
-  },
-  sheets_templates: {
-    primary: 'drive.appdata',
-    elevated: 'drive.file',
-    note: 'All actions require appdata scope; apply needs drive.file',
-  },
-  sheets_transaction: { primary: 'spreadsheets' },
-  sheets_bigquery: {
-    primary: 'spreadsheets',
-    elevated: 'bigquery',
-    note: 'Query/import/export need BigQuery scope',
-  },
-  sheets_appsscript: {
-    primary: 'spreadsheets',
-    elevated: 'script.projects',
-    note: 'Create/execute/deploy need Apps Script scope',
-  },
-  sheets_webhook: {
-    primary: 'spreadsheets',
-    elevated: 'drive',
-    note: 'Register/unregister need drive scope',
-  },
-  sheets_federation: { primary: 'none', note: 'Delegates to remote MCP servers' },
-  sheets_connectors: {
-    primary: 'none',
-    elevated: 'spreadsheets',
-    note: 'configure needs no scope; query/subscribe need sheets access',
-  },
-  sheets_agent: {
-    primary: 'spreadsheets',
-    elevated: 'drive',
-    note: 'Agent may invoke any tool — inherits all scope requirements',
-  },
-};
-
-const TOOL_AGENCY_HINTS: Record<
-  string,
-  { level: 'autonomous' | 'orchestrated' | 'direct'; reason: string }
-> = {
-  sheets_agent: {
-    level: 'autonomous',
-    reason:
-      'Plan/execute/observe loop with rollback — designed for autonomous multi-step workflows',
-  },
-  sheets_composite: {
-    level: 'orchestrated',
-    reason: 'Multi-step operations (import, generate, setup) that chain internal tool calls',
-  },
-  sheets_analyze: {
-    level: 'orchestrated',
-    reason: 'AI sampling-powered analysis that benefits from iterative scout → comprehensive flow',
-  },
-  sheets_fix: {
-    level: 'orchestrated',
-    reason: 'Cleaning pipelines that chain detect → preview → apply with user confirmation',
-  },
-  sheets_transaction: {
-    level: 'orchestrated',
-    reason: 'Queue → commit → verify pattern requires multi-step sequencing',
-  },
-  sheets_dependencies: {
-    level: 'orchestrated',
-    reason: 'Scenario modeling benefits from iterative what-if → compare → materialize flow',
-  },
-  sheets_confirm: {
-    level: 'direct',
-    reason: 'Single user interaction — confirmation or wizard step',
-  },
-  sheets_session: {
-    level: 'direct',
-    reason: 'Context management — single-call set/get operations',
-  },
-  sheets_auth: { level: 'direct', reason: 'Authentication — single-call status/login/callback' },
-  sheets_compute: {
-    level: 'direct',
-    reason: 'Stateless computation — same input always produces same output',
-  },
-};
+interface RequestAwareAccessFilter {
+  hiddenTools: Set<string>;
+  allowedActionsByTool: Map<string, ReadonlySet<string>>;
+  accessMetadataByTool: Map<string, Record<string, unknown>>;
+}
 
 /**
  * Detect Zod schemas by their internal shape markers.
@@ -364,6 +141,82 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function getSingleHeaderValue(
+  headers: Record<string, string | string[] | undefined> | undefined,
+  headerName: string
+): string | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  const raw = headers[headerName];
+  if (Array.isArray(raw)) {
+    return raw[0];
+  }
+
+  return raw;
+}
+
+function parseBooleanFlag(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') {
+    return true;
+  }
+  if (normalized === 'false') {
+    return false;
+  }
+
+  return undefined; // OK: input is not a recognized boolean string
+}
+
+function resolveAuthenticatedFlag(extra?: ToolsListRequestExtra): boolean | undefined {
+  const direct = parseBooleanFlag(extra?.authenticated);
+  if (direct !== undefined) {
+    return direct;
+  }
+
+  return (
+    parseBooleanFlag(getSingleHeaderValue(extra?.headers, 'x-serval-authenticated')) ??
+    parseBooleanFlag(getSingleHeaderValue(extra?.headers, 'x-google-authenticated'))
+  );
+}
+
+function resolvePrincipalId(extra?: ToolsListRequestExtra): string | undefined {
+  if (typeof extra?.principalId === 'string' && extra.principalId.trim().length > 0) {
+    return extra.principalId.trim();
+  }
+
+  const candidateHeaders = ['x-user-id', 'x-session-id', 'x-client-id'] as const;
+  for (const header of candidateHeaders) {
+    const value = getSingleHeaderValue(extra?.headers, header)?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined; // OK: no principal ID found in extra params or headers
+}
+
+function mergeAccessMetadata(
+  accessMetadataByTool: Map<string, Record<string, unknown>>,
+  toolName: string,
+  update: Record<string, unknown>
+): void {
+  const existing = accessMetadataByTool.get(toolName) ?? {};
+  accessMetadataByTool.set(toolName, {
+    ...existing,
+    ...update,
+  });
+}
+
 function mergeDescription(existing: unknown, addition: string | undefined): string | undefined {
   if (!addition) {
     return typeof existing === 'string' ? existing : undefined;
@@ -378,6 +231,16 @@ function mergeDescription(existing: unknown, addition: string | undefined): stri
   }
 
   return `${existing} ${addition}`;
+}
+
+// Description cache: keyed by `${toolName}:${familiarityBucket}:${availabilitySuffix ?? ''}`
+// Cleared when session context changes significantly (new spreadsheet, preference update)
+const _descriptionCache = new Map<string, string | undefined>();
+const DESCRIPTION_CACHE_MAX = 200;
+
+/** Clear description cache (called on session context changes) */
+export function clearToolDescriptionCache(): void {
+  _descriptionCache.clear();
 }
 
 function enrichToolDescription(toolName: string, description: unknown): string | undefined {
@@ -405,20 +268,46 @@ function enrichToolDescription(toolName: string, description: unknown): string |
     // Session context may not be initialized during early registration
   }
 
+  // Cache key: tool + familiarity bucket (0.0-0.79 = standard, 0.8+ = ultra-minimal)
+  const familiarityBucket = sessionFamiliarity >= 0.8 ? 'minimal' : 'standard';
+  const cacheKey = `${toolName}:${familiarityBucket}:${availabilitySuffix ?? ''}`;
+
+  const cached = _descriptionCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let result: string | undefined;
   if (sessionFamiliarity >= 0.8) {
     // Ultra-minimal: tool name + action count only (LLM already knows how to use it)
     const actionCount = getToolActionCount(toolName);
     const ultraMinimal = `${toolName.replace('sheets_', '').toUpperCase()} (${actionCount} actions)`;
-    return mergeDescription(ultraMinimal, availabilitySuffix);
+    result = mergeDescription(ultraMinimal, availabilitySuffix);
+  } else {
+    const hint = getToolDiscoveryHint(toolName);
+    result = mergeDescription(
+      mergeDescription(existing, hint?.descriptionSuffix),
+      availabilitySuffix
+    );
   }
 
-  const hint = getToolDiscoveryHint(toolName);
-  return mergeDescription(mergeDescription(existing, hint?.descriptionSuffix), availabilitySuffix);
+  // Evict oldest if over limit
+  if (_descriptionCache.size >= DESCRIPTION_CACHE_MAX) {
+    const firstKey = _descriptionCache.keys().next().value;
+    if (firstKey !== undefined) _descriptionCache.delete(firstKey);
+  }
+  _descriptionCache.set(cacheKey, result);
+
+  return result;
 }
 
 function enrichInputSchema(
   toolName: string,
-  inputSchema: Record<string, unknown>
+  inputSchema: Record<string, unknown>,
+  options?: {
+    allowedActions?: ReadonlySet<string>;
+    accessMetadata?: Record<string, unknown>;
+  }
 ): Record<string, unknown> {
   // Always inject x-servalsheets.actionParams hints regardless of schema mode.
   // In deferred mode (STDIO) these are the primary parameter guide.
@@ -429,29 +318,36 @@ function enrichInputSchema(
     return inputSchema;
   }
 
-  const allowedActions = new Set(filterAvailableActions(toolName, Object.keys(hint.actionParams)));
+  const allowedActions =
+    options?.allowedActions ??
+    new Set(filterAvailableActions(toolName, Object.keys(hint.actionParams)));
   const actionParams = Object.fromEntries(
     Object.entries(hint.actionParams).filter(([action]) => allowedActions.has(action))
   );
 
-  const tierMeta = TOOL_TIERS[toolName];
   const costEstimates = getActionCostEstimates(toolName);
-  const agencyHint = TOOL_AGENCY_HINTS[toolName];
-  const scopeReqs = TOOL_SCOPE_REQUIREMENTS[toolName];
+  const surfaceMetadata = getToolSurfaceMetadata(toolName, {
+    authPolicy: ACTIVE_TOOL_DEFINITION_MAP.get(toolName)?.authPolicy,
+    availability: getToolAvailabilityMetadata(toolName),
+  });
   const enriched: Record<string, unknown> = {
     ...inputSchema,
     'x-servalsheets': {
       ...(asRecord(inputSchema['x-servalsheets']) ?? {}),
       actionParams,
-      ...(tierMeta
-        ? { tier: tierMeta.tier, group: tierMeta.group, primaryVerbs: tierMeta.primaryVerbs }
+      ...(surfaceMetadata.tier
+        ? {
+            tier: surfaceMetadata.tier,
+            group: surfaceMetadata.group,
+            primaryVerbs: surfaceMetadata.primaryVerbs,
+          }
         : {}),
       ...(costEstimates ? { costEstimates } : {}),
-      ...(agencyHint ? { agencyHint } : {}),
-      ...(scopeReqs ? { requiredScopes: scopeReqs } : {}),
-      ...(getToolAvailabilityMetadata(toolName)
-        ? { availability: getToolAvailabilityMetadata(toolName) }
-        : {}),
+      ...(surfaceMetadata.agencyHint ? { agencyHint: surfaceMetadata.agencyHint } : {}),
+      ...(surfaceMetadata.requiredScopes ? { requiredScopes: surfaceMetadata.requiredScopes } : {}),
+      ...(surfaceMetadata.availability ? { availability: surfaceMetadata.availability } : {}),
+      authPolicy: surfaceMetadata.authPolicy,
+      ...(options?.accessMetadata ? { access: options.accessMetadata } : {}),
     },
   };
 
@@ -526,6 +422,111 @@ function filterRequestSchemaActions(
   };
 
   return filtered;
+}
+
+async function buildRequestAwareAccessFilter(
+  toolNames: readonly string[],
+  extra?: ToolsListRequestExtra
+): Promise<RequestAwareAccessFilter> {
+  const hiddenTools = new Set<string>();
+  const allowedActionsByTool = new Map<string, ReadonlySet<string>>();
+  const accessMetadataByTool = new Map<string, Record<string, unknown>>();
+  const authenticated = resolveAuthenticatedFlag(extra);
+
+  for (const toolName of toolNames) {
+    const toolDefinition = ACTIVE_TOOL_DEFINITION_MAP.get(toolName);
+    const baseActions = filterAvailableActions(toolName, TOOL_ACTIONS[toolName] ?? []);
+    if (baseActions.length === 0) {
+      continue;
+    }
+    let allowedActions = new Set(baseActions);
+
+    const surfaceMetadata = getToolSurfaceMetadata(toolName, {
+      authPolicy: toolDefinition?.authPolicy,
+      availability: getToolAvailabilityMetadata(toolName),
+    });
+
+    if (authenticated === false && surfaceMetadata.authPolicy.requiresAuth) {
+      const authExemptActions = new Set(
+        baseActions.filter((action) => surfaceMetadata.authPolicy.exemptActions.includes(action))
+      );
+      const hiddenActions = baseActions.filter((action) => !authExemptActions.has(action));
+
+      if (hiddenActions.length > 0) {
+        allowedActions = authExemptActions;
+        mergeAccessMetadata(accessMetadataByTool, toolName, {
+          authenticated: false,
+          filteredBy: 'authentication',
+          hiddenActions,
+          reason: 'Authentication required for hidden actions',
+        });
+      }
+    }
+
+    if (allowedActions.size === 0) {
+      hiddenTools.add(toolName);
+      continue;
+    }
+
+    allowedActionsByTool.set(toolName, allowedActions);
+  }
+
+  const principalId = resolvePrincipalId(extra);
+  if (principalId && getEnv().ENABLE_RBAC) {
+    const rbacManager = getRbacManager();
+
+    for (const toolName of toolNames) {
+      if (hiddenTools.has(toolName)) {
+        continue;
+      }
+
+      const currentActions = [...(allowedActionsByTool.get(toolName) ?? new Set<string>())];
+      const allowedActions: string[] = [];
+      const deniedActions: Array<{ action: string; reason: string }> = [];
+
+      for (const action of currentActions) {
+        const result = await rbacManager.checkPermission({
+          userId: principalId,
+          toolName,
+          actionName: action,
+        });
+
+        if (result.allowed) {
+          allowedActions.push(action);
+        } else {
+          deniedActions.push({
+            action,
+            reason: result.reason,
+          });
+        }
+      }
+
+      if (deniedActions.length > 0) {
+        const existingAccess = accessMetadataByTool.get(toolName) ?? {};
+        mergeAccessMetadata(accessMetadataByTool, toolName, {
+          ...existingAccess,
+          filteredBy:
+            existingAccess['filteredBy'] === 'authentication' ? 'authentication+rbac' : 'rbac',
+          principalId,
+          deniedActions,
+        });
+      }
+
+      if (allowedActions.length === 0) {
+        hiddenTools.add(toolName);
+        allowedActionsByTool.delete(toolName);
+        continue;
+      }
+
+      allowedActionsByTool.set(toolName, new Set(allowedActions));
+    }
+  }
+
+  return {
+    hiddenTools,
+    allowedActionsByTool,
+    accessMetadataByTool,
+  };
 }
 
 /**
@@ -719,63 +720,74 @@ const ALWAYS_LOADED_SCHEMAS: Record<string, Record<string, unknown>> = {
   },
 };
 
-function buildFlatToolListEntries(): Record<string, unknown>[] {
+function buildFlatToolListEntries(
+  accessFilter?: RequestAwareAccessFilter
+): Record<string, unknown>[] {
   const flatTools = getFlatToolRegistry();
 
-  return flatTools.map((flat: FlatToolDefinition) => {
-    const actionKey = `${flat.parentTool}.${flat.action}`;
+  return flatTools
+    .filter((flat) => {
+      if (accessFilter?.hiddenTools.has(flat.parentTool)) {
+        return false;
+      }
 
-    // Always-loaded tools get detailed per-action schemas
-    const detailedSchema = ALWAYS_LOADED_SCHEMAS[actionKey];
-    let inputSchema: Record<string, unknown>;
+      const allowedActions = accessFilter?.allowedActionsByTool.get(flat.parentTool);
+      return !allowedActions || allowedActions.has(flat.action);
+    })
+    .map((flat: FlatToolDefinition) => {
+      const actionKey = `${flat.parentTool}.${flat.action}`;
 
-    if (detailedSchema) {
-      inputSchema = detailedSchema;
-    } else {
-      // Deferred tools get a minimal schema — the LLM discovers them via
-      // sheets_discover/tool_search, and actual validation runs in the compound handler.
-      inputSchema = {
-        type: 'object',
-        properties: {
-          spreadsheetId: {
-            type: 'string',
-            description: 'The Google Sheets spreadsheet ID',
+      // Always-loaded tools get detailed per-action schemas
+      const detailedSchema = ALWAYS_LOADED_SCHEMAS[actionKey];
+      let inputSchema: Record<string, unknown>;
+
+      if (detailedSchema) {
+        inputSchema = detailedSchema;
+      } else {
+        // Deferred tools get a minimal schema — the LLM discovers them via
+        // sheets_discover/tool_search, and actual validation runs in the compound handler.
+        inputSchema = {
+          type: 'object',
+          properties: {
+            spreadsheetId: {
+              type: 'string',
+              description: 'The Google Sheets spreadsheet ID',
+            },
           },
-        },
+        };
+
+        // Add common fields based on the action's domain
+        if (
+          flat.parentTool === 'sheets_data' ||
+          flat.parentTool === 'sheets_format' ||
+          flat.parentTool === 'sheets_dimensions'
+        ) {
+          (inputSchema['properties'] as Record<string, unknown>)['range'] = {
+            type: 'string',
+            description: 'A1 notation range (e.g., Sheet1!A1:D10)',
+          };
+        }
+
+        // For write-type actions, add values
+        if (flat.action === 'write' || flat.action === 'append' || flat.action === 'batch_write') {
+          (inputSchema['properties'] as Record<string, unknown>)['values'] = {
+            type: 'array',
+            description: 'Array of row arrays to write',
+            items: { type: 'array' },
+          };
+        }
+      }
+
+      return {
+        name: flat.name,
+        title: flat.title,
+        description: flat.description,
+        inputSchema,
+        annotations: flat.annotations,
+        // Signal to Anthropic API that this tool should be deferred
+        ...(flat.deferLoading ? { 'x-defer-loading': true } : {}),
       };
-
-      // Add common fields based on the action's domain
-      if (
-        flat.parentTool === 'sheets_data' ||
-        flat.parentTool === 'sheets_format' ||
-        flat.parentTool === 'sheets_dimensions'
-      ) {
-        (inputSchema['properties'] as Record<string, unknown>)['range'] = {
-          type: 'string',
-          description: 'A1 notation range (e.g., Sheet1!A1:D10)',
-        };
-      }
-
-      // For write-type actions, add values
-      if (flat.action === 'write' || flat.action === 'append' || flat.action === 'batch_write') {
-        (inputSchema['properties'] as Record<string, unknown>)['values'] = {
-          type: 'array',
-          description: 'Array of row arrays to write',
-          items: { type: 'array' },
-        };
-      }
-    }
-
-    return {
-      name: flat.name,
-      title: flat.title,
-      description: flat.description,
-      inputSchema,
-      annotations: flat.annotations,
-      // Signal to Anthropic API that this tool should be deferred
-      ...(flat.deferLoading ? { 'x-defer-loading': true } : {}),
-    };
-  });
+    });
 }
 
 /**
@@ -834,16 +846,27 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
 
   protocolServer.setRequestHandler(
     ListToolsRequestSchema,
-    (_request: z.infer<typeof ListToolsRequestSchema>) => {
+    async (_request: z.infer<typeof ListToolsRequestSchema>, extra?: ToolsListRequestExtra) => {
       // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤25 tools)
       // cursor is intentionally ignored — single-page response for ≤25 tools
 
       const effectiveMode = getEffectiveToolMode();
+      const bundledTools = getBundledToolsForList();
+      const accessFilter =
+        effectiveMode === 'flat'
+          ? await buildRequestAwareAccessFilter(
+              [...new Set(getFlatToolRegistry().map((flat) => flat.parentTool))],
+              extra
+            )
+          : await buildRequestAwareAccessFilter(
+              bundledTools.map((tool) => tool.name),
+              extra
+            );
 
       // ── FLAT MODE ──────────────────────────────────────────────────────
       // Return the current flat action surface (most deferred) + sheets_discover
       if (effectiveMode === 'flat') {
-        const flatEntries = buildFlatToolListEntries();
+        const flatEntries = buildFlatToolListEntries(accessFilter);
         const discoverEntry = buildDiscoverToolEntry();
 
         logger.info('tools/list serving flat mode', {
@@ -861,11 +884,17 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
       // ── BUNDLED MODE (legacy) ──────────────────────────────────────────
       // Return 25 compound tools with discriminated union schemas
       return {
-        tools: getBundledToolsForList()
+        tools: bundledTools
           .filter((tool) => {
             // Hide tools whose backing service is completely unavailable
             if (isToolFullyUnavailable(tool.name)) {
               logger.debug('Excluding tool from tools/list: backing service unavailable', {
+                tool: tool.name,
+              });
+              return false;
+            }
+            if (accessFilter.hiddenTools.has(tool.name)) {
+              logger.debug('Excluding tool from tools/list: request access filter', {
                 tool: tool.name,
               });
               return false;
@@ -876,7 +905,11 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
             const name = tool.name;
             const inputSchema = enrichInputSchema(
               name,
-              toJsonSchema(tool.inputSchema, { toolName: name, schemaType: 'input' })
+              toJsonSchema(tool.inputSchema, { toolName: name, schemaType: 'input' }),
+              {
+                allowedActions: accessFilter.allowedActionsByTool.get(name),
+                accessMetadata: accessFilter.accessMetadataByTool.get(name),
+              }
             );
             const toolDefinition: Record<string, unknown> = {
               name,
@@ -888,8 +921,10 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
               execution: TOOL_EXECUTION_CONFIG[name],
             };
 
-            if (tool.outputSchema) {
-              toolDefinition['outputSchema'] = toJsonSchema(tool.outputSchema, {
+            // outputSchema: prefer tool-level, fall back to registry lookup
+            const resolvedOutputSchema = tool.outputSchema ?? getOutputSchemaForTool(name);
+            if (resolvedOutputSchema) {
+              toolDefinition['outputSchema'] = toJsonSchema(resolvedOutputSchema, {
                 toolName: name,
                 schemaType: 'output',
               });
@@ -902,4 +937,13 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
       };
     }
   );
+}
+
+/**
+ * Clear both output schema and description caches.
+ * Call this when session context changes significantly (e.g., new spreadsheet selected).
+ */
+export function clearToolListCaches(): void {
+  clearToolDescriptionCache();
+  clearOutputSchemaCache();
 }

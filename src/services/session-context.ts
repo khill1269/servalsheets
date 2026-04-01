@@ -606,6 +606,32 @@ export class SessionContextManager {
   }
 
   /**
+   * Replace the oldest operations with a single digest entry.
+   * Preserves the most recent `keepRecent` operations verbatim;
+   * older ones are removed and replaced with the provided digest string.
+   * Called by the compact_session action after AI summarization.
+   */
+  compactHistory(digest: string, keepRecent: number = 5): void {
+    const history = this.state.operationHistory;
+    if (history.length <= keepRecent) {
+      return; // Nothing to compact
+    }
+    const recent = history.slice(0, keepRecent);
+    const digestEntry: OperationRecord = {
+      id: `digest_${Date.now()}`,
+      tool: 'sheets_session',
+      action: 'compact_session',
+      spreadsheetId: recent[0]?.spreadsheetId ?? '',
+      description: digest,
+      timestamp: Date.now(),
+      undoable: false,
+    };
+    this.state.operationHistory = [digestEntry, ...recent];
+    this.state.lastActivityAt = Date.now();
+    this.persistState();
+  }
+
+  /**
    * Get a lightweight summary of session state for embedding in LLM prompts.
    * Used by sampling.ts to enrich prompt context with the user's current work.
    */

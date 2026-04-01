@@ -46,26 +46,29 @@ import { parseCliCommand } from './cli/command-parsing.js';
 import { dispatchCliCommand } from './cli/command-dispatch.js';
 import { enhanceStartupError } from './utils/enhanced-errors.js';
 import { startCliRuntime } from './cli/start-runtime.js';
+import { recordStartupPhase } from './startup/startup-profiler.js';
 
 // Record startup start time for metrics
 process.env['SERVALSHEETS_STARTUP_TIME'] = Date.now().toString();
 
 const args = process.argv.slice(2);
-const parsedCommand = parseCliCommand(args);
-const dispatchedCommand = await dispatchCliCommand(parsedCommand, {
-  runAuthSetup: async () => {
-    const { runAuthSetup } = await import('./cli/auth-setup.js');
-    await runAuthSetup();
-  },
-  loadPackageVersion: async () => {
-    const pkg = await import('../package.json', { assert: { type: 'json' } });
-    return pkg.default.version;
-  },
-  versionFallback: VERSION,
-  output: console,
-  exit: (code) => {
-    process.exit(code);
-  },
+const dispatchedCommand = await recordStartupPhase('cli_parse_dispatch', async () => {
+  const parsedCommand = parseCliCommand(args);
+  return await dispatchCliCommand(parsedCommand, {
+    runAuthSetup: async () => {
+      const { runAuthSetup } = await import('./cli/auth-setup.js');
+      await runAuthSetup();
+    },
+    loadPackageVersion: async () => {
+      const pkg = await import('../package.json', { assert: { type: 'json' } });
+      return pkg.default.version;
+    },
+    versionFallback: VERSION,
+    output: console,
+    exit: (code) => {
+      process.exit(code);
+    },
+  });
 });
 
 if (dispatchedCommand.kind === 'handled') {
@@ -84,21 +87,21 @@ const [
     ensureEncryptionKey,
   },
   { runPreflightChecks },
-  {
-    checkRestartBackoff,
-    recordStartupAttempt,
-    recordSuccessfulStartup,
-  },
+  { checkRestartBackoff, recordStartupAttempt, recordSuccessfulStartup },
   { startStdioCli },
   { startSelectedCliTransport },
-] = await Promise.all([
-  import('./utils/logger.js'),
-  import('./startup/lifecycle.js'),
-  import('./startup/preflight-validation.js'),
-  import('./startup/restart-policy.js'),
-  import('./cli/start-stdio.js'),
-  import('./cli/start-selected-transport.js'),
-]);
+] = await recordStartupPhase(
+  'dynamic_imports',
+  async () =>
+    await Promise.all([
+      import('./utils/logger.js'),
+      import('./startup/lifecycle.js'),
+      import('./startup/preflight-validation.js'),
+      import('./startup/restart-policy.js'),
+      import('./cli/start-stdio.js'),
+      import('./cli/start-selected-transport.js'),
+    ])
+);
 
 const serverOptions: ServalSheetsServerOptions = buildCliServerOptions(cliOptions, process.env);
 

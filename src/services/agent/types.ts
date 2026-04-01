@@ -147,6 +147,44 @@ export type ParsedHandlerResponse = {
   spreadsheet?: Record<string, unknown>;
 };
 
+export interface PlannerActionCatalogEntry {
+  action: string;
+  whenToUse?: string;
+  whenNotToUse?: string;
+  prerequisites?: string[];
+  commonMistakes?: string[];
+  apiCalls?: number;
+  idempotent?: boolean;
+  requiresAuth: boolean;
+}
+
+export interface PlannerToolCatalogEntry {
+  name: string;
+  title: string;
+  description: string;
+  actionCount: number;
+  actions: PlannerActionCatalogEntry[];
+  tier?: 1 | 2 | 3;
+  group?: 'data-io' | 'appearance' | 'structure' | 'analysis' | 'automation';
+  primaryVerbs?: string[];
+  agencyHint?: {
+    level: 'autonomous' | 'orchestrated' | 'direct';
+    reason: string;
+  };
+  requiredScopes?: {
+    primary: string;
+    elevated?: string;
+    note?: string;
+  };
+  availability?: Record<string, unknown>;
+  authPolicy: {
+    requiresAuth: boolean;
+    exemptActions: string[];
+    hasAuthExemptActions: boolean;
+    note?: string;
+  };
+}
+
 // ============================================================================
 // Schema registration (setter pattern — avoids services→mcp/registration dependency)
 // ============================================================================
@@ -154,6 +192,7 @@ export type ParsedHandlerResponse = {
 // Populated by the MCP layer at startup via registerToolInputSchemas().
 // Using a setter avoids a services→mcp/registration architecture boundary violation.
 let _toolInputSchemas: Map<string, ZodTypeAny> | null = null;
+let _plannerToolCatalog: PlannerToolCatalogEntry[] | null = null;
 
 /**
  * Called once by the MCP registration layer to provide tool input schemas for
@@ -165,4 +204,15 @@ export function registerToolInputSchemas(schemas: Map<string, ZodTypeAny>): void
 
 export function getToolInputSchemas(): Map<string, ZodTypeAny> {
   return _toolInputSchemas ?? new Map();
+}
+
+/**
+ * Called once by the MCP layer to provide a filtered planner-facing tool catalog.
+ */
+export function registerPlannerToolCatalog(catalog: PlannerToolCatalogEntry[]): void {
+  _plannerToolCatalog = [...catalog];
+}
+
+export function getPlannerToolCatalog(): PlannerToolCatalogEntry[] {
+  return _plannerToolCatalog ? [..._plannerToolCatalog] : [];
 }

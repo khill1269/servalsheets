@@ -277,4 +277,85 @@ describe('tool execution side effects', () => {
       })
     );
   });
+
+  it('auto-records in session history when autoRecord preference is enabled', async () => {
+    const mockRecordOperation = vi.fn().mockReturnValue('op-auto-1');
+    const mockSessionCtx = {
+      getPreferences: vi.fn().mockReturnValue({ autoRecord: true }),
+      recordOperation: mockRecordOperation,
+    };
+    const deps = createDeps({
+      getSessionContextFn: vi.fn().mockReturnValue(mockSessionCtx),
+    });
+
+    await recordSuccessfulToolExecution(
+      {
+        toolName: 'sheets_data',
+        action: 'write',
+        args: {
+          request: {
+            action: 'write',
+            spreadsheetId: 'sheet-auto',
+          },
+        },
+        result: {
+          response: {
+            success: true,
+            cellsAffected: 10,
+          },
+        },
+        operationId: 'op-auto',
+        timestamp: '2026-03-31T00:00:00.000Z',
+        startTime: 1000,
+        duration: 100,
+        requestId: 'req-auto',
+        traceId: 'trace-auto',
+        principalId: 'dave',
+        costTrackingTenantId: 'tenant-auto',
+      },
+      deps,
+      createStore()
+    );
+
+    expect(mockRecordOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: 'sheets_data',
+        action: 'write',
+        spreadsheetId: 'sheet-auto',
+        undoable: false,
+      })
+    );
+  });
+
+  it('skips autoRecord when preference is disabled', async () => {
+    const mockRecordOperation = vi.fn();
+    const mockSessionCtx = {
+      getPreferences: vi.fn().mockReturnValue({ autoRecord: false }),
+      recordOperation: mockRecordOperation,
+    };
+    const deps = createDeps({
+      getSessionContextFn: vi.fn().mockReturnValue(mockSessionCtx),
+    });
+
+    await recordSuccessfulToolExecution(
+      {
+        toolName: 'sheets_data',
+        action: 'write',
+        args: { request: { action: 'write', spreadsheetId: 'sheet-x' } },
+        result: { response: { success: true } },
+        operationId: 'op-skip',
+        timestamp: '2026-03-31T00:00:00.000Z',
+        startTime: 1000,
+        duration: 100,
+        requestId: 'req-skip',
+        traceId: 'trace-skip',
+        principalId: 'eve',
+        costTrackingTenantId: 'tenant-skip',
+      },
+      deps,
+      createStore()
+    );
+
+    expect(mockRecordOperation).not.toHaveBeenCalled();
+  });
 });
