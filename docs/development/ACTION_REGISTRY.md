@@ -1,12 +1,12 @@
 ---
-title: ServalSheets — Action Registry (408 Actions, 25 Tools)
+title: ServalSheets — Action Registry (409 Actions, 25 Tools)
 category: development
-last_updated: 2026-03-29
+last_updated: 2026-04-01
 description: '> Complete action list by tool. Source of truth for counts: src/schemas/action-counts.ts.'
 version: 1.7.0
 ---
 
-# ServalSheets — Action Registry (408 Actions, 25 Tools)
+# ServalSheets — Action Registry (409 Actions, 25 Tools)
 
 > Complete action list by tool. Source of truth for counts: `src/schemas/action-counts.ts`.
 > Load this file only when working on actions, adding features, or verifying action names.
@@ -128,14 +128,14 @@ version: 1.7.0
 
 `list, get, stats, undo, redo, revert_to, clear, timeline, diff_revisions, restore_cells`
 
-## sheets_session (31) — Standalone
+## sheets_session (32) — Standalone
 
 `set_active, get_active, get_context, record_operation, get_last_operation, get_history`,
 `find_by_reference, update_preferences, get_preferences, set_pending, get_pending, clear_pending`,
-`save_checkpoint, load_checkpoint, list_checkpoints, delete_checkpoint, reset, get_alerts`,
-`acknowledge_alert, clear_alerts, set_user_id, get_profile, update_profile_preferences`,
-`record_successful_formula, reject_suggestion, get_top_formulas, schedule_create, schedule_list`,
-`schedule_cancel, schedule_run_now, execute_pipeline`
+`save_checkpoint, load_checkpoint, list_checkpoints, delete_checkpoint, reset, compact_session`,
+`get_alerts, acknowledge_alert, clear_alerts, set_user_id, get_profile`,
+`update_profile_preferences, record_successful_formula, reject_suggestion, get_top_formulas`,
+`schedule_create, schedule_list, schedule_cancel, schedule_run_now, execute_pipeline`
 
 ## sheets_transaction (6) — Standalone
 

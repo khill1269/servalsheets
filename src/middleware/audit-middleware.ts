@@ -66,6 +66,93 @@ import { getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 
 /**
+ * Sliding-window rate limiter for audit log writes.
+ * Prevents audit log flooding during high-volume mutation workloads.
+ *
+ * Default: 500 audit events per minute per user, 5000 total per minute.
+ */
+class AuditRateLimiter {
+  private readonly perUserWindows = new Map<string, { count: number; windowStart: number }>();
+  private globalCount = 0;
+  private globalWindowStart = Date.now();
+
+  private readonly perUserLimit: number;
+  private readonly globalLimit: number;
+  private readonly windowMs: number;
+
+  constructor(options?: { perUserLimit?: number; globalLimit?: number; windowMs?: number }) {
+    this.perUserLimit = options?.perUserLimit ?? 500;
+    this.globalLimit = options?.globalLimit ?? 5000;
+    this.windowMs = options?.windowMs ?? 60_000;
+  }
+
+  /**
+   * Check if an audit event should be logged or rate-limited.
+   * Returns true if the event should proceed, false if rate-limited.
+   */
+  shouldLog(userId: string): { allowed: boolean; reason?: string } {
+    const now = Date.now();
+
+    // Reset global window if expired
+    if (now - this.globalWindowStart >= this.windowMs) {
+      this.globalCount = 0;
+      this.globalWindowStart = now;
+    }
+
+    // Check global limit
+    if (this.globalCount >= this.globalLimit) {
+      return { allowed: false, reason: 'global_limit_exceeded' };
+    }
+
+    // Get or create per-user window
+    let userWindow = this.perUserWindows.get(userId);
+    if (!userWindow || now - userWindow.windowStart >= this.windowMs) {
+      userWindow = { count: 0, windowStart: now };
+      this.perUserWindows.set(userId, userWindow);
+    }
+
+    // Check per-user limit
+    if (userWindow.count >= this.perUserLimit) {
+      return { allowed: false, reason: 'per_user_limit_exceeded' };
+    }
+
+    // Allow and increment
+    userWindow.count++;
+    this.globalCount++;
+
+    return { allowed: true };
+  }
+
+  /**
+   * Prune expired windows to prevent memory growth.
+   * Called periodically (e.g., every 5 minutes).
+   */
+  prune(): void {
+    const now = Date.now();
+    for (const [userId, window] of this.perUserWindows) {
+      if (now - window.windowStart >= this.windowMs * 2) {
+        this.perUserWindows.delete(userId);
+      }
+    }
+  }
+
+  /** Get current stats for monitoring */
+  getStats(): { globalCount: number; activeUsers: number } {
+    return {
+      globalCount: this.globalCount,
+      activeUsers: this.perUserWindows.size,
+    };
+  }
+}
+
+// Module-level singleton
+const auditRateLimiter = new AuditRateLimiter();
+
+// Prune expired windows every 5 minutes (unref'd to not prevent exit)
+const pruneInterval = setInterval(() => auditRateLimiter.prune(), 5 * 60_000);
+pruneInterval.unref?.();
+
+/**
  * Tool actions that trigger audit logging.
  * Names must match the actual action keys dispatched by handler switch statements.
  */
@@ -217,6 +304,19 @@ export class AuditMiddleware {
 
     // Extract user context
     const userId = this.extractUserId(args);
+
+    // Rate limit audit logging to prevent flooding
+    const rateLimitCheck = auditRateLimiter.shouldLog(userId ?? 'anonymous');
+    if (!rateLimitCheck.allowed) {
+      logger.debug('Audit log rate limited', {
+        userId,
+        action,
+        reason: rateLimitCheck.reason,
+      });
+      // Still execute the handler — just skip the audit log
+      return handler();
+    }
+
     const ipAddress = this.extractIpAddress();
     const resource = this.extractResource(action, args);
 

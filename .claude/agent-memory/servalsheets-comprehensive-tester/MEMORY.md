@@ -4,7 +4,7 @@
 
 ### Action Count Discrepancy
 
-- **Actual count:** 25 tools, 408 actions (from `src/schemas/action-counts.ts`)
+- **Actual count:** 25 tools, 409 actions (from `src/schemas/action-counts.ts`)
 - **CLAUDE.md claims:** 305 actions
 - **Capabilities resource says:** 305 actions, version 2.0.0.0
 - **Package.json says:** version 2.0.0.0

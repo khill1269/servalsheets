@@ -46,6 +46,7 @@ import { createOptionalGoogleClient } from '../startup/google-client-bootstrap.j
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { cacheManager } from '../utils/cache-manager.js';
 import { startHeapWatchdog } from '../utils/heap-watchdog.js';
+import { recordStartupPhase, recordStartupPhaseSync } from '../startup/startup-profiler.js';
 
 interface LoggingBridgeInput {
   loggingBridgeInstalled: boolean;
@@ -95,14 +96,16 @@ export function buildServerStdioRuntimeDependencies(
     healthMonitor: input.healthMonitor,
     logging,
     markResourcesRegistered: input.markResourcesRegistered,
-    registerTools: input.registerTools,
-    registerResources: input.registerResources,
+    registerTools: () => recordStartupPhaseSync('register_tools', input.registerTools),
+    registerResources: () => recordStartupPhase('register_resources', input.registerResources),
     handleToolCall: input.handleToolCall,
     prepareRuntimePreflight: () =>
-      prepareRuntimePreflight({
-        loadEnv: getEnv,
-        validateToolCatalogConfiguration,
-      }),
+      recordStartupPhaseSync('runtime_preflight', () =>
+        prepareRuntimePreflight({
+          loadEnv: getEnv,
+          validateToolCatalogConfiguration,
+        })
+      ),
     createAuthHandler: (options?: { googleClient?: GoogleApiClient }) =>
       createServerAuthHandler(options),
     createOptionalGoogleClient,
@@ -119,19 +122,23 @@ export function buildServerStdioRuntimeDependencies(
       onProgress,
       requestDeduplicator,
     }) =>
-      initializeServerGoogleRuntime({
-        googleClient,
-        envDataDir: envConfig.DATA_DIR,
-        taskStore,
-        mcpServer: (mcpServer as McpServer).server as HandlerMcpServer,
-        costTrackingEnabled,
-        dispatchScheduledJob,
-        onProgress: (event) => {
-          onProgress(event);
-          void sendProgress(event.current, event.total, event.message);
-        },
-        requestDeduplicator: requestDeduplicator as RequestDeduplicator | undefined,
-      }),
+      await recordStartupPhase(
+        'initialize_google_runtime',
+        async () =>
+          await initializeServerGoogleRuntime({
+            googleClient,
+            envDataDir: envConfig.DATA_DIR,
+            taskStore,
+            mcpServer: (mcpServer as McpServer).server as HandlerMcpServer,
+            costTrackingEnabled,
+            dispatchScheduledJob,
+            onProgress: (event) => {
+              onProgress(event);
+              void sendProgress(event.current, event.total, event.message);
+            },
+            requestDeduplicator: requestDeduplicator as RequestDeduplicator | undefined,
+          })
+      ),
     requestDeduplicator,
     onProgress: () => {},
     afterGoogleRuntimeInitialized: ({ context, envConfig: _envConfig, log }) => {
@@ -178,12 +185,13 @@ export function buildServerStdioRuntimeDependencies(
     initializeBilling: (envConfig) => {
       initializeBillingIntegration(buildBillingBootstrapConfig(envConfig));
     },
-    registerCompletions: (log) => {
-      registerStdioCompletions({
-        ensureCompletionsRegistered: ensureServerCompletionsRegistered,
-        log: log as typeof baseLogger,
-      });
-    },
+    registerCompletions: (log) =>
+      recordStartupPhaseSync('register_completions', () => {
+        registerStdioCompletions({
+          ensureCompletionsRegistered: ensureServerCompletionsRegistered,
+          log: log as typeof baseLogger,
+        });
+      }),
     shouldDeferResourceDiscovery: async () => {
       const { shouldDeferResourceDiscovery } = await import('../config/env.js');
       return shouldDeferResourceDiscovery();
@@ -191,12 +199,13 @@ export function buildServerStdioRuntimeDependencies(
     onResourceDiscoveryDeferred: (log) => {
       log.info('Resource discovery deferred - resources will load on first access');
     },
-    registerPrompts: (server) => {
-      registerStdioPrompts({
-        server: server as McpServer,
-        registerPrompts: registerServerPrompts,
-      });
-    },
+    registerPrompts: (server) =>
+      recordStartupPhaseSync('register_prompts', () => {
+        registerStdioPrompts({
+          server: server as McpServer,
+          registerPrompts: registerServerPrompts,
+        });
+      }),
     registerTaskCancelHandler: ({ taskStore, taskAbortControllers, taskWatchdogTimers, log }) => {
       registerStdioTaskCancelHandler({
         taskStore: taskStore as TaskStoreAdapter,

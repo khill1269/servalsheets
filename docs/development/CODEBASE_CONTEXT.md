@@ -9,7 +9,7 @@ tags: [sheets, architecture, mcp]
 
 # ServalSheets — Complete Codebase Context
 
-> Persistent reference for coding sessions. Covers all 25 tools (408 actions), MCP compliance,
+> Persistent reference for coding sessions. Covers all 25 tools (409 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
 > Updated: 2026-03-22.
 
@@ -67,7 +67,7 @@ handling, verbosity filtering, and service access.
 | sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (248 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
 | sheets_quality      | QualityHandler                         | handlers/quality.ts (666 lines)      | 4       | ValidationEngine, ConflictDetector                 |
 | sheets_history      | HistoryHandler                         | handlers/history.ts (150 lines)      | 10      | HistoryService, SnapshotService, TimeTravelService |
-| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (354 lines)      | 31      | SessionContextManager                              |
+| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (394 lines)      | 32      | SessionContextManager                              |
 | sheets_transaction  | TransactionHandler                     | handlers/transaction.ts (407 lines)  | 6       | TransactionManager                                 |
 | sheets_federation   | FederationHandler                      | handlers/federation.ts (409 lines)   | 4       | FederatedMcpClient                                 |
 | sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (242 lines)     | 11      | WebhookManager, Redis                              |
@@ -121,7 +121,7 @@ Client → MCP Request (STDIO / Streamable HTTP / legacy SSE compatibility)
 | Legacy SSE Compatibility | ✅     | http-server.ts                            | Optional compatibility endpoints         |
 | Streamable HTTP          | ✅     | http-server.ts, mcp/event-store.ts        | Primary hosted transport + resumability  |
 | Tool Registration        | ✅     | mcp/registration/tool-handlers.ts         | 25 tools, discriminated union schemas    |
-| Resources                | ✅     | mcp/registration/resource-registration.ts | 2 URI templates + knowledge resources    |
+| Resources                | ✅     | mcp/registration/resource-registration.ts | 56 resources + 12 resource templates     |
 | Prompts                  | ✅     | mcp/registration/prompt-registration.ts   | 40 guided workflows                      |
 | Sampling (SEP-1577)      | ✅     | mcp/sampling.ts (960 lines)               | AI analysis, formula gen, chart suggest  |
 | Elicitation (SEP-1036)   | ✅     | mcp/elicitation.ts (759 lines)            | 5 form schemas + URL flows + wizards     |

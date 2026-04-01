@@ -6,7 +6,7 @@ status: active
 
 # ServalSheets — Master Test Plan
 
-> 13 test categories covering all 408 actions, 27 error patterns, 4 agent workflows,
+> 13 test categories covering all 409 actions, 27 error patterns, 4 agent workflows,
 > 8 user personas, and every MCP interaction pattern.
 > Generated: 2026-03-19. Source: action registry, server capabilities, real-world workflow research.
 
@@ -362,7 +362,7 @@ status: active
 | 12.9  | `_meta.apiCallsMade` accuracy    | Count matches actual Google API calls made                          |
 | 12.10 | `_meta.executionTimeMs` accuracy | Wall-clock time from request start                                  |
 | 12.11 | Completions: spreadsheetId       | Session-recorded IDs returned as completions                        |
-| 12.12 | Completions: action names        | All 408 actions available as completions                            |
+| 12.12 | Completions: action names        | All 409 actions available as completions                            |
 | 12.13 | Completions: enum values         | Chart types, format presets, strategies all completable             |
 | 12.14 | Tool discovery hints             | `actionParams` in tools/list with required fields per action        |
 | 12.15 | Server instructions quality      | 5-GROUP mental model complete; error recovery table accurate        |

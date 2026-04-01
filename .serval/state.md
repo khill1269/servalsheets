@@ -107,7 +107,7 @@ npm run audit:full       # All of the above
 
 - docs/development/PROJECT_STATUS.md may have stale counts (expected 25/407/2.0.0)
 - npm run check:drift hangs/times out
-- .claude/agent-memory/servalsheets-validation/MEMORY.md has stale count: ACTION_COUNT = 402 (actual: 25 tools, 408 actions)
+- .claude/agent-memory/servalsheets-validation/MEMORY.md has stale count: ACTION_COUNT = 402 (actual: 25 tools, 409 actions)
 
 ## Verification Commands
 
