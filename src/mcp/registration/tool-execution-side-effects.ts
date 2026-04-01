@@ -16,6 +16,7 @@ import {
   type TraceSpan,
 } from '../../services/trace-aggregator.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
+import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { resourceNotifications } from '../../resources/notifications.js';
 import type { OperationHistory } from '../../types/history.js';
 import { logger } from '../../utils/logger.js';
@@ -94,6 +95,7 @@ export interface ToolExecutionSideEffectDeps {
     notifySpreadsheetMutation(spreadsheetId: string, reason?: string): void;
   };
   collectTraceSpans: () => Promise<TraceSpan[]>;
+  getSessionContextFn?: () => SessionContextManager;
 }
 
 export interface SuccessfulToolExecutionInput {
@@ -146,6 +148,7 @@ function createDefaultDeps(): ToolExecutionSideEffectDeps {
     recordSelfCorrectionMetric: recordSelfCorrection,
     invalidateSamplingContext,
     resourceNotifications,
+    getSessionContextFn: () => getSessionContext(),
     collectTraceSpans: async () => {
       const tracer = getTracer();
       const recordedSpans = tracer.getSpans();
@@ -413,6 +416,24 @@ export async function recordSuccessfulToolExecution(
         spreadsheetId,
         `${input.toolName}.${input.action} mutated spreadsheet ${spreadsheetId}`
       );
+
+      // autoRecord: automatically record in session history when preference is enabled
+      try {
+        const sessionCtx = deps.getSessionContextFn?.();
+        if (sessionCtx?.getPreferences().autoRecord) {
+          sessionCtx.recordOperation({
+            tool: input.toolName,
+            action: input.action,
+            spreadsheetId,
+            description: `${input.toolName}.${input.action} completed successfully`,
+            undoable: !!operation.snapshotId,
+            snapshotId: operation.snapshotId,
+            cellsAffected: operation.cellsAffected,
+          });
+        }
+      } catch {
+        // autoRecord is non-critical — never block tool execution.
+      }
     }
   }
 }

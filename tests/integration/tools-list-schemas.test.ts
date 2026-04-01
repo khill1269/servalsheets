@@ -63,6 +63,7 @@ describe('tools/list Schema Serialization', () => {
   beforeAll(async () => {
     // Federation requires MCP_FEDERATION_SERVERS to be visible in tools/list
     process.env['MCP_FEDERATION_SERVERS'] = 'test-server:http://localhost:9999';
+    resetEnvForTest();
     // Create server instance (applies SDK patch)
     server = new ServalSheetsServer({
       name: 'ServalSheets Test',
@@ -309,7 +310,7 @@ describe('tools/list Schema Serialization', () => {
       Object.values(sessionActionParams).filter((hint) =>
         Object.prototype.hasOwnProperty.call(hint, 'required')
       )
-    ).toHaveLength(31);
+    ).toHaveLength(32);
     expect(sessionActionParams['get_context']?.required).toEqual([]);
     expect(sessionActionParams['set_active']?.required).toEqual(['spreadsheetId']);
 
@@ -478,5 +479,39 @@ describe('tools/list Schema Serialization', () => {
       expect(actionParams['list_triggers']).toBeDefined();
       expect(availability).toBeUndefined();
     }
+  });
+
+  it('should expose shared auth, scope, and agency metadata in x-servalsheets', async () => {
+    if (!DEFER_SCHEMAS) return;
+
+    const response = await requestToolsList(server);
+    const authTool = response.tools.find((tool) => tool.name === 'sheets_auth');
+    const historyTool = response.tools.find((tool) => tool.name === 'sheets_history');
+    const dataTool = response.tools.find((tool) => tool.name === 'sheets_data');
+
+    const authMetadata = (authTool?.inputSchema as Record<string, unknown>)['x-servalsheets'] as
+      | Record<string, unknown>
+      | undefined;
+    const historyMetadata = (historyTool?.inputSchema as Record<string, unknown>)[
+      'x-servalsheets'
+    ] as Record<string, unknown> | undefined;
+    const dataMetadata = (dataTool?.inputSchema as Record<string, unknown>)['x-servalsheets'] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(authMetadata?.['authPolicy']).toMatchObject({
+      requiresAuth: false,
+      hasAuthExemptActions: false,
+    });
+    expect(historyMetadata?.['authPolicy']).toMatchObject({
+      requiresAuth: true,
+      hasAuthExemptActions: true,
+      exemptActions: ['list', 'get', 'stats'],
+    });
+    expect(dataMetadata?.['requiredScopes']).toMatchObject({
+      primary: 'spreadsheets',
+    });
+    expect(dataMetadata?.['tier']).toBe(1);
+    expect(dataMetadata?.['group']).toBe('data-io');
   });
 });

@@ -263,25 +263,3 @@ export class Container {
     });
   }
 }
-
-/**
- * Global container instance
- */
-let globalContainer: Container | null = null;
-
-/**
- * Get the global container (singleton)
- */
-export function getContainer(): Container {
-  if (!globalContainer) {
-    globalContainer = new Container();
-  }
-  return globalContainer;
-}
-
-/**
- * Reset the global container (for testing)
- */
-export function resetContainer(): void {
-  globalContainer = null;
-}

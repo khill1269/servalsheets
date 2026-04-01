@@ -110,7 +110,7 @@ retry + exponential backoff, per-API circuit breakers, ETag caching, adaptive ba
 - **File**: `src/services/cache-invalidation-graph.ts` (805 lines)
 - Operation-based cache invalidation — write to Sheet1!A1 invalidates Sheet1 range reads
 - Rule key format: `toolName.actionName` (e.g., `sheets_data.write`)
-- All 408 actions registered (read-only: `invalidates: []`, mutations: explicit invalidation rules)
+- All 409 actions registered (read-only: `invalidates: []`, mutations: explicit invalidation rules)
 - Hit rate target: 40-60% improvement for write-then-read patterns
 
 ### Cache Consistency

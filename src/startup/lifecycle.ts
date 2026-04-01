@@ -28,6 +28,7 @@ import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { getBatchEfficiencyStats } from '../utils/batch-efficiency.js';
 import { getWebhookManager, getWebhookWorker } from '../services/index.js';
 import { serverStartupDuration } from '../observability/metrics.js';
+import { flushStartupSummary } from './startup-profiler.js';
 import { DEFER_SCHEMAS } from '../config/constants.js';
 
 // Shutdown timeout (10 seconds)
@@ -612,7 +613,7 @@ export function logEnvironmentConfig(): void {
   const startupDurationMs = Date.now() - startupStartTime;
 
   // Record startup duration metric (Phase 0, Priority 2)
-  const transport = process.env['SERVALSHEETS_TRANSPORT'] || 'stdio';
+  const transport = process.env['MCP_TRANSPORT'] || 'stdio';
   const deferredSchemas = DEFER_SCHEMAS ? 'true' : 'false';
   const deferredResources =
     process.env['DISABLE_KNOWLEDGE_RESOURCES'] === 'true' ? 'false' : 'true';
@@ -624,6 +625,7 @@ export function logEnvironmentConfig(): void {
     },
     startupDurationMs / 1000
   );
+  const startupPhases = flushStartupSummary();
 
   logger.info('Environment configuration', {
     nodeEnv: isProduction ? 'production' : 'development',
@@ -640,5 +642,6 @@ export function logEnvironmentConfig(): void {
     cacheEnabled,
     deduplicationEnabled,
     startupDurationMs,
+    ...(startupPhases.length > 0 ? { startupPhases } : {}),
   });
 }

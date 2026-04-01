@@ -30,7 +30,7 @@ tags: [sheets, prometheus]
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 25 tools, 408 actions
+# ✅ Total: 25 tools, 409 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -131,7 +131,7 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 25 tools, 408 actions
+# Output: ✅ Total: 25 tools, 409 actions
 ```
 
 ---
@@ -211,7 +211,7 @@ Evidence: <file:line> OR <command → output>
 ✅ **Good:**
 
 ```
-Claim: ServalSheets has 408 actions
+Claim: ServalSheets has 409 actions
 Evidence: docs/generated/facts.json reports counts.actions = 408
 Command: jq '.counts.actions' docs/generated/facts.json
 Output: 408
@@ -307,7 +307,7 @@ A: Let me verify...
 Command: jq '.counts.actions' docs/generated/facts.json
 Output: 408
 
-ServalSheets has 408 actions across 25 tools.
+ServalSheets has 409 actions across 25 tools.
 Evidence: docs/generated/facts.json reports counts.actions = 408
 ```
 

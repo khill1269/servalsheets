@@ -254,7 +254,7 @@ No Zod version risk. Running current stable v4.
 
 Per-action metadata fields: `readOnly`, `apiCalls`, `quotaCost`, `requiresConfirmation`, `destructive`, `idempotent`, `typicalLatency`, `savings`
 
-**Coverage**: Structure is comprehensive (2,712 lines for 408 actions = ~6.7 lines/action average)
+**Coverage**: Structure is comprehensive (2,712 lines for 409 actions = ~6.7 lines/action average)
 
 **Usage**: Referenced by BaseHandler for cost estimation in responses, and by LLM hints system
 
