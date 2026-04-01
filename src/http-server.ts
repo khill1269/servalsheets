@@ -73,7 +73,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   return createPackagedHttpServer(options, {
     defaultPort: DEFAULT_PORT,
     defaultHost: DEFAULT_HOST,
-    createApp: () => express(),
+    createApp: () => {
+      const app = express();
+      // Trust reverse proxy (Fly.io, nginx, etc.) — required for express-rate-limit
+      // to correctly identify clients via X-Forwarded-For behind a proxy.
+      app.set('trust proxy', true);
+      return app;
+    },
     getEnvConfig: getEnv,
     getSharedHttpLoggingBridge,
     createEnsureToolIntegrityVerified: () =>
