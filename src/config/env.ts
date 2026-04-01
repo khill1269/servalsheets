@@ -39,6 +39,7 @@ const StrictBooleanSchema = z.union([
 ]);
 
 const strictBoolean = (): typeof StrictBooleanSchema => StrictBooleanSchema;
+const REDIS_URL_REGEX = /^rediss?:\/\/\S+$/;
 
 export const DEFAULT_DATA_DIR = '/tmp/servalsheets';
 export const DEFAULT_PROFILE_STORAGE_DIR = '/tmp/servalsheets-profiles';
@@ -211,7 +212,11 @@ const EnvSchema = z.object({
 
   // Session Store Configuration (for OAuth)
   SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
-  REDIS_URL: z.string().regex(URL_REGEX, 'Invalid URL format').optional().catch(undefined),
+  REDIS_URL: z
+    .string()
+    .regex(REDIS_URL_REGEX, 'Invalid Redis URL format')
+    .optional()
+    .catch(undefined),
   ALLOW_MEMORY_SESSIONS: strictBoolean().default(false),
 
   // Admin Dashboard Configuration

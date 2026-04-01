@@ -126,7 +126,10 @@ export function createHttpServerLifecycle<TMetricsExporter = unknown, TMetricsSe
     start: async () => {
       await options.initTelemetry();
       await options.ensureToolIntegrityVerified.run();
-      await Promise.all([options.rateLimiterReady, options.initializeRbac()]);
+      await options.initializeRbac();
+      void options.rateLimiterReady.catch((error) => {
+        log.error('HTTP rate limiter bootstrap failed after server start', { error });
+      });
 
       await new Promise<void>((resolve, reject) => {
         httpServer = options.app.listen(options.port, options.host);

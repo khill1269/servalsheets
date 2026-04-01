@@ -1,11 +1,11 @@
 # ServalSheets Production Dockerfile
 # Multi-stage build for optimal image size (~50MB final)
 
-# Stage 1: Build
+# Stage 1: Install runtime dependencies
 # NOTE: Pin to specific tag for reproducibility. Run `docker pull node:20-alpine`
 # then `docker inspect --format='{{index .RepoDigests 0}}' node:20-alpine` to get
 # the current digest and append @sha256:... to the FROM line below.
-FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -20,17 +20,14 @@ COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 # Install dependencies (including devDependencies for build)
 RUN npm ci
 
-# Copy source code
+# Copy source tree, including prebuilt dist artifacts from the worktree
 COPY . .
 
-# Build TypeScript (4GB heap — multi-workspace tsc is memory-intensive)
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
-
-# Prune devDependencies
-RUN npm prune --production
+# Validate that the expected prebuilt runtime entrypoints are present
+RUN test -f dist/http-server-entry.js && test -f packages/mcp-http/dist/direct-entry.js
 
 # Stage 2: Runtime (same pin as builder — keep in sync)
-FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -39,7 +36,6 @@ RUN apk add --no-cache curl
 
 # Copy built artifacts and production dependencies
 COPY --from=builder /app/dist ./dist
-# Workspace package dist outputs (dist/http-server.js imports ../packages/mcp-http/dist/)
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
@@ -48,9 +44,6 @@ COPY --from=builder /app/server.json ./
 # Create non-root user
 RUN addgroup -g 1001 -S servalsheets && \
     adduser -S servalsheets -u 1001
-
-# Create required runtime directories (DATA_DIR, PROFILE_STORAGE_DIR, CHECKPOINT_DIR, WAL_DIR)
-RUN mkdir -p /app/data /app/profiles /app/checkpoints /app/wal
 
 # Change ownership
 RUN chown -R servalsheets:servalsheets /app
@@ -71,4 +64,4 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 # Start server
-CMD ["node", "dist/http-server.js"]
+CMD ["node", "dist/http-server-entry.js"]

@@ -33,7 +33,7 @@ describe('http request validation middleware', () => {
     middleware(
       {
         method: 'GET',
-        path: '/api/admin',
+        path: '/mcp',
         ip: '127.0.0.1',
         protocol: 'http',
         secure: false,
@@ -45,13 +45,40 @@ describe('http request validation middleware', () => {
 
     expect(log.warn).toHaveBeenCalledWith('Rejected non-HTTPS request in production', {
       method: 'GET',
-      path: '/api/admin',
+      path: '/mcp',
       ip: '127.0.0.1',
       protocol: 'http',
       forwardedProto: undefined,
     });
     expect(res.status).toHaveBeenCalledWith(426);
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('allows health endpoints over HTTP for internal readiness checks', () => {
+    const log = { warn: vi.fn() };
+    const middleware = createHttpsEnforcementMiddleware({
+      enabled: true,
+      log,
+    });
+    const res = createResponseDouble();
+    const next = vi.fn();
+
+    middleware(
+      {
+        method: 'GET',
+        path: '/health/ready',
+        ip: '127.0.0.1',
+        protocol: 'http',
+        secure: false,
+        headers: {},
+      } as never,
+      res as never,
+      next
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
   });
 
   it('rejects invalid origin headers', () => {
@@ -97,7 +124,7 @@ describe('http request validation middleware', () => {
     middleware(
       {
         method: 'GET',
-        path: '/health',
+        path: '/mcp',
         ip: '127.0.0.1',
         get: (header: string) => (header === 'host' ? 'evil.example:3000' : undefined),
       } as never,
@@ -110,7 +137,7 @@ describe('http request validation middleware', () => {
       {
         host: 'evil.example:3000',
         hostname: 'evil.example',
-        path: '/health',
+        path: '/mcp',
         method: 'GET',
         ip: '127.0.0.1',
       }
@@ -130,7 +157,7 @@ describe('http request validation middleware', () => {
     middleware(
       {
         method: 'GET',
-        path: '/health',
+        path: '/mcp',
         get: (header: string) => (header === 'host' ? 'localhost:3000' : undefined),
       } as never,
       res as never,
@@ -138,6 +165,31 @@ describe('http request validation middleware', () => {
     );
 
     expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('allows health endpoints even when the host header is not allowlisted', () => {
+    const log = { warn: vi.fn() };
+    const middleware = createHostValidationMiddleware({
+      allowedHosts: ['localhost', '127.0.0.1'],
+      log,
+    });
+    const res = createResponseDouble();
+    const next = vi.fn();
+
+    middleware(
+      {
+        method: 'GET',
+        path: '/health/ready',
+        ip: '127.0.0.1',
+        get: (header: string) => (header === 'host' ? '[fdaa:59:28da:a7b::1]:3000' : undefined),
+      } as never,
+      res as never,
+      next
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(log.warn).not.toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });
 });
