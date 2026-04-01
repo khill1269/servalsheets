@@ -10,10 +10,10 @@
  * This follows OAuth 2.1 security best practices.
  */
 
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
 import { ConfigError, ServiceError } from '../core/errors.js';
 import jwt from 'jsonwebtoken';
-import { randomUUID, randomBytes, createHash, createHmac, timingSafeEqual } from 'crypto';
+import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'crypto';
 import { rateLimit } from 'express-rate-limit';
 import { SessionStore, createSessionStore } from '../storage/session-store.js';
 import { getSessionStoreConfig, getApiSpecificCircuitBreakerConfig, env } from '../config/env.js';
@@ -21,7 +21,6 @@ import { logger } from '../utils/logger.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { VERSION, SERVER_ICONS } from '../version.js';
-import { getRecommendedScopes, formatScopesForAuth } from '../config/oauth-scopes.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 
 // ============================================================================
@@ -59,17 +58,6 @@ export interface OAuthConfig {
   googleClientSecret?: string;
   sessionStore?: SessionStore; // Optional session store (defaults to in-memory)
   resourceIndicator?: string | undefined; // RFC 8707 audience claim (optional, defaults to clientId)
-}
-
-interface TokenPayload {
-  sub: string;
-  aud: string;
-  iss: string;
-  exp: number;
-  iat: number;
-  scope: string;
-  // SECURITY: Google tokens are NEVER included in JWT payload.
-  // They are stored server-side in the session store (see google_tokens:{userId}).
 }
 
 interface AuthorizationCode {
@@ -392,6 +380,100 @@ export class OAuthProvider {
   }
 
   /**
+   * Validates OAuth token for HTTP transport layer (MCP compatibility)
+   * Returns Express middleware that validates bearer tokens
+   */
+  validateToken(): express.RequestHandler {
+    return async (req, res, next) => {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          error: 'invalid_token',
+          error_description: 'Missing or invalid bearer token',
+        });
+      }
+
+      const token = authHeader.slice(7); // Remove 'Bearer ' prefix
+
+      try {
+        // Verify token is a valid JWT
+        let decoded: jwt.JwtPayload | string | null = null;
+
+        for (const secret of this.jwtSecrets) {
+          try {
+            decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+            break;
+          } catch (_err) {
+            // Try next secret
+          }
+        }
+
+        if (!decoded) {
+          return res.status(401).json({
+            error: 'invalid_token',
+            error_description: 'Token verification failed',
+          });
+        }
+
+        // Attach decoded token to request for downstream use
+        (req as unknown as Record<string, unknown>)['user'] = decoded;
+        return next();
+      } catch (error) {
+        return res.status(401).json({
+          error: 'invalid_token',
+          error_description: error instanceof Error ? error.message : 'Token validation error',
+        });
+      }
+    };
+  }
+
+  /**
+   * Retrieves Google access token from OAuth session (MCP compatibility)
+   * Returns null if not found or expired
+   */
+  async getGoogleToken(req: express.Request): Promise<string | null | undefined> {
+    try {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return null;
+      }
+
+      const token = authHeader.slice(7);
+      let decoded: jwt.JwtPayload | string | null = null;
+
+      // Verify token and extract user ID
+      for (const secret of this.jwtSecrets) {
+        try {
+          decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+          break;
+        } catch (_err) {
+          // Try next secret
+        }
+      }
+
+      if (!decoded || typeof decoded === 'string' || !decoded.sub) {
+        return null;
+      }
+
+      // Retrieve Google token from session store
+      const googleTokenKey = `google_tokens:${decoded.sub}`;
+      const googleTokenData = await this.sessionStore.get(googleTokenKey);
+
+      if (!googleTokenData) {
+        return null;
+      }
+
+      const { accessToken } = googleTokenData as { accessToken?: string; refreshToken?: string };
+      return accessToken || null;
+    } catch (error) {
+      logger.error('Failed to retrieve Google token', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Create Express router for OAuth endpoints
    */
   createRouter(): express.Router {
@@ -627,10 +709,7 @@ export class OAuthProvider {
       // This redirects the user to Google to authenticate
       const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       googleAuthUrl.searchParams.set('client_id', this.config.googleClientId);
-      googleAuthUrl.searchParams.set(
-        'redirect_uri',
-        `${this.config.issuer}/oauth/callback`
-      );
+      googleAuthUrl.searchParams.set('redirect_uri', `${this.config.issuer}/oauth/callback`);
       googleAuthUrl.searchParams.set('response_type', 'code');
       googleAuthUrl.searchParams.set('scope', 'openid profile email');
       googleAuthUrl.searchParams.set('state', googleOAuthState);
@@ -642,10 +721,11 @@ export class OAuthProvider {
 
     // Google OAuth callback
     router.get('/oauth/callback', async (req, res) => {
-      const { code: googleAuthCode, state: googleOAuthState, error: googleError } = req.query as Record<
-        string,
-        string | undefined
-      >;
+      const {
+        code: googleAuthCode,
+        state: googleOAuthState,
+        error: googleError,
+      } = req.query as Record<string, string | undefined>;
 
       // Handle OAuth errors from Google
       if (googleError) {
@@ -729,8 +809,8 @@ export class OAuthProvider {
           clientId: stateData.clientId,
           redirectUri: stateData.redirectUri,
           scope: stateData.scope || 'sheets:read',
-          codeChallenge: stateData.codeChallenge,
-          codeChallengeMethod: stateData.codeChallengeMethod,
+          codeChallenge: stateData.codeChallenge || '',
+          codeChallengeMethod: stateData.codeChallengeMethod || '',
           googleAccessToken,
           googleRefreshToken,
           expiresAt: Date.now() + 600000, // 10 minutes
@@ -790,9 +870,9 @@ export class OAuthProvider {
 
         try {
           // Retrieve authorization code
-          const authCodeData = (await this.sessionStore.get(`code:${code}`)) as
-            | AuthorizationCode
-            | null;
+          const authCodeData = (await this.sessionStore.get(
+            `code:${code}`
+          )) as AuthorizationCode | null;
 
           if (!authCodeData) {
             res.status(400).json({
@@ -803,9 +883,7 @@ export class OAuthProvider {
           }
 
           // Verify PKCE code challenge
-          const codeChallenge = createHash('sha256')
-            .update(code_verifier)
-            .digest('base64url');
+          const codeChallenge = createHash('sha256').update(code_verifier).digest('base64url');
 
           if (codeChallenge !== authCodeData.codeChallenge) {
             logger.warn('PKCE code challenge mismatch', { clientId: authCodeData.clientId });
@@ -857,7 +935,11 @@ export class OAuthProvider {
           };
 
           // Store refresh token with TTL
-          await this.sessionStore.set(`refresh:${refreshTokenId}`, refreshTokenData, this.config.refreshTokenTtl);
+          await this.sessionStore.set(
+            `refresh:${refreshTokenId}`,
+            refreshTokenData,
+            this.config.refreshTokenTtl
+          );
 
           // Store Google tokens server-side (never in JWT)
           if (authCodeData.googleAccessToken) {
@@ -1031,20 +1113,18 @@ export class OAuthProvider {
 
       try {
         // Try to verify as JWT
-        let decoded: any = null;
-        let verifyError: Error | null = null;
+        let decoded: jwt.JwtPayload | string | null = null;
 
         for (const secret of this.jwtSecrets) {
           try {
             decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
             break; // Success, exit loop
-          } catch (err) {
-            verifyError = err as Error;
+          } catch (_err) {
             // Try next secret
           }
         }
 
-        if (!decoded) {
+        if (!decoded || typeof decoded === 'string') {
           // Token is not a valid JWT, return introspection response
           res.status(200).json({
             active: false,
@@ -1052,19 +1132,20 @@ export class OAuthProvider {
           return;
         }
 
-        // Token is valid
+        // Token is valid — cast payload for custom fields
+        const payload = decoded as jwt.JwtPayload & { scope?: string };
         res.status(200).json({
           active: true,
-          scope: decoded.scope || '',
-          client_id: decoded.aud,
-          username: decoded.sub,
+          scope: payload.scope || '',
+          client_id: payload.aud,
+          username: payload.sub,
           token_type: 'Bearer',
-          exp: decoded.exp,
-          iat: decoded.iat,
-          nbf: decoded.iat,
-          sub: decoded.sub,
-          iss: decoded.iss,
-          aud: decoded.aud,
+          exp: payload.exp,
+          iat: payload.iat,
+          nbf: payload.iat,
+          sub: payload.sub,
+          iss: payload.iss,
+          aud: payload.aud,
         });
       } catch (error) {
         logger.error('Token introspection error', {
@@ -1086,7 +1167,7 @@ export class OAuthProvider {
         response_types,
         scope,
         token_endpoint_auth_method,
-      } = req.body as Record<string, any | undefined>;
+      } = req.body as Record<string, string | string[] | undefined>;
 
       // ✅ SECURITY: Validate DCR inputs
       if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
@@ -1120,8 +1201,9 @@ export class OAuthProvider {
         const clientIdIssuedAt = Math.floor(Date.now() / 1000);
 
         // Validate requested scopes
-        const requestedScopes = (scope || 'sheets:read').split(' ');
-        const validScopes = requestedScopes.filter((s) =>
+        const scopeStr = typeof scope === 'string' ? scope : 'sheets:read';
+        const requestedScopes = scopeStr.split(' ');
+        const validScopes = requestedScopes.filter((s: string) =>
           SUPPORTED_SCOPES.includes(s as SupportedScope)
         );
 
@@ -1137,7 +1219,9 @@ export class OAuthProvider {
         const clientData = {
           client_id: clientId,
           client_secret: clientSecret,
-          client_name: client_name || `Dynamic Client ${clientId.substring(0, 8)}`,
+          client_name:
+            (typeof client_name === 'string' ? client_name : null) ||
+            `Dynamic Client ${clientId.substring(0, 8)}`,
           redirect_uris,
           grant_types: requestedGrantTypes,
           response_types: response_types || ['code'],
@@ -1158,7 +1242,7 @@ export class OAuthProvider {
         // The act of POSTing to /oauth/register is the consent signal — it requires an
         // authorized HTTP request to our server. Pre-approving at registration prevents
         // the confused deputy attack without requiring a separate consent UI flow.
-        await this.grantDcrConsent(clientId, clientData.client_name, redirect_uris);
+        await this.grantDcrConsent(clientId, clientData.client_name, redirect_uris as string[]);
 
         logger.info('Dynamic client registered', {
           clientId,
@@ -1278,7 +1362,7 @@ export class OAuthProvider {
       throw new Error(`Google token exchange failed: ${response.status} ${error}`);
     }
 
-    return response.json();
+    return response.json() as Promise<{ access_token: string; refresh_token?: string }>;
   }
 }
 
