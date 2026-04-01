@@ -37,7 +37,8 @@ export function createHttpsEnforcementMiddleware(
 
     // Health + discovery endpoints must be reachable over plain HTTP
     // Fly.io servicecheck probes port 3000 directly via HTTP (no forwarded proto)
-    const exemptPaths = ['/health', '/ping', '/.well-known', '/mcp'];
+    // '/' is probed by Fly.io TCP servicecheck; exempt to avoid 426 blocking health checks
+    const exemptPaths = ['/', '/health', '/ping', '/.well-known', '/mcp'];
     if (exemptPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
       return next();
     }
