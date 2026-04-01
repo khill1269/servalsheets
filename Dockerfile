@@ -49,6 +49,9 @@ COPY --from=builder /app/server.json ./
 RUN addgroup -g 1001 -S servalsheets && \
     adduser -S servalsheets -u 1001
 
+# Create required runtime directories (DATA_DIR, PROFILE_STORAGE_DIR, CHECKPOINT_DIR, WAL_DIR)
+RUN mkdir -p /app/data /app/profiles /app/checkpoints /app/wal
+
 # Change ownership
 RUN chown -R servalsheets:servalsheets /app
 
