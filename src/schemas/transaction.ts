@@ -3,7 +3,7 @@
  * Multi-operation transaction support with atomicity and auto-rollback.
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
 // ============================================================================

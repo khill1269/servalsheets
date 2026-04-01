@@ -5,7 +5,7 @@
  * Ensures complete data isolation between tenants with row-level security.
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { logger } from '../utils/logger.js';
 import { NotFoundError } from '../core/errors.js';
 

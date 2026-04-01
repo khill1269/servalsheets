@@ -76,10 +76,10 @@ export class VaultSecretsProvider implements SecretsProvider {
   private readonly vaultNamespace: string | undefined;
   private readonly mountPath: string;
   private readonly cacheTtlMs: number;
-  // SECURITY: Cache stores secrets as plaintext strings. This is acceptable for in-process TTL cache
-  // with expiry, but for long-running processes with sensitive secrets consider:
-  // TODO: Upgrade to Buffer storage with explicit zeroing (sodium.crypto_secretbox) after cache expire
-  private readonly cache: Map<string, { value: string; expiresAt: number }> = new Map();
+  // SECURITY: Cache stores secrets as Buffer instances, not plaintext strings.
+  // Buffers can be explicitly zeroed on expiry, reducing the window for accidental
+  // memory dumps or GC heap scans to capture live secret values.
+  private readonly cache: Map<string, { value: Buffer; expiresAt: number }> = new Map();
 
   constructor(vaultUrl: string, vaultToken: string, vaultNamespace?: string) {
     this.vaultUrl = vaultUrl.replace(/\/+$/, ''); // strip trailing slashes
@@ -93,9 +93,13 @@ export class VaultSecretsProvider implements SecretsProvider {
     // Check TTL cache first
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
+      return cached.value.toString('utf8');
     }
-    this.cache.delete(key); // expired or missing
+    if (cached) {
+      // Explicitly zero the buffer before eviction
+      cached.value.fill(0);
+      this.cache.delete(key);
+    }
 
     try {
       const url = `${this.vaultUrl}/v1/${this.mountPath}/data/${encodeURIComponent(key)}`;
@@ -126,7 +130,10 @@ export class VaultSecretsProvider implements SecretsProvider {
       };
       const value = body?.data?.data?.['value'];
       if (value !== undefined) {
-        this.cache.set(key, { value, expiresAt: Date.now() + this.cacheTtlMs });
+        this.cache.set(key, {
+          value: Buffer.from(value, 'utf8'),
+          expiresAt: Date.now() + this.cacheTtlMs,
+        });
       }
       return value;
     } catch (error) {
@@ -160,7 +167,7 @@ export class VaultSecretsProvider implements SecretsProvider {
 export class AwsSecretsManagerProvider implements SecretsProvider {
   private readonly region: string;
   private readonly cacheTtlMs: number;
-  private readonly cache: Map<string, { value: string; expiresAt: number }> = new Map();
+  private readonly cache: Map<string, { value: Buffer; expiresAt: number }> = new Map();
   private client: unknown = null;
   private sdkUnavailable = false;
 
@@ -196,9 +203,12 @@ export class AwsSecretsManagerProvider implements SecretsProvider {
     // Check TTL cache first
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
+      return cached.value.toString('utf8');
     }
-    this.cache.delete(key); // expired or missing
+    if (cached) {
+      cached.value.fill(0);
+      this.cache.delete(key);
+    }
 
     const client = await this.getClient();
     if (!client) return undefined; // OK: Explicit empty — no AWS client configured
@@ -212,7 +222,10 @@ export class AwsSecretsManagerProvider implements SecretsProvider {
       );
       const value = response.SecretString;
       if (value !== undefined) {
-        this.cache.set(key, { value, expiresAt: Date.now() + this.cacheTtlMs });
+        this.cache.set(key, {
+          value: Buffer.from(value, 'utf8'),
+          expiresAt: Date.now() + this.cacheTtlMs,
+        });
       }
       return value;
     } catch (error) {

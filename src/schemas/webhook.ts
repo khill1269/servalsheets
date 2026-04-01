@@ -7,7 +7,7 @@
  * @category Schemas
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { ErrorDetailSchema } from './shared.js';
 
 const PubSubTopicSchema = z

@@ -119,13 +119,17 @@ describe('Chaos: Cascading Failures', () => {
       };
 
       // Inject failure in upstream
-      chaos.injectCascadingFailures({ initialProbability: 0.8 });
+      chaos.injectCascadingFailures({ initialProbability: 1.0 });
 
+      // Deterministic call counter — first N calls always fail to guarantee
+      // the circuit opens (failureThreshold=3). Last 2 succeed to test isolation.
+      let callCount = 0;
       const callChain = async () => {
         return await services.downstream.execute(async () => {
           return await services.middle.execute(async () => {
             return await services.upstream.execute(async () => {
-              if (Math.random() < 0.8) {
+              callCount++;
+              if (callCount <= 8) {
                 throw new Error('Upstream failure');
               }
               return 'success';
@@ -134,12 +138,12 @@ describe('Chaos: Cascading Failures', () => {
         });
       };
 
-      // Execute chain multiple times
+      // Execute chain enough times to guarantee failureThreshold is crossed
       for (let i = 0; i < 10; i++) {
         try {
           await callChain();
         } catch {
-          // Expected
+          // Expected — upstream is failing
         }
       }
 

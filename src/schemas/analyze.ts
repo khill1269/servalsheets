@@ -21,7 +21,7 @@
  * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

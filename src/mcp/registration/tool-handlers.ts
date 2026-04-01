@@ -26,7 +26,7 @@ import {
 } from '../../observability/metrics.js';
 import { resourceNotifications } from '../../resources/notifications.js';
 import { withToolSpan } from '../../utils/tracing.js';
-import { z, type ZodSchema, type ZodTypeAny } from 'zod';
+import { z, type ZodSchema, type ZodTypeAny } from '../../lib/schema.js';
 
 import type { Handlers } from '../../handlers/index.js';
 import { AuthHandler } from '../../handlers/auth.js';

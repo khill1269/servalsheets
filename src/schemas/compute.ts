@@ -17,7 +17,7 @@
  * - explain_formula: Parse and explain a Google Sheets formula
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   ErrorDetailSchema,
   RangeInputSchema,

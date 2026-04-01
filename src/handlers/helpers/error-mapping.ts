@@ -21,7 +21,7 @@ import {
   ConfigError,
 } from '../../core/errors.js';
 import { ServalError, CircuitBreakerError } from '@serval/core';
-import { z } from 'zod';
+import { z } from '../../lib/schema.js';
 import { createZodValidationError, parseGoogleApiError } from '../../utils/error-factory.js';
 import { isKnownErrorCode } from '../../utils/error-code-compat.js';
 

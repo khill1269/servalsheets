@@ -7,7 +7,7 @@
  * @module schemas/session
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { RangeInputSchema } from './shared.js';
 import type { ToolAnnotations } from './shared.js';
 

@@ -6,7 +6,7 @@
  * plus automated data cleaning pipeline (F3).
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { RangeInputSchema } from './shared.js';
 
 // Issue types that can be auto-fixed

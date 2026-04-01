@@ -108,7 +108,7 @@ module.exports = {
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|mcp|security|analysis|resources)',
+          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|mcp|security|analysis|resources|lib)',
           '^src/handlers/',
           '^src/connectors/', // handlers/connectors.ts + handlers/auth.ts import connectors layer (type imports + dynamic import)
           '^src/startup/',    // auth-actions/feature-setup.ts imports startup/webhook-bootstrap for setup orchestration
@@ -126,7 +126,7 @@ module.exports = {
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources)',
+          '^src/(services|schemas|utils|types|config|observability|errors|constants|core|security|resources|lib)',
           '^src/analysis/scout\\.ts$',
           '^src/analysis/workbook-semantics\\.ts$', // understanding-store.ts uses SemanticIndex type
           '^src/analysis/formula-helpers\\.ts$',    // sheet-generator.ts + sampling-analysis.ts (dynamic import)
@@ -144,7 +144,7 @@ module.exports = {
       to: {
         path: '^src/',
         pathNot: [
-          '^src/(schemas|utils|types|constants|config|generated)',
+          '^src/(schemas|utils|types|constants|config|generated|lib)',
           '^src/mcp/completions\\.ts$', // Allow importing TOOL_ACTIONS for completions
         ],
       },

@@ -9,7 +9,7 @@
  * - analyze_impact: Pre-execution impact analysis with dependency tracking
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   CellValueSchema,
   ErrorDetailSchema,

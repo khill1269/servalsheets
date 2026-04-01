@@ -33,7 +33,7 @@
  * @module utils/schema-compat
  */
 
-import { z, type ZodTypeAny } from 'zod';
+import { z, type ZodTypeAny } from '../lib/schema.js';
 import { logger } from './logger.js';
 import { ValidationError } from '../core/errors.js';
 

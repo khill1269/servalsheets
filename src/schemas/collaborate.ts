@@ -4,7 +4,7 @@
  * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (11 actions) + approvals (7 actions) = 41 actions
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,

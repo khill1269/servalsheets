@@ -3,7 +3,7 @@
  * Operation history tracking for debugging and undo foundation.
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import {
   ErrorDetailSchema,
   RangeInputSchema,

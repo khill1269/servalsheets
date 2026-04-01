@@ -1,4 +1,4 @@
-import { z, type ZodSchema, type ZodTypeAny } from 'zod';
+import { z, type ZodSchema, type ZodTypeAny } from '../../lib/schema.js';
 import { TOOL_ACTIONS } from '../completions.js';
 import { logger } from '../../utils/logger.js';
 import { parseWithCache } from '../../utils/schema-cache.js';

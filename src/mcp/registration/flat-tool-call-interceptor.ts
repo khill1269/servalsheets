@@ -15,7 +15,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
+import { z } from '../../lib/schema.js';
 
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { isFlatToolName, routeFlatToolCall } from './flat-tool-routing.js';

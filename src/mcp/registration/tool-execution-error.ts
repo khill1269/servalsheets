@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '../../lib/schema.js';
 import { createZodValidationError } from '../../utils/error-factory.js';
 import { extractAction } from './extraction-helpers.js';
 import { getIssueCode, normalizeIssuePath } from './tool-arg-normalization.js';

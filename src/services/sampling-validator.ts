@@ -7,7 +7,7 @@
  * @module services/sampling-validator
  */
 
-import { z } from 'zod';
+import { z } from '../lib/schema.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
