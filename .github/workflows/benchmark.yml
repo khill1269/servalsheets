@@ -127,7 +127,7 @@ jobs:
           printf '%s' "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
 
       - name: Download baseline benchmarks
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: benchmarks/baseline.json
           key: benchmark-baseline-${{ github.base_ref || github.ref_name }}
