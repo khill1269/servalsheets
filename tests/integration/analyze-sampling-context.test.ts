@@ -236,6 +236,7 @@ vi.mock('../../src/services/webhook-queue.js', () => ({
 
 vi.mock('../../src/services/webhook-manager.js', () => ({
   initWebhookManager: vi.fn(),
+  isWebhookRedisConfigured: vi.fn().mockReturnValue(false),
 }));
 
 describe('MCP analyze sampling context integration', () => {

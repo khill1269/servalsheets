@@ -33,7 +33,7 @@ describe('http request validation middleware', () => {
     middleware(
       {
         method: 'GET',
-        path: '/mcp',
+        path: '/api/admin',
         ip: '127.0.0.1',
         protocol: 'http',
         secure: false,
@@ -45,7 +45,7 @@ describe('http request validation middleware', () => {
 
     expect(log.warn).toHaveBeenCalledWith('Rejected non-HTTPS request in production', {
       method: 'GET',
-      path: '/mcp',
+      path: '/api/admin',
       ip: '127.0.0.1',
       protocol: 'http',
       forwardedProto: undefined,
