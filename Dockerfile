@@ -39,6 +39,8 @@ RUN apk add --no-cache curl
 
 # Copy built artifacts and production dependencies
 COPY --from=builder /app/dist ./dist
+# Workspace package dist outputs (dist/http-server.js imports ../packages/mcp-http/dist/)
+COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/server.json ./
