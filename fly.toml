@@ -1,6 +1,4 @@
-# fly.toml — ServalSheets remote MCP server deployment
-# https://fly.io/docs/reference/configuration/
-
+# fly.toml — ServalSheets remote MCP server
 app = "servalsheets"
 primary_region = "iad"
 
@@ -35,12 +33,15 @@ primary_region = "iad"
     soft_limit = 200
 
   [[services.http_checks]]
-    grace_period = "15s"
-    interval = "30s"
+    grace_period = "60s"
+    interval = "15s"
     method = "GET"
-    path = "/health/ready"
+    path = "/health/live"
     protocol = "http"
-    timeout = "5s"
+    restart_limit = 0
+    timeout = "10s"
+    [services.http_checks.headers]
+      X-Fly-Health-Check = "1"
 
 [[vm]]
   cpu_kind = "shared"
