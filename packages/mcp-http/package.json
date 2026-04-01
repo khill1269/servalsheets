@@ -21,7 +21,7 @@
     "clean": "rm -rf dist .tsbuildinfo"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.28.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",

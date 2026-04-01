@@ -21,7 +21,7 @@
     "clean": "rm -rf dist .tsbuildinfo"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.28.0"
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "engines": {
     "node": ">=20.0.0"
