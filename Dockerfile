@@ -23,8 +23,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build TypeScript
-RUN npm run build
+# Build TypeScript (4GB heap — multi-workspace tsc is memory-intensive)
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # Prune devDependencies
 RUN npm prune --production
@@ -39,6 +39,8 @@ RUN apk add --no-cache curl
 
 # Copy built artifacts and production dependencies
 COPY --from=builder /app/dist ./dist
+# Workspace package dist outputs (dist/http-server.js imports ../packages/mcp-http/dist/)
+COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/server.json ./
@@ -46,6 +48,9 @@ COPY --from=builder /app/server.json ./
 # Create non-root user
 RUN addgroup -g 1001 -S servalsheets && \
     adduser -S servalsheets -u 1001
+
+# Create required runtime directories (DATA_DIR, PROFILE_STORAGE_DIR, CHECKPOINT_DIR, WAL_DIR)
+RUN mkdir -p /app/data /app/profiles /app/checkpoints /app/wal
 
 # Change ownership
 RUN chown -R servalsheets:servalsheets /app
