@@ -1,0 +1,160 @@
+{
+  "family": "servalsheets",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/servalsheets-task-role",
+  "containerDefinitions": [
+    {
+      "name": "servalsheets",
+      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/servalsheets:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "name": "http",
+          "containerPort": 3000,
+          "protocol": "tcp",
+          "hostPort": 3000
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:3000/health/live || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "info"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "MCP_TRANSPORT",
+          "value": "http"
+        },
+        {
+          "name": "ENABLE_AGGRESSIVE_FIELD_MASKS",
+          "value": "true"
+        },
+        {
+          "name": "ENABLE_REQUEST_MERGING",
+          "value": "true"
+        },
+        {
+          "name": "ENABLE_PARALLEL_EXECUTOR",
+          "value": "true"
+        },
+        {
+          "name": "OTEL_SERVICE_NAME",
+          "value": "servalsheets"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "REGION"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/jwt-secret"
+        },
+        {
+          "name": "ENCRYPTION_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/encryption-key"
+        },
+        {
+          "name": "GOOGLE_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/google-client-id"
+        },
+        {
+          "name": "GOOGLE_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/google-client-secret"
+        },
+        {
+          "name": "ADMIN_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/admin-api-key"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/redis-url"
+        },
+        {
+          "name": "OAUTH_ISSUER",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/oauth-issuer"
+        },
+        {
+          "name": "OAUTH_REDIRECT_URI",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/oauth-redirect-uri"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/anthropic-api-key"
+        },
+        {
+          "name": "VOYAGE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:servalsheets/voyage-api-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/servalsheets",
+          "awslogs-region": "REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "resourceRequirements": [
+        {
+          "type": "VCPU",
+          "value": "2"
+        },
+        {
+          "type": "MEMORY",
+          "value": "4096"
+        }
+      ],
+      "linuxParameters": {
+        "capabilities": {
+          "add": [],
+          "drop": [
+            "ALL"
+          ]
+        },
+        "initProcessEnabled": true
+      },
+      "readonly_root_filesystem": false
+    }
+  ],
+  "tags": [
+    {
+      "key": "Name",
+      "value": "servalsheets"
+    },
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Version",
+      "value": "2.0.0"
+    }
+  ]
+}

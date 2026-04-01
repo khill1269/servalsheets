@@ -246,6 +246,26 @@ const ResetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('reset').describe('Reset session context to initial state'),
 });
 
+const CompactSessionActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('compact_session')
+    .describe(
+      'Summarize session history into a compact digest using AI, freeing up history slots. ' +
+        'Useful when approaching the 20-operation history limit. ' +
+        'The most recent operations are preserved; older ones are summarized into a single digest entry.'
+    ),
+  keepRecent: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(5)
+    .describe(
+      'Number of most-recent operations to keep verbatim. Older operations are summarized. Default: 5.'
+    ),
+});
+
 const GetAlertsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get_alerts').describe('Get alerts for proactive monitoring'),
   onlyUnacknowledged: z
@@ -465,6 +485,7 @@ export const SheetsSessionInputSchema = z.object({
     ListCheckpointsActionSchema,
     DeleteCheckpointActionSchema,
     ResetActionSchema,
+    CompactSessionActionSchema,
     GetAlertsActionSchema,
     AcknowledgeAlertActionSchema,
     ClearAlertsActionSchema,
@@ -561,6 +582,7 @@ const SessionActionSchema = z.enum([
   'list_checkpoints',
   'delete_checkpoint',
   'reset',
+  'compact_session',
   'get_alerts',
   'acknowledge_alert',
   'clear_alerts',
@@ -723,6 +745,10 @@ const SessionSuccessSchema = z.object({
   stepsTotal: z.coerce.number().optional(),
   failedAt: z.string().optional(),
   pipelineDurationMs: z.coerce.number().optional(),
+  // compact_session response fields
+  operationsBefore: z.coerce.number().optional().describe('History length before compaction'),
+  operationsAfter: z.coerce.number().optional().describe('History length after compaction'),
+  compacted: z.coerce.number().optional().describe('Number of operations summarized into digest'),
   // Schedule response fields (Phase 6)
   jobId: z.string().optional().describe('Created or targeted job ID'),
   jobs: z

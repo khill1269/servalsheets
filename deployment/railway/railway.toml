@@ -1,0 +1,206 @@
+# ServalSheets Railway.app Configuration
+# Railway automatically detects and deploys Node.js applications
+# Documentation: https://railway.app/docs
+
+[build]
+# Build command - executed during deployment
+# Railway uses Node.js package.json scripts by default
+# Override if needed
+builder = "nixpacks"
+buildCommand = "npm run build && npm prune --production"
+
+[start]
+# Start command - executed when the application is deployed
+# Railway sets PORT environment variable automatically (usually 3000)
+startCommand = "node dist/http-server.js"
+
+# Alternative for STDIO mode (if preferred):
+# startCommand = "node dist/server.js"
+
+[healthcheck]
+# Health check configuration for Railway
+# Railway uses this to determine if the application is running
+path = "/health/live"
+port = 3000
+interval = 30
+timeout = 5
+
+[env]
+# Environment variables
+NODE_ENV = "production"
+LOG_LEVEL = "info"
+PORT = "3000"
+HOST = "0.0.0.0"
+MCP_TRANSPORT = "http"
+
+# Feature flags
+ENABLE_AGGRESSIVE_FIELD_MASKS = "true"
+ENABLE_REQUEST_MERGING = "true"
+ENABLE_PARALLEL_EXECUTOR = "true"
+
+# Observability
+OTEL_SERVICE_NAME = "servalsheets"
+
+[volumes]
+# Persistent volumes configuration (optional)
+# Railway provides ephemeral storage by default (cleared on redeploy)
+# Use this to mount persistent storage
+# [volumes.cache]
+# path = "/var/cache/servalsheets"
+# size = "1G"
+
+[[volumes]]
+# Mount point for temporary files
+path = "/tmp"
+size = "2G"
+
+[regions]
+# Preferred deployment regions
+# Railway supports US, EU, and APAC regions
+# Remove comment to specify preferred region
+# region = "us-west"
+
+[plan]
+# Railway plan configuration
+# Plans determine resource allocation and pricing
+# "starter" = shared resources
+# "pro" = dedicated resources (recommended for production)
+plan = "pro"
+
+[memory]
+# Memory allocation (MB)
+# Railway allocates memory based on the plan
+# Pro plan minimum recommended: 2048MB
+size = 2048
+
+[cpu]
+# CPU allocation (millicores)
+# 1000 = 1 vCPU
+# Railway allocates CPU based on the plan
+cores = 2000
+
+# ========== SECRETS CONFIGURATION ==========
+# For sensitive environment variables, use Railway's secret management
+# In the Railway dashboard:
+# 1. Go to Variables
+# 2. Click "Add Variables"
+# 3. Select "Secrets" tab
+# 4. Add each secret with the format below
+# 5. Reference with ${{ secrets.SECRET_NAME }}
+
+# Example secret references (uncomment and set in Railway dashboard):
+# [secrets]
+# JWT_SECRET = "${{ secrets.JWT_SECRET }}"
+# ENCRYPTION_KEY = "${{ secrets.ENCRYPTION_KEY }}"
+# GOOGLE_CLIENT_ID = "${{ secrets.GOOGLE_CLIENT_ID }}"
+# GOOGLE_CLIENT_SECRET = "${{ secrets.GOOGLE_CLIENT_SECRET }}"
+# ADMIN_API_KEY = "${{ secrets.ADMIN_API_KEY }}"
+# REDIS_URL = "${{ secrets.REDIS_URL }}"
+# OAUTH_ISSUER = "${{ secrets.OAUTH_ISSUER }}"
+# OAUTH_REDIRECT_URI = "${{ secrets.OAUTH_REDIRECT_URI }}"
+# ANTHROPIC_API_KEY = "${{ secrets.ANTHROPIC_API_KEY }}"
+# VOYAGE_API_KEY = "${{ secrets.VOYAGE_API_KEY }}"
+
+# ========== DATABASE PLUGINS ==========
+# Railway supports automatic database provisioning via plugins
+# Add databases in the Railway dashboard:
+# 1. Click "Add Service" → "Add from Marketplace"
+# 2. Select "Redis" for caching and state management
+# 3. Railway automatically sets DATABASE_URL (for Postgres) or REDIS_URL
+
+# Example (uncomment if using Railway's Redis):
+# [services.redis]
+# type = "redis"
+# plan = "pro"
+# memory = 512
+
+# ========== DEPLOYMENT SETTINGS ==========
+[deployment]
+# Automatic deployment from git push
+autoDeploy = true
+
+# Deployment branch
+branch = "main"
+
+# Pull request previews (feature branches)
+prReviews = true
+
+# Restart policy
+restartPolicy = "on-failure"
+
+# Max retries before marking deployment as failed
+maxRetries = 3
+
+[networking]
+# Networking configuration
+# Railway provides automatic HTTPS and domain management
+protocol = "https"
+
+# Custom domain (set in Railway dashboard)
+# customDomain = "servalsheets.example.com"
+
+# Internal service networking
+# Allow other Railway services to communicate
+enablePrivateNetworking = true
+
+# CORS configuration (handled in application)
+# Set ALLOWED_ORIGINS environment variable in your app
+
+[monitoring]
+# Monitoring and alerts
+# Railway provides built-in monitoring dashboard
+# Configure in Railway web interface
+enableMonitoring = true
+
+# Logs retention (days)
+logRetention = 30
+
+[security]
+# Security settings
+# Railway provides automatic SSL/TLS
+enableHTTPS = true
+
+# Security headers (configure in application)
+# X-Frame-Options, X-Content-Type-Options, etc.
+enableSecurityHeaders = true
+
+# ========== SCRIPT HOOKS ==========
+# Scripts to run at different stages of deployment
+
+[scripts]
+# Before deployment script
+# before_deploy = "npm run migrate"
+
+# After successful deployment
+# after_deploy = "npm run seed"
+
+# Health check script
+# healthcheck = "curl -f http://localhost:3000/health/live"
+
+# ========== OPTIONAL: NGINX CONFIGURATION ==========
+# For advanced routing and caching (if needed)
+# Railway provides managed NGINX by default
+# Override with custom nginx.conf if required
+
+# [nginx]
+# config = """
+# upstream backend {
+#   server servalsheets:3000;
+# }
+#
+# server {
+#   listen 80;
+#   location / {
+#     proxy_pass http://backend;
+#     proxy_set_header Host $host;
+#     proxy_set_header X-Real-IP $remote_addr;
+#   }
+# }
+# """
+
+# ========== CRON JOBS ==========
+# Schedule periodic tasks using Railway services or external cron
+# Example: Session cleanup, cache expiration, etc.
+
+# [cron]
+# cleanup_sessions = "0 2 * * * node scripts/cleanup-sessions.js"

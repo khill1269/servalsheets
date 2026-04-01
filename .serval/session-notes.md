@@ -6,7 +6,61 @@
 
 ## Current Phase
 
-**Session 109 (2026-03-24) — Codebase verification + layer violation fix + oversized file decomposition.** Branch `release-1.7.1`. 408 actions (25 tools). 2784/2784 tests pass (141 test files).
+**Session 110 (2026-03-31) — Claude Code architecture analysis → 4 ServalSheets improvements.** Branch `codex-repo-audit-hardening`. 409 actions (25 tools). 2841/2841 tests pass (143 test files).
+
+## What Was Just Completed (Session 110)
+
+**Claude Code architecture review → 4 confirmed gaps found and implemented — all 2841/2841 tests pass.**
+
+### Improvements implemented
+
+1. **autoRecord wiring** (`src/mcp/registration/tool-execution-side-effects.ts`):
+   - After every successful mutation, checks `sessionCtx.getPreferences().autoRecord`
+   - If `true`, automatically calls `sessionCtx.recordOperation(...)` — no more manual `record_operation` calls needed
+   - Added `getSessionContextFn` to `ToolExecutionSideEffectDeps` interface + default wired in `createDefaultDeps()`
+   - Non-critical: wrapped in try/catch — never blocks tool execution
+   - Tests: 2 new tests in `tests/unit/tool-execution-side-effects.test.ts`
+
+2. **Agent tool catalog injection** (`src/services/agent/plan-compiler.ts`):
+   - Added `buildToolCatalogSummary()` that builds a compact summary of all 25 tools + actions from `TOOL_ACTIONS` (source of truth)
+   - Replaced the old hardcoded static tool list in `aiParsePlan()` system prompt with live catalog
+   - Agent plans now generated with awareness of all actual tools/actions — no more planning blind
+
+3. **Agent step streaming** (`src/services/agent/plan-executor.ts`):
+   - Added `sendProgress()` call after each step in `executePlan()`
+   - LLM clients now see real-time progress notifications: "Step N/M completed: description"
+   - Non-critical: wrapped in `.catch(() => {})` — never blocks execution
+
+4. **Session compaction** (`src/schemas/session.ts`, `src/services/session-context.ts`, `src/handlers/session.ts`):
+   - Added `compact_session` action to `sheets_session` (session now has 32 actions, up from 31)
+   - `compactHistory(digest, keepRecent)` method on `SessionContextManager`
+   - Handler: if history ≤ keepRecent, no-op; otherwise summarizes old ops into a digest record
+   - Analogous to Claude Code's context compaction at ~80% capacity
+   - Tool hash baseline regenerated via `npm run security:tool-hashes`
+
+**Key decisions:**
+
+- autoRecord is opt-in (default: false) — no surprise behavior changes for existing users
+- buildToolCatalogSummary caps at 8 actions/tool to keep prompt tokens reasonable
+- sendProgress uses `.catch()` not try/catch since it returns a promise
+- compact_session creates a digest string entry in history (preserves audit trail)
+- schema:commit git add fails on gitignored files (docs/generated, manifest.json) — pre-existing issue, not introduced here
+
+**Files changed (8 src + 1 test):**
+
+- `src/mcp/registration/tool-execution-side-effects.ts` — autoRecord wiring
+- `src/services/agent/plan-compiler.ts` — buildToolCatalogSummary + live tool catalog injection
+- `src/services/agent/plan-executor.ts` — sendProgress after each step
+- `src/schemas/session.ts` — compact_session action + output fields
+- `src/services/session-context.ts` — compactHistory() method
+- `src/handlers/session.ts` — compact_session case
+- `src/security/tool-hashes.baseline.json` — regenerated after session schema change
+- `tests/unit/tool-execution-side-effects.test.ts` — autoRecord tests
+- `tests/utils/ast-schema-parser.test.ts` — updated count: 31→32 for session
+
+**Verification**: 2841/2841 tests pass. TypeScript clean.
+
+## Current Phase (Previous — Session 109)
 
 ## What Was Just Completed (Session 109)
 
@@ -41,12 +95,12 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 
 - **`.agent-context/metadata.json`**: `actionCount: 404→407`, `buildVersion: 1.7.0→2.0.0`
 - **`.serval/generate-state.mjs`**: Fixed root cause — script read re-export stub instead of generated source; now reads `src/generated/action-counts.ts` first
-- **`.serval/state.md`**: Regenerated — now shows 25 tools / 408 actions / 2.0.0
+- **`.serval/state.md`**: Regenerated — now shows 25 tools / 407 actions / 2.0.0
 
 ### Task 3 — Oversized file decomposition: `src/security/incremental-scope.ts`
 
 - **Before**: 2,051 lines (logic + 1,665-line data map mixed together)
-- **`src/security/operation-scopes-map.ts`** (NEW, ~1,697 lines): `ScopeCategory` enum + `OPERATION_SCOPES` data map (408 actions → OAuth scopes)
+- **`src/security/operation-scopes-map.ts`** (NEW, ~1,697 lines): `ScopeCategory` enum + `OPERATION_SCOPES` data map (407 actions → OAuth scopes)
 - **`src/security/incremental-scope.ts`**: 2,051 → 372 lines (82% reduction). Logic-only. Re-exports both symbols for backwards compatibility — zero import changes needed by 8 consuming files.
 
 ### Task 4 — Pre-existing TypeScript error fix
@@ -75,7 +129,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 
 ## Current Phase
 
-**Session 108 (2026-03-24) — MCP SEP compliance audit + fixes.** Branch `remediation/phase-1`. 408 actions (25 tools). 2747/2747 tests pass (140 test files).
+**Session 108 (2026-03-24) — MCP SEP compliance audit + fixes.** Branch `remediation/phase-1`. 407 actions (25 tools). 2747/2747 tests pass (140 test files).
 
 ## What Was Just Completed (Session 108)
 
@@ -103,7 +157,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 
 5. **MCP SEP compliance audit completed** — scored A+ on current spec (2025-11-25), A on draft spec:
    - All 25 tools annotated with 4 hint fields + title
-   - All 408 actions have per-action annotations (apiCalls, idempotent, prerequisites, etc.)
+   - All 407 actions have per-action annotations (apiCalls, idempotent, prerequisites, etc.)
    - 25/25 SVG icons, 38+ prompts, completions, tasks, sampling, elicitation — all wired
    - Server Cards (.well-known) fully implemented
    - outputSchema + structuredContent already implemented for draft spec readiness
@@ -160,7 +214,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
    - New "MCP Client Behavior (Session 107)" gotcha section
    - Documents startup sequence, record_operation requirement, analyze_impact pre-flight, agent vs pipeline, transaction batchability, connector discovery
 
-8. **Schema regeneration**: `npm run schema:commit` succeeded — 25 tools, 408 actions, metadata in sync.
+8. **Schema regeneration**: `npm run schema:commit` succeeded — 25 tools, 407 actions, metadata in sync.
 
 **Key decisions:**
 
@@ -275,7 +329,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
    - Email: RFC 5321-inspired regex replacing naive `@` check
    - URL: Broader TLD support with proper domain validation pattern
 
-**Schema regeneration**: Ran `npm run schema:commit` — all generated files in sync (25 tools, 408 actions confirmed).
+**Schema regeneration**: Ran `npm run schema:commit` — all generated files in sync (25 tools, 407 actions confirmed).
 
 **Key decisions:**
 
@@ -537,7 +591,7 @@ Tiers 1–3 were completed in Session 96. This session completed **Tier 4 (Item 
 
 **Verification**: TypeScript clean, 2742/2742 tests pass, validate:action-config passing.
 
-**Commits**: `6c755e1` (Tier 4 decomposition), `86336c8` (CODEBASE_CONTEXT 408 actions update)
+**Commits**: `6c755e1` (Tier 4 decomposition), `86336c8` (CODEBASE_CONTEXT 407 actions update)
 
 ## What Was Just Completed (Session 96)
 
@@ -548,7 +602,7 @@ Tiers 1–3 were completed in Session 96. This session completed **Tier 4 (Item 
 - **Track C (memory protection)**: Verified existing protections (MAX_ROWS_PER_SHEET=5000, heap-watchdog.ts with isHeapCritical() at 3 checkpoints, scout fallback on memory pressure) already cover the concern. Added **intermediate progress reporting** to `ComprehensiveAnalyzer.analyze()` — 8 phases now emit progress at 10/20/20-70/72-75/80/85/90% instead of only 0% and 100%. Each `sendProgress()` call between sheets also serves as a GC yield point.
 - **semantic_search tests**: Already committed with the feature (`tests/handlers/analyze-semantic-search.test.ts`, 8 tests).
 
-**Counts**: 25 tools, 408 actions (semantic_search added in Session 95), 2742/2742 tests pass.
+**Counts**: 25 tools, 407 actions (semantic_search added in Session 95), 2742/2742 tests pass.
 
 **Commits this session**: `fec8cdc` (comprehensive.ts progress notifications)
 
@@ -646,7 +700,7 @@ Tiers 1–3 were completed in Session 96. This session completed **Tier 4 (Item 
   - G12 fix: `audit-middleware.ts` added to `PUBLIC_API_FILES` (documented factory, tested, not auto-wired)
 - **L-1/L-2/L-3/L-5**: All gitignored already — marked ⚪ Waived
 - **L-7**: `tests/contracts/auth-exempt-actions.test.ts` (4 tests) — AUTH_EXEMPT_ACTIONS contract coverage
-- **L-13**: `IMPLEMENTATION_GUARDRAILS.md` bumped v2.0.0 → v2.0.0
+- **L-13**: `IMPLEMENTATION_GUARDRAILS.md` bumped v1.6.0 → v1.7.0
 - **L-15**: Step 5b (write-lock parity) added to CLAUDE.md "Adding a New Action" checklist
 - **L-16**: TOOL_ACTIONS and MUTATION_ACTIONS rows added to CLAUDE.md Source of Truth table
 

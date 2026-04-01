@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearAllPlans,
   compilePlanAI,
+  registerPlannerToolCatalog,
   registerToolInputSchemas,
   setAgentSamplingConsentChecker,
   setAgentSamplingServer,
   type SamplingServer,
 } from '../../src/services/agent-engine.js';
+import { buildPlannerToolCatalog } from '../../src/mcp/planner-tool-catalog.js';
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
 import {
   clearSamplingConsentCache,
@@ -16,6 +18,7 @@ import {
 describe('agent engine consent fallback', () => {
   beforeEach(() => {
     registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));
+    registerPlannerToolCatalog(buildPlannerToolCatalog(TOOL_DEFINITIONS));
   });
 
   afterEach(async () => {
@@ -85,5 +88,24 @@ describe('agent engine consent fallback', () => {
         expect.objectContaining({ field: 'values' }),
       ])
     );
+  });
+
+  it('passes the live planner catalog summary into the sampling system prompt', async () => {
+    registerSamplingConsentChecker(async () => {});
+
+    const createMessage = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: '[]' }],
+    });
+    const server: SamplingServer = {
+      createMessage: createMessage as SamplingServer['createMessage'],
+    };
+    setAgentSamplingServer(server);
+
+    await compilePlanAI('Review history and auth options', 5, 'sheet-123');
+
+    const systemPrompt = String(createMessage.mock.calls[0]?.[0]?.systemPrompt ?? '');
+    expect(systemPrompt).toContain('sheets_history (Operation History & Undo)');
+    expect(systemPrompt).toContain('auth-exempt: list, get, stats');
+    expect(systemPrompt).not.toContain('list_triggers');
   });
 });

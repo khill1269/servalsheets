@@ -6,7 +6,7 @@ layout: home
 hero:
   name: ServalSheets
   text: Google Sheets MCP Server
-  tagline: Production-grade integration with 408 actions, safety rails, and AI-powered features
+  tagline: Production-grade integration with 409 actions, safety rails, and AI-powered features
   image:
     src: /logo.svg
     alt: ServalSheets
@@ -21,7 +21,7 @@ hero:
 features:
   - icon: 🎯
     title: MCP Protocol Native
-    details: Full compliance with MCP 2025-11-25 specification. 25 tools, 408 actions, resources, and prompts.
+    details: Full compliance with MCP 2025-11-25 specification. 25 tools, 409 actions, resources, and prompts.
   - icon: 🛡️
     title: Safety Rails
     details: Dry-run mode, effect scope limits, user confirmations, and transaction rollback for worry-free automation.

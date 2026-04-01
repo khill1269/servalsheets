@@ -411,7 +411,7 @@ Step-by-step walkthrough of your first operation.
 Type in Claude Desktop: /first_operation
 ```
 
-**See**: [PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md) for all 7 prompts
+**See**: [PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md) for all 40 prompts
 
 ### Step 4: Natural Language Interactions
 

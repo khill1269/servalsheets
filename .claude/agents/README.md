@@ -19,7 +19,7 @@
 | Agent                        | File                                   | Purpose                                                                               |
 | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------- |
 | **Testing Specialist**       | `testing-specialist.md`                | Test strategy design — property-based tests, mutation testing, critical path coverage |
-| **Comprehensive Tester**     | `servalsheets-comprehensive-tester.md` | Real-API testing of all 25 tools / 408 actions with performance analysis              |
+| **Comprehensive Tester**     | `servalsheets-comprehensive-tester.md` | Real-API testing of all 25 tools / 409 actions with performance analysis              |
 | **Code Review Orchestrator** | `code-review-orchestrator.md`          | Multi-perspective review — type checking, linting, MCP compliance, security, tests    |
 | **Security Auditor**         | `security-auditor.md`                  | OWASP review, OAuth/credential handling, SQL injection, authorization gaps            |
 | **Performance Optimizer**    | `performance-optimizer.md`             | Profiling, bottleneck identification, quota optimization, regression validation       |
