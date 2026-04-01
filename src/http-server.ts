@@ -54,9 +54,9 @@ import { bootstrapHttpTransportSessions } from './http-server/transport-bootstra
 export interface HttpServerOptions extends PackagedHttpServerOptions<HttpOAuthServerConfig> {}
 
 const DEFAULT_PORT = 3000;
-// HIGH-003 FIX: Default to 127.0.0.1 for security; override via HOST env var in production
-// HOST=0.0.0.0 is required for Fly.io / Docker deployments where the proxy bridges ports
-const DEFAULT_HOST = process.env['HOST'] ?? '127.0.0.1';
+// HIGH-003 FIX: Default to localhost for security (0.0.0.0 exposes to entire network)
+// Override with HOST=0.0.0.0 in production if external access needed
+const DEFAULT_HOST = '127.0.0.1';
 
 // Monkey-patches removed: All schemas now use flattened z.object() pattern
 // which works natively with MCP SDK v1.25.x - no patches required!
@@ -73,7 +73,14 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   return createPackagedHttpServer(options, {
     defaultPort: DEFAULT_PORT,
     defaultHost: DEFAULT_HOST,
-    createApp: () => express(),
+    createApp: () => {
+      const app = express();
+      // Trust exactly 1 reverse proxy hop (Fly.io) — required for express-rate-limit
+      // to correctly identify clients via X-Forwarded-For.
+      // `1` is more secure than `true` (which trusts any number of hops).
+      app.set('trust proxy', 1);
+      return app;
+    },
     getEnvConfig: getEnv,
     getSharedHttpLoggingBridge,
     createEnsureToolIntegrityVerified: () =>
@@ -142,10 +149,24 @@ const isDirectEntry = (() => {
   }
 })();
 
+function shouldUseRemoteDirectEntry(): boolean {
+  return (
+    process.env['MCP_HTTP_MODE'] === 'true' ||
+    process.env['OAUTH_ISSUER'] !== undefined ||
+    process.env['OAUTH_CLIENT_SECRET'] !== undefined
+  );
+}
+
 // CLI entry point
 if (isDirectEntry) {
   void runHttpServerDirectEntry({
-    startHttpServer,
+    startHttpServer: async ({ port }) => {
+      if (shouldUseRemoteDirectEntry()) {
+        await startRemoteServer({ port });
+        return;
+      }
+      await startHttpServer({ port });
+    },
     logEnvironmentConfig,
     startBackgroundTasks,
     registerSignalHandlers,

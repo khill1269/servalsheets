@@ -245,6 +245,11 @@ export function registerHttpFoundationMiddleware<
     limit: rateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
+    // Disable built-in validation — express-rate-limit v8 throws
+    // ValidationError for trust proxy configs behind reverse proxies,
+    // crashing requests before route handlers run. Trust proxy is
+    // configured correctly at the app level (trust proxy = 1).
+    validate: false,
     keyGenerator: (req: Request) => {
       const ip = extractTrustedClientIp(req);
       return `${ipKeyGenerator(ip)}:${req.method}:${req.path}`;

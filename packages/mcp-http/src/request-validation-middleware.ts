@@ -25,6 +25,8 @@ const defaultLogger: HttpRequestValidationLogger = {
   },
 };
 
+const INTERNAL_HEALTH_EXEMPT_PATHS = new Set(['/health', '/health/live', '/health/ready']);
+
 export function createHttpsEnforcementMiddleware(
   options: CreateHttpsEnforcementMiddlewareOptions
 ): RequestHandler {
@@ -35,11 +37,7 @@ export function createHttpsEnforcementMiddleware(
       return next();
     }
 
-    // Health + discovery endpoints must be reachable over plain HTTP
-    // Fly.io servicecheck probes port 3000 directly via HTTP (no forwarded proto)
-    // '/' is probed by Fly.io TCP servicecheck; exempt to avoid 426 blocking health checks
-    const exemptPaths = ['/', '/health', '/ping', '/.well-known', '/mcp'];
-    if (exemptPaths.some(p => req.path === p || req.path.startsWith(p + '/'))) {
+    if (INTERNAL_HEALTH_EXEMPT_PATHS.has(req.path)) {
       return next();
     }
 
@@ -108,6 +106,10 @@ export function createHostValidationMiddleware(
   const allowedHostSet = new Set(allowedHosts.map((host) => host.toLowerCase()));
 
   return (req, res, next) => {
+    if (INTERNAL_HEALTH_EXEMPT_PATHS.has(req.path)) {
+      return next();
+    }
+
     const host = req.get('host');
     if (!host) {
       return next();

@@ -77,3 +77,7 @@ assets
 # Inspector and testing configs
 inspector.json
 start-mcp.sh
+
+# Allow prebuilt runtime artifacts for remote packaging
+!dist/
+!dist/**

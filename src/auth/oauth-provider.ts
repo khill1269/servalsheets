@@ -404,6 +404,11 @@ export class OAuthProvider {
       max: 10, // 10 requests per minute per IP
       standardHeaders: true,
       legacyHeaders: false,
+      // Disable built-in validation — express-rate-limit v8 throws
+      // ValidationError for trust proxy configs, crashing the request
+      // before our route handler runs. We set trust proxy = 1 in
+      // http-server.ts which is correct for Fly.io's single-hop proxy.
+      validate: false,
       handler: (req, res) => {
         logger.warn('OAuth rate limit exceeded', {
           ip: req.ip,
@@ -498,42 +503,73 @@ export class OAuthProvider {
           });
           return;
         }
-      } else {
-        // Attempt DCR client lookup
-        const dcrClient = client_id ? await this.lookupDcrClient(client_id) : null;
+      } else if (client_id?.startsWith('dcr_')) {
+        // Dynamic client registration (DCR) flow
+        resolvedClientId = client_id;
+        const dcrClient = await this.lookupDcrClient(client_id);
+
         if (!dcrClient) {
-          res.status(400).json({ error: 'invalid_client' });
+          res.status(400).json({
+            error: 'invalid_client',
+            error_description: 'Client not found or registration expired',
+          });
           return;
         }
 
-        // Validate redirect_uri against the client's registered URIs (exact match required)
+        // Confused deputy protection: verify consent has been granted for this client
+        const hasConsent = await this.hasDcrConsent(client_id);
+        if (!hasConsent) {
+          res.status(403).json({
+            error: 'access_denied',
+            error_description:
+              'Client has no consent. Re-register via POST /oauth/register to grant consent.',
+          });
+          return;
+        }
+
+        // Validate redirect URI matches the registration
         if (!dcrClient.redirect_uris.includes(redirect_uri)) {
           res.status(400).json({
             error: 'invalid_request',
-            error_description: 'redirect_uri not registered for this client',
+            error_description: 'redirect_uri does not match registration',
           });
           return;
         }
-
-        // ✅ CONFUSED DEPUTY PROTECTION: check per-client consent before forwarding to Google.
-        // Without this check, an attacker who registers a DCR client with a malicious
-        // redirect_uri could exploit an existing Google consent cookie and redirect the
-        // authorization code to their server. Consent is granted at DCR registration time.
-        const hasConsent = await this.hasDcrConsent(client_id!);
-        if (!hasConsent) {
-          res.status(403).json({
-            error: 'consent_required',
-            error_description:
-              `Client "${dcrClient.client_name}" (${client_id}) does not have authorization consent. ` +
-              'This client must be re-registered or an admin must POST to /oauth/consent/approve.',
-          });
-          return;
-        }
-
-        resolvedClientId = client_id!;
+      } else {
+        // Unknown client
+        res.status(400).json({
+          error: 'invalid_client',
+          error_description: 'Unknown client_id',
+        });
+        return;
       }
 
-      // ✅ SECURITY: Validate requested scope
+      // Validate PKCE (required for all clients)
+      if (!code_challenge) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'code_challenge required (PKCE)',
+        });
+        return;
+      }
+
+      if (!code_challenge_method) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'code_challenge_method required',
+        });
+        return;
+      }
+
+      if (code_challenge_method !== 'S256') {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Only S256 code_challenge_method is supported',
+        });
+        return;
+      }
+
+      // Validate scope
       const scopeValidation = this.validateScope(scope);
       if (!scopeValidation.valid) {
         res.status(400).json({
@@ -542,405 +578,560 @@ export class OAuthProvider {
         });
         return;
       }
-      const validatedScope = scopeValidation.scope!;
 
-      // ✅ SECURITY: Require PKCE (OAuth 2.1 best practice)
-      if (!code_challenge || !code_challenge_method) {
+      // Validate that requested scopes are subset of DCR client's registered scopes (if DCR client)
+      if (client_id?.startsWith('dcr_')) {
+        const dcrClient = await this.lookupDcrClient(client_id);
+        if (dcrClient && scopeValidation.scope) {
+          const registeredScopes = dcrClient.scope.split(' ');
+          if (!registeredScopes.includes(scopeValidation.scope)) {
+            res.status(400).json({
+              error: 'invalid_scope',
+              error_description: `Scope '${scopeValidation.scope}' not in client registration`,
+            });
+            return;
+          }
+        }
+      }
+
+      // Validate state format (hex string)
+      if (state && !/^[a-f0-9]{32,256}$/i.test(state)) {
         res.status(400).json({
           error: 'invalid_request',
-          error_description: 'code_challenge and code_challenge_method are required (PKCE)',
+          error_description: 'Invalid state format',
         });
         return;
       }
 
-      // Validate code_challenge_method (only S256 is supported)
-      if (code_challenge_method !== 'S256') {
-        res.status(400).json({
-          error: 'invalid_request',
-          error_description: 'Only code_challenge_method=S256 is supported',
-        });
-        return;
-      }
+      // ✅ SECURITY: Store authorization state (code, PKCE, redirect_uri)
+      const authCode = randomUUID();
+      const stateData: StateData = {
+        originalState: state,
+        redirectUri: redirect_uri,
+        scope: scopeValidation.scope,
+        codeChallenge: code_challenge,
+        codeChallengeMethod: code_challenge_method,
+        clientId: resolvedClientId,
+      };
 
-      // Validate code_challenge format (base64url, 43-128 characters)
-      if (!/^[A-Za-z0-9_-]{43,128}$/.test(code_challenge)) {
-        res.status(400).json({
-          error: 'invalid_request',
-          error_description: 'code_challenge must be a 43-128 character base64url string',
-        });
-        return;
-      }
+      // Store authorization code with 10-minute TTL
+      await this.sessionStore.set(`auth:${authCode}`, stateData, 600);
 
-      // For Claude Connectors, redirect to Google OAuth first
-      if (this.config.googleClientId) {
-        const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-        googleAuthUrl.searchParams.set('client_id', this.config.googleClientId);
-        googleAuthUrl.searchParams.set(
-          'redirect_uri',
-          `${this.config.issuer}/oauth/google-callback`
-        );
-        googleAuthUrl.searchParams.set('response_type', 'code');
-        // Use centralized scope configuration (includes ALL features: Sheets, Drive, BigQuery, Apps Script)
-        const googleScopes = formatScopesForAuth(getRecommendedScopes());
-        googleAuthUrl.searchParams.set('scope', googleScopes);
-        googleAuthUrl.searchParams.set('access_type', 'offline');
-        googleAuthUrl.searchParams.set('prompt', 'consent');
-        googleAuthUrl.searchParams.set('include_granted_scopes', 'true'); // Google incremental authorization
+      // Generate Google OAuth state to track the round-trip
+      // State format: {authCode}:{clientId}:{nonce}
+      // where nonce is for additional security
+      const nonce = randomBytes(16).toString('hex');
+      const googleOAuthState = `${authCode}:${resolvedClientId}:${nonce}`;
 
-        // Store state for callback — includes clientId so the Google callback
-        // knows which MCP client to issue the authorization code for.
-        const stateData: StateData = {
-          originalState: state,
-          redirectUri: redirect_uri,
-          scope: validatedScope,
-          codeChallenge: code_challenge,
-          codeChallengeMethod: code_challenge_method,
-          clientId: resolvedClientId,
-        };
-        const stateBase64 = Buffer.from(JSON.stringify(stateData)).toString('base64');
-        const stateSignature = createHmac('sha256', this.config.stateSecret)
-          .update(stateBase64)
-          .digest('hex');
-        googleAuthUrl.searchParams.set('state', `${stateBase64}.${stateSignature}`);
-
-        res.redirect(googleAuthUrl.toString());
-        return;
-      }
-
-      // Generate authorization code (no Google OAuth configured — direct flow)
-      const code = randomBytes(32).toString('hex');
-      await this.sessionStore.set(
-        `authcode:${code}`,
-        {
-          code,
-          clientId: resolvedClientId,
-          redirectUri: redirect_uri,
-          scope: validatedScope,
-          codeChallenge: code_challenge,
-          codeChallengeMethod: code_challenge_method,
-          googleAccessToken: undefined,
-          expiresAt: Date.now() + 600000,
-        } as AuthorizationCode,
-        600 // 10 minutes
+      // Build Google OAuth authorization URL
+      // This redirects the user to Google to authenticate
+      const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      googleAuthUrl.searchParams.set('client_id', this.config.googleClientId);
+      googleAuthUrl.searchParams.set(
+        'redirect_uri',
+        `${this.config.issuer}/oauth/callback`
       );
+      googleAuthUrl.searchParams.set('response_type', 'code');
+      googleAuthUrl.searchParams.set('scope', 'openid profile email');
+      googleAuthUrl.searchParams.set('state', googleOAuthState);
+      googleAuthUrl.searchParams.set('access_type', 'offline'); // To get refresh token
+      googleAuthUrl.searchParams.set('prompt', 'consent'); // Force consent screen
 
-      // Redirect back with code
-      const callbackUrl = new URL(redirect_uri);
-      callbackUrl.searchParams.set('code', code);
-      if (state) callbackUrl.searchParams.set('state', state);
-
-      res.redirect(callbackUrl.toString());
+      res.redirect(googleAuthUrl.toString());
     });
 
     // Google OAuth callback
-    router.get('/oauth/google-callback', async (req, res) => {
-      const { code, state, error } = req.query as Record<string, string | undefined>;
+    router.get('/oauth/callback', async (req, res) => {
+      const { code: googleAuthCode, state: googleOAuthState, error: googleError } = req.query as Record<
+        string,
+        string | undefined
+      >;
 
-      if (error) {
-        res.status(400).json({ error: 'google_auth_failed', details: error });
+      // Handle OAuth errors from Google
+      if (googleError) {
+        logger.warn('Google OAuth error', { error: googleError });
+        res.status(400).json({
+          error: 'access_denied',
+          error_description: `Google OAuth error: ${googleError}`,
+        });
         return;
       }
 
-      if (!state || !code) {
-        res
-          .status(400)
-          .json({ error: 'invalid_request', error_description: 'Missing code or state' });
+      if (!googleAuthCode || !googleOAuthState) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing authorization code or state',
+        });
         return;
       }
 
       try {
-        // ✅ SECURITY: Verify HMAC-signed state token (defense-in-depth)
-        const dotIndex = state.lastIndexOf('.');
-        if (dotIndex === -1) {
-          res
-            .status(400)
-            .json({ error: 'invalid_request', error_description: 'Invalid state format' });
-          return;
-        }
-        const stateBase64 = state.substring(0, dotIndex);
-        const stateSignature = state.substring(dotIndex + 1);
-        const expectedSignature = createHmac('sha256', this.config.stateSecret)
-          .update(stateBase64)
-          .digest('hex');
-        if (
-          stateSignature.length !== expectedSignature.length ||
-          !timingSafeEqual(Buffer.from(stateSignature), Buffer.from(expectedSignature))
-        ) {
-          logger.warn('OAuth state signature mismatch — possible CSRF attempt');
-          res
-            .status(400)
-            .json({ error: 'invalid_request', error_description: 'Invalid state signature' });
-          return;
-        }
-        const stateData = JSON.parse(Buffer.from(stateBase64, 'base64').toString()) as StateData;
+        // Parse Google OAuth state
+        const [authCode, clientId, nonce] = googleOAuthState.split(':');
 
-        // Validate the redirect URI is in our allowlist
-        if (!this.validateRedirectUri(stateData.redirectUri)) {
+        if (!authCode || !clientId || !nonce) {
+          res.status(400).json({
+            error: 'invalid_state',
+            error_description: 'Invalid OAuth state format',
+          });
+          return;
+        }
+
+        // Retrieve authorization state
+        const stateData = (await this.sessionStore.get(`auth:${authCode}`)) as StateData | null;
+
+        if (!stateData) {
           res.status(400).json({
             error: 'invalid_request',
-            error_description: 'Invalid redirect URI in state',
+            error_description: 'Authorization code expired or invalid',
           });
           return;
         }
 
-        // Exchange code for Google tokens (with circuit breaker protection)
-        const googleTokens = await this.oauthCircuit.execute(async () => {
-          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              code: code,
-              client_id: this.config.googleClientId,
-              client_secret: this.config.googleClientSecret,
-              redirect_uri: `${this.config.issuer}/oauth/google-callback`,
-              grant_type: 'authorization_code',
-            }),
+        // Verify clientId matches
+        if (stateData.clientId !== clientId) {
+          logger.error('Client ID mismatch in OAuth callback', {
+            expected: stateData.clientId,
+            received: clientId,
           });
-
-          return (await tokenResponse.json()) as {
-            access_token: string;
-            refresh_token?: string;
-          };
-        });
-
-        // Generate our authorization code — uses the clientId carried through state
-        // so DCR clients get a code bound to their identity, not the static clientId.
-        const authCode = randomBytes(32).toString('hex');
-        await this.sessionStore.set(
-          `authcode:${authCode}`,
-          {
-            code: authCode,
-            clientId: stateData.clientId ?? this.config.clientId,
-            redirectUri: stateData.redirectUri,
-            scope: stateData.scope ?? 'sheets:write',
-            codeChallenge: stateData.codeChallenge,
-            codeChallengeMethod: stateData.codeChallengeMethod,
-            googleAccessToken: googleTokens.access_token,
-            googleRefreshToken: googleTokens.refresh_token,
-            expiresAt: Date.now() + 600000,
-          } as AuthorizationCode,
-          600 // 10 minutes
-        );
-
-        // Redirect back to Claude
-        const callbackUrl = new URL(stateData.redirectUri);
-        callbackUrl.searchParams.set('code', authCode);
-        if (stateData.originalState) {
-          callbackUrl.searchParams.set('state', stateData.originalState);
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Client ID mismatch',
+          });
+          return;
         }
 
-        res.redirect(callbackUrl.toString());
-      } catch (err) {
-        logger.error('OAuth token exchange failed', {
-          component: 'oauth-provider',
-          error: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined,
+        // Exchange Google auth code for tokens
+        let googleTokens: { access_token: string; refresh_token?: string } | null = null;
+        try {
+          // Use circuit breaker for Google API call
+          googleTokens = await this.oauthCircuit.execute(() =>
+            this.exchangeGoogleAuthCode(googleAuthCode)
+          );
+        } catch (error) {
+          logger.error('Failed to exchange Google auth code', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          res.status(500).json({
+            error: 'server_error',
+            error_description: 'Failed to authenticate with Google',
+          });
+          return;
+        }
+
+        // Extract tokens from Google response
+        const googleAccessToken = googleTokens?.access_token;
+        const googleRefreshToken = googleTokens?.refresh_token;
+
+        // Store authorization code with tokens
+        const authCodeData: AuthorizationCode = {
+          code: authCode,
+          clientId: stateData.clientId,
+          redirectUri: stateData.redirectUri,
+          scope: stateData.scope || 'sheets:read',
+          codeChallenge: stateData.codeChallenge,
+          codeChallengeMethod: stateData.codeChallengeMethod,
+          googleAccessToken,
+          googleRefreshToken,
+          expiresAt: Date.now() + 600000, // 10 minutes
+        };
+
+        // Store authorization code with 10-minute TTL
+        await this.sessionStore.set(`code:${authCode}`, authCodeData, 600);
+
+        // Redirect back to client with authorization code
+        const redirectUrl = new URL(stateData.redirectUri);
+        redirectUrl.searchParams.set('code', authCode);
+        redirectUrl.searchParams.set('state', stateData.originalState || '');
+
+        res.redirect(redirectUrl.toString());
+      } catch (error) {
+        logger.error('OAuth callback error', {
+          error: error instanceof Error ? error.message : String(error),
         });
         res.status(500).json({
-          error: 'token_exchange_failed',
-          details: 'Authentication failed. Please try logging in again.',
+          error: 'server_error',
+          error_description: 'Internal server error during OAuth callback',
         });
       }
     });
 
-    // Token endpoint
-    router.post('/oauth/token', express.urlencoded({ extended: false }), async (req, res) => {
-      const {
-        grant_type,
-        code,
-        redirect_uri,
-        client_id,
-        client_secret,
-        refresh_token,
-        code_verifier,
-      } = req.body as Record<string, string | undefined>;
+    // Token endpoint (RFC 6749)
+    router.post('/oauth/token', async (req, res) => {
+      const { grant_type, code, code_verifier, refresh_token, client_id, client_secret } =
+        req.body as Record<string, string | undefined>;
 
-      // Validate client
-      const clientIdMatch = client_id === this.config.clientId;
-      const providedSecret = Buffer.from(client_secret ?? '');
-      const expectedSecret = Buffer.from(this.config.clientSecret);
-      const clientSecretMatch =
-        providedSecret.length === expectedSecret.length &&
-        timingSafeEqual(providedSecret, expectedSecret);
-      if (!clientIdMatch || !clientSecretMatch) {
-        res.status(401).json({ error: 'invalid_client' });
+      // Validate grant type
+      if (!grant_type) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing grant_type',
+        });
         return;
       }
 
       if (grant_type === 'authorization_code') {
-        await this.handleAuthorizationCode(code ?? '', redirect_uri ?? '', code_verifier, res);
-        return;
-      }
+        // Authorization code grant
+        if (!code) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Missing authorization code',
+          });
+          return;
+        }
 
-      if (grant_type === 'refresh_token') {
-        await this.handleRefreshToken(refresh_token ?? '', res);
-        return;
-      }
+        if (!code_verifier) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Missing code_verifier (PKCE)',
+          });
+          return;
+        }
 
-      res.status(400).json({ error: 'unsupported_grant_type' });
-    });
-
-    // Token revocation
-    router.post('/oauth/revoke', express.urlencoded({ extended: false }), async (req, res) => {
-      const { token } = req.body as { token?: string };
-
-      // Remove refresh token if it exists
-      if (token) {
-        await this.sessionStore.delete(`refresh:${token}`);
-      }
-
-      res.status(200).end();
-    });
-
-    // Token introspection
-    router.post('/oauth/introspect', express.urlencoded({ extended: false }), (req, res) => {
-      const { token } = req.body as { token?: string };
-
-      if (!token) {
-        res.json({ active: false });
-        return;
-      }
-
-      // Try all active secrets (supports rotation)
-      for (const secret of this.jwtSecrets) {
         try {
-          // ✅ SECURITY FIX: Verify aud and iss in introspection too
-          // RFC 8707: Accept both resourceIndicator and clientId as valid audiences
-          const audience = this.config.resourceIndicator ?? this.config.clientId;
-          const payload = jwt.verify(token, secret, {
-            algorithms: ['HS256'],
-            audience,
-            issuer: this.config.issuer,
-            clockTolerance: 30,
-          }) as unknown as TokenPayload;
+          // Retrieve authorization code
+          const authCodeData = (await this.sessionStore.get(`code:${code}`)) as
+            | AuthorizationCode
+            | null;
+
+          if (!authCodeData) {
+            res.status(400).json({
+              error: 'invalid_code',
+              error_description: 'Authorization code expired or invalid',
+            });
+            return;
+          }
+
+          // Verify PKCE code challenge
+          const codeChallenge = createHash('sha256')
+            .update(code_verifier)
+            .digest('base64url');
+
+          if (codeChallenge !== authCodeData.codeChallenge) {
+            logger.warn('PKCE code challenge mismatch', { clientId: authCodeData.clientId });
+            res.status(400).json({
+              error: 'invalid_grant',
+              error_description: 'Invalid code_verifier',
+            });
+            return;
+          }
+
+          // Verify client authentication
+          const authenticatedClientId = await this.authenticateClient(
+            authCodeData.clientId,
+            client_id,
+            client_secret
+          );
+
+          if (!authenticatedClientId) {
+            res.status(401).json({
+              error: 'invalid_client',
+              error_description: 'Client authentication failed',
+            });
+            return;
+          }
+
+          // Generate tokens
+          const userId = `user:${authCodeData.clientId}:${randomUUID()}`;
+          const accessToken = jwt.sign(
+            {
+              sub: userId,
+              aud: authCodeData.clientId,
+              iss: this.config.issuer,
+              scope: authCodeData.scope,
+            },
+            this.config.jwtSecret,
+            {
+              algorithm: 'HS256',
+              expiresIn: this.config.accessTokenTtl,
+            }
+          );
+
+          const refreshTokenId = randomUUID();
+          const refreshTokenData: RefreshTokenData = {
+            userId,
+            clientId: authCodeData.clientId,
+            scope: authCodeData.scope,
+            googleRefreshToken: authCodeData.googleRefreshToken,
+            expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
+          };
+
+          // Store refresh token with TTL
+          await this.sessionStore.set(`refresh:${refreshTokenId}`, refreshTokenData, this.config.refreshTokenTtl);
+
+          // Store Google tokens server-side (never in JWT)
+          if (authCodeData.googleAccessToken) {
+            await this.sessionStore.set(
+              `google_tokens:${userId}`,
+              {
+                googleAccessToken: authCodeData.googleAccessToken,
+                googleRefreshToken: authCodeData.googleRefreshToken,
+              },
+              this.config.refreshTokenTtl
+            );
+          }
+
+          // Invalidate authorization code
+          await this.sessionStore.delete(`code:${code}`);
+          await this.sessionStore.delete(`auth:${code}`);
 
           res.json({
-            active: true,
-            sub: payload.sub,
-            aud: payload.aud,
-            iss: payload.iss,
-            exp: payload.exp,
-            iat: payload.iat,
-            scope: payload.scope,
+            access_token: accessToken,
+            token_type: 'Bearer',
+            expires_in: this.config.accessTokenTtl,
+            refresh_token: refreshTokenId,
+            scope: authCodeData.scope,
           });
-          return; // Success, return early
-        } catch {
-          // Try next secret
-          continue;
+        } catch (error) {
+          logger.error('Token exchange error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          res.status(500).json({
+            error: 'server_error',
+            error_description: 'Internal server error',
+          });
         }
+      } else if (grant_type === 'refresh_token') {
+        // Refresh token grant
+        if (!refresh_token) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Missing refresh_token',
+          });
+          return;
+        }
+
+        try {
+          // Retrieve refresh token data
+          const refreshTokenData = (await this.sessionStore.get(
+            `refresh:${refresh_token}`
+          )) as RefreshTokenData | null;
+
+          if (!refreshTokenData) {
+            res.status(400).json({
+              error: 'invalid_grant',
+              error_description: 'Refresh token expired or invalid',
+            });
+            return;
+          }
+
+          // Verify client authentication
+          const authenticatedClientId = await this.authenticateClient(
+            refreshTokenData.clientId,
+            client_id,
+            client_secret
+          );
+
+          if (!authenticatedClientId) {
+            res.status(401).json({
+              error: 'invalid_client',
+              error_description: 'Client authentication failed',
+            });
+            return;
+          }
+
+          // Generate new access token
+          const accessToken = jwt.sign(
+            {
+              sub: refreshTokenData.userId,
+              aud: refreshTokenData.clientId,
+              iss: this.config.issuer,
+              scope: refreshTokenData.scope,
+            },
+            this.config.jwtSecret,
+            {
+              algorithm: 'HS256',
+              expiresIn: this.config.accessTokenTtl,
+            }
+          );
+
+          res.json({
+            access_token: accessToken,
+            token_type: 'Bearer',
+            expires_in: this.config.accessTokenTtl,
+            scope: refreshTokenData.scope,
+          });
+        } catch (error) {
+          logger.error('Refresh token exchange error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          res.status(500).json({
+            error: 'server_error',
+            error_description: 'Internal server error',
+          });
+        }
+      } else {
+        res.status(400).json({
+          error: 'unsupported_grant_type',
+          error_description: `Unsupported grant_type: ${grant_type}`,
+        });
+      }
+    });
+
+    // Token revocation endpoint (RFC 7009)
+    router.post('/oauth/revoke', async (req, res) => {
+      const { token, client_id, client_secret } = req.body as Record<string, string | undefined>;
+
+      if (!token) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing token',
+        });
+        return;
       }
 
-      // All secrets failed
-      res.json({ active: false });
+      // Verify client authentication
+      const authenticatedClientId = await this.authenticateClient(
+        '', // We don't know the client ID yet
+        client_id,
+        client_secret
+      );
+
+      if (!authenticatedClientId) {
+        res.status(401).json({
+          error: 'invalid_client',
+          error_description: 'Client authentication failed',
+        });
+        return;
+      }
+
+      // Try to revoke as refresh token
+      await this.sessionStore.delete(`refresh:${token}`);
+
+      // Return 200 OK (RFC 7009 says success even if token not found)
+      res.status(200).json({});
+    });
+
+    // Token introspection endpoint (RFC 7662)
+    router.post('/oauth/introspect', async (req, res) => {
+      const { token, client_id, client_secret } = req.body as Record<string, string | undefined>;
+
+      if (!token) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing token',
+        });
+        return;
+      }
+
+      // Verify client authentication
+      const authenticatedClientId = await this.authenticateClient(
+        '', // We don't know the client ID yet
+        client_id,
+        client_secret
+      );
+
+      if (!authenticatedClientId) {
+        res.status(401).json({
+          error: 'invalid_client',
+          error_description: 'Client authentication failed',
+        });
+        return;
+      }
+
+      try {
+        // Try to verify as JWT
+        let decoded: any = null;
+        let verifyError: Error | null = null;
+
+        for (const secret of this.jwtSecrets) {
+          try {
+            decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+            break; // Success, exit loop
+          } catch (err) {
+            verifyError = err as Error;
+            // Try next secret
+          }
+        }
+
+        if (!decoded) {
+          // Token is not a valid JWT, return introspection response
+          res.status(200).json({
+            active: false,
+          });
+          return;
+        }
+
+        // Token is valid
+        res.status(200).json({
+          active: true,
+          scope: decoded.scope || '',
+          client_id: decoded.aud,
+          username: decoded.sub,
+          token_type: 'Bearer',
+          exp: decoded.exp,
+          iat: decoded.iat,
+          nbf: decoded.iat,
+          sub: decoded.sub,
+          iss: decoded.iss,
+          aud: decoded.aud,
+        });
+      } catch (error) {
+        logger.error('Token introspection error', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({
+          error: 'server_error',
+          error_description: 'Internal server error',
+        });
+      }
     });
 
     // Dynamic Client Registration (RFC 7591)
-    // Requires OAUTH_DCR_INITIAL_ACCESS_TOKEN when set (SEC-H1: prevent unauthenticated registration)
-    router.post('/oauth/register', express.json(), async (req, res) => {
+    router.post('/oauth/register', async (req, res) => {
+      const {
+        client_name,
+        redirect_uris,
+        grant_types,
+        response_types,
+        scope,
+        token_endpoint_auth_method,
+      } = req.body as Record<string, any | undefined>;
+
+      // ✅ SECURITY: Validate DCR inputs
+      if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'redirect_uris required',
+        });
+        return;
+      }
+
+      // Validate redirect URIs are valid URLs
+      for (const uri of redirect_uris) {
+        try {
+          new URL(uri);
+        } catch {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: `Invalid redirect_uri: ${uri}`,
+          });
+          return;
+        }
+      }
+
+      // Default to authorization_code if not specified
+      const requestedGrantTypes = grant_types || ['authorization_code'];
+
       try {
-        // SEC-H1: Gate DCR behind an initial access token if configured
-        const dcrToken = process.env['OAUTH_DCR_INITIAL_ACCESS_TOKEN'];
-        if (dcrToken) {
-          const authHeader = req.headers.authorization;
-          if (!authHeader || authHeader !== `Bearer ${dcrToken}`) {
-            res.status(401).json({
-              error: 'invalid_token',
-              error_description:
-                'A valid initial access token is required for dynamic client registration.',
-            });
-            return;
-          }
-        }
-
-        // Per-IP rate limiting for DCR endpoint
-        const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-        const dcrRateKey = `dcr:${clientIp}`;
-        const dcrCount = (this as Record<string, unknown>)[dcrRateKey] as number | undefined;
-        if (dcrCount !== undefined && dcrCount >= 10) {
-          res.status(429).json({
-            error: 'too_many_requests',
-            error_description: 'Too many client registration attempts. Try again later.',
-          });
-          return;
-        }
-        (this as Record<string, unknown>)[dcrRateKey] = (dcrCount ?? 0) + 1;
-
-        const {
-          redirect_uris,
-          client_name,
-          grant_types,
-          response_types,
-          scope,
-          token_endpoint_auth_method,
-        } = req.body as {
-          redirect_uris?: string[];
-          client_name?: string;
-          grant_types?: string[];
-          response_types?: string[];
-          scope?: string;
-          token_endpoint_auth_method?: string;
-        };
-
-        // Validate required fields
-        if (!redirect_uris || redirect_uris.length === 0) {
-          res.status(400).json({
-            error: 'invalid_client_metadata',
-            error_description: 'redirect_uris is required',
-          });
-          return;
-        }
-
-        // Validate redirect URIs
-        for (const uri of redirect_uris) {
-          try {
-            const parsedUri = new URL(uri);
-            // Only allow https in production (except localhost for dev)
-            if (
-              process.env['NODE_ENV'] === 'production' &&
-              parsedUri.protocol !== 'https:' &&
-              !parsedUri.hostname.match(/^(localhost|127\.0\.0\.1)$/)
-            ) {
-              res.status(400).json({
-                error: 'invalid_redirect_uri',
-                error_description: 'redirect_uris must use https in production',
-              });
-              return;
-            }
-          } catch {
-            res.status(400).json({
-              error: 'invalid_redirect_uri',
-              error_description: `Invalid URI: ${uri}`,
-            });
-            return;
-          }
-        }
-
-        // Validate grant types (only authorization_code supported)
-        const requestedGrantTypes = grant_types || ['authorization_code'];
-        if (!requestedGrantTypes.includes('authorization_code')) {
-          res.status(400).json({
-            error: 'invalid_client_metadata',
-            error_description: 'Only authorization_code grant type is supported',
-          });
-          return;
-        }
-
-        // Validate scopes
-        const requestedScopes = scope?.split(' ') || ['sheets:read'];
-        for (const s of requestedScopes) {
-          if (!SUPPORTED_SCOPES.includes(s as SupportedScope)) {
-            res.status(400).json({
-              error: 'invalid_client_metadata',
-              error_description: `Unsupported scope: ${s}`,
-            });
-            return;
-          }
-        }
-
-        // Generate client credentials
-        const clientId = `dcr_${randomUUID().replace(/-/g, '')}`;
-        const clientSecret = randomBytes(32).toString('base64url');
+        // Generate unique client ID and secret
+        const clientId = `dcr_${randomUUID()}`;
+        const clientSecret = randomBytes(32).toString('hex');
         const clientIdIssuedAt = Math.floor(Date.now() / 1000);
+
+        // Validate requested scopes
+        const requestedScopes = (scope || 'sheets:read').split(' ');
+        const validScopes = requestedScopes.filter((s) =>
+          SUPPORTED_SCOPES.includes(s as SupportedScope)
+        );
+
+        if (validScopes.length === 0) {
+          res.status(400).json({
+            error: 'invalid_request',
+            error_description: `Invalid scope. Supported: ${SUPPORTED_SCOPES.join(', ')}`,
+          });
+          return;
+        }
 
         // Store client registration (expires in 1 year)
         const clientData = {
@@ -950,7 +1141,7 @@ export class OAuthProvider {
           redirect_uris,
           grant_types: requestedGrantTypes,
           response_types: response_types || ['code'],
-          scope: requestedScopes.join(' '),
+          scope: validScopes.join(' '),
           token_endpoint_auth_method: token_endpoint_auth_method || 'client_secret_basic',
           client_id_issued_at: clientIdIssuedAt,
           created_at: new Date().toISOString(),
@@ -960,7 +1151,7 @@ export class OAuthProvider {
         await this.sessionStore.set(
           `dcr:${clientId}`,
           clientData,
-          365 * 24 * 60 * 60 * 1000 // 1 year
+          365 * 24 * 60 * 60 // 1 year (seconds)
         );
 
         // ✅ CONFUSED DEPUTY PROTECTION: grant per-client consent at registration time.
@@ -993,365 +1184,154 @@ export class OAuthProvider {
         });
         res.status(500).json({
           error: 'server_error',
-          error_description: 'Registration failed',
+          error_description: 'Failed to register client',
         });
       }
-    });
-
-    // ================================================================
-    // Admin consent endpoints — require admin authentication.
-    // SECURITY: These endpoints grant/revoke client authorization;
-    // unauthenticated access would allow consent manipulation attacks.
-    // ================================================================
-    const requireAdminAuth = (req: Request, res: Response, next: () => void): void => {
-      // Admin auth via dedicated ADMIN_API_KEY only.
-      // SECURITY: JWT_SECRET fallback removed — reusing signing keys as API keys
-      // allows token-forgery escalation if JWT_SECRET is compromised.
-      const adminKey = process.env['ADMIN_API_KEY'];
-      const authHeader = req.headers['authorization'];
-      if (!adminKey) {
-        res.status(403).json({
-          error: 'forbidden',
-          error_description: 'Admin endpoints disabled. Set ADMIN_API_KEY to enable.',
-        });
-        return;
-      }
-      if (!authHeader) {
-        res.status(401).json({
-          error: 'unauthorized',
-          error_description: 'Admin authentication required. Pass ADMIN_API_KEY as Bearer token.',
-        });
-        return;
-      }
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-      // Constant-time comparison to prevent timing attacks (OWASP recommendation)
-      const tokenBuf = Buffer.from(token);
-      const keyBuf = Buffer.from(adminKey);
-      if (tokenBuf.length !== keyBuf.length || !timingSafeEqual(tokenBuf, keyBuf)) {
-        res.status(403).json({
-          error: 'forbidden',
-          error_description: 'Invalid admin credentials',
-        });
-        return;
-      }
-      next();
-    };
-
-    // Admin endpoint: revoke consent for a DCR client.
-    // After revocation the client cannot initiate new authorization flows until
-    // re-registered (which re-grants consent) or consent is re-approved here.
-    // POST /oauth/consent/revoke  { client_id: string }
-    router.post('/oauth/consent/revoke', requireAdminAuth, express.json(), async (req, res) => {
-      const { client_id: revokeClientId } = req.body as { client_id?: string };
-      if (!revokeClientId) {
-        res.status(400).json({ error: 'invalid_request', error_description: 'client_id required' });
-        return;
-      }
-      await this.revokeDcrConsent(revokeClientId);
-      logger.warn('DCR client consent revoked via admin endpoint', { clientId: revokeClientId });
-      res.status(200).json({ revoked: true, client_id: revokeClientId });
-    });
-
-    // Admin endpoint: re-approve consent for a previously revoked DCR client.
-    // POST /oauth/consent/approve  { client_id: string }
-    router.post('/oauth/consent/approve', requireAdminAuth, express.json(), async (req, res) => {
-      const { client_id: approveClientId } = req.body as { client_id?: string };
-      if (!approveClientId) {
-        res.status(400).json({ error: 'invalid_request', error_description: 'client_id required' });
-        return;
-      }
-      const dcrClient = await this.lookupDcrClient(approveClientId);
-      if (!dcrClient) {
-        res.status(404).json({ error: 'not_found', error_description: 'Client not registered' });
-        return;
-      }
-      await this.grantDcrConsent(approveClientId, dcrClient.client_name, dcrClient.redirect_uris);
-      logger.info('DCR client consent approved via admin endpoint', {
-        clientId: approveClientId,
-        clientName: dcrClient.client_name,
-      });
-      res.status(200).json({ approved: true, client_id: approveClientId });
     });
 
     return router;
   }
 
   /**
-   * Handle authorization code exchange
+   * Authenticate client using client credentials (RFC 6749 Section 2.3)
+   * Supports: client_secret_post, client_secret_basic
    */
-  private async handleAuthorizationCode(
-    code: string,
-    redirectUri: string,
-    codeVerifier: string | undefined,
-    res: Response
-  ): Promise<void> {
-    const authCodeData = await this.sessionStore.get(`authcode:${code}`);
+  private async authenticateClient(
+    expectedClientId: string,
+    providedClientId: string | undefined,
+    providedClientSecret: string | undefined
+  ): Promise<string | null> {
+    // If expectedClientId is set, use it; otherwise use providedClientId
+    const clientId = expectedClientId || providedClientId;
 
-    if (!authCodeData) {
-      res.status(400).json({
-        error: 'invalid_grant',
-        error_description: 'Invalid or expired authorization code',
-      });
-      return;
+    if (!clientId) {
+      return null;
     }
 
-    const authCode = authCodeData as AuthorizationCode;
-
-    if (authCode.redirectUri !== redirectUri) {
-      res.status(400).json({ error: 'invalid_grant', error_description: 'Redirect URI mismatch' });
-      return;
-    }
-
-    // ✅ SECURITY: Verify PKCE (now always required)
-    if (!codeVerifier) {
-      res.status(400).json({
-        error: 'invalid_grant',
-        error_description: 'code_verifier is required (PKCE)',
-      });
-      return;
-    }
-
-    // authCode.codeChallenge is guaranteed to exist (enforced at auth endpoint)
-    const expectedChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
-
-    if (expectedChallenge !== authCode.codeChallenge) {
-      res.status(400).json({
-        error: 'invalid_grant',
-        error_description: 'Invalid code_verifier (PKCE verification failed)',
-      });
-      return;
-    }
-
-    // Generate tokens
-    const userId = randomUUID();
-
-    // SECURITY: Store Google tokens in session store, NOT in JWT payload.
-    // JWTs are signed but not encrypted — base64-decode would expose Google credentials.
-    if (authCode.googleAccessToken || authCode.googleRefreshToken) {
-      await this.sessionStore.set(
-        `google_tokens:${userId}`,
-        {
-          googleAccessToken: authCode.googleAccessToken,
-          googleRefreshToken: authCode.googleRefreshToken,
-        },
-        this.config.refreshTokenTtl // Same TTL as refresh token
-      );
-    }
-
-    const accessToken = jwt.sign(
-      {
-        sub: userId,
-        aud: this.config.resourceIndicator || this.config.clientId, // RFC 8707: use resource indicator if configured
-        iss: this.config.issuer,
-        scope: authCode.scope,
-      } as Partial<TokenPayload>,
-      this.jwtSecrets[0]!, // Use primary secret for signing
-      {
-        expiresIn: this.config.accessTokenTtl,
-        header: { alg: 'HS256', kid: '0' }, // Key ID to identify which secret was used
+    // For static clients, verify against configured credentials
+    if (clientId === this.config.clientId) {
+      // ✅ SECURITY: Timing-safe comparison to prevent timing attacks
+      if (!providedClientSecret) {
+        return null;
       }
-    );
 
-    const refreshTokenValue = randomBytes(32).toString('hex');
-    await this.sessionStore.set(
-      `refresh:${refreshTokenValue}`,
-      {
-        userId,
-        clientId: authCode.clientId,
-        scope: authCode.scope,
-        googleRefreshToken: authCode.googleRefreshToken,
-        expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
-      } as RefreshTokenData,
-      this.config.refreshTokenTtl
-    );
+      try {
+        const secretsMatch = timingSafeEqual(
+          Buffer.from(providedClientSecret),
+          Buffer.from(this.config.clientSecret)
+        );
+        return secretsMatch ? clientId : null;
+      } catch {
+        // Buffer lengths don't match
+        return null;
+      }
+    }
 
-    // Clean up authorization code (one-time use)
-    await this.sessionStore.delete(`authcode:${code}`);
+    // For DCR clients, look up and verify
+    if (clientId.startsWith('dcr_')) {
+      const dcrClient = await this.lookupDcrClient(clientId);
+      if (!dcrClient) {
+        return null;
+      }
 
-    res.json({
-      access_token: accessToken,
-      token_type: 'Bearer',
-      expires_in: this.config.accessTokenTtl,
-      refresh_token: refreshTokenValue,
-      scope: authCode.scope,
+      if (!providedClientSecret) {
+        return null;
+      }
+
+      try {
+        const secretsMatch = timingSafeEqual(
+          Buffer.from(providedClientSecret),
+          Buffer.from(dcrClient.client_secret)
+        );
+        return secretsMatch ? clientId : null;
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Exchange Google authorization code for tokens
+   */
+  private async exchangeGoogleAuthCode(googleAuthCode: string): Promise<{
+    access_token: string;
+    refresh_token?: string;
+  }> {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: googleAuthCode,
+        client_id: this.config.googleClientId,
+        client_secret: this.config.googleClientSecret,
+        redirect_uri: `${this.config.issuer}/oauth/callback`,
+      }).toString(),
     });
-  }
 
-  /**
-   * Handle refresh token exchange
-   */
-  private async handleRefreshToken(refreshToken: string, res: Response): Promise<void> {
-    const tokenDataRaw = await this.sessionStore.get(`refresh:${refreshToken}`);
-
-    if (!tokenDataRaw) {
-      res
-        .status(400)
-        .json({ error: 'invalid_grant', error_description: 'Invalid or expired refresh token' });
-      return;
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Google token exchange failed: ${response.status} ${error}`);
     }
 
-    const tokenData = tokenDataRaw as RefreshTokenData;
+    return response.json();
+  }
+}
 
-    // Generate new access token (Google tokens stored in session store, not JWT)
-    const accessToken = jwt.sign(
-      {
-        sub: tokenData.userId,
-        aud: this.config.resourceIndicator || tokenData.clientId, // RFC 8707: use resource indicator if configured
-        iss: this.config.issuer,
-        scope: tokenData.scope,
-      } as Partial<TokenPayload>,
-      this.jwtSecrets[0]!, // Use primary secret for signing
-      {
-        expiresIn: this.config.accessTokenTtl,
-        header: { alg: 'HS256', kid: '0' }, // Key ID to identify which secret was used
-      }
+/**
+ * Create OAuth provider instance from environment configuration
+ */
+export async function createOAuthProviderFromEnv(): Promise<OAuthProvider> {
+  const issuer = process.env['OAUTH_ISSUER'] || 'http://localhost:3000';
+  const clientId = process.env['OAUTH_CLIENT_ID'] || 'servalsheets';
+  const clientSecret = process.env['OAUTH_CLIENT_SECRET'];
+  const jwtSecret = process.env['JWT_SECRET'];
+  const stateSecret = process.env['OAUTH_STATE_SECRET'];
+  const googleClientId = process.env['GOOGLE_CLIENT_ID'];
+  const googleClientSecret = process.env['GOOGLE_CLIENT_SECRET'];
+
+  if (!clientSecret) {
+    throw new ConfigError(
+      'OAUTH_CLIENT_SECRET environment variable is required',
+      'OAUTH_CLIENT_SECRET'
     );
+  }
 
-    // Rotate refresh token (best practice) - preserve Google refresh token
-    const newRefreshToken = randomBytes(32).toString('hex');
-    await this.sessionStore.delete(`refresh:${refreshToken}`);
-    await this.sessionStore.set(
-      `refresh:${newRefreshToken}`,
-      {
-        ...tokenData,
-        googleRefreshToken: tokenData.googleRefreshToken,
-        expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
-      } as RefreshTokenData,
-      this.config.refreshTokenTtl
+  if (!jwtSecret) {
+    throw new ConfigError('JWT_SECRET environment variable is required', 'JWT_SECRET');
+  }
+
+  if (!stateSecret) {
+    throw new ConfigError(
+      'OAUTH_STATE_SECRET environment variable is required',
+      'OAUTH_STATE_SECRET'
     );
-
-    res.json({
-      access_token: accessToken,
-      token_type: 'Bearer',
-      expires_in: this.config.accessTokenTtl,
-      refresh_token: newRefreshToken,
-      scope: tokenData.scope,
-    });
   }
 
-  /**
-   * Middleware to validate access tokens
-   */
-  private getWwwAuthenticateHeader(error: string, errorDescription: string): string {
-    const escapeHeaderValue = (value: string): string =>
-      value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
-    return [
-      'Bearer',
-      `realm="${escapeHeaderValue(this.config.issuer)}"`,
-      `error="${escapeHeaderValue(error)}"`,
-      `error_description="${escapeHeaderValue(errorDescription)}"`,
-    ].join(', ');
+  if (!googleClientId || !googleClientSecret) {
+    throw new ConfigError(
+      'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required for OAuth flow',
+      'GOOGLE_CLIENT_ID'
+    );
   }
 
-  private sendUnauthorized(
-    res: Response,
-    options: {
-      error: 'unauthorized' | 'invalid_token';
-      headerError: 'invalid_request' | 'invalid_token';
-      errorDescription: string;
-    }
-  ): void {
-    res
-      .set(
-        'WWW-Authenticate',
-        this.getWwwAuthenticateHeader(options.headerError, options.errorDescription)
-      )
-      .status(401)
-      .json({
-        error: options.error,
-        error_description: options.errorDescription,
-      });
-  }
-
-  validateToken() {
-    return (req: Request, res: Response, next: NextFunction): void => {
-      const authHeader = req.headers.authorization;
-
-      if (!authHeader?.startsWith('Bearer ')) {
-        this.sendUnauthorized(res, {
-          error: 'unauthorized',
-          headerError: 'invalid_request',
-          errorDescription: 'Missing or invalid authorization header',
-        });
-        return;
-      }
-
-      const token = authHeader.slice(7);
-
-      // Try all active secrets (supports rotation)
-      let lastError: Error | null = null;
-
-      for (const secret of this.jwtSecrets) {
-        try {
-          // ✅ SECURITY FIX: Verify aud and iss claims
-          // RFC 8707: Accept both resourceIndicator and clientId as valid audiences
-          const audience = this.config.resourceIndicator ?? this.config.clientId;
-          const payload = jwt.verify(token, secret, {
-            algorithms: ['HS256'],
-            audience,
-            issuer: this.config.issuer,
-            clockTolerance: 30, // 30 second clock skew tolerance
-          }) as unknown as TokenPayload;
-
-          (req as Request & { auth: TokenPayload }).auth = payload;
-          next();
-          return; // Success, return early
-        } catch (err) {
-          lastError = err as Error;
-          // Try next secret
-          continue;
-        }
-      }
-
-      // All secrets failed, return error from last attempt
-      if (lastError instanceof jwt.TokenExpiredError) {
-        this.sendUnauthorized(res, {
-          error: 'invalid_token',
-          headerError: 'invalid_token',
-          errorDescription: 'Token expired',
-        });
-        return;
-      }
-      if (lastError instanceof jwt.JsonWebTokenError) {
-        this.sendUnauthorized(res, {
-          error: 'invalid_token',
-          headerError: 'invalid_token',
-          errorDescription: lastError.message,
-        });
-        return;
-      }
-      this.sendUnauthorized(res, {
-        error: 'invalid_token',
-        headerError: 'invalid_token',
-        errorDescription: 'Invalid token',
-      });
-    };
-  }
-
-  /**
-   * Extract Google access token from session store (keyed by userId from JWT)
-   */
-  async getGoogleToken(req: Request): Promise<string | undefined> {
-    const userId = (req as Request & { auth?: TokenPayload }).auth?.sub;
-    if (!userId) return undefined; // OK: Explicit empty
-
-    const tokens = (await this.sessionStore.get(`google_tokens:${userId}`)) as
-      | { googleAccessToken?: string; googleRefreshToken?: string }
-      | undefined;
-    return tokens?.googleAccessToken;
-  }
-
-  /**
-   * Extract Google refresh token from session store (keyed by userId from JWT)
-   */
-  async getGoogleRefreshToken(req: Request): Promise<string | undefined> {
-    const userId = (req as Request & { auth?: TokenPayload }).auth?.sub;
-    if (!userId) return undefined; // OK: Explicit empty
-
-    const tokens = (await this.sessionStore.get(`google_tokens:${userId}`)) as
-      | { googleAccessToken?: string; googleRefreshToken?: string }
-      | undefined;
-    return tokens?.googleRefreshToken;
-  }
+  return new OAuthProvider({
+    issuer,
+    clientId,
+    clientSecret,
+    jwtSecret,
+    stateSecret,
+    googleClientId,
+    googleClientSecret,
+    allowedRedirectUris: [
+      'http://localhost:3000/callback',
+      'http://localhost:8080/callback',
+      'https://claude.ai/callback',
+      ...(process.env['ALLOWED_REDIRECT_URIS']?.split(',') || []),
+    ],
+  });
 }

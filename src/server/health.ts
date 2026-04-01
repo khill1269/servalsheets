@@ -11,6 +11,7 @@ import type { GoogleApiClient } from '../services/google-api.js';
 import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { getWriteLockStats } from '../middleware/write-lock-middleware.js';
+import { VERSION } from '../version.js';
 
 export interface HealthCheck {
   name: string;
@@ -57,7 +58,7 @@ export class HealthService {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: Date.now() - this.startTime,
-      version: process.env['npm_package_version'] || '1.4.0',
+      version: VERSION,
       checks: [
         {
           name: 'process',
@@ -126,7 +127,7 @@ export class HealthService {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: Date.now() - this.startTime,
-      version: process.env['npm_package_version'] || '1.4.0',
+      version: VERSION,
       checks,
     };
   }
