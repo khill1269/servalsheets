@@ -75,9 +75,10 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     defaultHost: DEFAULT_HOST,
     createApp: () => {
       const app = express();
-      // Trust reverse proxy (Fly.io, nginx, etc.) — required for express-rate-limit
-      // to correctly identify clients via X-Forwarded-For behind a proxy.
-      app.set('trust proxy', true);
+      // Trust exactly 1 reverse proxy hop (Fly.io) — required for express-rate-limit
+      // to correctly identify clients via X-Forwarded-For.
+      // `1` is more secure than `true` (which trusts any number of hops).
+      app.set('trust proxy', 1);
       return app;
     },
     getEnvConfig: getEnv,

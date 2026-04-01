@@ -5,7 +5,7 @@ app = "servalsheets"
 primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "Dockerfile.fly"
 
 [env]
   NODE_ENV = "production"

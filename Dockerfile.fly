@@ -1,11 +1,8 @@
-# ServalSheets Production Dockerfile
-# Multi-stage build for optimal image size (~50MB final)
+# ServalSheets Fly.io Dockerfile
+# Packages prebuilt runtime artifacts from the local worktree to avoid remote rebuild pressure.
 
-# Stage 1: Build
-# NOTE: Pin to specific tag for reproducibility. Run `docker pull node:20-alpine`
-# then `docker inspect --format='{{index .RepoDigests 0}}' node:20-alpine` to get
-# the current digest and append @sha256:... to the FROM line below.
-FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c AS builder
+# Stage 1: Install runtime dependencies
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -17,29 +14,25 @@ COPY packages/mcp-http/package*.json ./packages/mcp-http/
 COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
 COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
-# Install dependencies (including devDependencies for build)
+# Install dependencies required by the prebuilt runtime
 RUN npm ci
 
-# Copy source code
+# Copy source tree, including prebuilt dist artifacts from the worktree
 COPY . .
 
-# Build TypeScript (4GB heap — multi-workspace tsc is memory-intensive)
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
+# Validate that the expected prebuilt runtime entrypoints are present
+RUN test -f dist/http-server-entry.js && test -f packages/mcp-http/dist/direct-entry.js
 
-# Prune devDependencies
-RUN npm prune --production
-
-# Stage 2: Runtime (same pin as builder — keep in sync)
-FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
+# Stage 2: Runtime
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl
 
-# Copy built artifacts and production dependencies
+# Copy built artifacts and runtime dependencies
 COPY --from=builder /app/dist ./dist
-# Workspace package dist outputs (dist/http-server-entry.js imports ../packages/mcp-http/dist/)
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
@@ -48,9 +41,6 @@ COPY --from=builder /app/server.json ./
 # Create non-root user
 RUN addgroup -g 1001 -S servalsheets && \
     adduser -S servalsheets -u 1001
-
-# Create required runtime directories (DATA_DIR, PROFILE_STORAGE_DIR, CHECKPOINT_DIR, WAL_DIR)
-RUN mkdir -p /app/data /app/profiles /app/checkpoints /app/wal
 
 # Change ownership
 RUN chown -R servalsheets:servalsheets /app
