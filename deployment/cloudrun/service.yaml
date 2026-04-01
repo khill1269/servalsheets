@@ -1,0 +1,325 @@
+# Google Cloud Run Service Definition for ServalSheets
+# Production-ready configuration for MCP server deployment
+# Deployment: gcloud run deploy servalsheets --source . -f deployment/cloudrun/service.yaml
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: servalsheets
+  namespace: default
+  labels:
+    app: servalsheets
+    environment: production
+    version: "2.0.0"
+  annotations:
+    # Metrics and monitoring annotations
+    cloud.google.com/backend-config: "servalsheets-backendconfig"
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/client-name: "gcloud"
+    cloud.google.com/client-version: "latest"
+
+spec:
+  # Traffic configuration - gradual rollout
+  traffic:
+    - percent: 100
+      latestRevision: true
+
+  # Template for the revision (the actual deployment)
+  template:
+    metadata:
+      name: servalsheets-1
+      labels:
+        app: servalsheets
+      annotations:
+        # Concurrency: maximum requests per container instance
+        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/targetConcurrency: "80"
+        # CPU throttling: Cloud Run will optimize for this target
+        autoscaling.knative.dev/targetCPUUtilization: "70"
+
+    spec:
+      # Container specification
+      containers:
+        - name: servalsheets
+          # Image reference - update PROJECT_ID to your GCP project
+          image: gcr.io/PROJECT_ID/servalsheets:latest
+          imagePullPolicy: IfNotPresent
+
+          # Port configuration - HTTP health checks and traffic
+          ports:
+            - name: http1
+              containerPort: 3000
+              protocol: TCP
+
+          # Health checks - ensures container is running and ready
+          livenessProbe:
+            # Liveness: is the container still alive?
+            httpGet:
+              path: /health/live
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            # Readiness: is the container ready to accept traffic?
+            httpGet:
+              path: /health/ready
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          startupProbe:
+            # Startup: has the application finished starting up?
+            # Long timeout (300s) because application may need to initialize Redis, fetch configs, etc.
+            httpGet:
+              path: /health/live
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30  # 30 * 10 = 300 seconds = 5 minutes
+
+          # Resource allocation (Fargate equivalent)
+          resources:
+            requests:
+              # Cloud Run CPU is allocated proportionally to memory
+              # 2GB requires 2 vCPU for concurrent workloads
+              memory: "2Gi"
+              cpu: "2000m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+
+          # Environment variables - loaded from Cloud Run secret environment
+          env:
+            # Node.js and application settings
+            - name: NODE_ENV
+              value: "production"
+
+            - name: LOG_LEVEL
+              value: "info"
+
+            - name: PORT
+              value: "3000"
+
+            - name: HOST
+              value: "0.0.0.0"  # Cloud Run requires listening on all interfaces
+
+            - name: MCP_TRANSPORT
+              value: "http"
+
+            # Google Cloud specific settings
+            - name: GOOGLE_CLOUD_PROJECT
+              value: "PROJECT_ID"  # Update to your GCP project ID
+
+            - name: ENABLE_AGGRESSIVE_FIELD_MASKS
+              value: "true"
+
+            - name: ENABLE_REQUEST_MERGING
+              value: "true"
+
+            - name: ENABLE_PARALLEL_EXECUTOR
+              value: "true"
+
+            # Observability
+            - name: OTEL_SERVICE_NAME
+              value: "servalsheets"
+
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"  # If using Cloud Trace, adjust endpoint
+
+            # Secrets loaded from Cloud Secret Manager
+            # Format: valueFrom.secretKeyRef uses the secret manager reference
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-jwt-secret
+                  key: latest
+
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-google-client-id
+                  key: latest
+
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-google-client-secret
+                  key: latest
+
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-encryption-key
+                  key: latest
+
+            - name: ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-admin-api-key
+                  key: latest
+
+            # Redis configuration (Memorystore or external)
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-redis-url
+                  key: latest
+
+            # OAuth configuration
+            - name: OAUTH_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-oauth-issuer
+                  key: latest
+
+            - name: OAUTH_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-oauth-redirect-uri
+                  key: latest
+
+            # Optional: AI integrations
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-anthropic-api-key
+                  key: latest
+
+            - name: VOYAGE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-voyage-api-key
+                  key: latest
+
+          # Volume mounts for temporary storage (e.g., checkpoints, cache)
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/servalsheets
+
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+      # Volume definitions
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: cache
+          emptyDir:
+            sizeLimit: 2Gi
+
+      # Service account for Cloud Run
+      serviceAccountName: servalsheets-sa
+
+      # Timeout for requests - longer to accommodate streaming responses
+      timeoutSeconds: 300
+
+      # DNS policy
+      dnsPolicy: ClusterFirst
+
+      # Node selector (if using GKE with node pools)
+      # This is usually not needed for Cloud Run managed services
+
+---
+# BackendConfig for advanced routing and security
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: servalsheets-backendconfig
+  namespace: default
+
+spec:
+  # Cloud Armor DDoS and WAF protection
+  securityPolicy:
+    name: "servalsheets-security-policy"
+
+  # Cloud Armor rules (if policy exists)
+  # Protects against common attacks
+
+  # Health checks configuration
+  healthChecks:
+    - name: "servalsheets-healthcheck"
+
+  # Custom request headers
+  customRequestHeaders:
+    headers:
+      - "X-Client-Region:{client_region}"
+      - "X-Client-Country:{client_country}"
+
+  # Session affinity for stateful connections
+  sessionAffinity:
+    affinityType: "CLIENT_IP"
+    affinityCookieTtlSec: 3600
+
+  # Logging configuration
+  logging:
+    enable: true
+    sampleRate: 1.0  # Log all requests in production, adjust as needed
+
+---
+# HorizontalPodAutoscaler for Cloud Run
+# Note: Cloud Run manages this automatically, but included for reference
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: servalsheets-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: serving.knative.dev/v1
+    kind: Service
+    name: servalsheets
+
+  minReplicas: 1
+  maxReplicas: 10
+
+  metrics:
+    # Scale based on CPU usage
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # Scale based on memory usage
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30

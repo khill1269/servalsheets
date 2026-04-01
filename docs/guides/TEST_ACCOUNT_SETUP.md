@@ -14,7 +14,7 @@ This guide provides everything an Anthropic reviewer needs to evaluate
 ServalSheets end-to-end: test credentials, sample spreadsheets, and
 representative workflows.
 
-> **Server facts** — 25 tools, 408 actions, v2.0.0, MCP 2025-11-25
+> **Server facts** — 25 tools, 409 actions, v2.0.0, MCP 2025-11-25
 
 ## Quick Start (5 minutes)
 

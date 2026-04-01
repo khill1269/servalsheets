@@ -13,7 +13,7 @@ audience: operator
 This guide covers deploying ServalSheets as a remote HTTP MCP server
 suitable for the Anthropic Connectors Directory.
 
-> **Server facts** — 25 tools, 408 actions, v2.0.0, MCP 2025-11-25
+> **Server facts** — 25 tools, 409 actions, v2.0.0, MCP 2025-11-25
 
 ## Prerequisites
 

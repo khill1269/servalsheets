@@ -105,6 +105,9 @@ jobs:
       - name: Validate metadata consistency (strict mode)
         run: npm run check:metadata-strict
 
+      - name: Validate Zod schema markers
+        run: npm run check:zod-markers
+
       - name: Validate cross-map completeness
         run: npm test -- --run tests/contracts/cross-map-consistency.test.ts
 

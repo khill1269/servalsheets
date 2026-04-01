@@ -69,6 +69,28 @@ function scanFile(filePath, severity = 'warning') {
   const issues = [];
   const warnings = [];
   const lines = readLines(filePath);
+  const seen = new Set();
+
+  function record(message, level = severity) {
+    if (seen.has(message)) return;
+    seen.add(message);
+    if (level === 'error') {
+      issues.push(message);
+    } else {
+      warnings.push(message);
+    }
+  }
+
+  function recordCountMismatch(lineNumber, label, actual, expected, level = severity, detail = label) {
+    if (actual === expected) {
+      return;
+    }
+
+    record(
+      `${filePath}:${lineNumber}: ${detail} has '${actual}' (expected '${expected}')`,
+      level,
+    );
+  }
 
   for (const [index, line] of lines.entries()) {
     const lineNumber = index + 1;
@@ -81,16 +103,17 @@ function scanFile(filePath, severity = 'warning') {
       const actionCount = Number.parseInt(combinedMatch[2], 10);
 
       if (toolCount !== facts.counts.tools) {
-        issues.push(
+        record(
           `${filePath}:${lineNumber}: combined pattern has '${toolCount} tools' (expected '${facts.counts.tools} tools')`,
+          'error',
         );
       }
       if (actionCount !== facts.counts.actions) {
-        issues.push(
+        record(
           `${filePath}:${lineNumber}: combined pattern has '${actionCount} actions' (expected '${facts.counts.actions} actions')`,
+          'error',
         );
       }
-      continue;
     }
 
     const toolRowMatch = line.match(
@@ -98,15 +121,7 @@ function scanFile(filePath, severity = 'warning') {
     );
     if (toolRowMatch) {
       const toolCount = Number.parseInt(toolRowMatch[1], 10);
-      if (toolCount != null && toolCount !== facts.counts.tools) {
-        const message = `${filePath}:${lineNumber}: tool count row has '${toolCount}' (expected '${facts.counts.tools}')`;
-        if (severity === 'error') {
-          issues.push(message);
-        } else {
-          warnings.push(message);
-        }
-      }
-      continue;
+      recordCountMismatch(lineNumber, 'tool count row', toolCount, facts.counts.tools);
     }
 
     const actionRowMatch = line.match(
@@ -114,13 +129,72 @@ function scanFile(filePath, severity = 'warning') {
     );
     if (actionRowMatch) {
       const actionCount = Number.parseInt(actionRowMatch[1], 10);
-      if (actionCount != null && actionCount !== facts.counts.actions) {
-        const message = `${filePath}:${lineNumber}: action count row has '${actionCount}' (expected '${facts.counts.actions}')`;
-        if (severity === 'error') {
-          issues.push(message);
-        } else {
-          warnings.push(message);
-        }
+      recordCountMismatch(lineNumber, 'action count row', actionCount, facts.counts.actions);
+    }
+
+    const promptRowMatch = line.match(
+      /^\|\s*(?:\*\*)?(?:PROMPT_COUNT|Prompts?)(?:\*\*)?\s*\|\s*(?:\*\*)?`?(\d{1,4})`?/i,
+    );
+    if (promptRowMatch) {
+      const promptCount = Number.parseInt(promptRowMatch[1], 10);
+      recordCountMismatch(lineNumber, 'prompt count row', promptCount, facts.counts.prompts);
+    }
+
+    const resourceRowMatch = line.match(
+      /^\|\s*(?:\*\*)?(?:RESOURCE_COUNT|Resources?)(?:\*\*)?\s*\|\s*(?:\*\*)?`?(\d{1,4})`?/i,
+    );
+    if (resourceRowMatch) {
+      const resourceCount = Number.parseInt(resourceRowMatch[1], 10);
+      recordCountMismatch(lineNumber, 'resource count row', resourceCount, facts.counts.resources);
+    }
+
+    const resourceTemplateRowMatch = line.match(
+      /^\|\s*(?:\*\*)?(?:RESOURCE_TEMPLATE_COUNT|URI Templates|Resource Templates?)(?:\*\*)?\s*\|\s*(?:\*\*)?`?(\d{1,4})`?/i,
+    );
+    if (resourceTemplateRowMatch) {
+      const resourceTemplateCount = Number.parseInt(resourceTemplateRowMatch[1], 10);
+      recordCountMismatch(
+        lineNumber,
+        'resource template count row',
+        resourceTemplateCount,
+        facts.counts.resourceTemplates,
+      );
+    }
+
+    for (const match of line.matchAll(/(?<![\d.])(\d{1,4})\s+(guided\s+workflows?|prompts?)\b/gi)) {
+      recordCountMismatch(
+        lineNumber,
+        'prompt count',
+        Number.parseInt(match[1], 10),
+        facts.counts.prompts,
+      );
+    }
+
+    for (const match of line.matchAll(/(?<![\d.])(\d{1,4})\s+(?:MCP\s+)?resources?\b(?!\s+templates?\b)/gi)) {
+      recordCountMismatch(
+        lineNumber,
+        'resource count',
+        Number.parseInt(match[1], 10),
+        facts.counts.resources,
+      );
+    }
+
+    for (const match of line.matchAll(/(?<![\d.])(\d{1,4})\s+(?:URI|resource)\s+templates?\b/gi)) {
+      recordCountMismatch(
+        lineNumber,
+        'resource template count',
+        Number.parseInt(match[1], 10),
+        facts.counts.resourceTemplates,
+      );
+    }
+
+    for (const match of line.matchAll(/actions\/workflows\/([A-Za-z0-9._-]+\.ya?ml)/g)) {
+      const workflowPath = join(ROOT, '.github/workflows', match[1]);
+      if (!existsSync(workflowPath)) {
+        record(
+          `${filePath}:${lineNumber}: references missing workflow '${match[1]}'`,
+          'error',
+        );
       }
     }
   }
@@ -133,7 +207,9 @@ const errors = [];
 const warnings = [];
 
 console.log('🔍 Comprehensive documentation validation...\n');
-console.log(`Source of truth: ${facts.counts.tools} tools, ${facts.counts.actions} actions`);
+console.log(
+  `Source of truth: ${facts.counts.tools} tools, ${facts.counts.actions} actions, ${facts.counts.prompts} prompts, ${facts.counts.resources} resources, ${facts.counts.resourceTemplates} resource templates`,
+);
 console.log(`Generated facts file: ${staleFactsFile ? 'STALE or missing' : 'fresh'}\n`);
 
 if (staleFactsFile) {

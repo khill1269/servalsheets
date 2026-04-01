@@ -66,6 +66,7 @@ import { buildServerStdioRuntimeDependencies } from './server/build-server-stdio
 import { buildServerStdioToolRuntime } from './server/build-server-stdio-tool-runtime.js';
 import { shutdownStdioServer } from './server/shutdown-stdio-server.js';
 import { startStdioRuntime } from './server/start-stdio-runtime.js';
+import { recordStartupPhase } from './startup/startup-profiler.js';
 
 export interface ServalSheetsServerOptions {
   name?: string;
@@ -98,12 +99,15 @@ export class ServalSheetsServer {
   private mcpLogRateLimitState = createMcpLogRateLimitState();
   private preparedRuntime: PreparedStdioRuntime | null = null;
   private ensureToolIntegrityVerified = createAsyncOnce(async () => {
-    await verifyToolIntegrity();
+    await recordStartupPhase('verify_tool_integrity', async () => {
+      await verifyToolIntegrity();
+    });
   });
   private ensureRuntimePrepared = createAsyncOnce(async () => {
-    this.preparedRuntime = await prepareStdioRuntime(
-      this.createRuntimeState(),
-      this.createRuntimeDependencies()
+    this.preparedRuntime = await recordStartupPhase(
+      'prepare_stdio_runtime',
+      async () =>
+        await prepareStdioRuntime(this.createRuntimeState(), this.createRuntimeDependencies())
     );
   });
   private ensureRuntimeInitialized = createAsyncOnce(async () => {
@@ -113,7 +117,9 @@ export class ServalSheetsServer {
       throw new Error('STDIO runtime preparation did not provide a post-connect initializer');
     }
 
-    await this.preparedRuntime.finalizePostConnect();
+    await recordStartupPhase('finalize_post_connect', async () => {
+      await this.preparedRuntime!.finalizePostConnect();
+    });
   });
 
   // Cached handler map (rebuilt only when handlers change)

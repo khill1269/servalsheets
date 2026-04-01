@@ -13,6 +13,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../../utils/logger.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
+import { sendProgress } from '../../utils/request-context.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
 import type {
   ExecutionStep,
@@ -893,6 +894,15 @@ export async function executePlan(
     plan.currentStepIndex = i + 1;
     plan.error = undefined;
     plan.errorDetail = undefined;
+
+    // Emit progress notification after each completed step (no-op if client didn't request it)
+    await sendProgress(
+      plan.currentStepIndex,
+      plan.steps.length,
+      `Step ${plan.currentStepIndex}/${plan.steps.length} completed: ${step.description}`
+    ).catch(() => {
+      /* progress notifications are non-critical */
+    });
 
     // In interactive mode, pause after each successful step for user review
     if (interactiveMode) {

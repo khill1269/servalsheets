@@ -1,9 +1,12 @@
 # fly.toml — ServalSheets remote MCP server
-app = "servalsheets"
-primary_region = "iad"
+app = "servalsheets-2"
+primary_region = "ewr"
 
 [build]
   dockerfile = "Dockerfile"
+
+[processes]
+  app = "node dist/http-server.js"
 
 [env]
   NODE_ENV = "production"
@@ -11,42 +14,37 @@ primary_region = "iad"
   LOG_LEVEL = "info"
   ENABLE_LEGACY_SSE = "false"
 
-[[services]]
+[[mounts]]
+  source = "data"
+  destination = "/data"
+  auto_extend_size_threshold = 80
+  auto_extend_size_increment = "1GB"
+  auto_extend_size_limit = "10GB"
+
+[http_service]
   internal_port = 3000
-  protocol = "tcp"
-  auto_stop_machines = false
+  force_https = true
+  auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 1
+  processes = ["app"]
 
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-    force_https = true
-
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-  [services.concurrency]
+  [http_service.concurrency]
     type = "requests"
     hard_limit = 250
     soft_limit = 200
 
-  [[services.http_checks]]
+  [[http_service.checks]]
     grace_period = "60s"
     interval = "15s"
     method = "GET"
     path = "/health/live"
-    protocol = "http"
-    restart_limit = 0
     timeout = "10s"
-    [services.http_checks.headers]
-      X-Fly-Health-Check = "1"
 
 [[vm]]
   cpu_kind = "shared"
-  cpus = 1
-  memory_mb = 2048
+  cpus = 2
+  memory = "2gb"
 
 [metrics]
   port = 3000

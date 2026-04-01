@@ -93,17 +93,3 @@ function cleanupIdleBuckets(): void {
 // Run cleanup every 10 minutes (unref so it doesn't keep the process alive)
 const cleanupInterval = setInterval(cleanupIdleBuckets, 10 * 60 * 1000);
 cleanupInterval.unref();
-
-/**
- * Get current rate limit statistics (for diagnostics).
- */
-export function getRateLimitStats(): {
-  activePrincipals: number;
-  buckets: Array<{ principalId: string; remainingTokens: number }>;
-} {
-  const stats: Array<{ principalId: string; remainingTokens: number }> = [];
-  for (const [id, bucket] of buckets.entries()) {
-    stats.push({ principalId: id, remainingTokens: bucket.tokens });
-  }
-  return { activePrincipals: buckets.size, buckets: stats };
-}

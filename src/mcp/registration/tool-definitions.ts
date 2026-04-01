@@ -76,6 +76,7 @@ import {
   TOOL_DESCRIPTIONS,
   TOOL_DESCRIPTIONS_MINIMAL,
 } from '../../schemas/index.js';
+import { buildPlannerToolCatalog } from '../planner-tool-catalog.js';
 
 /**
  * Get the appropriate tool description based on DEFER_DESCRIPTIONS setting.
@@ -470,6 +471,10 @@ export function isToolCallAuthExempt(toolName: string, action?: string): boolean
 // Architecture bridge: provide TOOL_DEFINITIONS input schemas to the services
 // layer without requiring services to import from mcp/registration (G3 fix).
 // ---------------------------------------------------------------------------
-import { registerToolInputSchemas } from '../../services/agent-engine.js';
+import {
+  registerPlannerToolCatalog,
+  registerToolInputSchemas,
+} from '../../services/agent-engine.js';
 
 registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));
+registerPlannerToolCatalog(buildPlannerToolCatalog(TOOL_DEFINITIONS));

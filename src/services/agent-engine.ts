@@ -28,8 +28,10 @@ export type {
   ExecuteHandlerFn,
   StepRunStatus,
   StepRunOutcome,
+  PlannerActionCatalogEntry,
+  PlannerToolCatalogEntry,
 } from './agent/types.js';
-export { registerToolInputSchemas } from './agent/types.js';
+export { registerPlannerToolCatalog, registerToolInputSchemas } from './agent/types.js';
 
 // Sampling server setters
 export { setAgentSamplingServer, setAgentSamplingConsentChecker } from './agent/sampling.js';

@@ -363,15 +363,3 @@ export function getFieldMask(tool: string, action: string): string | undefined {
   const config = getFieldMaskForAction(tool, action);
   return config?.fieldMask;
 }
-
-/**
- * Get estimated payload reduction for an action
- *
- * @param tool - Tool name
- * @param action - Action name
- * @returns Estimated percentage reduction (0-95) or 0 if not configured
- */
-export function getEstimatedReduction(tool: string, action: string): number {
-  const config = getFieldMaskForAction(tool, action);
-  return config?.estimatedReduction ?? 0;
-}
