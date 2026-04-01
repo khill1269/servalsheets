@@ -9,7 +9,14 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../../utils/logger.js';
 import { getSessionContext } from '../session-context.js';
-import type { ExecutionStep, PlanState } from './types.js';
+import { TOOL_ACTIONS } from '../../schemas/index.js';
+import type {
+  ExecutionStep,
+  PlanState,
+  PlannerActionCatalogEntry,
+  PlannerToolCatalogEntry,
+} from './types.js';
+import { getPlannerToolCatalog } from './types.js';
 import {
   getSamplingServer,
   assertSamplingConsent,
@@ -26,6 +33,115 @@ import type { WorkflowTemplate } from './templates.js';
 // ============================================================================
 // Helpers
 // ============================================================================
+
+/**
+ * Build a compact planner catalog from the live MCP-registered tool metadata.
+ * Falls back to TOOL_ACTIONS when the MCP layer has not registered the richer
+ * catalog yet (for isolated unit tests or partial bootstraps).
+ */
+function buildLegacyToolCatalogSummary(
+  toolActions: Record<string, string[]> = TOOL_ACTIONS
+): string {
+  const MAX_ACTIONS_PER_TOOL = 8;
+  return Object.entries(toolActions)
+    .map(([tool, actions]) => {
+      const shown = actions.slice(0, MAX_ACTIONS_PER_TOOL);
+      const suffix = actions.length > MAX_ACTIONS_PER_TOOL ? ', ...' : '';
+      return `- ${tool}: ${shown.join(', ')}${suffix}`;
+    })
+    .join('\n');
+}
+
+function truncateForPrompt(value: string | undefined, maxLength: number): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
+}
+
+function formatPlannerActionSummary(action: PlannerActionCatalogEntry): string {
+  const notes: string[] = [];
+
+  const whenToUse = truncateForPrompt(action.whenToUse, 72);
+  if (whenToUse) {
+    notes.push(whenToUse);
+  }
+
+  if (!action.requiresAuth) {
+    notes.push('no auth');
+  }
+
+  if (action.idempotent === false) {
+    notes.push('non-idempotent');
+  }
+
+  const prerequisite = truncateForPrompt(action.prerequisites?.[0], 56);
+  if (prerequisite) {
+    notes.push(`needs ${prerequisite}`);
+  }
+
+  const mistake = truncateForPrompt(action.commonMistakes?.[0], 56);
+  if (mistake) {
+    notes.push(`avoid: ${mistake}`);
+  }
+
+  return notes.length > 0 ? `${action.action} (${notes.join('; ')})` : action.action;
+}
+
+export function buildToolCatalogSummary(
+  plannerCatalog: PlannerToolCatalogEntry[] = getPlannerToolCatalog()
+): string {
+  if (plannerCatalog.length === 0) {
+    return buildLegacyToolCatalogSummary();
+  }
+
+  const MAX_ACTIONS_PER_TOOL = 6;
+
+  return plannerCatalog
+    .map((tool) => {
+      const notes: string[] = [];
+
+      if (tool.tier) {
+        notes.push(`tier ${tool.tier}`);
+      }
+      if (tool.group) {
+        notes.push(tool.group);
+      }
+      if (tool.primaryVerbs?.length) {
+        notes.push(`verbs: ${tool.primaryVerbs.slice(0, 4).join(', ')}`);
+      }
+      if (tool.requiredScopes?.primary) {
+        const scopeSummary = tool.requiredScopes.elevated
+          ? `${tool.requiredScopes.primary} -> ${tool.requiredScopes.elevated}`
+          : tool.requiredScopes.primary;
+        notes.push(`scopes: ${scopeSummary}`);
+      }
+      if (!tool.authPolicy.requiresAuth) {
+        notes.push('all actions auth-exempt');
+      } else if (tool.authPolicy.hasAuthExemptActions) {
+        const shown = tool.authPolicy.exemptActions.slice(0, 3).join(', ');
+        const suffix = tool.authPolicy.exemptActions.length > 3 ? ', ...' : '';
+        notes.push(`auth-exempt: ${shown}${suffix}`);
+      }
+      const availabilityReason =
+        tool.availability && typeof tool.availability['reason'] === 'string'
+          ? truncateForPrompt(String(tool.availability['reason']), 88)
+          : undefined;
+      if (availabilityReason) {
+        notes.push(`availability: ${availabilityReason}`);
+      }
+
+      const actions = tool.actions.slice(0, MAX_ACTIONS_PER_TOOL).map(formatPlannerActionSummary);
+      const actionSuffix = tool.actions.length > MAX_ACTIONS_PER_TOOL ? ' | ...' : '';
+
+      return [
+        `- ${tool.name} (${tool.title})`,
+        `  Notes: ${notes.join('; ') || 'no extra constraints'}`,
+        `  Key actions: ${actions.join(' | ')}${actionSuffix}`,
+      ].join('\n');
+    })
+    .join('\n');
+}
 
 export function summarizePlanningContext(context?: string): string | undefined {
   const trimmed = context?.trim();
@@ -84,31 +200,8 @@ Each step must reference a specific ServalSheets tool and action (e.g., sheets_d
 Include required parameters for each step. Order steps by dependency.
 Return a JSON array of plan steps: [{ tool, action, params, description }].
 
-Available tools and their key actions:
-- sheets_core: create, get, add_sheet, delete_sheet, list, update_properties
-- sheets_data: read, write, append, clear, find_replace, cross_read, cross_query, cross_write, cross_compare
-- sheets_format: set_format, set_background, set_text_format, set_number_format, apply_preset, set_borders, clear_format, batch_format, set_rich_text
-- sheets_dimensions: sort_range, freeze, insert, delete, auto_resize, hide, show, group, ungroup, set_basic_filter, clear_basic_filter
-- sheets_visualize: chart_create, chart_update, pivot_create, pivot_update, suggest_chart, suggest_pivot
-- sheets_analyze: comprehensive, scout, analyze_data, detect_patterns, suggest_next_actions, auto_enhance, quick_insights
-- sheets_fix: clean, standardize_formats, fill_missing, detect_anomalies, suggest_cleaning, fix
-- sheets_compute: aggregate, statistical, forecast, regression, evaluate
-- sheets_composite: import_csv, deduplicate, setup_sheet, generate_sheet, import_xlsx, export_xlsx, bulk_update, data_pipeline
-- sheets_history: undo, redo, revert_to, timeline, restore_cells
-- sheets_dependencies: build, model_scenario, compare_scenarios, analyze_impact
-- sheets_collaborate: share_add, comment_add, share_list, comment_list, share_remove
-- sheets_advanced: add_named_range, list_named_ranges, add_protected_range, create_table, add_banding
-- sheets_templates: list, apply, create, import_builtin, delete
-- sheets_auth: status, login, logout, refresh, callback
-- sheets_webhook: register, list, unregister, watch_changes, update
-- sheets_transaction: begin, queue, commit, rollback, status
-- sheets_federation: call_remote, list_servers, get_server_tools, validate_connection
-- sheets_bigquery: export_to_bigquery, import_from_bigquery, query, connect, list_connections
-- sheets_appsscript: run, create, deploy, list, update_content
-- sheets_session: set_active, get_context, save_checkpoint, restore_checkpoint, record_operation
-- sheets_quality: validate, detect_conflicts, resolve_conflict, analyze_impact
-- sheets_confirm: request, approve, deny, status, cancel
-- sheets_connectors: list, configure, query, subscribe, get_status
+Available tools and their actions (use ONLY these exact tool names and action names):
+${buildToolCatalogSummary()}
 
 EXAMPLE PLAN:
 

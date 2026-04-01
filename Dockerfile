@@ -23,8 +23,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build TypeScript
-RUN npm run build
+# Build TypeScript (needs extra heap for large codebase)
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 # Prune devDependencies
 RUN npm prune --production

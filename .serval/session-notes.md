@@ -6,19 +6,75 @@
 
 ## Current Phase
 
-**Session 109 (2026-03-24) — Codebase verification + layer violation fix + oversized file decomposition.** Branch `release-1.7.1`. 407 actions (25 tools). 2784/2784 tests pass (141 test files).
+**Session 110 (2026-03-31) — Claude Code architecture analysis → 4 ServalSheets improvements.** Branch `codex-repo-audit-hardening`. 409 actions (25 tools). 2841/2841 tests pass (143 test files).
+
+## What Was Just Completed (Session 110)
+
+**Claude Code architecture review → 4 confirmed gaps found and implemented — all 2841/2841 tests pass.**
+
+### Improvements implemented
+
+1. **autoRecord wiring** (`src/mcp/registration/tool-execution-side-effects.ts`):
+   - After every successful mutation, checks `sessionCtx.getPreferences().autoRecord`
+   - If `true`, automatically calls `sessionCtx.recordOperation(...)` — no more manual `record_operation` calls needed
+   - Added `getSessionContextFn` to `ToolExecutionSideEffectDeps` interface + default wired in `createDefaultDeps()`
+   - Non-critical: wrapped in try/catch — never blocks tool execution
+   - Tests: 2 new tests in `tests/unit/tool-execution-side-effects.test.ts`
+
+2. **Agent tool catalog injection** (`src/services/agent/plan-compiler.ts`):
+   - Added `buildToolCatalogSummary()` that builds a compact summary of all 25 tools + actions from `TOOL_ACTIONS` (source of truth)
+   - Replaced the old hardcoded static tool list in `aiParsePlan()` system prompt with live catalog
+   - Agent plans now generated with awareness of all actual tools/actions — no more planning blind
+
+3. **Agent step streaming** (`src/services/agent/plan-executor.ts`):
+   - Added `sendProgress()` call after each step in `executePlan()`
+   - LLM clients now see real-time progress notifications: "Step N/M completed: description"
+   - Non-critical: wrapped in `.catch(() => {})` — never blocks execution
+
+4. **Session compaction** (`src/schemas/session.ts`, `src/services/session-context.ts`, `src/handlers/session.ts`):
+   - Added `compact_session` action to `sheets_session` (session now has 32 actions, up from 31)
+   - `compactHistory(digest, keepRecent)` method on `SessionContextManager`
+   - Handler: if history ≤ keepRecent, no-op; otherwise summarizes old ops into a digest record
+   - Analogous to Claude Code's context compaction at ~80% capacity
+   - Tool hash baseline regenerated via `npm run security:tool-hashes`
+
+**Key decisions:**
+
+- autoRecord is opt-in (default: false) — no surprise behavior changes for existing users
+- buildToolCatalogSummary caps at 8 actions/tool to keep prompt tokens reasonable
+- sendProgress uses `.catch()` not try/catch since it returns a promise
+- compact_session creates a digest string entry in history (preserves audit trail)
+- schema:commit git add fails on gitignored files (docs/generated, manifest.json) — pre-existing issue, not introduced here
+
+**Files changed (8 src + 1 test):**
+
+- `src/mcp/registration/tool-execution-side-effects.ts` — autoRecord wiring
+- `src/services/agent/plan-compiler.ts` — buildToolCatalogSummary + live tool catalog injection
+- `src/services/agent/plan-executor.ts` — sendProgress after each step
+- `src/schemas/session.ts` — compact_session action + output fields
+- `src/services/session-context.ts` — compactHistory() method
+- `src/handlers/session.ts` — compact_session case
+- `src/security/tool-hashes.baseline.json` — regenerated after session schema change
+- `tests/unit/tool-execution-side-effects.test.ts` — autoRecord tests
+- `tests/utils/ast-schema-parser.test.ts` — updated count: 31→32 for session
+
+**Verification**: 2841/2841 tests pass. TypeScript clean.
+
+## Current Phase (Previous — Session 109)
 
 ## What Was Just Completed (Session 109)
 
 **Full codebase verification (3 parallel Explore agents) + 4 confirmed fixes — all verified with 2784/2784 tests passing.**
 
 ### Verification (debunked false positives)
+
 - **mcp-http "duplication"**: INTENTIONAL adapter pattern. `packages/mcp-http/` = generic library; `src/http-server/` = product-specific wiring. NOT duplicate code.
 - **Test `as any` (1,304 occurrences)**: ALL justified standard test patterns (mock setup, input adaptation). No fixes needed.
 - **MCP compliance gaps**: NONE. A+ on MCP 2025-11-25. All features wired.
 - **Google API anti-patterns**: NONE. No unbounded column refs, retry properly applied via BaseHandler/CachedSheetsApi.
 
 ### Task 1 — Layer violation fix (4 files)
+
 Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by extracting shared utilities:
 
 1. **`src/utils/sampling-consent.ts`** (NEW, ~150 lines):
@@ -36,26 +92,31 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 6. **`src/analysis/conversational-helpers.ts`**: `SamplingMessage` type now imported from `@modelcontextprotocol/sdk/types.js` directly (it's an SDK type, not a ServalSheets type)
 
 ### Task 2 — Stale metadata fixes
+
 - **`.agent-context/metadata.json`**: `actionCount: 404→407`, `buildVersion: 1.7.0→2.0.0`
 - **`.serval/generate-state.mjs`**: Fixed root cause — script read re-export stub instead of generated source; now reads `src/generated/action-counts.ts` first
 - **`.serval/state.md`**: Regenerated — now shows 25 tools / 407 actions / 2.0.0
 
 ### Task 3 — Oversized file decomposition: `src/security/incremental-scope.ts`
+
 - **Before**: 2,051 lines (logic + 1,665-line data map mixed together)
 - **`src/security/operation-scopes-map.ts`** (NEW, ~1,697 lines): `ScopeCategory` enum + `OPERATION_SCOPES` data map (407 actions → OAuth scopes)
 - **`src/security/incremental-scope.ts`**: 2,051 → 372 lines (82% reduction). Logic-only. Re-exports both symbols for backwards compatibility — zero import changes needed by 8 consuming files.
 
 ### Task 4 — Pre-existing TypeScript error fix
+
 - **`src/schemas/analyze.ts`**: Added `retryAfterMs: z.number().int().positive().optional()` to `AnalyzeResponseSchema` success branch
 - Fixes pre-existing TS2353 in `src/handlers/analyze-actions/comprehensive.ts:88` (introduced Session 107)
 - `npm run schema:commit` run — all generated files synced, 2784/2784 tests pass
 
 **Key decisions:**
+
 - `SamplingMessage` goes directly to SDK (`@modelcontextprotocol/sdk/types.js`) — it's not a ServalSheets type
 - `operation-scopes-map.ts` has no external deps — pure data file, safe to import anywhere
 - `retryAfterMs` added to AnalyzeResponse success schema (not just error schema) to match usage in degraded-scout fallback path
 
 **Files changed (9 src + 4 config/meta):**
+
 - `src/utils/sampling-consent.ts` (NEW)
 - `src/mcp/sampling.ts` (re-export + unused import removal)
 - `src/services/llm-fallback.ts`, `src/services/sheet-generator.ts`, `src/services/agent/sampling.ts`, `src/analysis/conversational-helpers.ts` (import path fixes)
@@ -103,10 +164,12 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
    - Only gap: formal `resource_link` content block type (waiting for spec finalization)
 
 **Files changed (2):**
+
 - `src/generated/annotations.ts` — title sync + idempotentHint fix
 - `src/mcp/registration/tools-list-compat.ts` — agencyHint + requiredScopes
 
 **Key decisions:**
+
 - agencyHint goes in `x-servalsheets` extension (not standard annotations) since SEP-1792 is draft
 - requiredScopes is per-tool summary (not per-action) to avoid tools/list bloat
 - Titles sourced from tool-definitions.ts which are more descriptive/actionable for LLMs
@@ -154,6 +217,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 8. **Schema regeneration**: `npm run schema:commit` succeeded — 25 tools, 407 actions, metadata in sync.
 
 **Key decisions:**
+
 - `autoRecord` defaults to false (opt-in) to avoid unexpected session state changes for existing users
 - `get_context` connector block surfaces zero-auth and oauth-ready separately so LLM can auto-configure appropriate ones
 - Transaction error message lists specific non-batchable actions rather than generic "unsupported" — more actionable
@@ -161,6 +225,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 - Server instructions changes are additive (no existing guidance removed)
 
 **Files changed (8):**
+
 - `src/handlers/session.ts` — get_context enrichment, autoRecord in update_preferences, get_history hint
 - `src/mcp/features-2025-11-25.ts` — startup sequence, workflow, multi-step guidance
 - `src/services/session-context.ts` — autoRecord field in UserPreferences + defaults
@@ -228,6 +293,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
    - Removed `oauthClient as any` casts at lines 83 and 128
 
 **Key decisions:**
+
 - Admin endpoints return 403 when ADMIN_API_KEY unset (explicit disablement)
 - Clock skew cap uses warn+override rather than reject (avoids breaking existing deployments)
 - Chunk concurrency of 3 balances throughput vs quota safety
@@ -266,6 +332,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 **Schema regeneration**: Ran `npm run schema:commit` — all generated files in sync (25 tools, 407 actions confirmed).
 
 **Key decisions:**
+
 - Existence cache uses Map insertion-order for oldest-entry eviction (O(1) amortized, no separate timestamp needed)
 - Task timeout uses `Promise.race` pattern matching existing codebase conventions
 - Event store bytes tracking uses conservative 2× multiplier (UTF-16) to avoid underestimation
@@ -319,6 +386,7 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 **Verification**: 4643/4643 tests pass across 215 test files. Pre-existing `mcp-audit-docs.test.ts` failure (runtime returns 40 prompts vs doc's "48 prompts") is unrelated — confirmed by reproducing on pre-change code.
 
 **Key decisions:**
+
 - Isolation Forest uses deterministic subsampling (seeded per tree) for reproducibility within a single call
 - K-Means uses max-distance K-Means++ variant (deterministic) rather than probabilistic selection
 - SWR grace period defaults to 50% of TTL (configurable per call)
@@ -329,18 +397,21 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 **Full codebase audit (8 parallel agents, ~200K lines) + Google API / MCP protocol research + 5 verified fixes.**
 
 ### Audit (read-only analysis)
+
 - Launched 8 parallel deep-dive agents across: core pipeline, services, analysis engine, MCP protocol, security/auth, performance/reliability, error handling/observability, advanced research
 - Initial findings: 26 items across Critical/High/Medium/Low severity
 - Line-by-line verification eliminated **13 false positives** — codebase already handled them (per-user rate limiting, Retry-After parsing, RFC 8707, OAuth metadata, trace propagation, percentile metrics, etc.)
 - **5 confirmed findings** remained after verification
 
 ### Research
+
 - Cross-referenced findings against Google Sheets API docs (quota model, exponential backoff spec, batch limits, field masks, connection pooling)
 - Cross-referenced against MCP 2025-11-25 specification (sampling, elicitation, tasks, OAuth 2.1, security)
 - Fetched MCP server development best practices guide
 - Identified 12 research-delta findings; 8 were false positives on deeper code verification
 
 ### Fixes Implemented (5 files, ~148 lines changed)
+
 1. **FIX-3** (`src/services/google-api.ts`): Replaced `connectionResetInProgress` boolean flag with `PQueue({ concurrency: 1 })` mutex — eliminates race condition on concurrent HTTP/2 connection resets
 2. **FIX-4** (`src/handlers/index.ts`): Added `loadingPromises` map for Promise-based dedup — concurrent requests for same unloaded handler share single in-flight load
 3. **FIX-1** (`src/services/session-context.ts`): Added background GC interval (5-min sweep of expired sessions) + `MAX_CONCURRENT_SESSIONS = 10,000` cap with oldest-idle eviction
@@ -348,11 +419,13 @@ Services/analysis importing from `src/mcp/` creates transport coupling. Fixed by
 5. **FIX-5** (`packages/serval-core/src/safety/retry.ts`): Changed jitter from symmetric (could reduce delay) to additive (always positive, 0 to min(1000ms, backoff*ratio*2)) matching Google API exponential backoff spec
 
 ### Context Files Saved
+
 - `.serval/audit-findings-session103.md` — Full audit findings (26 items with severity ratings)
 - `.serval/research-delta-session103.md` — Google API + MCP protocol research delta (12 items)
 - `.serval/verified-implementation-plan.md` — Verified plan with exact code changes (13 false positives documented)
 
 **Key decisions:**
+
 - Used `PQueue({ concurrency: 1 })` for connection reset mutex (matches existing `tokenRefreshQueue` pattern at google-api.ts:360)
 - Session GC interval is `.unref()`'d to not prevent process exit
 - Tenant cleanup runs hourly (matches usage window granularity)
@@ -373,10 +446,12 @@ Verified 4 medium findings line-by-line; M-P2 (circuit breaker exponential recov
 **Three-part code health improvement: error typing sprint + BigQuery decomposition + Dimensions decomposition.**
 
 ### Error Typing Sprint (2 files)
+
 - `src/services/scheduled-intelligence.ts`: Replaced 2 generic `throw new Error()` with `throw new NotFoundError('Schedule', id)` and `throw new ServiceError(..., 'OPERATION_FAILED', 'ScheduledIntelligence')`
 - `src/handlers/optimization.ts`: Replaced 1 generic `throw new Error()` with `throw new HandlerLoadError(...)`
 
 ### BigQuery Handler Decomposition (1964 → 541 lines, 72% reduction)
+
 - **`src/handlers/bigquery.ts`** rewritten as thin dispatch-only handler
 - **`src/handlers/bigquery-actions/internal.ts`** (NEW, 57 lines): `BigQueryHandlerAccess` type + `QueryJobParams`/`QueryJobResult` types
 - **`src/handlers/bigquery-actions/helpers.ts`** (NEW, 121 lines): `validateBigQueryIdentifier()`, `safeBqTableRef()`, `validateBigQuerySql()`, `mapDataTransferApiError()` (consolidated from 3 inline duplicates)
@@ -387,6 +462,7 @@ Verified 4 medium findings line-by-line; M-P2 (circuit breaker exponential recov
 - **`src/handlers/bigquery-actions/scheduled-queries.ts`** (NEW, 224 lines): create_scheduled_query, list_scheduled_queries, delete_scheduled_query
 
 ### Dimensions Handler Decomposition (2146 → 430 lines, 80% reduction)
+
 - **`src/handlers/dimensions.ts`** rewritten as thin dispatch-only handler
 - Wired all 30 actions to existing submodule functions (19 were pre-written but unwired; 11 written by prior agent in structure/freeze/resize/visibility stubs)
 - Removed `fields: 'replies'` from 16 batchUpdate calls in 3 submodule files to match original handler behavior and fix 12 test failures
@@ -394,6 +470,7 @@ Verified 4 medium findings line-by-line; M-P2 (circuit breaker exponential recov
 - Updated file size budgets in `scripts/check-file-sizes.sh`: bigquery 2100→650, dimensions 2300→550
 
 **Key decisions:**
+
 - BigQuery `buildHandlerAccess()` exposes private methods via `_` prefix (circuit breaker, job polling, error mapping depend on handler instance state)
 - `mapDataTransferApiError()` consolidated into `helpers.ts` — was duplicated 3x across scheduled query handlers
 - Removed `fields: 'replies'` optimization from submodules rather than updating 12 test assertions — minor perf trade-off vs test maintenance burden
@@ -427,6 +504,7 @@ Performed thorough codebase audit revealing many proposed "new" features already
 9. **#9 Planning hints** (`response-intelligence.ts`): `WORKFLOW_PLAN_TRIGGERS` for 10 common action completions suggesting full multi-step workflows
 
 **Key decisions:**
+
 - contentType annotation impossible with current MCP SDK — would need SDK change
 - Used `require()` for session-context in action-recommender to avoid circular dependency (non-critical fallback)
 - Session dedup window set to 10 minutes (balances freshness vs allowing re-runs)

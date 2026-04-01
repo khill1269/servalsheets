@@ -67,7 +67,7 @@ handling, verbosity filtering, and service access.
 | sheets_dependencies | DependenciesHandler                    | handlers/dependencies.ts (248 lines) | 10      | ImpactAnalyzer (cached), ScenarioEngine            |
 | sheets_quality      | QualityHandler                         | handlers/quality.ts (666 lines)      | 4       | ValidationEngine, ConflictDetector                 |
 | sheets_history      | HistoryHandler                         | handlers/history.ts (150 lines)      | 10      | HistoryService, SnapshotService, TimeTravelService |
-| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (354 lines)      | 31      | SessionContextManager                              |
+| sheets_session      | SessionHandler + handleSheetsSession() | handlers/session.ts (394 lines)      | 32      | SessionContextManager                              |
 | sheets_transaction  | TransactionHandler                     | handlers/transaction.ts (407 lines)  | 6       | TransactionManager                                 |
 | sheets_federation   | FederationHandler                      | handlers/federation.ts (409 lines)   | 4       | FederatedMcpClient                                 |
 | sheets_webhook      | WebhookHandler                         | handlers/webhooks.ts (242 lines)     | 11      | WebhookManager, Redis                              |
