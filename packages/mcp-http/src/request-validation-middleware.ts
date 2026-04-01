@@ -35,6 +35,11 @@ export function createHttpsEnforcementMiddleware(
       return next();
     }
 
+    // Health check endpoints must always be reachable (Fly.io uses internal HTTP)
+    if (req.path.startsWith('/health/') || req.path === '/ping') {
+      return next();
+    }
+
     const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
     if (isHttps) {
       return next();

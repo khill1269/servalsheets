@@ -30,6 +30,8 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
     path = "/health/ready"
     protocol = "http"
     timeout = "5s"
+    [http_service.checks.headers]
+      X-Forwarded-Proto = "https"
 
   [http_service.concurrency]
     type = "requests"
