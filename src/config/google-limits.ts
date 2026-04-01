@@ -227,7 +227,7 @@ export const SPREADSHEET_ID_REGEX = /^[a-zA-Z0-9-_]+$/;
  * - Paths, query strings, and fragments
  */
 export const URL_REGEX =
-  /^https?:\/\/(?:(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}|localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d{1,5})?(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)$/;
+  /^(?:https?|redis|rediss):\/\/(?:(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}|localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d{1,5})?(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)$/;
 
 // ============================================================================
 // EXPORTED VALIDATION OBJECT

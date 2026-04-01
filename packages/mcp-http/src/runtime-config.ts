@@ -84,7 +84,7 @@ export function resolveHttpServerRuntimeConfig(
 
   return {
     port: options.port ?? defaultPort,
-    host: options.host ?? defaultHost,
+    host: options.host ?? envConfig.HOST ?? defaultHost,
     corsOrigins:
       options.corsOrigins ??
       (configuredCorsOrigins.length > 0
