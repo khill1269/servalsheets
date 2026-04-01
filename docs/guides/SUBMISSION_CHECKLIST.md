@@ -22,8 +22,8 @@ documentation source of truth.
 
 - [ ] The submitted surface is GA-quality, not beta or unstable
 - [ ] The exposed tool set fits Anthropic's current MCP directory policy
-- [ ] Cross-service automation risks have been reviewed for connector and federation features
-- [ ] Privacy policy, security policy, and support contact are public and accessible over HTTPS
+- [x] Cross-service automation risks have been reviewed for connector and federation features
+- [x] Privacy policy, security policy, and support contact are public and accessible over HTTPS
 
 ## 2. Transport And Protocol
 
@@ -41,7 +41,7 @@ documentation source of truth.
 - [x] PKCE is enforced
 - [x] Allowed redirect URIs include the current Claude callback URLs
 - [x] Localhost redirect URIs used for Claude Code / MCP Inspector testing are allowlisted separately
-- [ ] Production token storage and session configuration are documented
+- [x] Production token storage and session configuration are documented
 - [ ] Reviewer test access can stay active after initial review
 
 ## 4. Tool Quality
@@ -64,8 +64,8 @@ documentation source of truth.
 ## 6. Infrastructure And Security
 
 - [ ] TLS certificate is valid and trusted
-- [ ] Firewall / reverse proxy rules are documented without hardcoded stale Claude IP ranges
-- [ ] CORS allows the required Claude origins
+- [x] Firewall / reverse proxy rules are documented without hardcoded stale Claude IP ranges
+- [x] CORS allows the required Claude origins
 - [x] Rate limiting is enabled
 - [x] Health and readiness endpoints are working
 - [x] Logs and metrics are available for reviewer troubleshooting
