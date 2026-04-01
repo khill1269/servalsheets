@@ -18,7 +18,7 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
 
 [http_service]
   internal_port = 3000
-  force_https = true
+  force_https = false
   auto_stop_machines = false    # Keep alive — MCP sessions are long-lived
   auto_start_machines = true
   min_machines_running = 1
@@ -30,8 +30,7 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
     path = "/health/ready"
     protocol = "http"
     timeout = "5s"
-    [http_service.checks.headers]
-      X-Forwarded-Proto = "https"
+
 
   [http_service.concurrency]
     type = "requests"
