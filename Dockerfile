@@ -23,8 +23,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build TypeScript
-RUN npm run build
+# Build TypeScript (4GB heap — multi-workspace tsc is memory-intensive)
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # Prune devDependencies
 RUN npm prune --production

@@ -39,14 +39,14 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 512
+  memory_mb = 2048
 
 # Scale to 2 machines in production for HA
 # [[vm]]
 #   count = 2
 #   cpu_kind = "shared"
 #   cpus = 1
-#   memory_mb = 512
+#   memory_mb = 2048
 
 [metrics]
   port = 3000
