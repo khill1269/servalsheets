@@ -54,9 +54,9 @@ import { bootstrapHttpTransportSessions } from './http-server/transport-bootstra
 export interface HttpServerOptions extends PackagedHttpServerOptions<HttpOAuthServerConfig> {}
 
 const DEFAULT_PORT = 3000;
-// HIGH-003 FIX: Default to localhost for security (0.0.0.0 exposes to entire network)
-// Override with HOST=0.0.0.0 in production if external access needed
-const DEFAULT_HOST = '127.0.0.1';
+// HIGH-003 FIX: Default to 127.0.0.1 for security; override via HOST env var in production
+// HOST=0.0.0.0 is required for Fly.io / Docker deployments where the proxy bridges ports
+const DEFAULT_HOST = process.env['HOST'] ?? '127.0.0.1';
 
 // Monkey-patches removed: All schemas now use flattened z.object() pattern
 // which works natively with MCP SDK v1.25.x - no patches required!
