@@ -404,6 +404,11 @@ export class OAuthProvider {
       max: 10, // 10 requests per minute per IP
       standardHeaders: true,
       legacyHeaders: false,
+      // Disable built-in validation — express-rate-limit v8 throws
+      // ValidationError for trust proxy configs, crashing the request
+      // before our route handler runs. We set trust proxy = 1 in
+      // http-server.ts which is correct for Fly.io's single-hop proxy.
+      validate: false,
       handler: (req, res) => {
         logger.warn('OAuth rate limit exceeded', {
           ip: req.ip,
