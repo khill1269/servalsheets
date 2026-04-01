@@ -7,6 +7,8 @@ on:
     types: [completed]
     branches: [main, "remediation/**"]
 
+permissions: {}
+
 concurrency:
   group: claude-fix-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: true

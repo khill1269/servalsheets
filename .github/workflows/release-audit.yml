@@ -9,6 +9,8 @@ on:
         default: false
         type: boolean
 
+permissions: {}
+
 concurrency:
   group: release-audit-${{ github.ref }}
   cancel-in-progress: true

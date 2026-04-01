@@ -8,6 +8,8 @@ on:
   pull_request:
     branches: [main]
 
+permissions: {}
+
 concurrency:
   group: docker-${{ github.ref }}
   cancel-in-progress: true

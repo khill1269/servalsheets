@@ -3,6 +3,8 @@ name: Supplemental Test Gates
 on:
   workflow_dispatch:
 
+permissions: {}
+
 env:
   NODE_VERSION: '20'
   # Test infrastructure settings
@@ -15,6 +17,8 @@ jobs:
   schema-gate:
     name: Schema Validation Gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -54,6 +58,8 @@ jobs:
   unit-gate:
     name: Unit Test Gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -79,6 +85,8 @@ jobs:
     name: Integration Test Gate
     runs-on: ubuntu-latest
     needs: [schema-gate, unit-gate]
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -104,6 +112,8 @@ jobs:
     name: Contract Test Gate
     runs-on: ubuntu-latest
     needs: [schema-gate]
+    permissions:
+      contents: read
 
     services:
       redis:
@@ -165,6 +175,8 @@ jobs:
   safety-gate:
     name: Safety Test Gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -206,6 +218,8 @@ jobs:
     name: Infrastructure Test Gate
     runs-on: ubuntu-latest
     needs: [unit-gate, integration-gate]
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -235,6 +249,7 @@ jobs:
   all-gates-passed:
     name: All Test Gates Passed
     runs-on: ubuntu-latest
+    permissions: {}
     needs:
       - schema-gate
       - unit-gate
@@ -260,6 +275,8 @@ jobs:
   live-api-gate:
     name: Live API Test Gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     needs: [all-gates-passed]
 

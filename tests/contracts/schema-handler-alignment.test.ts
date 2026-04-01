@@ -183,7 +183,7 @@ describe('Schema-Handler Alignment', () => {
         format: 25,
         history: 10,
         quality: 4,
-        session: 31,
+        session: 32,
         templates: 8,
         transaction: 6,
         visualize: 18,

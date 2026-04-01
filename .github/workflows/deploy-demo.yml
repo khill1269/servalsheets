@@ -8,6 +8,8 @@ on:
     types: [completed]
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: deploy-demo-${{ github.ref }}
   cancel-in-progress: true

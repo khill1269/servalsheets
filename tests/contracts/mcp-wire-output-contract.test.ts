@@ -77,26 +77,26 @@ describe('MCP wire output contracts', () => {
     );
   });
 
-  it('keeps stdio tools/list payload under the wire-size budget', () => {
+  it('keeps stdio tools/list payload under the wire-size budget', async () => {
     vi.stubEnv('MCP_TRANSPORT', 'stdio');
 
     const mock = createMockToolsListServer();
 
     registerToolsListCompatibilityHandler(mock.server);
-    const response = mock.getHandler()({ params: {} });
+    const response = await mock.getHandler()({ params: {} });
     const payloadBytes = Buffer.byteLength(JSON.stringify(response), 'utf8');
 
     expect(payloadBytes).toBeLessThan(300_000);
     expect(response.tools.length).toBeGreaterThan(0);
   });
 
-  it('keeps bundled tools/list payload below the hard safety cap', () => {
+  it('keeps bundled tools/list payload below the hard safety cap', async () => {
     vi.stubEnv('MCP_TRANSPORT', 'http');
 
     const mock = createMockToolsListServer();
 
     registerToolsListCompatibilityHandler(mock.server);
-    const response = mock.getHandler()({ params: {} });
+    const response = await mock.getHandler()({ params: {} });
     const payloadBytes = Buffer.byteLength(JSON.stringify(response), 'utf8');
 
     expect(payloadBytes).toBeLessThan(1_000_000);

@@ -215,9 +215,18 @@ jobs:
 
       - name: Download performance results
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        id: download-perf
         with:
           name: performance-results
           path: .performance-history/
+
+      - name: Initialize baseline if first run
+        if: steps.download-perf.outcome == 'failure'
+        run: |
+          mkdir -p .performance-history
+          echo '{"initialized": true, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > .performance-history/baseline.json
+          echo "No previous performance baseline found — initializing empty baseline"
 
       - name: Update baseline cache
         uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4

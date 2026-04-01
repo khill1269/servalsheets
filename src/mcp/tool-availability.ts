@@ -44,7 +44,20 @@ export const APPSSCRIPT_STANDARD_ACTIONS = [
 ] as const;
 
 export function isAppsScriptTriggerCompatibilityEnabled(): boolean {
-  return getEnv().ENABLE_APPSSCRIPT_TRIGGER_COMPAT;
+  try {
+    return getEnv()?.ENABLE_APPSSCRIPT_TRIGGER_COMPAT ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** Safely calls isWebhookRedisConfigured, returning false when the mock/module is unavailable */
+function safeIsWebhookRedisConfigured(): boolean {
+  try {
+    return isWebhookRedisConfigured();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -54,17 +67,22 @@ export function isAppsScriptTriggerCompatibilityEnabled(): boolean {
  * visible with reduced actions).
  */
 export function isToolFullyUnavailable(toolName: string): boolean {
-  if (toolName === 'sheets_federation') {
-    const env = getEnv();
-    // Federation requires at least one remote server configured
-    return !env.MCP_FEDERATION_SERVERS;
+  try {
+    if (toolName === 'sheets_federation') {
+      const env = getEnv() ?? {};
+      // Federation requires at least one remote server configured
+      return !env.MCP_FEDERATION_SERVERS;
+    }
+  } catch {
+    // Graceful fallback when env is unavailable (e.g. test contexts)
+    return false;
   }
   // Other tools degrade gracefully (partial availability) rather than being fully unavailable
   return false;
 }
 
 export function getToolAvailabilityMetadata(toolName: string): Record<string, unknown> | undefined {
-  if (toolName === 'sheets_webhook' && !isWebhookRedisConfigured()) {
+  if (toolName === 'sheets_webhook' && !safeIsWebhookRedisConfigured()) {
     return {
       status: 'partial',
       reason: 'Redis backend not configured in this server process',

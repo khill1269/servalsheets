@@ -1,7 +1,7 @@
 # ServalSheets Demo - Cloud Run Deployment
 # Read-only demo instance with rate limiting
 
-FROM node:20-alpine AS builder
+FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 RUN npm prune --production
 
-FROM node:20-alpine AS runner
+FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c AS runner
 
 WORKDIR /app
 
