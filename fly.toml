@@ -2,7 +2,7 @@
 # https://fly.io/docs/reference/configuration/
 
 app = "servalsheets"
-primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
+primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
@@ -12,42 +12,40 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   PORT = "3000"
   LOG_LEVEL = "info"
   ENABLE_LEGACY_SSE = "false"
-  # Set these via: fly secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
-  # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, REDIS_URL,
-  # CORS_ORIGINS, ALLOWED_REDIRECT_URIS
 
-[http_service]
+[[services]]
   internal_port = 3000
-  force_https = false
-  auto_stop_machines = false    # Keep alive — MCP sessions are long-lived
+  protocol = "tcp"
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
 
-  [[http_service.checks]]
-    grace_period = "10s"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[services.http_checks]]
+    grace_period = "15s"
     interval = "30s"
     method = "GET"
     path = "/health/ready"
     protocol = "http"
     timeout = "5s"
 
-
-  [http_service.concurrency]
-    type = "requests"
-    hard_limit = 250
-    soft_limit = 200
-
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 2048
-
-# Scale to 2 machines in production for HA
-# [[vm]]
-#   count = 2
-#   cpu_kind = "shared"
-#   cpus = 1
-#   memory_mb = 2048
 
 [metrics]
   port = 3000
