@@ -108,7 +108,7 @@ export function filterAvailableActions(
   toolName: string,
   actions: readonly string[]
 ): readonly string[] {
-  if (toolName === 'sheets_webhook' && !isWebhookRedisConfigured()) {
+  if (toolName === 'sheets_webhook' && !safeIsWebhookRedisConfigured()) {
     return actions.filter((action) =>
       WEBHOOK_NON_REDIS_ACTIONS.includes(action as (typeof WEBHOOK_NON_REDIS_ACTIONS)[number])
     );
