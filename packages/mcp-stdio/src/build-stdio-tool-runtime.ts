@@ -138,6 +138,7 @@ export interface BuildStdioToolRuntimeDependencies<
   readonly getInitialTools: () => readonly TTool[];
   readonly markRegistered: (toolNames: string[]) => void;
   readonly registerToolsListCompatibilityHandler: () => void;
+  readonly registerFlatToolCallInterceptor: () => void;
   readonly syncToolList: (
     toolNames: readonly string[],
     options: {
@@ -315,6 +316,7 @@ export function buildStdioToolRuntime<
       markRegistered: dependencies.markRegistered,
       stagedRegistrationEnabled: input.stagedRegistrationEnabled,
       registerToolsListCompatibilityHandler: dependencies.registerToolsListCompatibilityHandler,
+      registerFlatToolCallInterceptor: dependencies.registerFlatToolCallInterceptor,
       enableToolsListChangedNotifications: input.enableToolsListChangedNotifications,
       syncToolList: dependencies.syncToolList,
       log: input.log,

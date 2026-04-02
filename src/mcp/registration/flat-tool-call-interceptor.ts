@@ -14,13 +14,14 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from '../../lib/schema.js';
 
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { isFlatToolName, routeFlatToolCall } from './flat-tool-routing.js';
 import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
 import { getRegisteredToolRuntime } from './registered-tool-runtime.js';
+import { normalizeToolArgs } from './tool-arg-normalization.js';
 import { buildToolResponse } from './tool-response.js';
 import { logger } from '../../utils/logger.js';
 
@@ -38,6 +39,18 @@ type CallToolRequest = z.infer<typeof CallToolRequestSchema>;
  *   → SDK finds the registered `sheets_data` handler
  *   → Normal pipeline runs (auth, rate limit, tracing, history, etc.)
  */
+/**
+ * Access the SDK's internal _registeredTools map to find compound tool handlers.
+ * Used as a fallback when registeredToolRuntime is not populated (e.g., STDIO path).
+ */
+function getSdkRegisteredToolHandler(
+  server: McpServer,
+  toolName: string
+): { enabled: boolean; handler: (args: Record<string, unknown>, extra: unknown) => Promise<unknown> } | undefined {
+  const sdkTools = (server as unknown as { _registeredTools: Record<string, { enabled: boolean; handler: (args: Record<string, unknown>, extra: unknown) => Promise<unknown> }> })._registeredTools;
+  return sdkTools?.[toolName];
+}
+
 export function registerFlatToolCallInterceptor(server: McpServer): void {
   // Only needed in flat mode
   if (getEffectiveToolMode() !== 'flat') return;
@@ -93,8 +106,10 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
           action: routed.normalizedArgs['action'],
         });
 
-        // Look up the compound tool handler in SDK's registry
-        const compoundTool = getRegisteredToolRuntime(routed.compoundToolName);
+        // Look up the compound tool handler — first in our runtime registry (HTTP path),
+        // then fall back to the SDK's own _registeredTools (STDIO path).
+        const compoundTool = getRegisteredToolRuntime(routed.compoundToolName)
+          ?? getSdkRegisteredToolHandler(server, routed.compoundToolName);
         if (!compoundTool) {
           return buildToolResponse({
             response: {
@@ -125,18 +140,21 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
         // The compound handler's closure has all middleware (auth, rate limiting,
         // tracing, history recording, etc.) built in via createToolCallHandler().
         //
-        // Note: We bypass the SDK's validateToolInput() here because the compound
-        // handler already runs Zod validation via parseForHandler(). The flat args
-        // with injected action will be normalized by normalizeToolArgs() inside
-        // the handler closure.
+        // normalizeToolArgs() wraps flat args like { action: 'status' } into the
+        // canonical { request: { action: 'status' } } envelope that Zod schemas
+        // and parseForHandler() expect. In the HTTP path this normalization happens
+        // in the registration callback; in STDIO it must be applied here since the
+        // handler chain doesn't normalize on its own.
         const handler = compoundTool.handler;
-        return handler(routed.normalizedArgs, extra);
+        const normalizedArgs = normalizeToolArgs(routed.normalizedArgs);
+        return handler(normalizedArgs, extra) as Promise<CallToolResult>;
       }
 
       // ── Compound tool passthrough ────────────────────────────────────
       // For compound (bundled) tool names, delegate to the SDK's normal dispatch.
       // We reproduce the core SDK dispatch logic here since we've overridden the handler.
-      const tool = getRegisteredToolRuntime(toolName);
+      const tool = getRegisteredToolRuntime(toolName)
+        ?? getSdkRegisteredToolHandler(server, toolName);
       if (!tool) {
         const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
         throw new McpError(ErrorCode.InvalidParams, `Tool ${toolName} not found`);
@@ -147,39 +165,35 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
         throw new McpError(ErrorCode.InvalidParams, `Tool ${toolName} disabled`);
       }
 
-      // Reproduce SDK's task support logic
+      // Check runtime registry for task support metadata (only available in HTTP path)
+      const runtimeTool = getRegisteredToolRuntime(toolName);
       const isTaskRequest = !!(request.params as Record<string, unknown>)['task'];
-      const taskSupport = tool.execution?.taskSupport;
-      const isTaskHandler = 'createTask' in tool.handler;
 
-      if ((taskSupport === 'required' || taskSupport === 'optional') && !isTaskHandler) {
-        const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Tool ${toolName} has taskSupport '${taskSupport}' but was not registered with registerToolTask`
-        );
-      }
+      if (runtimeTool) {
+        // Full task support logic (HTTP path with execution metadata)
+        const taskSupport = runtimeTool.execution?.taskSupport;
+        const isTaskHandler = 'createTask' in runtimeTool.handler;
 
-      if (taskSupport === 'required' && !isTaskRequest) {
-        const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
-        throw new McpError(
-          ErrorCode.MethodNotFound,
-          `Tool ${toolName} requires task augmentation (taskSupport: 'required')`
-        );
-      }
+        if ((taskSupport === 'required' || taskSupport === 'optional') && !isTaskHandler) {
+          const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Tool ${toolName} has taskSupport '${taskSupport}' but was not registered with registerToolTask`
+          );
+        }
 
-      if (taskSupport === 'optional' && !isTaskRequest && isTaskHandler) {
-        // Delegate to SDK's handleAutomaticTaskPolling via the McpServer instance.
-        // Since we can't call a private method directly, we let the handler run normally
-        // and rely on the tool's own task support logic.
-        const handler = tool.handler;
-        return handler(args as Record<string, unknown>, extra);
+        if (taskSupport === 'required' && !isTaskRequest) {
+          const { McpError, ErrorCode } = await import('@modelcontextprotocol/sdk/types.js');
+          throw new McpError(
+            ErrorCode.MethodNotFound,
+            `Tool ${toolName} requires task augmentation (taskSupport: 'required')`
+          );
+        }
       }
 
       // Normal execution: delegate to handler directly
-      // (SDK's validateToolInput is already handled inside createToolCallHandler)
       const handler = tool.handler;
-      return handler(args as Record<string, unknown>, extra);
+      return handler(args as Record<string, unknown>, extra) as Promise<CallToolResult>;
     }
   );
 

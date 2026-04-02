@@ -26,6 +26,7 @@ import { extractIdempotencyKeyFromHeaders } from '../utils/idempotency-key-gener
 import { TOOL_DEFINITIONS, isToolCallAuthExempt } from '../mcp/registration/tool-definitions.js';
 import { buildToolResponse } from '../mcp/registration/tool-handlers.js';
 import { registerToolsListCompatibilityHandler } from '../mcp/registration/tools-list-compat.js';
+import { registerFlatToolCallInterceptor } from '../mcp/registration/flat-tool-call-interceptor.js';
 import { TOOL_ICONS, TOOL_EXECUTION_CONFIG } from '../mcp/features-2025-11-25.js';
 import { recordSpreadsheetId } from '../mcp/completions.js';
 import { resourceNotifications } from '../resources/notifications.js';
@@ -212,6 +213,9 @@ export function buildServerStdioToolRuntime(
       },
       registerToolsListCompatibilityHandler: () => {
         registerToolsListCompatibilityHandler(input.server);
+      },
+      registerFlatToolCallInterceptor: () => {
+        registerFlatToolCallInterceptor(input.server);
       },
       syncToolList: (toolNames, options) => {
         resourceNotifications.syncToolList(toolNames, options);

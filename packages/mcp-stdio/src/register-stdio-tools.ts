@@ -7,6 +7,7 @@ export interface RegisterStdioToolsDependencies<
   readonly markRegistered: (toolNames: string[]) => void;
   readonly stagedRegistrationEnabled: boolean;
   readonly registerToolsListCompatibilityHandler: () => void;
+  readonly registerFlatToolCallInterceptor: () => void;
   readonly enableToolsListChangedNotifications: boolean;
   readonly syncToolList: (
     toolNames: readonly string[],
@@ -39,6 +40,11 @@ export function registerStdioTools<TTool extends { name: string }>(
   }
 
   dependencies.registerToolsListCompatibilityHandler();
+
+  // In flat mode, intercept tools/call to rewrite flat tool names → compound names.
+  // Must come after registerToolsListCompatibilityHandler (tools/list) and after
+  // all compound tools are registered with the MCP server.
+  dependencies.registerFlatToolCallInterceptor();
 
   if (dependencies.enableToolsListChangedNotifications) {
     dependencies.syncToolList(
