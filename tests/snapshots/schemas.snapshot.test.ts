@@ -12,6 +12,26 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import * as schemas from '../../src/schemas/index.js';
 
+function stableSnapshot(value: unknown): string {
+  const normalize = (input: unknown): unknown => {
+    if (Array.isArray(input)) {
+      return input.map((item) => normalize(item));
+    }
+
+    if (input && typeof input === 'object') {
+      return Object.fromEntries(
+        Object.entries(input as Record<string, unknown>)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, nestedValue]) => [key, normalize(nestedValue)])
+      );
+    }
+
+    return input;
+  };
+
+  return JSON.stringify(normalize(value), null, 2);
+}
+
 // Helper to check if something is a Zod schema
 function isZodSchema(value: unknown): value is z.ZodSchema {
   return (
@@ -36,7 +56,7 @@ describe('Schema Snapshots', () => {
       .forEach(([name, schema]) => {
         it(`${name} should match snapshot`, () => {
           const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
-          expect(jsonSchema).toMatchSnapshot();
+          expect(stableSnapshot(jsonSchema)).toMatchSnapshot();
         });
       });
   });
@@ -47,7 +67,7 @@ describe('Schema Snapshots', () => {
       .forEach(([name, schema]) => {
         it(`${name} should match snapshot`, () => {
           const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
-          expect(jsonSchema).toMatchSnapshot();
+          expect(stableSnapshot(jsonSchema)).toMatchSnapshot();
         });
       });
   });
@@ -67,7 +87,7 @@ describe('Schema Snapshots', () => {
       if (schema) {
         it(`${schemaName} should match snapshot`, () => {
           const jsonSchema = z.toJSONSchema(schema, { reused: 'inline', unrepresentable: 'any' });
-          expect(jsonSchema).toMatchSnapshot();
+          expect(stableSnapshot(jsonSchema)).toMatchSnapshot();
         });
       }
     });
