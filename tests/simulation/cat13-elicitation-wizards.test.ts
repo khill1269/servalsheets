@@ -5,12 +5,29 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import net from 'node:net';
 import { ConfirmHandler } from '../../src/handlers/confirm.js';
 import { VisualizeHandler } from '../../src/handlers/visualize.js';
 import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
-import { WebhookHandler } from '../../src/handlers/webhooks.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
+import { getToolDiscoveryHint } from '../../src/mcp/registration/tool-discovery-hints.js';
+import {
+  assertSamplingConsent,
+  clearSamplingConsentCache,
+  registerSamplingConsentChecker,
+} from '../../src/mcp/sampling.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
+import { getEnv } from '../../src/config/env.js';
+import { startApiKeyServer, startOAuthCredentialsServer } from '../../src/utils/api-key-server.js';
+
+const canListenLocalhost = await new Promise<boolean>((resolve) => {
+  const server = net.createServer();
+  server.once('error', () => resolve(false));
+  server.listen(0, '127.0.0.1', () => {
+    server.close(() => resolve(true));
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock APIs and Context
@@ -76,6 +93,8 @@ describe('Category 13: Elicitation & Wizards', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    clearSamplingConsentCache();
+    vi.useRealTimers();
   });
 
   describe('13.1 Chart Creation Wizard', () => {
@@ -137,10 +156,15 @@ describe('Category 13: Elicitation & Wizards', () => {
 
   describe('13.2 Conditional Format Wizard', () => {
     it('13.2 conditional format wizard preset selection', () => {
-      // Conditional format wizard uses add_conditional_format_rule action
-      // Requires specific range + rule schema validation
-      // Handler: SheetsFormatHandler with ConditionalFormatSchema
-      expect(true).toBe(true);
+      const formatHint = getToolDiscoveryHint('sheets_format');
+
+      expect(formatHint).not.toBeNull();
+      expect(formatHint!.actionParams['add_conditional_format_rule']?.required).toEqual(
+        expect.arrayContaining(['spreadsheetId', 'range'])
+      );
+      expect(formatHint!.actionParams['add_conditional_format_rule']?.optional).toEqual(
+        expect.arrayContaining(['ruleType', 'condition', 'format', 'preset'])
+      );
     });
   });
 
@@ -195,16 +219,68 @@ describe('Category 13: Elicitation & Wizards', () => {
   });
 
   describe('13.5-13.6 Destructive Action Safety Rails', () => {
-    it('13.5 destructive actions use confirmation and snapshot pattern', () => {
-      // Pattern verified: confirmDestructiveAction → createSnapshotIfNeeded → mutate
-      // This is enforced at the handler level across all destructive operations
-      expect(true).toBe(true);
+    it('13.5 destructive actions use confirmation and snapshot pattern', async () => {
+      const mockSheetsApi = createMockSheetsApi();
+      const order: string[] = [];
+      const elicitationServer = {
+        elicitInput: vi.fn(async () => {
+          order.push('confirm');
+          return { action: 'accept', content: { confirm: true } };
+        }),
+      };
+
+      mockContext.elicitationServer = elicitationServer as any;
+      mockContext.snapshotService = {
+        create: vi.fn(async () => {
+          order.push('snapshot');
+          return { id: 'snap-ordered' };
+        }),
+        restore: vi.fn(),
+        get: vi.fn(),
+      } as any;
+
+      mockSheetsApi.spreadsheets.batchUpdate.mockImplementation(async () => {
+        order.push('mutate');
+        return { data: { replies: [] } };
+      });
+
+      const handler = new SheetsCoreHandler(mockContext, mockSheetsApi as unknown as any);
+      const result = await handler.handle({
+        request: {
+          action: 'delete_sheet',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          safety: { createSnapshot: true },
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(order).toEqual(['confirm', 'snapshot', 'mutate']);
     });
 
-    it('13.6 snapshot ordering is maintained (confirm first)', () => {
-      // BaseHandler enforces: confirmDestructiveAction() → createSnapshotIfNeeded()
-      // See src/handlers/base.ts for the actual implementation
-      expect(true).toBe(true);
+    it('13.6 snapshot ordering is maintained (confirm first)', async () => {
+      const mockSheetsApi = createMockSheetsApi();
+      const snapshotCreate = vi.fn();
+
+      mockContext.snapshotService = {
+        create: snapshotCreate,
+        restore: vi.fn(),
+        get: vi.fn(),
+      } as any;
+
+      const handler = new SheetsCoreHandler(mockContext, mockSheetsApi as unknown as any);
+      const result = await handler.handle({
+        request: {
+          action: 'delete_sheet',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+          safety: { createSnapshot: true },
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(snapshotCreate).not.toHaveBeenCalled();
+      expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 
@@ -233,9 +309,32 @@ describe('Category 13: Elicitation & Wizards', () => {
     });
 
     it('13.7b wizard sessions have cap (1000 max with eviction)', async () => {
-      // This is verified at the service level
-      // Sessions over 1000 trigger LRU eviction
-      expect(true).toBe(true);
+      let latestStartSucceeded = false;
+
+      for (let index = 0; index <= 1000; index++) {
+        const startResult = await handler.handle({
+          request: {
+            action: 'wizard_start',
+            wizardId: `wiz-${index}`,
+            title: `Wizard ${index}`,
+            description: 'Capacity test',
+            steps: [{ id: 'step1', title: 'Only Step', description: 'Fill once', fields: [] }],
+          },
+        });
+        latestStartSucceeded = startResult.response.success;
+      }
+
+      const oldest = await handler.handle({
+        request: {
+          action: 'wizard_step',
+          wizardId: 'wiz-0',
+          stepId: 'step1',
+          values: { ok: true },
+        },
+      });
+
+      expect(latestStartSucceeded).toBe(true);
+      expect(oldest.response.success).toBe(false);
     });
   });
 
@@ -263,56 +362,91 @@ describe('Category 13: Elicitation & Wizards', () => {
   });
 
   describe('13.9 Sampling Consent', () => {
-    let handler: any;
-
-    beforeEach(() => {
-      // Handler setup
-    });
-
     it('13.9 sampling consent cache with TTL', async () => {
-      // Verified via sampling-consent-cache.test.ts
-      // Cache holds consent state with configurable TTL (default 30 min)
-      expect(true).toBe(true);
+      const checker = vi.fn(async () => {});
+      registerSamplingConsentChecker(checker);
+
+      await runWithRequestContext(
+        createRequestContext({ principalId: 'wizard-user', requestId: 'wizard-req-1' }),
+        async () => {
+          await assertSamplingConsent();
+          await assertSamplingConsent();
+        }
+      );
+
+      expect(checker).toHaveBeenCalledTimes(1);
     });
 
     it('13.9b consent cache prevents re-prompting within TTL', async () => {
-      // Same user should not be prompted twice within TTL window
-      expect(true).toBe(true);
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-04-01T00:00:00Z'));
+
+      const checker = vi.fn(async () => {});
+      const ttlMs = getEnv().SAMPLING_CONSENT_CACHE_TTL_MS;
+      registerSamplingConsentChecker(checker);
+
+      await runWithRequestContext(
+        createRequestContext({ principalId: 'wizard-user', requestId: 'wizard-req-2' }),
+        async () => {
+          await assertSamplingConsent();
+        }
+      );
+
+      vi.setSystemTime(Date.now() + ttlMs + 1);
+
+      await runWithRequestContext(
+        createRequestContext({ principalId: 'wizard-user', requestId: 'wizard-req-2' }),
+        async () => {
+          await assertSamplingConsent();
+        }
+      );
+
+      expect(checker).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('13.10 OAuth URL-Mode (Not Form-Mode)', () => {
-    let handler: any;
+    it.skipIf(!canListenLocalhost)('13.10 OAuth uses URL-mode for credentials (not form-mode)', async () => {
+      const handle = await startOAuthCredentialsServer({ provider: 'Test OAuth', timeout: 50 });
 
-    beforeEach(() => {
-      // Auth handler setup
+      expect(handle.url).toMatch(/^http:\/\/localhost:\d+\/setup-oauth$/);
+      handle.shutdown();
+      await expect(handle.credentialsPromise).rejects.toThrow('OAuth credentials server shut down');
     });
 
-    it('13.10 OAuth uses URL-mode for credentials (not form-mode)', async () => {
-      // Verified via connectors.ts and auth.ts
-      // API keys collected via localhost server, not form transport
-      // This is enforced to prevent credential leakage in MCP payloads
-      expect(true).toBe(true);
-    });
+    it.skipIf(!canListenLocalhost)('13.10b API key server redirects to localhost on random port', async () => {
+      const handle = await startApiKeyServer({
+        provider: 'Test Provider',
+        signupUrl: 'https://example.com/signup',
+        hint: 'Starts with tp-',
+        timeout: 50,
+      });
 
-    it('13.10b API key server redirects to localhost on random port', async () => {
-      // Port is random (not hardcoded) to prevent conflicts
-      // Server exits after 2 minutes of inactivity
-      expect(true).toBe(true);
+      expect(handle.url).toMatch(/^http:\/\/localhost:\d+\/setup-key$/);
+      handle.shutdown();
+      await expect(handle.keyPromise).rejects.toThrow('API key server shut down');
     });
   });
 
   describe('13.x Confirmation Order Validation', () => {
     it('should confirm before snapshot (correct order)', () => {
-      // Handler logic should be: confirm → snapshot → mutate
-      // Verified by handler execution order in base.ts
-      expect(true).toBe(true);
+      expect(getToolDiscoveryHint('sheets_confirm')?.actionParams['wizard_start']).toBeDefined();
     });
 
-    it('should handle missing destructive confirmation gracefully', () => {
-      // When user rejects confirmation, handler aborts gracefully
-      // Error propagates to caller or is caught by MCP error layer
-      expect(true).toBe(true);
+    it('should handle missing destructive confirmation gracefully', async () => {
+      const mockSheetsApi = createMockSheetsApi();
+      const handler = new SheetsCoreHandler(mockContext, mockSheetsApi as unknown as any);
+
+      const result = await handler.handle({
+        request: {
+          action: 'delete_sheet',
+          spreadsheetId: 'test-sheet-id',
+          sheetId: 0,
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
   });
 

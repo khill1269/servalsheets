@@ -387,18 +387,10 @@ describe('CompositeHandler - Streaming Export', () => {
   });
 
   describe('Memory limits', () => {
-    it('should fail if export exceeds memory limit', async () => {
-      // This test would need to mock memory usage
-      // Skipping actual implementation as it requires memory measurement
-      expect(true).toBe(true);
-    });
+    it.todo('should fail if export exceeds memory limit');
   });
 
   describe('Progress reporting', () => {
-    it('should report progress during streaming', async () => {
-      // This test would verify progress notifications
-      // Requires mocking sendProgress utility
-      expect(true).toBe(true);
-    });
+    it.todo('should report progress during streaming');
   });
 });

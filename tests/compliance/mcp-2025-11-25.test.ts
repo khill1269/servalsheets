@@ -296,9 +296,9 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
         await store.updateTaskStatus(task.taskId, 'working');
         const after = await store.getTask(task.taskId);
         expect(after!.status).toBe('completed');
-      } catch {
+      } catch (error) {
         // Error thrown = terminal state enforcement works
-        expect(true).toBe(true);
+        expect(error).toBeInstanceOf(Error);
       }
     });
   });

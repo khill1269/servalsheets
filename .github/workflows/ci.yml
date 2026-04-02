@@ -683,7 +683,18 @@ jobs:
     name: CI Required
     runs-on: ubuntu-latest
     if: always()
-    needs: [quick-checks, build, mutation-testing, coverage, security]
+    needs:
+      - quick-checks
+      - test-fast
+      - snapshot-tests
+      - test-integration
+      - mcp-http-task-contract
+      - http-transport-failover
+      - validate-server-json
+      - build
+      - mutation-testing
+      - coverage
+      - security
 
     steps:
       - name: Verify required CI jobs succeeded
@@ -692,7 +703,7 @@ jobs:
         run: |
           node --input-type=module <<'EOF'
           const needs = JSON.parse(process.env.NEEDS_JSON);
-          const allowedSkipped = new Set(['coverage']);
+          const allowedSkipped = new Set(['build', 'mutation-testing', 'coverage']);
           const failures = [];
 
           for (const [job, result] of Object.entries(needs)) {

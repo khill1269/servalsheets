@@ -8,7 +8,7 @@
  * run manually or in specific CI environments with credentials configured.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { GoogleApiClient } from '../../src/services/google-api.js';
 import { getHTTP2PerformanceMetrics } from '../../src/utils/http2-detector.js';
 
@@ -282,6 +282,8 @@ describeOrSkip('HTTP/2 Latency Benchmarks', () => {
 
 describe('HTTP/2 Benchmark Configuration', () => {
   it('should provide instructions for running benchmarks', () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
     if (!runBenchmarks) {
       console.log('\n' + '='.repeat(70));
       console.log('📊 HTTP/2 Performance Benchmarks');
@@ -300,7 +302,8 @@ describe('HTTP/2 Benchmark Configuration', () => {
       console.log('='.repeat(70) + '\n');
     }
 
-    // This test always passes - it's just informational
-    expect(true).toBe(true);
+    expect(logSpy).toHaveBeenCalled();
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('RUN_BENCHMARKS=true npm test');
+    logSpy.mockRestore();
   });
 });

@@ -181,7 +181,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     }
 
     // Simulate Drive notification enqueue
-    await webhookQueue.enqueue({
+    const deliveryId = await webhookQueue.enqueue({
       webhookId: 'wh_test',
       webhookUrl: 'https://api.example.com/webhook',
       eventType: 'sheet.update',
@@ -195,8 +195,7 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
       scheduledAt: new Date(),
     });
 
-    // Verify enqueuing succeeded (no error thrown)
-    expect(true).toBe(true);
+    expect(deliveryId).toMatch(/^delivery_/);
   }, 10000);
 
   it.skipIf(!hasWebhookEndpoint)('should stop channels when unregistering webhooks', async () => {

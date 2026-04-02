@@ -52,9 +52,16 @@ describe('Cancellation and Timeout Behavior', () => {
       // Document that we understand the limitations
       expect(limitations).toBeDefined();
       expect(mitigations).toBeDefined();
-
-      // This test serves as documentation
-      expect(true).toBe(true);
+      expect(Object.keys(limitations)).toHaveLength(4);
+      expect(Object.keys(mitigations)).toEqual(
+        expect.arrayContaining([
+          'clientTimeout',
+          'progressCallbacks',
+          'dryRun',
+          'idempotency',
+          'effectScope',
+        ])
+      );
     });
   });
 
@@ -217,9 +224,6 @@ describe('Cancellation and Timeout Behavior', () => {
       // Retry after timeout (safe because idempotent)
       await idempotentOperation();
       expect(callCount).toBe(2);
-
-      // Operation can be retried safely
-      expect(true).toBe(true);
     });
   });
 
