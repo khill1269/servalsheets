@@ -10,8 +10,8 @@ tags: [api, mcp, sheets]
 # Google Sheets API v4 → ServalSheets MCP Compliance Audit
 
 **Updated**: February 4, 2026
-**ServalSheets Version**: 1.6.0
-**MCP SDK Version**: 1.25.2
+**ServalSheets Version**: 2.0.0
+**MCP SDK Version**: 1.29.0
 **MCP Protocol Version**: 2025-11-25
 
 ---

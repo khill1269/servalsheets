@@ -21,7 +21,7 @@ tags: [sheets, prometheus]
 | Metric           | Source File                 | Line             | Current Value | Verification Command                             |
 | ---------------- | --------------------------- | ---------------- | ------------- | ------------------------------------------------ |
 | **TOOL_COUNT**   | `docs/generated/facts.json` | `counts.tools`   | `25`          | `jq '.counts.tools' docs/generated/facts.json`   |
-| **ACTION_COUNT** | `docs/generated/facts.json` | `counts.actions` | `408`         | `jq '.counts.actions' docs/generated/facts.json` |
+| **ACTION_COUNT** | `docs/generated/facts.json` | `counts.actions` | `409`         | `jq '.counts.actions' docs/generated/facts.json` |
 
 **Verification:**
 
@@ -43,9 +43,9 @@ npm run check:drift
 
 | Package                       | Version    | Source         | Purpose                           |
 | ----------------------------- | ---------- | -------------- | --------------------------------- |
-| **@modelcontextprotocol/sdk** | `^1.25.2`  | `package.json` | MCP protocol implementation       |
-| **googleapis**                | `^170.0.0` | `package.json` | Google Sheets/Drive APIs          |
-| **zod**                       | `4.3.5`    | `package.json` | Schema validation (EXACT version) |
+| **@modelcontextprotocol/sdk** | `^1.29.0`  | `package.json` | MCP protocol implementation       |
+| **googleapis**                | `^171.4.0` | `package.json` | Google Sheets/Drive APIs          |
+| **zod**                       | `^4.3.6`   | `package.json` | Schema validation                 |
 | **express**                   | `^5.2.1`   | `package.json` | HTTP server                       |
 | **p-queue**                   | `^9.0.1`   | `package.json` | Concurrency control               |
 | **lru-cache**                 | `^11.0.0`  | `package.json` | In-memory caching                 |
@@ -125,7 +125,7 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 | `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
 | `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
 | `sheets_webhook`      | 11      | `src/schemas/webhook.ts`      |
-| **TOTAL**             | **408** | —                             |
+| **TOTAL**             | **409** | —                             |
 
 **Verification:**
 
@@ -212,9 +212,9 @@ Evidence: <file:line> OR <command → output>
 
 ```
 Claim: ServalSheets has 409 actions
-Evidence: docs/generated/facts.json reports counts.actions = 408
+Evidence: docs/generated/facts.json reports counts.actions = 409
 Command: jq '.counts.actions' docs/generated/facts.json
-Output: 408
+Output: 409
 ```
 
 ❌ **Bad:**
@@ -254,19 +254,19 @@ npm run verify
 
 ---
 
-## 📋 Quick Reference: Current Values (2026-02-17)
+## 📋 Quick Reference: Current Values (2026-04-02)
 
 ```
 TOOL_COUNT:         25
-ACTION_COUNT:       408
+ACTION_COUNT:       409
 MCP_PROTOCOL:       2025-11-25
-ZOD_VERSION:        4.3.5
-SDK_VERSION:        ^1.25.2
-GOOGLEAPIS_VERSION: ^170.0.0
+ZOD_VERSION:        ^4.3.6
+SDK_VERSION:        ^1.29.0
+GOOGLEAPIS_VERSION: ^171.4.0
 
 Line Counts:
-  src/server.ts:         1383 lines
-  src/handlers/base.ts:  1605 lines
+  src/server.ts:         462 lines
+  src/handlers/base.ts:  1635 lines
 
 Build Status:
   npm run verify:      ✅ PASSING
@@ -275,7 +275,7 @@ Build Status:
   Metadata Drift:      ✅ PASSING
 ```
 
-**Last Verified:** 2026-03-17 via `npm run verify:release`
+**Last Verified:** 2026-04-02 via `npm run verify:release`
 
 ---
 
@@ -305,10 +305,10 @@ Q: How many actions does ServalSheets have?
 A: Let me verify...
 
 Command: jq '.counts.actions' docs/generated/facts.json
-Output: 408
+Output: 409
 
 ServalSheets has 409 actions across 25 tools.
-Evidence: docs/generated/facts.json reports counts.actions = 408
+Evidence: docs/generated/facts.json reports counts.actions = 409
 ```
 
 ---
