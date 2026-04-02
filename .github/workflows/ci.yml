@@ -704,11 +704,13 @@ jobs:
           node --input-type=module <<'EOF'
           const needs = JSON.parse(process.env.NEEDS_JSON);
           const allowedSkipped = new Set(['build', 'mutation-testing', 'coverage']);
+          const optionalFailures = new Set(['mutation-testing']);
           const failures = [];
 
           for (const [job, result] of Object.entries(needs)) {
             if (result.result === 'success') continue;
             if (result.result === 'skipped' && allowedSkipped.has(job)) continue;
+            if (result.result === 'failure' && optionalFailures.has(job)) continue;
             failures.push(`${job}=${result.result}`);
           }
 

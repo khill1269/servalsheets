@@ -437,6 +437,70 @@ export class OAuthProvider {
     };
   }
 
+  private async handleRefreshToken(
+    refreshToken: string,
+    res: Pick<express.Response, 'status' | 'json'>,
+    clientId?: string,
+    clientSecret?: string
+  ): Promise<void> {
+    try {
+      const refreshTokenData = (await this.sessionStore.get(
+        `refresh:${refreshToken}`
+      )) as RefreshTokenData | null;
+
+      if (!refreshTokenData) {
+        res.status(400).json({
+          error: 'invalid_grant',
+          error_description: 'Refresh token expired or invalid',
+        });
+        return;
+      }
+
+      const authenticatedClientId = await this.authenticateClient(
+        refreshTokenData.clientId,
+        clientId,
+        clientSecret
+      );
+
+      if (!authenticatedClientId) {
+        res.status(401).json({
+          error: 'invalid_client',
+          error_description: 'Client authentication failed',
+        });
+        return;
+      }
+
+      const accessToken = jwt.sign(
+        {
+          sub: refreshTokenData.userId,
+          aud: refreshTokenData.clientId,
+          iss: this.config.issuer,
+          scope: refreshTokenData.scope,
+        },
+        this.config.jwtSecret,
+        {
+          algorithm: 'HS256',
+          expiresIn: this.config.accessTokenTtl,
+        }
+      );
+
+      res.json({
+        access_token: accessToken,
+        token_type: 'Bearer',
+        expires_in: this.config.accessTokenTtl,
+        scope: refreshTokenData.scope,
+      });
+    } catch (error) {
+      logger.error('Refresh token exchange error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({
+        error: 'server_error',
+        error_description: 'Internal server error',
+      });
+    }
+  }
+
   /**
    * Retrieves Google access token from OAuth session (MCP compatibility)
    * Returns null if not found or expired
@@ -1009,65 +1073,7 @@ export class OAuthProvider {
           return;
         }
 
-        try {
-          // Retrieve refresh token data
-          const refreshTokenData = (await this.sessionStore.get(
-            `refresh:${refresh_token}`
-          )) as RefreshTokenData | null;
-
-          if (!refreshTokenData) {
-            res.status(400).json({
-              error: 'invalid_grant',
-              error_description: 'Refresh token expired or invalid',
-            });
-            return;
-          }
-
-          // Verify client authentication
-          const authenticatedClientId = await this.authenticateClient(
-            refreshTokenData.clientId,
-            client_id,
-            client_secret
-          );
-
-          if (!authenticatedClientId) {
-            res.status(401).json({
-              error: 'invalid_client',
-              error_description: 'Client authentication failed',
-            });
-            return;
-          }
-
-          // Generate new access token
-          const accessToken = jwt.sign(
-            {
-              sub: refreshTokenData.userId,
-              aud: refreshTokenData.clientId,
-              iss: this.config.issuer,
-              scope: refreshTokenData.scope,
-            },
-            this.config.jwtSecret,
-            {
-              algorithm: 'HS256',
-              expiresIn: this.config.accessTokenTtl,
-            }
-          );
-
-          res.json({
-            access_token: accessToken,
-            token_type: 'Bearer',
-            expires_in: this.config.accessTokenTtl,
-            scope: refreshTokenData.scope,
-          });
-        } catch (error) {
-          logger.error('Refresh token exchange error', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          res.status(500).json({
-            error: 'server_error',
-            error_description: 'Internal server error',
-          });
-        }
+        await this.handleRefreshToken(refresh_token, res, client_id, client_secret);
       } else {
         res.status(400).json({
           error: 'unsupported_grant_type',
