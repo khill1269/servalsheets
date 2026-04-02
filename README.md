@@ -113,7 +113,7 @@ Historical release snapshots are kept here for upgrade context.
 
 ### Core Capabilities
 
-- **25 Tools, 408 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 409 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Support**: Structured outputs, tasks, prompts, resources, logging, elicitation, and sampling
 - **Multiple Transports**: STDIO, Streamable HTTP, and legacy SSE compatibility surface
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -123,7 +123,7 @@ Historical release snapshots are kept here for upgrade context.
 
 MCP 2025-11-25 server support includes:
 
-- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.27.1
+- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.29.0
 - ✅ **Tools**: 25 tools with 409 actions using discriminated unions
 - ✅ **Resources**: 56 MCP resources + 12 resource templates
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
@@ -1279,7 +1279,7 @@ graph TB
 - **OAuth**: 2.1 with PKCE support
 - **Transports**: STDIO, Streamable HTTP, legacy SSE compatibility
 - **TypeScript**: Strict mode enabled, 0 errors
-- **SDK Version**: @modelcontextprotocol/sdk@1.27.1
+- **SDK Version**: @modelcontextprotocol/sdk@1.29.0
 - **Test Suite**: 8,500+ passing tests across unit, integration, contract, and protocol suites
 
 ## Quality Metrics
@@ -2132,7 +2132,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 
 | Feature          | Status  | Version    | Implementation                              |
 | ---------------- | ------- | ---------- | ------------------------------------------- |
-| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.27.1           |
+| **JSON-RPC 2.0** | ✅ Full | 2.0        | @modelcontextprotocol/sdk v1.29.0           |
 | **Tools**        | ✅ Full | 2025-11-25 | 25 tools, 409 actions, discriminated unions |
 | **Resources**    | ✅ Full | 2025-11-25 | 56 MCP resources + 12 resource templates    |
 | **Prompts**      | ✅ Full | 2025-11-25 | 40 guided workflows with arguments          |
@@ -2148,7 +2148,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 
 #### Tools (25 tools ✅)
 
-All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-408-actions) above for current per-tool action counts.
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-409-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 
@@ -2362,7 +2362,7 @@ As of March 11, 2026, `npm run test:all` completed successfully with:
 
 ### Protocol Compatibility
 
-**SDK Version**: @modelcontextprotocol/sdk v1.27.1
+**SDK Version**: @modelcontextprotocol/sdk v1.29.0
 **MCP Version**: 2025-11-25
 **TypeScript**: Strict mode, 0 errors
 **Node.js**: 20+ required

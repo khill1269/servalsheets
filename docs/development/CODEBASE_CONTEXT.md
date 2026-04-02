@@ -18,7 +18,7 @@ tags: [sheets, architecture, mcp]
 | Metric               | Value                          | Source                         |
 | -------------------- | ------------------------------ | ------------------------------ |
 | Tools                | 25                             | src/schemas/action-counts.ts   |
-| Actions              | 408                            | src/generated/action-counts.ts |
+| Actions              | 409                            | src/generated/action-counts.ts |
 | Version              | 2.0.0                          | package.json                   |
 | MCP Protocol         | 2025-11-25                     | src/version.ts:14              |
 | Contract Tests       | 2742/2742 pass                 | npm run test:fast              |
@@ -44,7 +44,7 @@ verbosity filtering, scope validation, progress reporting, error mapping.
 | sheets_advanced    | AdvancedHandler         | handlers/advanced.ts (394 lines)    | 31      | BatchCompiler                      |
 | sheets_visualize   | VisualizeHandler        | handlers/visualize.ts (336 lines)   | 18      | Sampling (chart suggestions)       |
 | sheets_collaborate | CollaborateHandler      | handlers/collaborate.ts (783 lines) | 41      | Drive API (sharing)                |
-| sheets_composite   | CompositeHandler        | handlers/composite.ts (408 lines)   | 21      | CompositeOperationsService         |
+| sheets_composite   | CompositeHandler        | handlers/composite.ts (407 lines)   | 21      | CompositeOperationsService         |
 | sheets_analyze     | AnalyzeHandler          | handlers/analyze.ts (1335 lines)    | 26      | Sampling, BackgroundAnalyzer       |
 | sheets_fix         | FixHandler              | handlers/fix.ts (234 lines)         | 6       | CleaningEngine, quality validators |
 | sheets_templates   | SheetsTemplatesHandler  | handlers/templates.ts (182 lines)   | 8       | Drive appDataFolder                |
@@ -106,7 +106,7 @@ Client → MCP Request (STDIO / Streamable HTTP / legacy SSE compatibility)
 
 ---
 
-## All 408 Actions by Tool
+## All 409 Actions by Tool
 
 > Full action-by-action list moved to `docs/development/ACTION_REGISTRY.md` to reduce session context load.
 > Load that file when verifying action names or adding new actions.

@@ -39,7 +39,7 @@ Version: 2.0.0 | Last Updated: 2026-03-24
 
 ### Key Features
 
-- **25 Tools, 408 Actions**: Comprehensive Google Sheets API v4 coverage
+- **25 Tools, 409 Actions**: Comprehensive Google Sheets API v4 coverage
 - **Safety Rails**: Dry-run preview, effect scope limits, expected state validation, auto-snapshots
 - **Smart Operations**: Semantic range resolution (find columns by header name), tiered diff engine
 - **Production Ready**: Rate limiting, encrypted token storage, structured logging, health checks
