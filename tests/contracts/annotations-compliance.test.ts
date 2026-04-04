@@ -187,13 +187,11 @@ describe('Annotation Compliance Contract', () => {
       if (CONFIRM_EXEMPT_TOOLS[toolName]) {
         it(`${toolName} (destructiveHint: true) is exempt from direct confirmation: ${CONFIRM_EXEMPT_TOOLS[toolName]}`, () => {
           // Exempt tools must still have SOME safety mechanism:
-          // either createSnapshotIfNeeded or at least dryRun support
+          // The contract here is narrower than snapshot coverage: the tool is
+          // implemented, and its exemption reason is documented explicitly.
           const files = getHandlerFiles(toolName);
-          if (files.length > 0) {
-            const hasAnySafety = handlerFilesContain(toolName, /createSnapshotIfNeeded|dryRun|safety\?\.dryRun/);
-            // Just document the exemption — not all exempt tools need snapshots
-            expect(true).toBe(true);
-          }
+          expect(files.length).toBeGreaterThan(0);
+          expect(CONFIRM_EXEMPT_TOOLS[toolName].length).toBeGreaterThan(0);
         });
         continue;
       }

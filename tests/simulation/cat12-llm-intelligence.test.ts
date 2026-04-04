@@ -16,6 +16,9 @@ import { scanResponseQuality } from '../../src/services/lightweight-quality-scan
 import { suggestFix } from '../../src/services/error-fix-suggester.js';
 import { FORMULA_PATTERN_LIBRARY, getRelevantPatterns } from '../../src/analysis/formula-helpers.js';
 import { ErrorCodeSchema } from '../../src/schemas/shared.js';
+import { ErrorPatternLearner } from '../../src/services/error-pattern-learner.js';
+import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
+import { getToolDiscoveryHint } from '../../src/mcp/registration/tool-discovery-hints.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 12.1-12.6: Response Hints Engine
@@ -220,19 +223,63 @@ describe('Category 12: LLM Intelligence', () => {
     });
 
     it('12.11 Error pattern learner bounded LRU growth', () => {
-      // Service tracks up to N patterns with LRU eviction
-      // This is verified at the handler level
-      expect(true).toBe(true); // Placeholder for handler integration test
+      const learner = new ErrorPatternLearner();
+      learner.recordError('BASE_ERROR', 'Base failure', {
+        tool: 'sheets_data',
+        action: 'read',
+      });
+      learner.recordError('BASE_ERROR', 'Base failure', {
+        tool: 'sheets_data',
+        action: 'read',
+      });
+      learner.recordError('BASE_ERROR', 'Base failure', {
+        tool: 'sheets_data',
+        action: 'read',
+      });
+      learner.recordResolution(
+        'BASE_ERROR',
+        { tool: 'sheets_data', action: 'read' },
+        'Retry with corrected spreadsheetId',
+        100
+      );
+
+      for (let index = 0; index < 10000; index++) {
+        learner.recordError(`ERR_${index}`, `Error ${index}`, {
+          tool: 'sheets_data',
+          action: `action_${index}`,
+        });
+      }
+
+      expect(
+        learner.getPatterns('BASE_ERROR', {
+          tool: 'sheets_data',
+          action: 'read',
+        })
+      ).toBeNull();
     });
 
     it('12.12 Tool discovery hints ACTION_HINT_OVERRIDES completeness', () => {
-      // Tool discovery hints should be complete for all 25 tools
-      expect(true).toBe(true); // Verified via tool registration tests
+      const formatHint = getToolDiscoveryHint('sheets_format');
+      const connectorsHint = getToolDiscoveryHint('sheets_connectors');
+
+      expect(formatHint).not.toBeNull();
+      expect(connectorsHint).not.toBeNull();
+      expect(formatHint!.actionParams['add_conditional_format_rule']?.optional).toEqual(
+        expect.arrayContaining(['ruleType', 'condition', 'format', 'preset'])
+      );
+      expect(connectorsHint!.actionParams['list_connectors']?.description).toContain(
+        'Start here'
+      );
     });
 
     it('12.13 Completions action name coverage', () => {
-      // Completions should have action names for all major actions
-      expect(true).toBe(true); // Verified via tool registration tests
+      expect(TOOL_ACTIONS['sheets_confirm']).toEqual(
+        expect.arrayContaining(['wizard_start', 'wizard_step', 'wizard_complete'])
+      );
+      expect(TOOL_ACTIONS['sheets_connectors']).toContain('list_connectors');
+      expect(TOOL_ACTIONS['sheets_agent']).toEqual(
+        expect.arrayContaining(['plan', 'execute', 'get_status'])
+      );
     });
   });
 

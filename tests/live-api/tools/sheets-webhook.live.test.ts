@@ -318,9 +318,14 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           },
         });
 
-        // In production, this would trigger eventType: 'sheet.rename'
-        // and changeDetails.sheetsRenamed: [{ from: oldName, to: newName }]
-        expect(newName).toBe(newName);
+        const metadata = await client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'sheets.properties',
+        });
+
+        expect(
+          metadata.data.sheets?.some((sheet) => sheet.properties?.title === newName)
+        ).toBe(true);
       });
 
       it('should detect cell.update events', async () => {
@@ -332,14 +337,17 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           requestBody: { values: [['Updated Value']] },
         });
 
-        // In production, this would trigger eventType: 'cell.update'
-        // and changeDetails.cellRanges: ['TestData!A1']
-        expect(true).toBe(true);
+        const readBack = await client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1',
+        });
+
+        expect(readBack.data.values?.[0]?.[0]).toBe('Updated Value');
       });
 
       it('should detect format.update events', async () => {
         // Update cell formatting
-        await client.sheets.spreadsheets.batchUpdate({
+        const response = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
             requests: [
@@ -364,8 +372,7 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           },
         });
 
-        // In production, this would trigger eventType: 'format.update'
-        expect(true).toBe(true);
+        expect(response.data.spreadsheetId).toBe(testSpreadsheet.id);
       });
     });
   });

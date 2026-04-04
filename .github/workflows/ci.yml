@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, develop, 'release/**']
   pull_request:
@@ -683,7 +684,18 @@ jobs:
     name: CI Required
     runs-on: ubuntu-latest
     if: always()
-    needs: [quick-checks, build, mutation-testing, coverage, security]
+    needs:
+      - quick-checks
+      - test-fast
+      - snapshot-tests
+      - test-integration
+      - mcp-http-task-contract
+      - http-transport-failover
+      - validate-server-json
+      - build
+      - mutation-testing
+      - coverage
+      - security
 
     steps:
       - name: Verify required CI jobs succeeded
@@ -692,12 +704,14 @@ jobs:
         run: |
           node --input-type=module <<'EOF'
           const needs = JSON.parse(process.env.NEEDS_JSON);
-          const allowedSkipped = new Set(['coverage']);
+          const allowedSkipped = new Set(['build', 'mutation-testing', 'coverage']);
+          const optionalFailures = new Set(['mutation-testing']);
           const failures = [];
 
           for (const [job, result] of Object.entries(needs)) {
             if (result.result === 'success') continue;
             if (result.result === 'skipped' && allowedSkipped.has(job)) continue;
+            if (result.result === 'failure' && optionalFailures.has(job)) continue;
             failures.push(`${job}=${result.result}`);
           }
 

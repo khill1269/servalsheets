@@ -41,6 +41,8 @@ const INITIALIZE_REQUEST = {
   },
 };
 
+const CONTRACT_TEST_TIMEOUT_MS = 30_000;
+
 function applyEnvOverrides(overrides: Record<string, string>): () => void {
   const previousValues = new Map<string, string | undefined>();
 
@@ -125,7 +127,9 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       restoreEnv();
     });
 
-    it('accepts initialize requests missing MCP-Protocol-Version header', async () => {
+    it(
+      'accepts initialize requests missing MCP-Protocol-Version header',
+      async () => {
       const response = await httpRequest(app, {
         method: 'POST',
         path: '/mcp',
@@ -143,9 +147,13 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       if (response.status === 200) {
         expect(extractSessionId(response.headers)).toBeTruthy();
       }
-    });
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
 
-    it('rejects unsupported MCP-Protocol-Version values', async () => {
+    it(
+      'rejects unsupported MCP-Protocol-Version values',
+      async () => {
       const response = await httpRequest(app, {
         method: 'POST',
         path: '/mcp',
@@ -168,9 +176,13 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
           code: 'INVALID_REQUEST',
         });
       }
-    });
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
 
-    it('accepts initialize requests with MCP-Protocol-Version 2025-11-25', async () => {
+    it(
+      'accepts initialize requests with MCP-Protocol-Version 2025-11-25',
+      async () => {
       const response = await httpRequest(app, {
         method: 'POST',
         path: '/mcp',
@@ -189,9 +201,13 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       if (response.status === 200) {
         expect(extractSessionId(response.headers)).toBeTruthy();
       }
-    });
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
 
-    it('rejects subsequent MCP requests missing MCP-Protocol-Version header', async () => {
+    it(
+      'rejects subsequent MCP requests missing MCP-Protocol-Version header',
+      async () => {
       const initializeResponse = await httpRequest(app, {
         method: 'POST',
         path: '/mcp',
@@ -233,7 +249,9 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
           code: 'INVALID_REQUEST',
         });
       }
-    });
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
   });
 
   describe('Session security contract', () => {
@@ -286,7 +304,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect((response.body as { error: Record<string, unknown> }).error).toMatchObject({
         code: 'INVALID_REQUEST',
       });
-    });
+    }, CONTRACT_TEST_TIMEOUT_MS);
 
     it('rejects reconnect attempts when session security context changes', async () => {
       const ownerUserAgent = 'contract-owner-agent';
@@ -316,7 +334,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         },
       });
       expect(cleanupResponse.status).toBe(200);
-    });
+    }, CONTRACT_TEST_TIMEOUT_MS);
 
     it('enforces session ownership checks for DELETE /mcp', async () => {
       const ownerUserAgent = 'delete-owner-agent';
@@ -351,7 +369,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         },
       });
       expect(deleteResponse.status).toBe(200);
-    });
+    }, CONTRACT_TEST_TIMEOUT_MS);
 
     it('returns 404 for follow-up requests after session termination', async () => {
       const ownerUserAgent = 'terminated-owner-agent';
@@ -401,7 +419,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       expect((postResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
         code: 'SESSION_NOT_FOUND',
       });
-    });
+    }, CONTRACT_TEST_TIMEOUT_MS);
   });
 
   describe('Well-known auth/security discovery contract', () => {

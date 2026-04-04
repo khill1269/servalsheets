@@ -89,9 +89,11 @@ describe('flat tool call interceptor runtime registry', () => {
 
     expect(compoundHandler).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'read',
-        spreadsheetId: 'spreadsheet-123',
-        range: 'A1:B4',
+        request: expect.objectContaining({
+          action: 'read',
+          spreadsheetId: 'spreadsheet-123',
+          range: 'A1:B4',
+        }),
       }),
       { requestId: 'flat-runtime-test' }
     );

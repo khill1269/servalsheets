@@ -49,6 +49,49 @@ export const requestApp = async (
 ): Promise<AppResponse> =>
   await new Promise((resolve, reject) => {
     const socket = new Socket();
+    let settled = false;
+    const settleReject = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+
+    // Express/Node writes to the assigned socket even when we only need an
+    // in-memory response capture. On slower CI runners, eagerly destroying the
+    // fake socket can surface ERR_SOCKET_CLOSED from deferred uncork/writev
+    // tasks. Stub writes and ignore post-settlement socket noise so contract
+    // tests stay deterministic.
+    (socket as Socket & {
+      _write: (
+        chunk: Buffer,
+        encoding: BufferEncoding,
+        callback: (error?: Error | null) => void
+      ) => void;
+      _writev?: (
+        chunks: Array<{ chunk: Buffer; encoding: BufferEncoding }>,
+        callback: (error?: Error | null) => void
+      ) => void;
+    })._write = (_chunk, _encoding, callback) => {
+      callback();
+    };
+    (socket as Socket & {
+      _writev?: (
+        chunks: Array<{ chunk: Buffer; encoding: BufferEncoding }>,
+        callback: (error?: Error | null) => void
+      ) => void;
+    })._writev = (_chunks, callback) => {
+      callback();
+    };
+    socket.on('error', (error: NodeJS.ErrnoException) => {
+      if (
+        settled &&
+        (error.code === 'ERR_SOCKET_CLOSED' || error.code === 'EPIPE' || error.code === 'ECONNRESET')
+      ) {
+        return;
+      }
+      settleReject(error);
+    });
+
     const req = new IncomingMessage(socket);
     const queryString = buildQueryString(options.query);
     const url = `${options.path}${queryString}`;
@@ -150,16 +193,21 @@ export const requestApp = async (
           body = text;
         }
       }
+      settled = true;
       resolve({
         status: res.statusCode,
         headers: responseHeaders,
         body,
         text,
       });
-      socket.destroy();
+      setImmediate(() => {
+        if (!socket.destroyed) {
+          socket.destroy();
+        }
+      });
     });
 
-    res.on('error', reject);
+    res.on('error', settleReject);
 
     let bodyPushed = false;
     const pushBody = () => {
@@ -178,7 +226,7 @@ export const requestApp = async (
     });
 
     app.handle(req, res, (err) => {
-      if (err) reject(err);
+      if (err) settleReject(err);
     });
 
     setImmediate(pushBody);

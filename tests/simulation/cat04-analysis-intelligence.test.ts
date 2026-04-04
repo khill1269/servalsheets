@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { sheets_v4 } from 'googleapis';
 import { generateResponseHints } from '../../src/services/response-hints-engine.js';
 import {
   detectEmptyRequiredCells,
@@ -20,6 +21,129 @@ import {
   scanResponseQualitySync,
 } from '../../src/services/lightweight-quality-scanner.js';
 import type { CellValue } from '../../src/schemas/shared.js';
+import { AnalyzeHandler } from '../../src/handlers/analyze.js';
+import { FixHandler } from '../../src/handlers/fix.js';
+import { createDependenciesHandler } from '../../src/handlers/dependencies.js';
+import type { HandlerContext } from '../../src/handlers/base.js';
+import { getDataAwareSuggestions } from '../../src/services/action-recommender.js';
+
+const createAnalyzeMockSheetsApi = (
+  values: CellValue[][] = [
+    ['Name', 'Revenue', 'Cost', 'Date'],
+    ['Alice', 1000, 600, '2026-01-01'],
+    ['Bob', 1500, 900, '2026-01-02'],
+    ['Carol', 1800, 1100, '2026-01-03'],
+  ]
+) => ({
+  spreadsheets: {
+    values: {
+      get: vi.fn().mockResolvedValue({
+        data: {
+          range: 'Sheet1!A1:D4',
+          values,
+        },
+      }),
+    },
+    get: vi.fn().mockResolvedValue({
+      data: {
+        spreadsheetId: 'test-sheet-id',
+        properties: { title: 'Analysis Test Sheet' },
+        sheets: [
+          {
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 100, columnCount: 4 },
+            },
+          },
+        ],
+      },
+    }),
+  },
+});
+
+const createAnalyzeMockContext = (): HandlerContext =>
+  ({
+    googleClient: {} as any,
+    batchCompiler: {
+      compile: vi.fn(),
+      execute: vi.fn(),
+      executeAll: vi.fn(),
+    } as any,
+    rangeResolver: {
+      resolve: vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:D4',
+        sheetId: 0,
+        sheetName: 'Sheet1',
+        gridRange: { sheetId: 0 },
+        resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
+      }),
+    } as any,
+    server: {
+      createMessage: vi.fn(),
+      getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
+    } as any,
+    requestId: 'analysis-test-request',
+  }) as any;
+
+const createFixMockSheetsApi = (
+  values: CellValue[][] = [
+    ['Name', 'Score', 'Value'],
+    ['A', 100, 50],
+    ['B', 105, null],
+    ['C', 110, 200],
+    ['D', 115, 60],
+    ['E', 120, 65],
+  ]
+): sheets_v4.Sheets =>
+  ({
+    spreadsheets: {
+      get: vi.fn(),
+      values: {
+        get: vi.fn().mockResolvedValue({ data: { values } }),
+        update: vi.fn().mockResolvedValue({ data: {} }),
+        append: vi.fn(),
+        clear: vi.fn(),
+        batchGet: vi.fn(),
+        batchUpdate: vi.fn(),
+        batchClear: vi.fn(),
+      },
+      batchUpdate: vi.fn(),
+    },
+  }) as any;
+
+const createFixMockContext = (): HandlerContext =>
+  ({
+    spreadsheetId: 'test-spreadsheet-id',
+    userId: 'test-user-id',
+    cachedApi: {} as any,
+    googleClient: {} as any,
+    samplingServer: undefined,
+    elicitationServer: undefined,
+    backend: undefined,
+  }) as any;
+
+const createDependenciesMockSheetsApi = (): sheets_v4.Sheets =>
+  ({
+    spreadsheets: {
+      get: vi.fn().mockResolvedValue({
+        data: {
+          spreadsheetId: '1ABC',
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+        },
+      }),
+      values: {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            values: [
+              ['10', '20', '=A1+B1'],
+              ['=C1*2', '5', '=A2+B2'],
+            ],
+          },
+        }),
+      },
+    },
+  }) as any;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Service Tests: ResponseHints (4.1-4.5)
@@ -350,46 +474,150 @@ describe('Category 4: Analysis & Intelligence', () => {
   // ────────────────────────────────────────────────────────────────────────────
 
   describe('Handler-Level Analysis Tests (4.13-4.19)', () => {
-    it('4.13: scout action provides fast structural scan', () => {
-      // This is a handler test that would need AnalyzeHandler mocking
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+    it('4.13: scout action provides fast structural scan', async () => {
+      const handler = new AnalyzeHandler(
+        createAnalyzeMockContext(),
+        createAnalyzeMockSheetsApi() as any
+      );
+
+      const result = await handler.handle({
+        request: {
+          action: 'scout',
+          spreadsheetId: 'test-sheet-id',
+        },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.action).toBe('scout');
+      if (result.response.success) {
+        expect(result.response.scout.spreadsheet.id).toBe('test-sheet-id');
+        expect(result.response.scout.totals.sheets).toBeGreaterThan(0);
+      }
     });
 
-    it('4.14: quick_insights returns pattern-based insights without sampling', () => {
-      // Pattern-based insights should work without AI
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+    it('4.14: quick_insights returns pattern-based insights without sampling', async () => {
+      const handler = new AnalyzeHandler(
+        createAnalyzeMockContext(),
+        createAnalyzeMockSheetsApi() as any
+      );
+
+      const result = await handler.handle({
+        request: {
+          action: 'quick_insights',
+          spreadsheetId: 'test-sheet-id',
+        },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(Array.isArray(result.response.insights)).toBe(true);
+        expect(Array.isArray(result.response.suggestions)).toBe(true);
+        expect(result.response.stats.rowCount).toBeGreaterThan(0);
+      }
     });
 
     it('4.15: suggest_next_actions returns suggestions with executable params', () => {
-      // Should return array of suggestions with tool/action/params
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+      const suggestions = getDataAwareSuggestions(
+        'sheets_data',
+        'read',
+        {},
+        {
+          responseValues: [
+            ['Date', 'Revenue'],
+            ['2026-01-01', 1000],
+            ['2026-01-02', 1200],
+            ['2026-01-03', 900],
+          ],
+        }
+      );
+
+      expect(suggestions.length).toBeGreaterThan(0);
+      expect(suggestions[0]).toHaveProperty('tool');
+      expect(suggestions[0]).toHaveProperty('action');
+      expect(suggestions[0]?.params ?? {}).toBeTypeOf('object');
     });
 
-    it('4.16: model_scenario traces cascade effects through formulas', () => {
-      // Should show dependent cells and recalculation impacts
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+    it('4.16: model_scenario traces cascade effects through formulas', async () => {
+      const handler = createDependenciesHandler(createDependenciesMockSheetsApi());
+
+      await handler.handle({
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
+      });
+
+      const result = await handler.handle({
+        request: {
+          action: 'model_scenario',
+          spreadsheetId: '1ABC',
+          changes: [{ cell: 'Sheet1!A1', newValue: 50 }],
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.data.action).toBe('model_scenario');
+        expect(result.response.data.inputChanges).toHaveLength(1);
+        expect(result.response.data.summary.cellsAffected).toBeGreaterThanOrEqual(0);
+      }
     });
 
-    it('4.17: clean action distinguishes preview vs apply mode', () => {
-      // Preview should show what would change, apply should execute
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+    it('4.17: clean action distinguishes preview vs apply mode', async () => {
+      const previewApi = createFixMockSheetsApi();
+      const previewHandler = new FixHandler(createFixMockContext(), previewApi);
+      const applyApi = createFixMockSheetsApi();
+      const applyHandler = new FixHandler(createFixMockContext(), applyApi);
+
+      const preview = await previewHandler.handle({
+        action: 'clean',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:C6' },
+        mode: 'preview',
+      } as any);
+      const apply = await applyHandler.handle({
+        action: 'clean',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1:C6' },
+        mode: 'apply',
+      } as any);
+
+      expect(preview.response.success).toBe(true);
+      expect(previewApi.spreadsheets?.values?.update).not.toHaveBeenCalled();
+      expect(apply.response.success).toBe(true);
+      expect(apply.response.dryRun).not.toBe(true);
     });
 
-    it('4.18: detect_anomalies flags outliers using IQR method', () => {
-      // Should identify cells beyond IQR threshold
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+    it('4.18: detect_anomalies flags outliers using IQR method', async () => {
+      const handler = new FixHandler(createFixMockContext(), createFixMockSheetsApi());
+
+      const result = await handler.handle({
+        action: 'detect_anomalies',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!B2:C6' },
+        method: 'iqr',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.action).toBe('detect_anomalies');
     });
 
-    it('4.19: fill_missing supports forward/backward/mean/median strategies', () => {
-      // Should fill nulls using specified strategy
-      // Placeholder for actual handler test
-      expect(true).toBe(true);
+    it('4.19: fill_missing supports forward/backward/mean/median strategies', async () => {
+      const strategies = ['forward', 'backward', 'mean', 'median'] as const;
+
+      for (const strategy of strategies) {
+        const handler = new FixHandler(createFixMockContext(), createFixMockSheetsApi());
+        const result = await handler.handle({
+          action: 'fill_missing',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A2:C6' },
+          strategy,
+          mode: 'preview',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+        expect(result.response.action).toBe('fill_missing');
+      }
     });
   });
 
