@@ -67,6 +67,9 @@ describe('OAuth Flow Integration Tests', () => {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
     app.use(oauthProvider.createRouter());
+    app.get('/protected', oauthProvider.validateToken(), (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
   });
 
   afterAll(async () => {
@@ -168,29 +171,93 @@ describe('OAuth Flow Integration Tests', () => {
   });
 
   describe('State Token Security', () => {
-    // Note: These tests document the state security mechanisms but don't
-    // fully exercise them since the OAuth flow redirects to Google first.
+    it('should reject callback when authorization state is missing', async () => {
+      const response = await get('/oauth/callback', {
+        code: 'google-auth-code',
+        state: `${randomBytes(16).toString('hex')}:${clientId}:${randomBytes(8).toString('hex')}`,
+      });
 
-    it('should prevent state token reuse', async () => {
-      // Note: State tokens are generated during /oauth/authorize, but this test
-      // requires the full OAuth flow which redirects to Google.
-      // For now, we skip this test as it requires a full integration setup.
-      // The state reuse prevention is tested in the OAuth provider implementation.
-      expect(true).toBe(true);
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: 'invalid_request',
+        error_description: 'Authorization code expired or invalid',
+      });
     });
 
     it('should reject malformed state token', async () => {
-      // Note: OAuth callback requires full flow. Testing state validation
-      // in isolation would require mocking Google OAuth response.
-      // The malformed state rejection is tested in OAuth provider implementation.
-      expect(true).toBe(true);
+      const response = await get('/oauth/callback', {
+        code: 'google-auth-code',
+        state: 'malformed-state',
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: 'invalid_state',
+        error_description: 'Invalid OAuth state format',
+      });
     });
 
-    it('should reject state with invalid signature', async () => {
-      // Note: OAuth callback requires full flow. Testing signature validation
-      // in isolation would require mocking Google OAuth response.
-      // The invalid signature rejection is tested in OAuth provider implementation.
-      expect(true).toBe(true);
+    it('should reject callback when state client does not match stored authorization state', async () => {
+      const authCode = randomBytes(16).toString('hex');
+      const sessionStore = (
+        oauthProvider as unknown as {
+          sessionStore: {
+            set: (key: string, value: unknown, ttlSeconds: number) => Promise<void>;
+          };
+        }
+      ).sessionStore;
+
+      await sessionStore.set(
+        `auth:${authCode}`,
+        {
+          clientId,
+          redirectUri: validRedirectUri,
+          scope: 'sheets:read',
+          originalState: 'client-state-token',
+          codeChallenge: 'a'.repeat(43),
+          codeChallengeMethod: 'S256',
+        },
+        600
+      );
+
+      const response = await get('/oauth/callback', {
+        code: 'google-auth-code',
+        state: `${authCode}:different-client:${randomBytes(8).toString('hex')}`,
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: 'invalid_request',
+        error_description: 'Client ID mismatch',
+      });
+    });
+  });
+
+  describe('Bearer Challenge Security', () => {
+    it('should return RFC 6750 challenge for missing bearer token', async () => {
+      const response = await get('/protected');
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_request"');
+      expect(response.body).toMatchObject({
+        error: 'unauthorized',
+        error_description: 'Missing or invalid authorization header',
+      });
+    });
+
+    it('should return RFC 6750 challenge for invalid bearer token', async () => {
+      const response = await requestApp(app, {
+        method: 'GET',
+        path: '/protected',
+        headers: { authorization: 'Bearer invalid-token' },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers['www-authenticate']).toContain('Bearer');
+      expect(response.headers['www-authenticate']).toContain('error="invalid_token"');
+      expect(response.body.error).toBe('invalid_token');
+      expect(String(response.body.error_description)).not.toHaveLength(0);
     });
   });
 
