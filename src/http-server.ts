@@ -14,6 +14,7 @@ import { validateEnv, env, getEnv } from './config/env.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
 import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
+import { createSessionStore } from './storage/session-store.js';
 import { startMetricsServer, stopMetricsServer } from './server/metrics-server.js';
 import { MetricsExporter } from './services/metrics-exporter.js';
 import { getMetricsService } from './services/metrics.js';
@@ -88,7 +89,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         await verifyToolIntegrity();
       }),
     resolveHttpServerRuntimeConfig,
-    createHealthService: () => new HealthService(null),
+    createHealthService: () => {
+      const redisUrl = process.env['REDIS_URL'];
+      const sessionStoreType = process.env['SESSION_STORE_TYPE'];
+      const sessionStore =
+        sessionStoreType === 'redis' && redisUrl ? createSessionStore(redisUrl) : undefined;
+      return new HealthService(null, sessionStore);
+    },
     registerHttpFoundationMiddleware,
     registerHttpAuthProviders,
     prepareHttpRateLimiter,
