@@ -50,7 +50,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist .tsbuildinfo"
+    "clean": "rm -rf dist .tsbuildinfo",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "lru-cache": "^11.2.7",
