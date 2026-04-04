@@ -65,6 +65,7 @@ describe('OAuth Flow Integration Tests', () => {
     // Create Express app with OAuth router
     app = express();
     app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
     app.use(oauthProvider.createRouter());
   });
 

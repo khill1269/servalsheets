@@ -1,7 +1,7 @@
 ---
 title: ServalSheets - Action Reference (409 Actions, 25 Tools)
 category: guide
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 description: 'Generated action reference for the current 25-tool, 409-action MCP surface.'
 version: 2.0.0
 audience: user
@@ -16,33 +16,33 @@ difficulty: intermediate
 
 ## Quick Lookup
 
-| Tool                                        | Actions |
-| ------------------------------------------- | ------: |
-| [sheets_advanced](#sheets_advanced)         |      31 |
-| [sheets_agent](#sheets_agent)               |       8 |
-| [sheets_analyze](#sheets_analyze)           |      26 |
-| [sheets_appsscript](#sheets_appsscript)     |      19 |
-| [sheets_auth](#sheets_auth)                 |       5 |
-| [sheets_bigquery](#sheets_bigquery)         |      17 |
-| [sheets_collaborate](#sheets_collaborate)   |      41 |
-| [sheets_composite](#sheets_composite)       |      21 |
-| [sheets_compute](#sheets_compute)           |      16 |
-| [sheets_confirm](#sheets_confirm)           |       5 |
-| [sheets_connectors](#sheets_connectors)     |      10 |
-| [sheets_core](#sheets_core)                 |      21 |
-| [sheets_data](#sheets_data)                 |      25 |
-| [sheets_dependencies](#sheets_dependencies) |      10 |
-| [sheets_dimensions](#sheets_dimensions)     |      30 |
-| [sheets_federation](#sheets_federation)     |       4 |
-| [sheets_fix](#sheets_fix)                   |       6 |
-| [sheets_format](#sheets_format)             |      25 |
-| [sheets_history](#sheets_history)           |      10 |
-| [sheets_quality](#sheets_quality)           |       4 |
-| [sheets_session](#sheets_session)           |      32 |
-| [sheets_templates](#sheets_templates)       |       8 |
-| [sheets_transaction](#sheets_transaction)   |       6 |
-| [sheets_visualize](#sheets_visualize)       |      18 |
-| [sheets_webhook](#sheets_webhook)           |      11 |
+| Tool | Actions |
+| --- | ---: |
+| [sheets_advanced](#sheets_advanced) | 31 |
+| [sheets_agent](#sheets_agent) | 8 |
+| [sheets_analyze](#sheets_analyze) | 26 |
+| [sheets_appsscript](#sheets_appsscript) | 19 |
+| [sheets_auth](#sheets_auth) | 5 |
+| [sheets_bigquery](#sheets_bigquery) | 17 |
+| [sheets_collaborate](#sheets_collaborate) | 41 |
+| [sheets_composite](#sheets_composite) | 21 |
+| [sheets_compute](#sheets_compute) | 16 |
+| [sheets_confirm](#sheets_confirm) | 5 |
+| [sheets_connectors](#sheets_connectors) | 10 |
+| [sheets_core](#sheets_core) | 21 |
+| [sheets_data](#sheets_data) | 25 |
+| [sheets_dependencies](#sheets_dependencies) | 10 |
+| [sheets_dimensions](#sheets_dimensions) | 30 |
+| [sheets_federation](#sheets_federation) | 4 |
+| [sheets_fix](#sheets_fix) | 6 |
+| [sheets_format](#sheets_format) | 25 |
+| [sheets_history](#sheets_history) | 10 |
+| [sheets_quality](#sheets_quality) | 4 |
+| [sheets_session](#sheets_session) | 32 |
+| [sheets_templates](#sheets_templates) | 8 |
+| [sheets_transaction](#sheets_transaction) | 6 |
+| [sheets_visualize](#sheets_visualize) | 18 |
+| [sheets_webhook](#sheets_webhook) | 11 |
 
 ## Live Metadata
 

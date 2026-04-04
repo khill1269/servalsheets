@@ -387,9 +387,13 @@ export class OAuthProvider {
     return async (req, res, next) => {
       const authHeader = req.headers['authorization'];
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.setHeader(
+          'WWW-Authenticate',
+          'Bearer error="invalid_request", error_description="Missing or invalid authorization header"'
+        );
         return res.status(401).json({
-          error: 'invalid_token',
-          error_description: 'Missing or invalid bearer token',
+          error: 'unauthorized',
+          error_description: 'Missing or invalid authorization header',
         });
       }
 
@@ -409,6 +413,10 @@ export class OAuthProvider {
         }
 
         if (!decoded) {
+          res.setHeader(
+            'WWW-Authenticate',
+            'Bearer error="invalid_token", error_description="Token verification failed"'
+          );
           return res.status(401).json({
             error: 'invalid_token',
             error_description: 'Token verification failed',
@@ -419,9 +427,11 @@ export class OAuthProvider {
         (req as unknown as Record<string, unknown>)['user'] = decoded;
         return next();
       } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Token validation error';
+        res.setHeader('WWW-Authenticate', `Bearer error="invalid_token", error_description="${msg}"`);
         return res.status(401).json({
           error: 'invalid_token',
-          error_description: error instanceof Error ? error.message : 'Token validation error',
+          error_description: msg,
         });
       }
     };
@@ -852,6 +862,22 @@ export class OAuthProvider {
 
       if (grant_type === 'authorization_code') {
         // Authorization code grant
+
+        // Verify client authentication first (RFC 6749 §3.2.1) — prevents
+        // leaking code validity to unauthenticated clients
+        const preAuthClientId = await this.authenticateClient(
+          '',
+          client_id,
+          client_secret
+        );
+        if (!preAuthClientId) {
+          res.status(401).json({
+            error: 'invalid_client',
+            error_description: 'Client authentication failed',
+          });
+          return;
+        }
+
         if (!code) {
           res.status(400).json({
             error: 'invalid_request',
@@ -894,7 +920,7 @@ export class OAuthProvider {
             return;
           }
 
-          // Verify client authentication
+          // Re-verify client matches the code's intended client
           const authenticatedClientId = await this.authenticateClient(
             authCodeData.clientId,
             client_id,
@@ -1132,8 +1158,16 @@ export class OAuthProvider {
           return;
         }
 
-        // Token is valid — cast payload for custom fields
+        // Token is valid signature — cast payload for custom fields
         const payload = decoded as jwt.JwtPayload & { scope?: string };
+
+        // Validate issuer and audience claims (RFC 7662 §2.2)
+        const expectedAudience = this.config.resourceIndicator ?? this.config.clientId;
+        if (payload.iss !== this.config.issuer || payload.aud !== expectedAudience) {
+          res.status(200).json({ active: false });
+          return;
+        }
+
         res.status(200).json({
           active: true,
           scope: payload.scope || '',

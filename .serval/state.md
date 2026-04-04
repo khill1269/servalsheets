@@ -8,18 +8,18 @@
 | Metric          | Value      | Source                       |
 | --------------- | ---------- | ---------------------------- |
 | Tools           | 25         | src/schemas/action-counts.ts |
-| Actions         | 407        | src/schemas/action-counts.ts |
+| Actions         | 409        | src/schemas/action-counts.ts |
 | Package Version | 2.0.0      | package.json                 |
 | Protocol        | 2025-11-25 | src/version.ts               |
-| TypeScript      | ❌ errors  | tsc --noEmit                 |
+| TypeScript      | ✅ clean   | tsc --noEmit                 |
 
 ## Git
 
-| Metric       | Value                                                                     |
-| ------------ | ------------------------------------------------------------------------- |
-| Branch       | release-1.7.1                                                             |
-| Last Commit  | 0306dc3 refactor: decompose collaborate, composite, dependencies handlers |
-| Working Tree | 457 uncommitted files                                                     |
+| Metric       | Value                                                         |
+| ------------ | ------------------------------------------------------------- |
+| Branch       | main                                                          |
+| Last Commit  | 1b13d5e2 fix: wire flat tool call interceptor into STDIO path |
+| Working Tree | 18 uncommitted files                                          |
 
 ## Tool Inventory
 
@@ -49,7 +49,7 @@
 | sheets_templates    | 8       |
 | sheets_transaction  | 6       |
 | sheets_visualize    | 18      |
-| sheets_webhook      | 10      |
+| sheets_webhook      | 11      |
 
 ## Monorepo
 
@@ -71,8 +71,8 @@
 
 | Metric  | Value                                  |
 | ------- | -------------------------------------- |
-| Status  | unknown                                |
-| Summary | Could not run tests (timeout or error) |
+| Status  | ✅ passing                             |
+| Summary | 2810/2810 pass (37 skipped), 143 files |
 
 ## Feature Flags (defaults from src/config/env.ts)
 

@@ -4,7 +4,8 @@
  * Verifies refresh-token failures return explicit errors (no silent success).
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import express, { type Express } from 'express';
 
 // Mock env module before imports
 vi.mock('../../src/config/env.js', async (importOriginal) => {
@@ -20,33 +21,14 @@ vi.mock('../../src/config/env.js', async (importOriginal) => {
 
 import { OAuthProvider } from '../../src/auth/oauth-provider.js';
 import { InMemorySessionStore } from '../../src/storage/session-store.js';
-
-type MockResponse = {
-  statusCode: number;
-  body: unknown;
-  status: (code: number) => MockResponse;
-  json: (payload: unknown) => MockResponse;
-};
-
-function createMockResponse(): MockResponse {
-  const res = {
-    statusCode: 200,
-    body: undefined,
-    status(code: number) {
-      this.statusCode = code;
-      return this;
-    },
-    json(payload: unknown) {
-      this.body = payload;
-      return this;
-    },
-  } as MockResponse;
-  return res;
-}
+import { requestApp } from '../helpers/request-app.js';
 
 describe('OAuth refresh token errors', () => {
-  it('returns invalid_grant for missing refresh token', async () => {
-    const oauthProvider = new OAuthProvider({
+  let app: Express;
+  let oauthProvider: OAuthProvider;
+
+  beforeAll(() => {
+    oauthProvider = new OAuthProvider({
       issuer: 'https://test.servalsheets.example.com',
       clientId: 'test-client',
       clientSecret: 'test-secret',
@@ -56,18 +38,51 @@ describe('OAuth refresh token errors', () => {
       sessionStore: new InMemorySessionStore(),
     });
 
-    const res = createMockResponse();
-    await (
-      oauthProvider as unknown as {
-        handleRefreshToken: (token: string, res: MockResponse) => Promise<void>;
-      }
-    ).handleRefreshToken('missing-refresh-token', res);
+    app = express();
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
+    app.use(oauthProvider.createRouter());
+  });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toMatchObject({
-      error: 'invalid_grant',
+  afterAll(() => {
+    oauthProvider.destroy();
+  });
+
+  it('returns invalid_grant for missing refresh token', async () => {
+    const response = await requestApp(app, {
+      method: 'POST',
+      path: '/oauth/token',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: {
+        grant_type: 'refresh_token',
+        refresh_token: 'nonexistent-refresh-token-abc123',
+        client_id: 'test-client',
+        client_secret: 'test-secret',
+      },
     });
 
-    oauthProvider.destroy();
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      error: 'invalid_grant',
+    });
+  });
+
+  it('returns invalid_grant for non-existent refresh token', async () => {
+    const response = await requestApp(app, {
+      method: 'POST',
+      path: '/oauth/token',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: {
+        grant_type: 'refresh_token',
+        refresh_token: 'nonexistent-refresh-token-12345',
+        client_id: 'test-client',
+        client_secret: 'test-secret',
+      },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      error: 'invalid_grant',
+    });
   });
 });
