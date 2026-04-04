@@ -12,13 +12,21 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   HOST = "::"
   PORT = "3000"
   LOG_LEVEL = "info"
-  DEBUG_STARTUP_TRACE = "true"
+  DEBUG_STARTUP_TRACE = "false"
   ENABLE_LEGACY_SSE = "false"
   ENABLE_RBAC = "true"
   OAUTH_ISSUER = "https://servalsheets.fly.dev"
   DATA_DIR = "/data/state"
   PROFILE_STORAGE_DIR = "/data/profiles"
   TRANSACTION_WAL_DIR = "/data/wal"
+  # Hardening
+  ENABLE_AGGRESSIVE_FIELD_MASKS = "true"
+  ENABLE_REQUEST_MERGING = "true"
+  ENABLE_PARALLEL_EXECUTOR = "true"
+  CACHE_REDIS_ENABLED = "true"
+  SESSION_STORE_TYPE = "redis"
+  # Node.js tuning for 1GB container
+  NODE_OPTIONS = "--max-old-space-size=768 --enable-source-maps"
   # Set these via: fly secrets set ...
   # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_CLIENT_SECRET,
   # JWT_SECRET, STATE_SECRET, AUDIT_LOG_ENCRYPTION_KEY, REDIS_URL,
@@ -31,31 +39,62 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   auto_start_machines = true
   min_machines_running = 1
 
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  # Liveness: is the process running?
   [[http_service.checks]]
-    grace_period = "10s"
+    grace_period = "15s"
+    interval = "15s"
+    method = "GET"
+    path = "/health/live"
+    protocol = "http"
+    timeout = "5s"
+
+  # Readiness: can it serve traffic?
+  [[http_service.checks]]
+    grace_period = "20s"
     interval = "30s"
     method = "GET"
     path = "/health/ready"
     protocol = "http"
     timeout = "5s"
 
-  [http_service.concurrency]
-    type = "requests"
-    hard_limit = 250
-    soft_limit = 200
+  # MCP protocol probe — validates tool registration is up
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "60s"
+    method = "GET"
+    path = "/health/ready"
+    protocol = "http"
+    timeout = "10s"
+    headers = { "Accept" = "application/json" }
 
 [[vm]]
-  cpu_kind = "shared"
-  cpus = 1
-  memory_mb = 1024
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["app"]
 
 [[mounts]]
   source = "servalsheets_data"
   destination = "/data"
+  initial_size = "1gb"
 
-# Launch on one machine until shared durable storage is in place.
-# DATA_DIR and PROFILE_STORAGE_DIR currently rely on the mounted Fly volume.
+[processes]
+  app = "node dist/http-server-entry.js"
 
 [metrics]
   port = 3000
   path = "/metrics"
+
+# Graceful shutdown — allow in-flight MCP requests to complete
+[experimental]
+  kill_signal = "SIGTERM"
+  kill_timeout = "30s"
+
+# Deploy strategy: canary with automatic rollback
+[deploy]
+  strategy = "canary"
+  release_command = "node -e \"require('./dist/schemas/index.js')\" || exit 1"

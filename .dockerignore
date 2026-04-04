@@ -1,83 +1,108 @@
-# Dependencies
+# ─── Dependencies ─────────────────────────────────────────────────────────────
 node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json.backup
 
-# Build outputs
-dist
+# ─── Build outputs (rebuilt in container or copied from worktree) ─────────────
 .tsbuildinfo
 .tsbuildinfo.build
 coverage
 *.map
 
-# Environment and secrets
+# ─── Environment and secrets ─────────────────────────────────────────────────
 .env
 .env.*
+.secrets/
 *.enc
+*.pem
+*.key
 servalsheets.tokens.enc
 credentials.json
 client_secret_*.json
+service-account*.json
 
-# Git and version control
+# ─── Git and version control ─────────────────────────────────────────────────
 .git
 .gitignore
 .github
 
-# Documentation and development files
+# ─── Documentation (not needed at runtime) ───────────────────────────────────
 docs
-README.md
-CHANGELOG.md
-QUICKSTART.md
-LICENSE
-SECURITY.md
 *.md
-!QUICKSTART.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+PRIVACY.md
 
-# Test files
+# ─── Test infrastructure ─────────────────────────────────────────────────────
 tests
 test-*.js
 test-*.mjs
 *.test.ts
 *.spec.ts
 vitest.config.ts
+vitest.*.ts
+stryker.*.mjs
+benchmarks
 
-# IDE and editor files
+# ─── IDE and editor files ────────────────────────────────────────────────────
 .vscode
 .idea
 *.swp
 *.swo
 *~
 .DS_Store
+.~lock.*
 
-# Logs
+# ─── Logs and temporary files ────────────────────────────────────────────────
 logs
 *.log
-npm-debug.log*
-
-# Temporary files
 tmp
 temp
 .cache
+.turbo
+audit-logs
+audit-output
 
-# Scripts not needed in container
-scripts/manual
-scripts/diagnose-all.sh
-scripts/quick-test.sh
-scripts/integrate-inference.sh
-
-# Deployment files (except docker)
+# ─── Scripts not needed in container ─────────────────────────────────────────
+scripts
+add-on
+examples
+sdks
+tools
+infra
+k8s
+skill
+assets
+database
 deployment/kubernetes
 deployment/terraform
 
-# Assets not needed in runtime
-assets
+# ─── Development artifacts ───────────────────────────────────────────────────
+.serval
+.agent-context
+.claude
+.cline
+.vale
+.performance-history
+.discovery-cache
+.data
+architecture-graph.svg
+build_graph.json
+cleanup_backlog.md
+module_inventory.md
+risk_register.md
+repo_manifest.json
+*.xlsx
+*.docx
+*.html
 
-# Inspector and testing configs
-inspector.json
-start-mcp.sh
-
-# Allow prebuilt runtime artifacts for remote packaging
+# ─── Allow prebuilt dist/ for Dockerfile.fly (copy from worktree) ────────────
 !dist/
 !dist/**
+!server.json
+!packages/
+!packages/**

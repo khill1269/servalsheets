@@ -1,64 +1,70 @@
 # ServalSheets Fly.io Dockerfile
 # Packages prebuilt runtime artifacts from the local worktree to avoid remote rebuild pressure.
+# Multi-stage build with security hardening and optimized layer caching.
 
-# Stage 1: Install runtime dependencies
-FROM node:20-alpine AS builder
+# ─── Stage 1: Install runtime dependencies ───────────────────────────────────
+FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c AS deps
 
 WORKDIR /app
 
-# Copy package files (root + all workspace packages for npm ci)
-COPY package*.json ./
-COPY packages/serval-core/package*.json ./packages/serval-core/
-COPY packages/mcp-client/package*.json ./packages/mcp-client/
-COPY packages/mcp-http/package*.json ./packages/mcp-http/
-COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
-COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
+# Copy package manifests only (maximizes Docker layer cache hits)
+COPY package.json package-lock.json ./
+COPY packages/serval-core/package.json ./packages/serval-core/
+COPY packages/mcp-client/package.json ./packages/mcp-client/
+COPY packages/mcp-http/package.json ./packages/mcp-http/
+COPY packages/mcp-runtime/package.json ./packages/mcp-runtime/
+COPY packages/mcp-stdio/package.json ./packages/mcp-stdio/
 
-# Install dependencies required by the prebuilt runtime
-RUN npm ci
+# Install production-only dependencies (no devDependencies in the image)
+RUN npm ci --omit=dev --ignore-scripts \
+  && npm cache clean --force
 
-# Copy source tree, including prebuilt dist artifacts from the worktree
-COPY . .
+# ─── Stage 2: Assemble runtime image ─────────────────────────────────────────
+FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
+
+# Security: install only essential runtime packages, remove package manager caches
+RUN apk add --no-cache curl tini \
+  && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Copy production node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/package.json ./
+
+# Copy prebuilt dist artifacts from the local worktree
+COPY dist ./dist
+COPY packages ./packages
+COPY server.json ./
 
 # Validate that the expected prebuilt runtime entrypoints are present
 RUN test -f dist/http-server-entry.js && test -f packages/mcp-http/dist/direct-entry.js
 
-# Stage 2: Runtime
-FROM node:20-alpine
+# Create non-root user with no home directory or shell
+RUN addgroup -g 1001 -S servalsheets \
+  && adduser -S -u 1001 -G servalsheets -s /sbin/nologin -H servalsheets
 
-WORKDIR /app
+# Create required persistent data directories
+RUN mkdir -p /data/state /data/profiles /data/wal \
+  && chown -R servalsheets:servalsheets /app /data
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
-
-# Copy built artifacts and runtime dependencies
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/server.json ./
-
-# Create non-root user
-RUN addgroup -g 1001 -S servalsheets && \
-    adduser -S servalsheets -u 1001
-
-# Change ownership
-RUN chown -R servalsheets:servalsheets /app
-
-# Switch to non-root user
+# Drop all capabilities, run as non-root
 USER servalsheets
 
 # Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/health/live || exit 1
+# Health check (uses /health/live for liveness, Fly uses /health/ready for readiness)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD curl -sf http://localhost:3000/health/live || exit 1
 
-# Default to HTTP transport
-ENV MCP_TRANSPORT=http
-ENV NODE_ENV=production
-ENV PORT=3000
+# Environment defaults
+ENV MCP_TRANSPORT=http \
+    NODE_ENV=production \
+    PORT=3000
+
+# Use tini as init system for proper signal handling (SIGTERM → graceful shutdown)
+ENTRYPOINT ["/sbin/tini", "--"]
 
 # Start server
 CMD ["node", "dist/http-server-entry.js"]

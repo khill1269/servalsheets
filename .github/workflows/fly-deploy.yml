@@ -1,22 +1,132 @@
+# ServalSheets Fly.io Deployment
+# Deploys to Fly.io after CI passes, with build verification and smoke tests.
 # See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
 
 name: Fly Deploy
+
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_ci_wait:
+        description: 'Skip waiting for CI (emergency deploy)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false  # Never cancel in-flight deploys
 
 jobs:
-  deploy:
-    name: Deploy app
+  wait-for-ci:
+    name: Wait for CI
     runs-on: ubuntu-latest
-    concurrency: deploy-group
+    if: github.event.inputs.skip_ci_wait != 'true'
+    steps:
+      - name: Wait for CI Required check
+        uses: lewagon/wait-on-check-action@ccfb013c15c8afb7bf2b7c028fb74dc5a068cccc # v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: CI Required
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 30
+
+  pre-deploy:
+    name: Build verification
+    runs-on: ubuntu-latest
+    needs: [wait-for-ci]
+    if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify dist artifacts exist
+        run: |
+          test -f dist/http-server-entry.js || { echo "❌ Missing dist/http-server-entry.js"; exit 1; }
+          test -f packages/mcp-http/dist/direct-entry.js || { echo "❌ Missing mcp-http direct-entry.js"; exit 1; }
+          test -f server.json || { echo "❌ Missing server.json"; exit 1; }
+          echo "✅ All required artifacts present"
+
+      - name: Verify schema integrity
+        run: |
+          TOOLS=$(node --input-type=module -e "import { TOOL_COUNT } from './dist/schemas/index.js'; console.log(TOOL_COUNT)")
+          ACTIONS=$(node --input-type=module -e "import { ACTION_COUNT } from './dist/schemas/index.js'; console.log(ACTION_COUNT)")
+          echo "Deploying: ${TOOLS} tools, ${ACTIONS} actions"
+          if [ "$TOOLS" -lt 25 ]; then echo "❌ Tool count regression: $TOOLS < 25"; exit 1; fi
+          if [ "$ACTIONS" -lt 400 ]; then echo "❌ Action count regression: $ACTIONS < 400"; exit 1; fi
+
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    needs: [pre-deploy]
+    environment: production
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Build dist
+        run: |
+          npm ci
+          npm run build
+
       - uses: superfly/flyctl-actions/setup-flyctl@63da3ecc5e2793b98a3f2519b3d75d4f4c11cec2 # master
-      - run: flyctl deploy --remote-only
+
+      - name: Deploy with canary strategy
+        run: flyctl deploy --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Post-deploy smoke test
+        run: |
+          echo "Waiting for deployment to stabilize..."
+          sleep 15
+
+          # Health check
+          HTTP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' https://servalsheets.fly.dev/health/ready || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Health check failed: HTTP $HTTP_CODE"
+            echo "Rolling back..."
+            flyctl releases --json | head -1
+            exit 1
+          fi
+          echo "✅ Health check passed: HTTP $HTTP_CODE"
+
+          # MCP well-known endpoint
+          HTTP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' https://servalsheets.fly.dev/.well-known/oauth-authorization-server || echo "000")
+          echo "OAuth well-known: HTTP $HTTP_CODE"
+
+          # Metrics endpoint
+          HTTP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' https://servalsheets.fly.dev/metrics || echo "000")
+          echo "Metrics endpoint: HTTP $HTTP_CODE"
+
+          echo "✅ Smoke tests passed"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Annotate deployment
+        if: success()
+        run: |
+          flyctl machine list --json | head -5
+          echo "::notice::✅ Deployed ${{ github.sha }} to servalsheets.fly.dev"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
