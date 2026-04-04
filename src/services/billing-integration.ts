@@ -1,693 +1,353 @@
 /**
  * Billing Integration Service
  *
- * Stripe integration for subscription management, invoice generation, and payment processing
+ * Stripe v22 integration for subscription and invoice management.
+ * Handles customer account linking, subscription lifecycle, and invoice webhooks.
  *
- * @category Billing
- * @usage Integrate with Stripe for automated billing
+ * MCP Protocol: 2025-11-25
  */
 
 import Stripe from 'stripe';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'eventemitter3';
 import { logger } from '../utils/logger.js';
-import { NotFoundError, ServiceError } from '../core/errors.js';
-import { getCostTracker, type CostBreakdown } from './cost-tracker.js';
+import type { RequestContext } from '../types/request-context.js';
+import { ErrorCode } from '../schemas/shared.js';
 
-// ============================================================================
-// Types & Interfaces
-// ============================================================================
-
-export interface BillingConfig {
-  stripeSecretKey: string;
-  webhookSecret?: string;
-  currency?: string;
-  billingCycle?: 'monthly' | 'annual';
-  autoInvoicing?: boolean;
-}
-
-/**
- * Runtime bootstrap config for billing integration.
- *
- * Keeps startup wiring explicit and safe:
- * - Disabled by default unless `enabled` is true
- * - No initialization if Stripe secret is missing
- */
 export interface BillingBootstrapConfig {
   enabled: boolean;
   stripeSecretKey?: string;
-  webhookSecret?: string;
-  currency?: string;
-  billingCycle?: 'monthly' | 'annual';
-  autoInvoicing?: boolean;
+}
+
+export interface CustomerInfo {
+  customerId: string;
+  email: string;
+  name?: string;
+  metadata: Record<string, string>;
 }
 
 export interface SubscriptionInfo {
-  tenantId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing';
+  subscriptionId: string;
+  customerId: string;
+  status: 'active' | 'past_due' | 'unpaid' | 'canceled' | 'trialing';
+  plan: string;
   currentPeriodStart: Date;
   currentPeriodEnd: Date;
-  cancelAtPeriodEnd: boolean;
-  tier: string;
+  canceledAt?: Date;
 }
 
 export interface InvoiceInfo {
-  tenantId: string;
   invoiceId: string;
-  stripeInvoiceId: string;
+  customerId: string;
+  subscriptionId?: string;
+  status: 'draft' | 'open' | 'paid' | 'void' | 'uncollectible';
   amount: number;
   currency: string;
-  status: 'draft' | 'open' | 'paid' | 'void' | 'uncollectible';
-  periodStart: Date;
-  periodEnd: Date;
-  createdAt: Date;
   dueDate?: Date;
   paidAt?: Date;
-  hostedInvoiceUrl?: string;
-  invoicePdf?: string;
 }
 
-export interface PaymentMethod {
-  id: string;
-  type: 'card' | 'bank_account';
-  last4: string;
-  brand?: string;
-  expiryMonth?: number;
-  expiryYear?: number;
-  isDefault: boolean;
-}
+export class BillingIntegrationService extends EventEmitter {
+  private stripeClient: Stripe | null;
+  private config: BillingBootstrapConfig;
 
-// ============================================================================
-// Billing Integration Service
-// ============================================================================
-
-export class BillingIntegration extends EventEmitter {
-  private stripe: Stripe;
-  private costTracker = getCostTracker();
-  private config: Required<BillingConfig>;
-  private tenantCustomers: Map<string, string> = new Map(); // tenantId -> stripeCustomerId
-  private customerTenants: Map<string, string> = new Map(); // stripeCustomerId -> tenantId
-
-  constructor(config: BillingConfig) {
+  constructor(config: BillingBootstrapConfig) {
     super();
+    this.config = config;
+    this.stripeClient = null;
 
-    this.config = {
-      stripeSecretKey: config.stripeSecretKey,
-      webhookSecret: config.webhookSecret || '',
-      currency: config.currency || 'usd',
-      billingCycle: config.billingCycle || 'monthly',
-      autoInvoicing: config.autoInvoicing !== false,
-    };
-
-    this.stripe = new Stripe(this.config.stripeSecretKey, {
-      apiVersion: '2025-02-24.acacia',
-      typescript: true,
-    });
-
-    if (this.config.autoInvoicing) {
-      this.startAutoInvoicing();
+    if (config.enabled && config.stripeSecretKey) {
+      try {
+        this.stripeClient = new Stripe(config.stripeSecretKey, {
+          apiVersion: '2026-03-25.dahlia',
+        });
+        logger.info('Billing service initialized with Stripe v22');
+      } catch (error) {
+        logger.error('Failed to initialize Stripe client', { error });
+      }
     }
   }
 
-  // ==========================================================================
-  // Customer Management
-  // ==========================================================================
+  /**
+   * Check if billing service is operational
+   */
+  isOperational(): boolean {
+    return this.config.enabled && this.stripeClient !== null;
+  }
 
   /**
-   * Create or get Stripe customer for tenant
+   * Create or retrieve a customer
    */
-  async createCustomer(
-    tenantId: string,
+  async getOrCreateCustomer(
     email: string,
     name?: string,
     metadata?: Record<string, string>
-  ): Promise<string> {
+  ): Promise<CustomerInfo> {
+    if (!this.stripeClient) {
+      throw new Error('Billing service not initialized', { code: ErrorCode.BILLING_NOT_AVAILABLE });
+    }
+
     try {
-      // Check if customer already exists
-      const existingCustomerId = this.tenantCustomers.get(tenantId);
-      if (existingCustomerId) {
-        return existingCustomerId;
+      // Search for existing customer
+      const customers = await this.stripeClient.customers.list({ email, limit: 1 });
+
+      if (customers.data.length > 0) {
+        const customer = customers.data[0];
+        return {
+          customerId: customer.id,
+          email: customer.email || email,
+          name: customer.name || name,
+          metadata: customer.metadata || {},
+        };
       }
 
       // Create new customer
-      const customer = await this.stripe.customers.create({
+      const customer = await this.stripeClient.customers.create({
         email,
         name,
-        metadata: {
-          tenantId,
-          ...metadata,
-        },
+        metadata,
       });
 
-      this.tenantCustomers.set(tenantId, customer.id);
-      this.customerTenants.set(customer.id, tenantId);
-
-      logger.info('Created Stripe customer', { tenantId, customerId: customer.id });
-      return customer.id;
-    } catch (error) {
-      logger.error('Failed to create Stripe customer', { tenantId, error });
-      throw error;
-    }
-  }
-
-  /**
-   * Get Stripe customer ID for tenant
-   */
-  getCustomerId(tenantId: string): string | undefined {
-    return this.tenantCustomers.get(tenantId);
-  }
-
-  /**
-   * Get tenant ID from Stripe customer ID
-   */
-  getTenantId(customerId: string): string | undefined {
-    return this.customerTenants.get(customerId);
-  }
-
-  // ==========================================================================
-  // Subscription Management
-  // ==========================================================================
-
-  /**
-   * Create subscription for tenant
-   */
-  async createSubscription(
-    tenantId: string,
-    priceId: string,
-    trialDays?: number
-  ): Promise<SubscriptionInfo> {
-    try {
-      const customerId = this.getCustomerId(tenantId);
-      if (!customerId) {
-        throw new NotFoundError('Stripe customer', tenantId);
-      }
-
-      const subscription = await this.stripe.subscriptions.create({
-        customer: customerId,
-        items: [{ price: priceId }],
-        trial_period_days: trialDays,
-        metadata: { tenantId },
-      });
-
-      const info: SubscriptionInfo = {
-        tenantId,
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscription.id,
-        status: subscription.status as SubscriptionInfo['status'],
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        tier: subscription.items.data[0]?.price.metadata?.['tier'] || 'unknown',
+      return {
+        customerId: customer.id,
+        email: customer.email || email,
+        name: customer.name,
+        metadata: customer.metadata || {},
       };
-
-      logger.info('Created subscription', info);
-      return info;
     } catch (error) {
-      logger.error('Failed to create subscription', { tenantId, error });
+      logger.error('Failed to get or create customer', { error, email });
       throw error;
     }
   }
 
   /**
-   * Get subscription info
+   * Get subscription information
    */
   async getSubscription(subscriptionId: string): Promise<SubscriptionInfo | null> {
-    try {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
-      const tenantId = this.getTenantId(subscription.customer as string);
-
-      if (!tenantId) {
-        return null;
-      }
-
-      return {
-        tenantId,
-        stripeCustomerId: subscription.customer as string,
-        stripeSubscriptionId: subscription.id,
-        status: subscription.status as SubscriptionInfo['status'],
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        tier: subscription.items.data[0]?.price.metadata?.['tier'] || 'unknown',
-      };
-    } catch (error) {
-      logger.error('Failed to get subscription', { subscriptionId, error });
+    if (!this.stripeClient) {
       return null;
     }
-  }
 
-  /**
-   * Cancel subscription
-   */
-  async cancelSubscription(subscriptionId: string, immediate: boolean = false): Promise<void> {
     try {
-      if (immediate) {
-        await this.stripe.subscriptions.cancel(subscriptionId);
-      } else {
-        await this.stripe.subscriptions.update(subscriptionId, {
-          cancel_at_period_end: true,
-        });
-      }
+      const subscription = await this.stripeClient.subscriptions.retrieve(subscriptionId);
 
-      logger.info('Canceled subscription', { subscriptionId, immediate });
-    } catch (error) {
-      logger.error('Failed to cancel subscription', { subscriptionId, error });
-      throw error;
-    }
-  }
-
-  /**
-   * Update subscription tier
-   */
-  async updateSubscription(subscriptionId: string, newPriceId: string): Promise<void> {
-    try {
-      const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
+      // Access subscription period from the first item
       const firstItem = subscription.items.data[0];
       if (!firstItem) {
-        throw new ServiceError(
-          'No subscription items found',
-          'INTERNAL_ERROR',
-          'BillingIntegration'
-        );
-      }
-      await this.stripe.subscriptions.update(subscriptionId, {
-        items: [
-          {
-            id: firstItem.id,
-            price: newPriceId,
-          },
-        ],
-      });
-
-      logger.info('Updated subscription', { subscriptionId, newPriceId });
-    } catch (error) {
-      logger.error('Failed to update subscription', { subscriptionId, error });
-      throw error;
-    }
-  }
-
-  // ==========================================================================
-  // Invoice Generation
-  // ==========================================================================
-
-  /**
-   * Generate invoice for tenant
-   */
-  async generateInvoice(tenantId: string): Promise<InvoiceInfo> {
-    try {
-      const customerId = this.getCustomerId(tenantId);
-      if (!customerId) {
-        throw new NotFoundError('Stripe customer', tenantId);
-      }
-
-      // Get cost breakdown
-      const costBreakdown = this.costTracker.calculateCost(tenantId);
-
-      // Create invoice items
-      await this.addInvoiceItems(customerId, costBreakdown);
-
-      // Create invoice
-      const invoice = await this.stripe.invoices.create({
-        customer: customerId,
-        auto_advance: true,
-        metadata: {
-          tenantId,
-          periodStart: costBreakdown.period.startDate.toISOString(),
-          periodEnd: costBreakdown.period.endDate.toISOString(),
-        },
-      });
-
-      // Finalize invoice
-      const finalizedInvoice = await this.stripe.invoices.finalizeInvoice(invoice.id);
-
-      const info: InvoiceInfo = {
-        tenantId,
-        invoiceId: invoice.id,
-        stripeInvoiceId: invoice.id,
-        amount: finalizedInvoice.amount_due / 100, // Convert from cents
-        currency: finalizedInvoice.currency,
-        status: finalizedInvoice.status as InvoiceInfo['status'],
-        periodStart: costBreakdown.period.startDate,
-        periodEnd: costBreakdown.period.endDate,
-        createdAt: new Date(finalizedInvoice.created * 1000),
-        dueDate: finalizedInvoice.due_date ? new Date(finalizedInvoice.due_date * 1000) : undefined,
-        hostedInvoiceUrl: finalizedInvoice.hosted_invoice_url || undefined,
-        invoicePdf: finalizedInvoice.invoice_pdf || undefined,
-      };
-
-      logger.info('Generated invoice', info);
-      this.emit('invoice:generated', info);
-
-      return info;
-    } catch (error) {
-      logger.error('Failed to generate invoice', { tenantId, error });
-      throw error;
-    }
-  }
-
-  /**
-   * Add invoice items from cost breakdown
-   */
-  private async addInvoiceItems(customerId: string, costBreakdown: CostBreakdown): Promise<void> {
-    const items = [
-      {
-        description: `API Calls (${costBreakdown.usage.apiCalls.total.toLocaleString()})`,
-        amount: Math.round(costBreakdown.costs.apiCalls * 100), // Convert to cents
-      },
-      {
-        description: `Storage (${costBreakdown.usage.storage.gb.toFixed(2)} GB)`,
-        amount: Math.round(costBreakdown.costs.storage * 100),
-      },
-      {
-        description: `User Seats (${costBreakdown.usage.users.totalSeats})`,
-        amount: Math.round(costBreakdown.costs.userSeats * 100),
-      },
-      {
-        description: 'Feature Usage',
-        amount: Math.round(costBreakdown.costs.features * 100),
-      },
-    ];
-
-    // Add discount if applicable
-    if (costBreakdown.costs.discounts > 0) {
-      items.push({
-        description: `${costBreakdown.tier.name} Tier Discount (${costBreakdown.tier.discountPercent}%)`,
-        amount: -Math.round(costBreakdown.costs.discounts * 100),
-      });
-    }
-
-    // Create invoice items
-    for (const item of items) {
-      if (item.amount > 0 || item.amount < 0) {
-        await this.stripe.invoiceItems.create({
-          customer: customerId,
-          amount: item.amount,
-          currency: this.config.currency,
-          description: item.description,
-        });
-      }
-    }
-  }
-
-  /**
-   * Get invoice
-   */
-  async getInvoice(invoiceId: string): Promise<InvoiceInfo | null> {
-    try {
-      const invoice = await this.stripe.invoices.retrieve(invoiceId);
-      const tenantId = this.getTenantId(invoice.customer as string);
-
-      if (!tenantId) {
+        logger.warn('Subscription has no items', { subscriptionId });
         return null;
       }
 
       return {
-        tenantId,
-        invoiceId: invoice.id,
-        stripeInvoiceId: invoice.id,
-        amount: invoice.amount_due / 100,
-        currency: invoice.currency,
-        status: invoice.status as InvoiceInfo['status'],
-        periodStart: new Date(invoice.period_start * 1000),
-        periodEnd: new Date(invoice.period_end * 1000),
-        createdAt: new Date(invoice.created * 1000),
-        dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : undefined,
-        paidAt: invoice.status_transitions?.paid_at
-          ? new Date(invoice.status_transitions.paid_at * 1000)
+        subscriptionId: subscription.id,
+        customerId: subscription.customer as string,
+        status: subscription.status as SubscriptionInfo['status'],
+        plan: firstItem.price.nickname || firstItem.price.id,
+        currentPeriodStart: new Date(firstItem.current_period_start * 1000),
+        currentPeriodEnd: new Date(firstItem.current_period_end * 1000),
+        canceledAt: subscription.canceled_at
+          ? new Date(subscription.canceled_at * 1000)
           : undefined,
-        hostedInvoiceUrl: invoice.hosted_invoice_url || undefined,
-        invoicePdf: invoice.invoice_pdf || undefined,
       };
     } catch (error) {
-      logger.error('Failed to get invoice', { invoiceId, error });
+      logger.error('Failed to retrieve subscription', { error, subscriptionId });
       return null;
     }
   }
 
   /**
-   * List invoices for tenant
+   * Create a subscription for a customer
    */
-  async listInvoices(tenantId: string, limit: number = 10): Promise<InvoiceInfo[]> {
-    try {
-      const customerId = this.getCustomerId(tenantId);
-      if (!customerId) {
-        return [];
-      }
+  async createSubscription(
+    customerId: string,
+    priceId: string,
+    metadata?: Record<string, string>
+  ): Promise<SubscriptionInfo> {
+    if (!this.stripeClient) {
+      throw new Error('Billing service not initialized', { code: ErrorCode.BILLING_NOT_AVAILABLE });
+    }
 
-      const invoices = await this.stripe.invoices.list({
+    try {
+      const subscription = await this.stripeClient.subscriptions.create({
         customer: customerId,
-        limit,
+        items: [{ price: priceId }],
+        metadata,
       });
 
-      return invoices.data.map((invoice: Stripe.Invoice) => ({
-        tenantId,
-        invoiceId: invoice.id,
-        stripeInvoiceId: invoice.id,
-        amount: invoice.amount_due / 100,
-        currency: invoice.currency,
-        status: invoice.status as InvoiceInfo['status'],
-        periodStart: new Date(invoice.period_start * 1000),
-        periodEnd: new Date(invoice.period_end * 1000),
-        createdAt: new Date(invoice.created * 1000),
-        dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : undefined,
-        paidAt: invoice.status_transitions?.paid_at
-          ? new Date(invoice.status_transitions.paid_at * 1000)
+      const firstItem = subscription.items.data[0];
+      if (!firstItem) {
+        throw new Error('Subscription created without items');
+      }
+
+      return {
+        subscriptionId: subscription.id,
+        customerId: subscription.customer as string,
+        status: subscription.status as SubscriptionInfo['status'],
+        plan: firstItem.price.nickname || firstItem.price.id,
+        currentPeriodStart: new Date(firstItem.current_period_start * 1000),
+        currentPeriodEnd: new Date(firstItem.current_period_end * 1000),
+      };
+    } catch (error) {
+      logger.error('Failed to create subscription', { error, customerId, priceId });
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a subscription
+   */
+  async cancelSubscription(subscriptionId: string): Promise<SubscriptionInfo> {
+    if (!this.stripeClient) {
+      throw new Error('Billing service not initialized', { code: ErrorCode.BILLING_NOT_AVAILABLE });
+    }
+
+    try {
+      const subscription = await this.stripeClient.subscriptions.del(subscriptionId);
+
+      const firstItem = subscription.items.data[0];
+      if (!firstItem) {
+        throw new Error('Subscription has no items');
+      }
+
+      return {
+        subscriptionId: subscription.id,
+        customerId: subscription.customer as string,
+        status: subscription.status as SubscriptionInfo['status'],
+        plan: firstItem.price.nickname || firstItem.price.id,
+        currentPeriodStart: new Date(firstItem.current_period_start * 1000),
+        currentPeriodEnd: new Date(firstItem.current_period_end * 1000),
+        canceledAt: subscription.canceled_at
+          ? new Date(subscription.canceled_at * 1000)
           : undefined,
-        hostedInvoiceUrl: invoice.hosted_invoice_url || undefined,
-        invoicePdf: invoice.invoice_pdf || undefined,
-      }));
+      };
     } catch (error) {
-      logger.error('Failed to list invoices', { tenantId, error });
-      return [];
-    }
-  }
-
-  // ==========================================================================
-  // Payment Methods
-  // ==========================================================================
-
-  /**
-   * Attach payment method to customer
-   */
-  async attachPaymentMethod(tenantId: string, paymentMethodId: string): Promise<void> {
-    try {
-      const customerId = this.getCustomerId(tenantId);
-      if (!customerId) {
-        throw new NotFoundError('Stripe customer', tenantId);
-      }
-
-      await this.stripe.paymentMethods.attach(paymentMethodId, {
-        customer: customerId,
-      });
-
-      // Set as default payment method
-      await this.stripe.customers.update(customerId, {
-        invoice_settings: {
-          default_payment_method: paymentMethodId,
-        },
-      });
-
-      logger.info('Attached payment method', { tenantId, paymentMethodId });
-    } catch (error) {
-      logger.error('Failed to attach payment method', { tenantId, error });
+      logger.error('Failed to cancel subscription', { error, subscriptionId });
       throw error;
     }
   }
 
   /**
-   * List payment methods for tenant
+   * Get invoices for a customer
    */
-  async listPaymentMethods(tenantId: string): Promise<PaymentMethod[]> {
+  async getInvoices(customerId: string, limit: number = 20): Promise<InvoiceInfo[]> {
+    if (!this.stripeClient) {
+      return [];
+    }
+
     try {
-      const customerId = this.getCustomerId(tenantId);
-      if (!customerId) {
-        return [];
-      }
+      const invoices = await this.stripeClient.invoices.list({ customer: customerId, limit });
 
-      const customer = await this.stripe.customers.retrieve(customerId);
-      const defaultPaymentMethodId =
-        customer && !customer.deleted ? customer.invoice_settings?.default_payment_method : null;
-
-      const paymentMethods = await this.stripe.paymentMethods.list({
-        customer: customerId,
-        type: 'card',
-      });
-
-      return paymentMethods.data.map((pm: Stripe.PaymentMethod) => ({
-        id: pm.id,
-        type: pm.type as 'card',
-        last4: pm.card?.last4 || '',
-        brand: pm.card?.brand,
-        expiryMonth: pm.card?.exp_month,
-        expiryYear: pm.card?.exp_year,
-        isDefault: pm.id === defaultPaymentMethodId,
+      return invoices.data.map((invoice) => ({
+        invoiceId: invoice.id,
+        customerId: invoice.customer as string,
+        subscriptionId: invoice.subscription as string | undefined,
+        status: invoice.status as InvoiceInfo['status'],
+        amount: invoice.amount_due,
+        currency: invoice.currency,
+        dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : undefined,
+        paidAt: invoice.paid_at ? new Date(invoice.paid_at * 1000) : undefined,
       }));
     } catch (error) {
-      logger.error('Failed to list payment methods', { tenantId, error });
+      logger.error('Failed to retrieve invoices', { error, customerId });
       return [];
     }
   }
 
-  // ==========================================================================
-  // Auto-Invoicing
-  // ==========================================================================
-
   /**
-   * Start automatic invoice generation at end of billing period
+   * Get a specific invoice
    */
-  private startAutoInvoicing(): void {
-    const checkInterval = 24 * 60 * 60 * 1000; // Check daily
+  async getInvoice(invoiceId: string): Promise<InvoiceInfo | null> {
+    if (!this.stripeClient) {
+      return null;
+    }
 
-    const timer = setInterval(async () => {
-      const now = new Date();
-      const isEndOfMonth =
-        now.getDate() === new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-
-      if (isEndOfMonth) {
-        logger.info('Running auto-invoicing for all tenants');
-        const tenants = this.costTracker.getAllTenants();
-
-        for (const tenantId of tenants) {
-          try {
-            await this.generateInvoice(tenantId);
-          } catch (error) {
-            logger.error('Auto-invoicing failed', { tenantId, error });
-          }
-        }
-      }
-    }, checkInterval);
-    timer.unref();
-  }
-
-  // ==========================================================================
-  // Webhook Handling
-  // ==========================================================================
-
-  /**
-   * Handle Stripe webhook event
-   */
-  async handleWebhook(payload: string | Buffer, signature: string): Promise<void> {
     try {
-      const event = this.stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        this.config.webhookSecret
-      );
+      const invoice = await this.stripeClient.invoices.retrieve(invoiceId);
 
-      switch (event.type) {
-        case 'invoice.paid':
-          await this.handleInvoicePaid(event.data.object as Stripe.Invoice);
-          break;
-        case 'invoice.payment_failed':
-          await this.handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
-          break;
-        case 'customer.subscription.deleted':
-          await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-          break;
-        case 'customer.subscription.updated':
-          await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-          break;
-      }
+      return {
+        invoiceId: invoice.id,
+        customerId: invoice.customer as string,
+        subscriptionId: invoice.subscription as string | undefined,
+        status: invoice.status as InvoiceInfo['status'],
+        amount: invoice.amount_due,
+        currency: invoice.currency,
+        dueDate: invoice.due_date ? new Date(invoice.due_date * 1000) : undefined,
+        paidAt: invoice.paid_at ? new Date(invoice.paid_at * 1000) : undefined,
+      };
     } catch (error) {
-      logger.error('Webhook handling failed', { error });
-      throw error;
+      logger.error('Failed to retrieve invoice', { error, invoiceId });
+      return null;
     }
   }
 
-  private async handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
-    const tenantId = this.getTenantId(invoice.customer as string);
-    if (tenantId) {
-      logger.info('Invoice paid', { tenantId, invoiceId: invoice.id });
-      this.emit('invoice:paid', { tenantId, invoiceId: invoice.id });
+  /**
+   * Handle webhook event for invoice.paid
+   */
+  async handleInvoicePaid(invoiceId: string): Promise<void> {
+    const invoice = await this.getInvoice(invoiceId);
+    if (invoice) {
+      logger.info('Invoice paid', { invoiceId, customerId: invoice.customerId });
+      this.emit('invoice.paid', invoice);
     }
   }
 
-  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-    const tenantId = this.getTenantId(invoice.customer as string);
-    if (tenantId) {
-      logger.warn('Invoice payment failed', { tenantId, invoiceId: invoice.id });
-      this.emit('invoice:payment_failed', { tenantId, invoiceId: invoice.id });
+  /**
+   * Handle webhook event for invoice.payment_failed
+   */
+  async handleInvoicePaymentFailed(invoiceId: string): Promise<void> {
+    const invoice = await this.getInvoice(invoiceId);
+    if (invoice) {
+      logger.warn('Invoice payment failed', { invoiceId, customerId: invoice.customerId });
+      this.emit('invoice.payment_failed', invoice);
     }
   }
 
-  private async handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-    const tenantId = this.getTenantId(subscription.customer as string);
-    if (tenantId) {
-      logger.info('Subscription deleted', { tenantId, subscriptionId: subscription.id });
-      this.emit('subscription:deleted', { tenantId, subscriptionId: subscription.id });
+  /**
+   * Handle webhook event for customer.subscription.updated
+   */
+  async handleSubscriptionUpdated(subscriptionId: string): Promise<void> {
+    const subscription = await this.getSubscription(subscriptionId);
+    if (subscription) {
+      logger.info('Subscription updated', { subscriptionId, customerId: subscription.customerId });
+      this.emit('subscription.updated', subscription);
     }
   }
 
-  private async handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-    const tenantId = this.getTenantId(subscription.customer as string);
-    if (tenantId) {
-      logger.info('Subscription updated', { tenantId, subscriptionId: subscription.id });
-      this.emit('subscription:updated', { tenantId, subscriptionId: subscription.id });
+  /**
+   * Handle webhook event for customer.subscription.deleted
+   */
+  async handleSubscriptionDeleted(subscriptionId: string): Promise<void> {
+    logger.info('Subscription deleted', { subscriptionId });
+    this.emit('subscription.deleted', subscriptionId);
+  }
+
+  /**
+   * Get billing status for a customer
+   */
+  async getBillingStatus(
+    customerId: string
+  ): Promise<{ subscription?: SubscriptionInfo; invoices: InvoiceInfo[] }> {
+    if (!this.stripeClient) {
+      return { invoices: [] };
     }
-  }
-}
 
-// ============================================================================
-// Factory
-// ============================================================================
+    try {
+      const subscriptions = await this.stripeClient.subscriptions.list({
+        customer: customerId,
+        limit: 1,
+        status: 'all',
+      });
 
-let billingIntegrationInstance: BillingIntegration | null = null;
+      const invoices = await this.getInvoices(customerId, 10);
 
-export function createBillingIntegration(config: BillingConfig): BillingIntegration {
-  billingIntegrationInstance = new BillingIntegration(config);
-  return billingIntegrationInstance;
-}
+      if (subscriptions.data.length > 0) {
+        const subscription = await this.getSubscription(subscriptions.data[0].id);
+        return { subscription: subscription || undefined, invoices };
+      }
 
-export function getBillingIntegration(): BillingIntegration | null {
-  return billingIntegrationInstance;
-}
-
-/**
- * Initialize billing integration from runtime configuration.
- *
- * Safe behavior:
- * - No-op when disabled
- * - Reuses existing singleton if already initialized
- * - Logs and returns null on missing/invalid config
- */
-export function initializeBillingIntegration(
-  config: BillingBootstrapConfig
-): BillingIntegration | null {
-  if (!config.enabled) {
-    return billingIntegrationInstance;
-  }
-
-  if (billingIntegrationInstance) {
-    return billingIntegrationInstance;
-  }
-
-  const secret = config.stripeSecretKey?.trim();
-  if (!secret) {
-    logger.warn('Billing integration enabled but STRIPE_SECRET_KEY is not configured');
-    return null;
-  }
-
-  try {
-    const integration = createBillingIntegration({
-      stripeSecretKey: secret,
-      webhookSecret: config.webhookSecret?.trim() || undefined,
-      currency: config.currency ?? 'usd',
-      billingCycle: config.billingCycle ?? 'monthly',
-      autoInvoicing: config.autoInvoicing ?? true,
-    });
-
-    logger.info('Billing integration initialized', {
-      billingCycle: config.billingCycle ?? 'monthly',
-      autoInvoicing: config.autoInvoicing ?? true,
-      hasWebhookSecret: Boolean(config.webhookSecret),
-    });
-
-    return integration;
-  } catch (error) {
-    logger.error('Billing integration initialization failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
+      return { invoices };
+    } catch (error) {
+      logger.error('Failed to get billing status', { error, customerId });
+      return { invoices: [] };
+    }
   }
 }
