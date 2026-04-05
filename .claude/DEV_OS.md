@@ -1,563 +1,419 @@
-# Claude Code Development OS — ServalSheets
+# Claude Code Development Operating System (Dev OS)
 
-> Living planning document. Updated as research progresses.
-> Last updated: 2026-02-24 | Session: Initial research + architecture
->
-> **Purpose:** Transform the existing 17 isolated specialist agents into a coordinated
-> development team that operates with minimal manual orchestration.
-> This is NOT a ServalSheets feature — it lives entirely in the Claude Code layer.
+**For ServalSheets 2.0.0 (MCP 2025-11-25)**  
+Last Updated: Session 111 (2026-04-01)
 
----
+This is the complete decision framework and agent collective for ServalSheets development.
 
-## Status Overview
+## Quick Links
 
-| Phase | What | Status | Priority |
-|-------|------|--------|----------|
-| 0A | Enable Agent Teams in settings.local.json | ✅ DONE | HIGH — 5 min |
-| 0B | Auto-run `schema:commit` on schema file edit | ⬜ BLOCKED | check:drift hangs (Known Issue) |
-| 0C | Upgrade Stop hook: advisory prompt → actual shell checks | ✅ DONE | — |
-| 0D | Add pre-commit gate (block `git commit` if verify fails) | ⬜ BLOCKED | check:drift hangs (Known Issue) |
-| FIX | Fix `validate-bash-command.sh` stdin parsing (was broken) | ✅ DONE | — |
-| FIX | Add `schema:commit`, `audit:*`, `validate:*`, git read cmds to auto-approve | ✅ DONE | — |
-| 1A | `dev-orchestrator.md` — global agent (~/.claude/agents/) | ✅ DONE | HIGH |
-| 1B | `dev-team-lead.md` — project coordinator (.claude/agents/) | ✅ DONE | HIGH |
-| 2A | `dev-postmortem.md` — global session-end agent (~/.claude/agents/) | ✅ DONE | MEDIUM |
-| 2B | Shared memory: `memory: user` on debug-tracer, code-review-orchestrator, mcp-protocol-specialist | ✅ DONE | MEDIUM |
-| 3A | Skills: `/standup` (global), `/implement`, `/ship`, `/debug`, `/review`, `/schema` | ✅ DONE | LOW |
-| 3B | Convert YAML task boards to active tracking | ⬜ SKIP | Both boards are stale (pilot-phase.yaml has 1 dummy task). Not worth activating. |
+- **Live Project State:** `.serval/state.md` (metrics, test health, tools/actions)
+- **Session Notes:** `.serval/session-notes.md` (current phase, what just completed)
+- **Architecture Reference:** `docs/development/CODEBASE_CONTEXT.md` (all 25 tools, handler patterns)
+- **Feature Specs:** `docs/development/FEATURE_PLAN.md` (P4-P14 features, implementation order)
+- **Source of Truth:** `src/schemas/action-counts.ts:41,46` (authoritative tool/action counts)
+- **MCP Compliance:** MCP 2025-11-25 (SEP-1577, SEP-1036, SEP-1686, SEP-973)
 
----
+## Phase 0: Setup (Session Start)
 
-## Research Findings (2026-02-24)
+**Happens automatically via `.claude/hooks.json` SessionStart hook.**
 
-### Confirmed Claude Code Capabilities
+- Auto-generates `.serval/state.md` with live metrics (tools, actions, test count, git status)
+- Displays 25 agents available + their specializations
+- Prompts to read CLAUDE.md if not already loaded
 
-**Global agents exist at `~/.claude/agents/`**
-- Work across ALL projects, not just ServalSheets
-- Priority: CLI flag > `.claude/agents/` > `~/.claude/agents/` (project overrides global)
-- Can be overridden per-project with same agent name
+**Task:** Confirm project state is green (tests passing, metadata synced)
 
-**Agent Teams (EXPERIMENTAL)**
-- Enable: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in settings
-- Currently **disabled** (`"0"`) in `.claude/settings.local.json`
-- Lead spawns up to 4 teammates running in parallel
-- Teammates can communicate directly via shared mailbox
-- Teammates CANNOT spawn their own teams (only lead can)
-- Known limitation: session resumption has issues (experimental)
+## Phase 1: Plan (5–10 min)
 
-**Subagent spawning rules**
-- Standard subagents (via Task tool) CANNOT spawn other subagents
-- Agent Teams bypass this — teammates run in parallel with direct comms
-- Tool restriction `tools: Task(agent-a, agent-b)` is ENFORCED (hard block, not hint)
+**Goal:** Break down user request into atomic tasks.
 
-**Hook types available (we only use 2 of 3)**
-- `"type": "command"` — runs shell script (what we use now, advisory only)
-- `"type": "prompt"` — asks Haiku to make yes/no decision (what Stop hook uses)
-- `"type": "agent"` — spawns full subagent with tools ← **we don't use this yet**
+1. **Understand the request** — Is it:
+   - Feature implementation (extends an action)?
+   - Bug fix (fix broken code)?
+   - Verification (run gates)?
+   - Architecture review (audit)?  
+   - Documentation (update docs)?
 
-**20 hook events (we use 4 of 20)**
-- Used: `SessionStart`, `Stop`, `PreToolUse`, `PostToolUse`
-- Unused but relevant: `SubagentStop`, `TaskCompleted`, `PostToolUseFailure`, `PreCompact`
+2. **Map to specialists**
+   - Feature? → `servalsheets-research` + `google-api-expert` + `servalsheets-implementation`
+   - Bug? → `debug-tracer` + `servalsheets-research` + fix + `servalsheets-validation`
+   - Verify? → `servalsheets-validation` alone
+   - Audit? → 3 parallel `Explore` agents
+   - Docs? → `writing-specialist` alone
 
-**Shared memory between agents**
-- Default: each agent has its own `MEMORY.md` in `.claude/agent-memory/<name>/`
-- `memory: user` scope → agents share memory at `~/.claude/agent-memory/<name>/MEMORY.md`
-- Two different agents with `memory: user` still have SEPARATE files (by agent name)
-- To share between agents: write to a common file they both Read
+3. **Estimate scope** — How many src/ files will change?
+   - ≤3 files: Direct task (no planning needed)
+   - 4–6 files: 1–2 agent chain (research → implementation)
+   - 7+ files: Escalate to user for architecture confirmation
 
-**Model per agent**
-- `model: haiku/sonnet/opus` in frontmatter overrides parent session model
-- `model: inherit` (default) uses parent's model
+4. **Set success criteria**
+   - Tests pass? (npm run test:fast)
+   - Drift check passes? (npm run check:drift)
+   - Code review? (npm run verify:safe)
 
-**Permission inheritance**
-- Subagents CANNOT relax parent restrictions, only maintain or tighten
-- `bypassPermissions` on parent = bypass everywhere, overrides subagent
+## Phase 2: Research (5–30 min per agent)
 
-### Current Setup Gaps
+**Specialists:** `servalsheets-research`, `google-api-expert`, `debug-tracer`, `security-auditor`
 
-1. **17 agents, zero coordination** — all require manual `Task()` invocation
-2. **Advisory-only hooks** — Stop prompts but doesn't block; post-edit warns but doesn't enforce
-3. **No schema:commit automation** — #1 CI failure cause, fully automatable
-4. **Agent Teams disabled** — simple setting flip to unlock parallel workflows
-5. **No global orchestrator** — "what should I work on?" has no answer without manual review
-6. **Shared memory not used** — each agent rediscovers patterns independently
-7. **YAML task boards unused** — defined but never loaded (work tracked in session-notes.md)
-8. **`MAX_THINKING_TOKENS`: 12000** — low (typical: 20-40K); may reduce reasoning quality on complex tasks
+### servalsheets-research
 
----
+Reads existing code patterns to understand implementation strategy.
 
-## Architecture
+**Prompt Template:**
 
 ```
-~/.claude/agents/              ← GLOBAL (all projects)
-  dev-orchestrator.md          ← "What should I work on today?"
-  dev-postmortem.md            ← End-of-session update automation
-
-.claude/agents/                ← PROJECT (ServalSheets)
-  dev-team-lead.md             ← NEW: coordinates the 17 specialists
-  [existing 17 agents]         ← unchanged, just get a coordinator
-
-.claude/hooks.json             ← ENFORCEMENT (changes advisory → gates)
-~/.claude/settings.local.json  ← Enable Agent Teams
+Find 2-3 similar {action_name} implementations in src/handlers/ to understand:
+1. Schema pattern (discriminated union in src/schemas/{tool}.ts)
+2. Handler method signature (private async handle{ActionName})
+3. Service usage (which services does it call?)
+4. Test pattern (success + error paths in tests/handlers/)
+5. Any schema commits needed (npm run schema:commit)
 ```
 
-**Interaction model:**
+**Outputs:**
+- Code snippets (file:line references)
+- Pattern identification
+- Implementation roadmap
+
+### google-api-expert
+
+Validates approach against Google APIs best practices.
+
+**Prompt Template:**
+
 ```
-You → "implement ISSUE-047"
-  → dev-team-lead reads state, ISSUES.md, relevant code
-  → spawns servalsheets-research (parallel) + google-api-expert (parallel)
-  → synthesizes findings → spawns servalsheets-implementation
-  → spawns servalsheets-validation → reports pass/fail + PR-ready summary
-
-You → "what should I work on today?"
-  → dev-orchestrator (global) reads CLAUDE.md, state.md, session-notes.md, ISSUES.md
-  → returns: top 3 tasks, which agents handle each, blockers
-```
-
----
-
-## Phase 0 — Quick Wins (Changes to Existing Files)
-
-### 0A: Enable Agent Teams
-
-**File:** `.claude/settings.local.json` line 3
-
-```json
-"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+Review the {action} approach for:
+1. API efficiency: Are we making the minimum API calls?
+   - Any full-column refs (Sheet1!A:Z) triggering grid fetch?
+   - Missing field masks?
+   - Missed batching opportunities?
+2. Rate limits: Will this hit quota on typical usage?
+3. Circuit breaker: Does it degrade gracefully?
+4. Caching: Does it leverage CachedSheetsApi or TieredRetrieval?
+5. Retry logic: Is it in scope for executeWithRetry()?
 ```
 
-Change from `"0"` to `"1"`. Unlocks parallel teammate workflows.
+**Outputs:**
+- API call count estimate
+- Efficiency optimizations
+- Rate limit concerns
+- Circuit breaker strategy
 
-Also consider increasing: `"MAX_THINKING_TOKENS": "20000"` (currently 12000, low)
+### debug-tracer
 
----
+Diagnoses failures by tracing execution through the 4-layer pipeline.
 
-### 0B: Auto-run schema:commit on schema edit
+**Prompt Template:**
 
-**File:** `.claude/hooks.json` — add to PostToolUse section
+```
+Trace {failing_test_or_error} through:
+Layer 1: Schema (src/schemas/)
+  - Does Zod validation pass?
+  - Check discriminated union
+Layer 2: Handler (src/handlers/)
+  - Does handler method match schema shape?
+  - Does it return correct response format?
+Layer 3: Service (src/services/)
+  - Which service is called?
+  - Does it handle errors?
+Layer 4: Google API (src/services/google-api.ts)
+  - Retry/circuit breaker?
+  - Rate limiting?
+Output: File:line references to failure origin
+```
 
-```json
-{
-  "matcher": "Write|Edit",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "if echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); f=d.get('file_path','') or d.get('path',''); exit(0 if 'src/schemas' in f else 1)\" 2>/dev/null; then cd '/Users/thomascahill/Documents/servalsheets 2' && npm run schema:commit 2>&1 | tail -5; fi",
-      "timeout": 60
-    }
-  ]
+**Outputs:**
+- Exact failure location (file:line)
+- Root cause diagnosis
+- Minimal fix proposal (≤3 files)
+
+### security-auditor
+
+Validates OAuth, credential handling, input validation.
+
+**Prompt Template:**
+
+```
+Security audit of {action_or_feature}:
+1. OAuth scope usage: Does it request necessary scopes?
+2. Input validation: Are params validated before API call?
+3. Credential handling: Are tokens stored/transmitted safely?
+4. SSRF prevention: Any untrusted URLs in API params?
+5. XSS/injection risks: Any unsanitized user input in responses?
+```
+
+**Outputs:**
+- Risk assessment (none / low / medium / high)
+- Specific vulnerabilities
+- Remediation steps
+
+## Phase 3: Implementation (20–120 min per task)
+
+**Specialist:** `servalsheets-implementation`
+
+**Workflow:** TDD (schema → handler → test)
+
+### Step 1: Schema First
+
+Modify `src/schemas/{tool}.ts` to add the new action to the discriminated union:
+
+```typescript
+// Before
+type SheetsCoreAction =
+  | { action: 'read'; params: ReadParams }
+  | { action: 'write'; params: WriteParams };
+
+// After
+type SheetsCoreAction =
+  | { action: 'read'; params: ReadParams }
+  | { action: 'write'; params: WriteParams }
+  | { action: 'new_action'; params: NewActionParams }; // ← Add here
+```
+
+### Step 2: Run schema:commit
+
+```bash
+npm run schema:commit
+```
+
+This regenerates metadata and updates `src/schemas/action-counts.ts` automatically.
+
+### Step 3: Handler Method
+
+Add case + method to `src/handlers/{tool}.ts`:
+
+```typescript
+case 'new_action': {
+  const result = await this.handleNewAction(req);
+  return this.success('new_action', result, isMutation);
+}
+
+private async handleNewAction(req: NewActionInput): Promise<NewActionOutput> {
+  // 1. Validate business rules (Zod already ran schema validation)
+  // 2. Confirm if destructive: await this.confirmDestructiveAction(...)
+  // 3. Snapshot if destructive: await this.createSnapshotIfNeeded(...)
+  // 4. Execute: const result = await this.context.cachedApi.method(...)
+  // 5. Return: return this.success('new_action', result, isMutation);
 }
 ```
 
-> **Research needed:** Confirm exact env var format for CLAUDE_TOOL_INPUT in PostToolUse hooks.
-> The file path may be in `$CLAUDE_TOOL_INPUT` as JSON or as a separate env var.
-> Check: `.claude/hooks/post-edit-check.sh` uses `$CLAUDE_TOOL_INPUT` — verify format there.
+### Step 4: Write Tests
 
-Alternative simpler approach — modify `post-edit-check.sh` to actually run `schema:commit`
-instead of just warning (change exit code behavior).
+In `tests/handlers/{tool}.test.ts`:
 
----
+```typescript
+describe('new_action', () => {
+  test('success path', async () => {
+    const req = { action: 'new_action', spreadsheetId: TEST_ID, ... };
+    const result = await handler.handle(req);
+    expect(result.response.success).toBe(true);
+    expect(result.response.data).toMatchObject({ ... });
+  });
 
-### 0C: Upgrade Stop hook to agent gate
-
-**File:** `.claude/hooks.json` — replace Stop hook
-
-Current (advisory prompt):
-```json
-"Stop": [{
-  "hooks": [{
-    "type": "prompt",
-    "prompt": "Before finishing, verify..."
-  }]
-}]
+  test('error path: validation fails', async () => {
+    const req = { action: 'new_action', spreadsheetId: '', ... }; // Invalid
+    const result = await handler.handle(req);
+    expect(result.response.success).toBe(false);
+    expect(result.response.error).toBeDefined();
+  });
+});
 ```
 
-Proposed (actual agent that runs checks):
-```json
-"Stop": [{
-  "hooks": [{
-    "type": "agent",
-    "prompt": "You are a pre-stop validation agent for ServalSheets. Run these checks and return {\"ok\": true|false, \"reason\": \"...\"}: 1) Run `npm run check:drift` and verify no drift. 2) Run `npm run check:placeholders` — must be 0. 3) Run `npm run check:silent-fallbacks` — must be 0. 4) Check if `.serval/session-notes.md` was modified this session. If any check fails, return ok:false with specific failure. If all pass, return ok:true.",
-    "timeout": 90,
-    "tools": ["Bash", "Read"]
-  }]
-}]
+### Step 5: Verify
+
+```bash
+npm run test:fast          # Unit + contract tests
+npm run verify:safe        # Full verification (skip lint if OOM)
 ```
 
-> **Research needed:** Verify the agent hook `tools` field syntax. Does it accept tool names
-> as array or space-separated? Does it respect the same restrictions as agent frontmatter?
+## Phase 4: Validation (5–15 min)
 
----
+**Specialist:** `servalsheets-validation`
 
-### 0D: Pre-commit gate
+**Gates (run in order, fail-fast):**
 
-**File:** `.claude/hooks.json` — add to PreToolUse section
-
-```json
-{
-  "matcher": "Bash",
-  "hooks": [
-    {
-      "type": "command",
-      "command": "if echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); cmd=d.get('command',''); exit(0 if 'git commit' in cmd else 1)\" 2>/dev/null; then cd '/Users/thomascahill/Documents/servalsheets 2' && npm run verify:safe 2>&1 | tail -20; fi",
-      "timeout": 120
-    }
-  ]
-}
+```bash
+G0: npm run check:drift            # Metadata sync
+G1: npm run check:placeholders     # No TODO/FIXME in src/
+G2: npm run check:debug-prints     # No console.log in handlers
+G3: npm run check:silent-fallbacks # No silent {} returns
+G4: npm run test:fast              # Unit + contract tests (2253/2253 passing)
+G5: npm run verify:safe            # Full (typecheck + test + drift)
 ```
 
-Exit code 2 from a PreToolUse hook blocks the tool call with the output shown. Exit 0 allows it.
+**Failure handling:**
 
-> **Research needed:** Confirm PreToolUse command hook exit code behavior:
-> - exit 0 = allow
-> - exit 1 = warn but allow
-> - exit 2 = block
-> Need to verify this is correct for the current Claude Code version.
+- If G0 fails: `npm run schema:commit` (metadata out of sync)
+- If G1-G3 fail: Code cleanup required
+- If G4 fails: Test regression — investigate and fix
+- If G5 fails: TypeScript errors or other compliance issues
 
----
+## Phase 5: Review (10–20 min)
 
-## Phase 1 — New Agent Files
+**Specialist:** `code-review-orchestrator`
 
-### 1A: Global Dev Orchestrator
+Checks:
 
-**File to create:** `~/.claude/agents/dev-orchestrator.md`
+1. **Type safety** — No `any`, `as any`, or TS errors
+2. **Linting** — ESLint clean (or justified exceptions)
+3. **Security** — OAuth, input validation, no credentials in logs
+4. **MCP compliance** — Schema structure, response format, error codes
+5. **Testing** — Tests are deterministic (no Math.random()), non-tautological, cover error paths
+6. **Documentation** — If handler logic is complex, add inline comments
+
+## Phase 6: Commit & Report (2–5 min)
+
+**Workflow:**
+
+```bash
+git add -A
+git commit -m "feat: add new_action to sheets_tool
+
+Added handler method + schema + tests for new_action.
+Validation: G0-G5 gates pass, 2253/2253 tests pass.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+
+git push origin branch-name
+```
+
+**Report format:**
 
 ```markdown
----
-name: dev-orchestrator
-description: "Start here every session on any project. Reads the project's state files and produces a prioritized work plan. Ask: 'what should I work on today?' or 'plan out implementing X' or 'what's blocking progress?'"
-model: sonnet
-tools: Read, Glob, Grep, Bash
-memory: user
-permissionMode: default
----
+## What Was Done
 
-You are a development orchestrator. You help a solo developer prioritize and plan their work by reading project state and synthesizing a clear action plan.
+1. Schema: Added new_action to src/schemas/tool.ts (file:line)
+2. Handler: Implemented in src/handlers/tool.ts (file:line)
+3. Tests: Added 3 test cases in tests/handlers/tool.test.ts
+4. Metadata: Ran npm run schema:commit (regenerated action-counts.ts)
 
-## What You Read
+## Verification
 
-When invoked on any project, locate and read these files if they exist:
-- `CLAUDE.md` or `.claude/CLAUDE.md` — project rules and architecture
-- `.serval/state.md` or equivalent state file — live metrics
-- `.serval/session-notes.md` — what was done, what's next
-- `ISSUES.md` or `TODO.md` — issue backlog
-- `git log --oneline -10` — recent commits
-- `git status` — uncommitted changes
-- `.claude/agents/` — available specialist agents
+- Tests: 2253/2253 pass
+- TypeScript: 0 errors
+- Drift: Clean
+- Ready to commit: YES
 
-## What You Produce
+## Files Changed
 
-Always output exactly three sections:
-
-### Today's Focus (top 3 tasks)
-Rank by: blocking other work > customer-facing bugs > critical tech debt > features.
-For each task: one sentence description, estimated complexity (S/M/L), which agent handles it.
-
-### Blockers
-Anything that prevents the top tasks from starting. Be specific.
-
-### Where We Are
-One paragraph synthesizing project health: test status, any drift/debt, momentum.
-
-## Principles
-- Be opinionated. Don't list 10 options — pick the top 3.
-- Reference file:line when citing specific issues.
-- If state files are stale or missing, say so explicitly.
-- Never suggest work outside the project's stated priorities.
+- src/schemas/tool.ts
+- src/handlers/tool.ts
+- tests/handlers/tool.test.ts
+- src/schemas/action-counts.ts (auto-generated)
 ```
 
----
+## 25 Agents & Specializations
 
-### 1B: ServalSheets Dev Team Lead
-
-**File to create:** `.claude/agents/dev-team-lead.md`
-
-```markdown
----
-name: dev-team-lead
-description: "Coordinates ServalSheets development by orchestrating the right specialist agents in the right order. Give it a task and it handles research → implementation → validation → review. Examples: 'implement ISSUE-047', 'fix the failing test in composite.ts', 'review everything before committing', 'what broke the tests?'"
-model: sonnet
-tools: Read, Glob, Grep, Bash, Write, Task(servalsheets-research, servalsheets-implementation, servalsheets-validation, debug-tracer, code-review-orchestrator, testing-specialist, security-auditor, google-api-expert, mcp-protocol-specialist)
-memory: project
-permissionMode: acceptEdits
----
-
-You are the tech lead for ServalSheets development. You don't write code yourself — you coordinate the right specialists to do the work correctly and in the right order.
-
-## Project Context
-
-ServalSheets: 22-tool MCP server, 340 actions, MCP 2025-11-25, TypeScript strict.
-Pipeline: MCP Request → tool-handlers.ts → handlers/*.ts → google-api.ts
-Critical rule: ANY schema change requires `npm run schema:commit` immediately.
-Source of truth: `src/schemas/index.ts:63` for action/tool counts.
-
-## Available Specialists (Task only these)
-
-| Agent | Use For |
-|-------|---------|
-| servalsheets-research | Finding patterns, reading code, understanding existing implementation |
-| servalsheets-implementation | Writing code, following TDD workflow |
-| servalsheets-validation | Running gates G0-G4, checking for drift/placeholders/fallbacks |
-| debug-tracer | Tracing failure through the 4-layer pipeline |
-| code-review-orchestrator | Pre-commit multi-perspective review |
-| testing-specialist | Test strategy, coverage gaps, property-based tests |
-| security-auditor | OAuth, credential handling, SQL injection |
-| google-api-expert | Sheets/Drive API best practices, quota issues |
-| mcp-protocol-specialist | MCP 2025-11-25 compliance validation |
-
-## Workflow Templates
-
-### Implementing a new action or feature
-1. Task(servalsheets-research) — find similar actions as implementation pattern
-2. Task(google-api-expert) — validate API approach (if touching Google API)
-3. Task(servalsheets-implementation) — TDD implementation (tests first)
-4. Task(servalsheets-validation) — run G0 + G1 gates
-5. Task(code-review-orchestrator) — final review
-6. Report: what was implemented, test results, any remaining issues
-
-### Debugging a failure
-1. Read the error carefully — identify which layer (validation / handler / response / API)
-2. Task(debug-tracer) — trace execution path
-3. Task(servalsheets-research) — find similar working code for comparison
-4. Task(servalsheets-implementation) — fix + regression test
-5. Task(servalsheets-validation) — verify fix doesn't break anything else
-
-### Pre-commit review
-1. Task(servalsheets-validation) — G0 + G1 gates
-2. Task(code-review-orchestrator) — type/lint/MCP/security check
-3. If any failures: route to appropriate specialist
-4. Report: ready to commit OR specific failures to fix
-
-### API/Schema work
-1. Task(google-api-expert) — validate API usage
-2. Task(mcp-protocol-specialist) — validate MCP compliance
-3. Task(servalsheets-implementation) — implement
-4. `npm run schema:commit` IMMEDIATELY after schema changes
-5. Task(servalsheets-validation) — G1 gate for metadata consistency
+| Agent                         | Model  | Best For                                              |
+| ----------------------------- | ------ | ----------------------------------------------------- |
+| dev-team-lead (YOU)           | Sonnet | Orchestrates specialists, makes architectural calls  |
+| servalsheets-research         | Haiku  | Finding patterns, reading code, understanding impl   |
+| servalsheets-implementation   | Sonnet | TDD code writing, following patterns exactly         |
+| servalsheets-validation       | Haiku  | Running G0-G5 gates, checking drift/placeholders     |
+| debug-tracer                  | Sonnet | Tracing failures through 4-layer pipeline             |
+| code-review-orchestrator      | Sonnet | Type/lint/security/MCP compliance pre-commit         |
+| testing-specialist            | Sonnet | Test strategy, coverage gaps, property-based tests    |
+| security-auditor              | Sonnet | OAuth, credentials, input validation, SSRF/XSS       |
+| google-api-expert             | Sonnet | Sheets/Drive/BigQuery API best practices, quota       |
+| mcp-protocol-specialist       | Sonnet | MCP 2025-11-25 spec compliance validation             |
+| explore-codebase              | Haiku  | Parallel searches across files (3x faster)           |
+| writing-specialist            | Sonnet | Documentation, blog posts, release notes              |
+| performance-analyst           | Sonnet | Profiling, optimization, benchmark analysis          |
+| data-scientist                | Sonnet | Statistics, hypothesis testing, correlation analysis  |
+| typescript-expert             | Sonnet | Type-level programming, branded types, generics      |
+| architecture-reviewer         | Sonnet | Design decisions, breaking changes, API evolution     |
+| compliance-auditor            | Sonnet | Legal, licensing, data privacy, audit trail          |
+| accessibility-specialist      | Haiku  | WCAG, screen reader compat, keyboard nav             |
+| devops-engineer               | Sonnet | Docker, CI/CD, cloud deploy, monitoring               |
+| release-manager               | Sonnet | Versioning, changelog, breaking change comms          |
+| training-specialist           | Sonnet | User guides, video scripts, workshop design          |
+| product-manager               | Sonnet | Roadmap prioritization, user story refinement         |
+| ux-researcher                 | Sonnet | User testing, feedback synthesis, design validation   |
+| frontend-specialist           | Sonnet | Web UX, accessibility, performance, responsive       |
+| integration-tester            | Sonnet | Live API tests, e2e scenarios, federated systems      |
 
 ## Decision Rules
 
-Run agents in PARALLEL when tasks are independent (research + API review).
-Run agents SEQUENTIALLY when each depends on previous output.
-Always run servalsheets-validation last before reporting "done".
-Never report success without validation passing.
-Escalate to human for: any decision involving money/billing, legal commitments,
-breaking API changes, architecture decisions not in CLAUDE.md.
+1. **Run agents in parallel** when tasks are independent (research + API review simultaneously)
+2. **Run agents sequentially** when each needs the previous output
+3. **Always run servalsheets-validation last** before reporting "done"
+4. **Never report success** without seeing validation pass
+5. **Ask user for confirmation** if task spans >3 src/ files
+6. **Escalate to user** for: architecture decisions not in CLAUDE.md, breaking API changes, billing/auth
+7. **Use Haiku agents for reads/searches** (cheaper, faster)
+8. **Use Sonnet for implementation/review** (more capable)
+
+## Anti-Patterns (Never Do)
+
+- ❌ Skip schema:commit after schema changes (causes CI drift failure)
+- ❌ Commit without running verify:safe (tests might fail)
+- ❌ Hardcode action counts (use src/schemas/action-counts.ts)
+- ❌ Create new tools without user approval (keep 25-tool surface stable)
+- ❌ Modify generated files directly (regenerate via schema:commit)
+- ❌ Use any/as any in handlers (all 13 BaseHandler subclasses are type-safe)
+- ❌ Silent fallbacks ({ return {} } without error) — always throw typed error
+- ❌ Retry permission errors (only 429, 5xx, ECONNRESET are retryable)
+- ❌ Bypass circuit breaker when it's open (use fallback mode instead)
+- ❌ Make API calls without field masks (bloats response sizes)
+
+## Key Automation
+
+### Hooks (`.claude/hooks.json`)
+
+- **SessionStart:** Generate `.serval/state.md` (auto runs)
+- **Stop:** Remind to update `.serval/session-notes.md` (auto prompts)
+- **PreToolUse (Bash):** Block destructive git commands (auto blocks)
+- **PostToolUse (Write):** Warn schema files edited without schema:commit (auto warns)
+
+### Commands (npm)
+
+```bash
+# Core workflow
+npm run schema:commit    # After ANY schema change (regenerates metadata)
+npm run verify:safe      # Full verification (typecheck + test + drift, skip lint)
+npm run test:fast        # Quick unit + contract tests
+npm run check:drift      # Metadata sync check
+
+# Gates
+npm run gates            # G0-G5 full pipeline
+npm run check:*          # Individual gates (placeholders, debug-prints, silent-fallbacks)
+
+# Development
+npm run typecheck        # TypeScript strict
+npm run lint             # ESLint
+npm run build            # TypeScript → dist/
 ```
 
----
+## What Happens When
 
-## Phase 2 — Session Automation
+| Scenario                          | Action                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| User requests new feature         | Plan → Research → Implement → Validate → Commit (Phases 1–6)             |
+| Test fails                        | debug-tracer traces to root cause → fix → validate → commit              |
+| Metadata drift detected           | Run npm run schema:commit immediately (regenerates 7 files)               |
+| New tool requested (rare)         | Escalate to user (breaks API surface, not recommended)                   |
+| Pre-commit check                  | Run servalsheets-validation with G0-G5 gates                             |
+| Documentation out of date         | Delegate to writing-specialist (markdown files only)                     |
+| Performance regression suspected  | Delegate to performance-analyst (profiling + analysis)                   |
+| Security concern                  | Escalate to security-auditor + compliance-auditor                        |
 
-### 2A: Dev Postmortem Agent
+## Session Checklist
 
-**File to create:** `~/.claude/agents/dev-postmortem.md`
+Before ending a session:
 
-```markdown
----
-name: dev-postmortem
-description: "End-of-session agent. Reads what changed this session, updates session-notes.md, identifies what's ready for tomorrow. Triggered automatically by Stop hook or called manually."
-model: haiku
-tools: Read, Bash, Write, Glob
-memory: user
-permissionMode: acceptEdits
----
+- [ ] Run `npm run verify:safe` (all green)
+- [ ] Update `.serval/session-notes.md` with what you completed
+- [ ] Commit work (one commit per logical unit)
+- [ ] Push to branch (or main if no PRs)
+- [ ] Report summary to user (what changed, test results, ready-to-commit status)
 
-You are an end-of-session documentation agent. You update the project's session notes
-with a concise record of what happened and what's next.
+## Common Gotchas
 
-## What You Read
-- `git diff HEAD --stat` — what files changed
-- `git log --oneline -5` — recent commits
-- `.serval/session-notes.md` — existing notes to append to
-- `npm run test:fast 2>&1 | tail -5` — current test status
-
-## What You Write
-
-Append to `.serval/session-notes.md` a new entry:
-
-```
-## Session [date] — [1-line summary]
-
-### Completed
-- [bullet: what was finished, with file:line refs]
-
-### Test Status
-[pass/fail count from test run]
-
-### Next Steps
-1. [specific next task]
-2. [specific next task]
-
-### Blockers
-[anything blocking next steps, or "none"]
-```
-
-Keep it under 20 lines. Be specific, not vague.
-Never say "various improvements" — name the actual things.
-```
-
----
-
-### 2B: Enable Shared Memory on 4 Agents
-
-**Files to modify:** Add `memory: user` to frontmatter of:
-- `.claude/agents/servalsheets-research.md` (line 10: change `memory: project` → `memory: user`)
-- `.claude/agents/debug-tracer.md` (add `memory: user` to frontmatter)
-- `.claude/agents/code-review-orchestrator.md` (add `memory: user` to frontmatter)
-- `.claude/agents/mcp-protocol-specialist.md` (line 7: already has `memory: project` → change to `memory: user`)
-
-With `memory: user`, each agent's MEMORY.md persists at `~/.claude/agent-memory/<name>/MEMORY.md`
-and survives across sessions AND projects. Findings accumulate over time.
-
-> **Consideration:** user-scope memory is shared across all projects, not just ServalSheets.
-> For agents like `mcp-protocol-specialist` this is fine (MCP is universal).
-> For `servalsheets-research` this might pollute global memory with project-specific patterns.
-> **Decision needed:** keep `servalsheets-research` at project scope or move to user scope?
-
----
-
-## Phase 3 — Skills & Workflow Automation
-
-### 3A: Skills to Register
-
-**Research needed:** Verify skill registration format. Check `docs/guides/SKILL.md` for exact syntax.
-
-Skills to create:
-
-**`/standup`** — runs dev-orchestrator, outputs today's priorities
-**`/implement [issue]`** — runs dev-team-lead with issue as context
-**`/ship`** — runs pre-commit gate, review, then prompts for commit message
-**`/debug [error]`** — delegates to debug-tracer with error context
-**`/review`** — runs code-review-orchestrator on staged changes
-
----
-
-### 3B: YAML Task Board Integration
-
-The boards exist at `.claude/tasks/`:
-- `pilot-phase.yaml`
-- `phase-2-architecture.yaml`
-
-Currently unused. Need a way to load and display them.
-
-**Option A:** `/next-task` skill that reads YAML and outputs the next unclaimed task
-**Option B:** Dev orchestrator reads task boards as part of daily planning
-**Option C:** Dev team lead uses task board to decide what to implement next
-
-> **Research needed:** Best way to keep task board in sync with actual work.
-> Claude Code's built-in TaskCreate/TaskUpdate tools are session-scoped, not persistent YAML.
-
----
-
-## Open Questions
-
-### High Priority (need answers before implementing)
-
-1. **PostToolUse hook: exact env var format**
-   What is `$CLAUDE_TOOL_INPUT` for a Write/Edit tool call? Need to verify JSON structure
-   to reliably detect schema file edits. Test: add a debug hook that echoes $CLAUDE_TOOL_INPUT
-   to a log file when editing any .ts file.
-
-2. **Agent hook `tools` field syntax**
-   For `"type": "agent"` hooks, what's the format for restricting tools?
-   Is it `"tools": ["Bash", "Read"]` (array) or `"tools": "Bash, Read"` (string)?
-
-3. **PreToolUse exit code behavior**
-   Does exit 2 block vs exit 1 warn-but-allow? Need to verify current Claude Code version
-   behavior for Bash PreToolUse hooks.
-
-4. **Agent Teams stability**
-   How stable is `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in current Claude Code?
-   Risk assessment before enabling in production dev environment.
-
-5. **dev-team-lead Task() restriction enforcement**
-   If `tools: Task(agent-a, agent-b)` — does this fully prevent Task(other-agent) calls?
-   Or does it allow the model to ignore the restriction? Need to test.
-
-### Medium Priority (nice to know)
-
-6. **Cron/schedule pattern**
-   What's the most reliable way to run `claude --headless` on a schedule on macOS?
-   launchd vs cron? Which works best for Claude Code's auth model?
-
-7. **Global CLAUDE.md interaction**
-   How does `~/.claude/CLAUDE.md` interact with project-level CLAUDE.md?
-   Do both load? Project overrides global? Both concatenate?
-   This matters for the dev-orchestrator which is global but works with project files.
-
-8. **Agent resume across sessions**
-   Can `Task(servalsheets-research)` in dev-team-lead resume a previous research agent?
-   Or does each delegation start fresh? The resume feature seems session-scoped only.
-
----
-
-## Notes on the "AI Company" Architecture
-
-The original discussion was about applying the AI-company concept to the development workflow,
-not to the product. The mapping:
-
-| Company Role | Dev Equivalent | Implementation |
-|---|---|---|
-| Strategy Oracle | dev-orchestrator (global) | `~/.claude/agents/dev-orchestrator.md` |
-| Engineering Cluster | 17 existing specialists | Already built |
-| Tech Lead / Architect | dev-team-lead (project) | `.claude/agents/dev-team-lead.md` |
-| QA | servalsheets-validation + testing-specialist | Already built, needs auto-trigger |
-| DevOps | Infrastructure hooks + gates | Phase 0 hook changes |
-| HR/PM | — | Not needed for solo dev |
-
-The event bus / agent mesh concept from the research applies here too, but the
-Claude Code native mechanism is Agent Teams (teammates communicate directly).
-No Redis, no custom orchestration server needed.
-
-Cost model (estimated):
-- Phase 0 hooks: ~$0 extra (shell scripts, not LLM)
-- dev-orchestrator daily: ~$0.10-0.30/day (sonnet, short context)
-- dev-team-lead per feature: ~$3-8/feature (sonnet, multi-agent chain)
-- dev-postmortem per session: ~$0.05/session (haiku, small write)
-
-Break-even: saves ~30 hrs/month of manual orchestration at any dev rate above $5/hr.
-
----
-
-## Research Resolved (Session 2)
-
-| Question | Answer |
-|----------|--------|
-| PostToolUse env var format | Input via **stdin** as JSON with `file_path` field (not `$CLAUDE_TOOL_INPUT`) — confirmed from `post-edit-check.sh` |
-| validate-bash-command.sh was broken | It used `$1` but input comes via stdin — **fixed** |
-| PreToolUse exit code behavior | exit 2 = block (confirmed from existing script using exit 2 for destructive commands) |
-| `~/.claude/agents/` exists? | **Yes** — already has 8 legal agents from another project |
-| 0B/0D blockers | `npm run check:drift` hangs (Known Issue in state.md) — defer until fixed |
-| SKILL.md | ServalSheets product guide, not Claude Code skill registration syntax — skills defer |
-| YAML task boards | pilot-phase.yaml and phase-2-architecture.yaml exist but are stale/unused — defer |
-
-## Session Log
-
-| Date | Session | Changes Made |
-|------|---------|-------------|
-| 2026-02-24 | 1 | Initial research, architecture design, this document created |
-| 2026-02-24 | 2 | Phase 0A done, validate-bash-command.sh fixed, 1A+1B created, Phase 2B done |
-| 2026-02-24 | 3 | Phase 2A (postmortem), 0C (Stop hook), 3A (6 skills), permissions fixed — all phases complete except 0B/0D (blocked on check:drift) |
-
----
-
-## Next Session Checklist
-
-**All phases complete** except 0B and 0D (both blocked by `check:drift` hanging).
-
-Remaining:
-- [ ] Fix `npm run check:drift` (investigate why it hangs; see `scripts/check-metadata-drift.sh`)
-- [ ] Once fixed: add Phase 0B (post-schema-edit auto-run) and Phase 0D (pre-commit gate) to hooks
-- [ ] Optional: test Agent Teams feature (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 is now on)
-
-**How to use the new system:**
-- `/standup` — today's priorities from dev-orchestrator
-- `/implement ISSUE-047` — full pipeline via dev-team-lead
-- `/ship` — verify + commit workflow
-- `/debug <error>` — trace failure via debug-tracer
-- `/review` — pre-commit code review
-- `/schema` — run schema:commit after schema file changes
-
-**MAX_THINKING_TOKENS raised 12000 → 20000**
-**Agent Teams enabled (experimental)**
+1. **Metadata drift after schema changes** — Run `npm run schema:commit` immediately
+2. **Response builder anti-pattern** — Return data from handler; tool layer converts to MCP format
+3. **Hardcoded counts** — Always reference `src/schemas/action-counts.ts:41,46`
+4. **Silent fallbacks** — Never `return {}` without logging; use ErrorCode enum
+5. **Tautological tests** — Assert specific expected value, not `toContain([true, false])`
+6. **Test non-determinism** — No `Math.random()` in test fixtures; use deterministic sequences
+7. **MCP envelope wrapping** — Tests need `{ request: { action, ... } }` format
