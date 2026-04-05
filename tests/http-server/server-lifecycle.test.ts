@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHttpServerLifecycle } from '../../src/http-server/server-lifecycle.js';
+import { ACTION_COUNT, TOOL_COUNT } from '../../src/generated/action-counts.js';
 
 function createListeningServerDouble() {
   const listeners = new Map<string, (error?: Error) => void>();
@@ -69,8 +70,8 @@ describe('http server lifecycle helper', () => {
       stopMetricsServer,
       initTelemetry,
       onShutdown,
-      toolCount: 25,
-      actionCount: 408,
+      toolCount: TOOL_COUNT,
+      actionCount: ACTION_COUNT,
       log: log as never,
     });
 
@@ -90,7 +91,7 @@ describe('http server lifecycle helper', () => {
     expect(log.info).toHaveBeenCalledWith('Legacy SSE endpoints disabled (use /mcp)');
     expect(log.info).toHaveBeenCalledWith('HTTP endpoint: http://127.0.0.1:3000/mcp');
     expect(log.info).toHaveBeenCalledWith('Health check: http://127.0.0.1:3000/health');
-    expect(log.info).toHaveBeenCalledWith('Metrics: 25 tools, 408 actions');
+    expect(log.info).toHaveBeenCalledWith(`Metrics: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions`);
     expect(onShutdown).toHaveBeenCalledTimes(4);
   });
 
@@ -128,8 +129,8 @@ describe('http server lifecycle helper', () => {
       stopMetricsServer,
       initTelemetry: vi.fn(async () => undefined),
       onShutdown: vi.fn(),
-      toolCount: 25,
-      actionCount: 408,
+      toolCount: TOOL_COUNT,
+      actionCount: ACTION_COUNT,
       log: {
         info: vi.fn(),
         warn: vi.fn(),

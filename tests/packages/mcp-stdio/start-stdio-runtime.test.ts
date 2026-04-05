@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { startStdioRuntime } from '../../../packages/mcp-stdio/src/start-stdio-runtime.js';
+import { ACTION_COUNT, TOOL_COUNT } from '../../../src/generated/action-counts.js';
 
 describe('@serval/mcp-stdio startStdioRuntime', () => {
   it('composes startStdioServer with the stdio transport startup', async () => {
@@ -23,8 +24,8 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
         getProcessBreadcrumbs: () => ({ phase: 'start' }),
         server,
         getIsShutdown: vi.fn(() => false),
-        toolCount: 25,
-        actionCount: 408,
+        toolCount: TOOL_COUNT,
+        actionCount: ACTION_COUNT,
         log: {
           info: vi.fn(),
           warn: vi.fn(),
@@ -43,8 +44,8 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
     expect(startTransport).toHaveBeenCalledWith(
       expect.objectContaining({
         server,
-        toolCount: 25,
-        actionCount: 408,
+        toolCount: TOOL_COUNT,
+        actionCount: ACTION_COUNT,
       })
     );
   });

@@ -1,135 +1,62 @@
-import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { sheets_v4 } from 'googleapis';
-import { requestDeduplicator, createRequestKey } from '../utils/request-deduplication.js';
-import { completeSpreadsheetId } from '../mcp/completions.js';
-import { createResourceReadError } from '../utils/mcp-errors.js';
+import { ResourceContent } from '@modelcontextprotocol/sdk/types';
 
-interface QualityIssue {
-  type: string;
-  location: string;
-  severity: 'low' | 'medium' | 'high';
-  description: string;
-}
-
-export function registerQualityResources(
-  server: McpServer,
-  googleClient: sheets_v4.Sheets | null
-): number {
-  const qualityTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/quality', {
-    list: undefined,
-    complete: {
-      spreadsheetId: async (value) => completeSpreadsheetId(value),
-    },
-  });
-
-  server.registerResource(
-    'Data Quality Report',
-    qualityTemplate,
+export function getQualityResources(): { uri: string; contents: ResourceContent }[] {
+  return [
     {
-      title: 'Data Quality Analysis',
-      description: 'Data quality issues, anomalies, and validation errors in spreadsheet',
-      mimeType: 'application/json',
+      uri: 'quality://analysis',
+      contents: {
+        mimeType: 'text/plain',
+        text: `Data Quality Analysis
+
+Assesses data completeness, consistency, and accuracy.
+
+Quality dimensions:
+
+Completeness:
+- Blank cells (count and percentage)
+- Null values by column
+- Required fields missing
+- Score: 100% - (blanks / total)
+
+Consistency:
+- Format inconsistencies (dates, numbers, text)
+- Type mismatches (text in number column)
+- Case variations (same value, different cases)
+- Whitespace inconsistencies (leading/trailing spaces)
+
+Accuracy:
+- Outliers (statistical anomalies)
+- Invalid formats (email, phone, URL)
+- Range violations (values outside expected)
+- Logic errors (contradictions in data)
+
+Uniqueness:
+- Duplicate rows
+- Duplicate within column
+- Primary key violations
+- Referential integrity issues
+
+Validity:
+- Email format validation
+- Phone number format
+- Date format and range
+- Numeric range checks
+- Custom validation rules
+
+Quality score calculation:
+- Weighted average of all dimensions
+- 0-100% scale
+- >90%: Excellent
+- 70-90%: Good
+- 50-70%: Needs work
+- <50%: Critical issues
+
+Recommendations:
+- Specific issues identified
+- Severity ranking (critical, high, medium, low)
+- Actionable fixes provided
+- Preview of fixes before applying`
+      },
     },
-    async (uri, variables) => {
-      const spreadsheetId = Array.isArray(variables['spreadsheetId'])
-        ? variables['spreadsheetId'][0]
-        : variables['spreadsheetId'];
-
-      if (!spreadsheetId || !googleClient) {
-        return { contents: [] };
-      }
-
-      try {
-        const data = await requestDeduplicator.deduplicate(
-          createRequestKey('quality:analyze', { spreadsheetId }),
-          async () => {
-            // Fetch first 200 rows from first sheet
-            const valuesResponse = await googleClient.spreadsheets.values.get({
-              spreadsheetId,
-              range: 'A1:Z200',
-            });
-
-            const values = valuesResponse.data.values || [];
-            const issues: QualityIssue[] = [];
-
-            if (values.length === 0) {
-              return {
-                spreadsheetId,
-                totalRows: 0,
-                totalColumns: 0,
-                issueCount: 0,
-                issues: [],
-                score: 0,
-              };
-            }
-
-            const headers = values[0] || [];
-            const seenHeaders = new Set<string>();
-
-            // Check headers
-            for (let i = 0; i < headers.length; i++) {
-              const header = String(headers[i] || '').trim();
-              if (!header) {
-                issues.push({
-                  type: 'EMPTY_HEADER',
-                  location: `Column ${String.fromCharCode(65 + i)}`,
-                  severity: 'high',
-                  description: 'Column header is empty',
-                });
-              } else if (seenHeaders.has(header)) {
-                issues.push({
-                  type: 'DUPLICATE_HEADER',
-                  location: `Column ${String.fromCharCode(65 + i)}`,
-                  severity: 'high',
-                  description: `Duplicate header found: "${header}"`,
-                });
-              }
-              seenHeaders.add(header);
-            }
-
-            // Check for empty rows
-            for (let row = 1; row < Math.min(values.length, 100); row++) {
-              const rowData = values[row] || [];
-              if (rowData.every((cell) => !cell || String(cell).trim() === '')) {
-                issues.push({
-                  type: 'EMPTY_ROW',
-                  location: `Row ${row + 1}`,
-                  severity: 'medium',
-                  description: 'Entire row is empty',
-                });
-              }
-            }
-
-            // Calculate quality score (100 - penalty for each issue)
-            const score = Math.max(0, 100 - issues.length * 5);
-
-            return {
-              spreadsheetId,
-              totalRows: values.length,
-              totalColumns: headers.length,
-              issueCount: issues.length,
-              issues: issues.slice(0, 50), // Limit to first 50 issues
-              score,
-              analyzedRows: Math.min(values.length, 100),
-            };
-          }
-        );
-
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(data),
-            },
-          ],
-        };
-      } catch (error) {
-        throw createResourceReadError(uri.href, error);
-      }
-    }
-  );
-
-  console.error('[ServalSheets] Registered 1 quality resource');
-  return 1;
+  ];
 }

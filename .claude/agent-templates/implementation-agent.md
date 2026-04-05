@@ -1,325 +1,314 @@
-# Implementation Agent Template
+# TDD Implementation Template
 
-**Purpose:** TDD-based feature implementation with automated testing
+**Model:** Sonnet (implementation)  
+**Time:** 30-60 min per action  
+**Focus:** Schema → Handler → Tests → Verify
 
-**Model:** Sonnet 4.5 (Balanced - $3/1M input tokens)
-**Subagent Type:** `general-purpose`
-**Typical Duration:** 20-60 minutes
-**Average Cost:** $5-15 per feature
+## When to Use This Template
 
----
+- Adding new actions to existing tools
+- Fixing bugs that require code changes
+- Implementing features with clear specification
+- Decomposing large handlers into submodules
 
-## When to Use
+## Prompt Structure
 
-✅ **Feature Implementation**
+### Setup
 
-- New tool actions
-- Handler modifications
-- Schema changes
-- API integrations
+```markdown
+# TDD Implementation: [Action Name]
 
-✅ **Bug Fixes**
+**Tool:** [sheets_tool]
+**Action:** [new_action_name]
+**Estimated Lines:** ~[X] lines of code
 
-- Production bugs
-- Test failures
-- Integration issues
+**Specification:**
+- Input params: [list]
+- Output: [describe]
+- Error cases: [list]
 
-✅ **Refactoring**
+**Precedent:** Found similar action at [file:line] — use as implementation pattern
 
-- Code cleanup
-- Pattern standardization
-- Performance optimization
+**Workflow:**
+1. Schema first (discriminated union)
+2. Run npm run schema:commit
+3. Handler method + dispatch case
+4. Tests (success + 2-3 error paths)
+5. npm run verify:safe
+```
 
-❌ **Not Suitable For**
+### Phase 1: Schema (5 min)
 
-- Novel architecture design (use Opus)
-- Simple file searches (use Haiku research-agent)
-- Just running tests (use Haiku validation-agent)
-
----
-
-## TDD Workflow Template
+Agent adds to `src/schemas/{tool}.ts`:
 
 ```typescript
-Task({
-  subagent_type: 'general-purpose',
-  model: 'sonnet',
-  description: 'Implement [feature] with TDD (30min)',
-  prompt: `
-    Implement [feature] using strict TDD approach:
+// Identify existing discriminated union
+export const Sheets{Tool}ActionSchema = z.discriminatedUnion('action', [
+  // ... existing actions ...
+  
+  // ADD HERE
+  z.object({
+    action: z.literal('new_action'),
+    spreadsheetId: SpreadsheetIdSchema,
+    // ... other params
+  }),
+]);
+```
 
-    **Phase 1: Write Failing Tests (10 min)**
-    1. Create test file: tests/[category]/[feature].test.ts
-    2. Write comprehensive test cases covering:
-       - Happy path
-       - Edge cases
-       - Error scenarios
-    3. Run: npm run test:fast
-    4. Verify: Tests MUST fail (feature not implemented yet)
-    5. Commit: "test: add failing tests for [feature]"
+**Validation:**
+- Params match specification
+- All required params present
+- Optional params use `.optional()`
+- Enums use `z.enum([...])` not strings
 
-    **Phase 2: Minimum Implementation (15 min)**
-    1. Implement ONLY enough code to pass tests
-    2. Follow existing patterns from [similar-file.ts]
-    3. Run: npm run test:fast after each change
-    4. Commit: "feat: implement [feature] (tests passing)"
+### Phase 2: Schema Commit (2 min)
 
-    **Phase 3: Validation (5 min)**
-    1. Run: npm run gates:g0 (typecheck + lint + drift)
-    2. Run: npm run gates:g1 (metadata consistency)
-    3. If failures: Fix and re-run
-    4. Commit: "chore: validation fixes"
+```bash
+npm run schema:commit
+```
 
-    **Constraints:**
-    - NO implementation before tests
-    - NO refactoring in this PR (separate PR)
-    - NO changes outside [specific-directory]
-    - MUST follow existing error handling patterns
-  `,
+This regenerates:
+- `src/schemas/action-counts.ts` (ACTION_COUNT updated)
+- `src/generated/annotations.ts`
+- `src/mcp/completions.ts`
+- `server.json`
+
+### Phase 3: Handler Method (15 min)
+
+**Prompt:**
+
+```markdown
+# Handler Implementation
+
+Tool: sheets_core (BaseHandler subclass)
+Action: new_action
+
+Add to src/handlers/core.ts:
+
+1. Case in switch statement:
+```typescript
+case 'new_action': {
+  const result = await this.handleNewAction(req);
+  return result; // BaseHandler.success() returns MCP format
+}
+```
+
+2. Private handler method following pattern at core.ts:123 (line number example):
+```typescript
+private async handleNewAction(req: NewActionInput): Promise<NewActionOutput> {
+  // 1. Validate business rules (Zod already ran)
+  // 2. Confirm if destructive: await this.confirmDestructiveAction(...)
+  // 3. Snapshot if destructive: await this.createSnapshotIfNeeded(...)
+  // 4. Execute: const result = await this.context.cachedApi.method(...)
+  // 5. Return: return this.success('new_action', result, isMutation);
+}
+```
+
+Notes:
+- isMutation = true if action modifies data
+- Use this.context.cachedApi for reads (cached)
+- Use executeWithRetry() for Google API calls
+- All errors must be typed (no generic Error)
+```
+
+**Output Format:**
+
+```
+Handler method added to src/handlers/core.ts at line 250 (example)
+Case statement added at line 85 (example)
+Total handler lines: +22 lines
+```
+
+### Phase 4: Tests (15 min)
+
+**Prompt:**
+
+```markdown
+# Test Implementation
+
+Add to tests/handlers/core.test.ts:
+
+1. Success path (should pass with valid input):
+```typescript
+describe('new_action', () => {
+  test('success: creates resource', async () => {
+    const req = {
+      request: {
+        action: 'new_action',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        // ... other params
+      },
+    };
+
+    const result = await handler.handle(req);
+
+    expect(result.response.success).toBe(true);
+    expect(result.response.action).toBe('new_action');
+    expect(result.response.data).toEqual({
+      id: 'expected_id',
+      // ... other fields
+    });
+  });
 });
 ```
 
----
-
-## Example 1: Add New Action to Existing Handler
-
+2. Error path 1 (validation error):
 ```typescript
-Task({
-  subagent_type: 'general-purpose',
-  model: 'sonnet',
-  description: 'Add bulk_delete action to sheets_data (30min)',
-  prompt: `
-    Add bulk_delete action to sheets_data handler:
+test('error: validation fails on invalid input', async () => {
+  const req = {
+    request: {
+      action: 'new_action',
+      spreadsheetId: '', // Invalid: empty
+    },
+  };
 
-    **Requirements:**
-    - Delete multiple rows by IDs in single API call
-    - Input: spreadsheetId, sheetName, rowIds (array)
-    - Output: { deleted: number, errors: RowError[] }
-    - Error handling: Invalid IDs, permission errors
+  const result = await handler.handle(req);
 
-    **TDD Steps:**
-
-    1. Write failing tests (10 min):
-       File: tests/handlers/data.test.ts
-       Tests:
-       - ✓ Deletes multiple rows successfully
-       - ✓ Returns deleted count
-       - ✓ Handles invalid row IDs gracefully
-       - ✓ Batches API calls if >500 rows
-       - ✓ Returns partial success on errors
-
-    2. Update schema (5 min):
-       File: src/schemas/data.ts
-       - Add 'bulk_delete' to action enum
-       - Add BulkDeleteInput type
-       - Add BulkDeleteOutput type
-       - Run: npm run schema:commit
-
-    3. Implement handler (15 min):
-       File: src/handlers/data.ts
-       - Add handleBulkDelete() method
-       - Follow pattern from handleBulkUpdate()
-       - Use batchUpdate API with delete operations
-       - Handle errors with RowError[] format
-
-    4. Validate:
-       - npm run gates:g0
-       - npm run gates:g1
-
-    **Success Criteria:**
-    - [ ] All tests passing
-    - [ ] G0 and G1 gates passing
-    - [ ] Schema metadata regenerated
-    - [ ] Git history: test commit → feat commit → chore commit
-  `,
+  expect(result.response.success).toBe(false);
+  expect(result.response.error?.code).toBe('VALIDATION_ERROR');
 });
 ```
 
----
-
-## Example 2: Fix Bug with Root Cause Analysis
-
+3. Error path 2 (resource not found):
 ```typescript
-Task({
-  subagent_type: 'general-purpose',
-  model: 'sonnet',
-  description: 'Fix composite streaming test failures (45min)',
-  prompt: `
-    Fix 4 failing tests in tests/handlers/composite.streaming.test.ts
+test('error: fails when resource not found', async () => {
+  const req = {
+    request: {
+      action: 'new_action',
+      spreadsheetId: 'nonexistent_id',
+    },
+  };
 
-    **Phase 1: Root Cause Analysis (15 min)**
-    1. Run failing tests: npm run test:handlers -- composite.streaming
-    2. Analyze error messages
-    3. Read src/handlers/composite.ts to understand current implementation
-    4. Read src/schemas/composite.ts to check expected schema
-    5. Identify root cause (likely: missing response fields)
+  const result = await handler.handle(req);
 
-    **Phase 2: Write Additional Tests (10 min)**
-    1. Add tests for identified edge cases
-    2. Ensure tests capture the bug scenario
-    3. Run: npm test -- composite.streaming
-    4. Verify: New tests also fail
-    5. Commit: "test: add regression tests for streaming bug"
-
-    **Phase 3: Fix Implementation (15 min)**
-    1. Fix src/handlers/composite.ts
-    2. Add missing response fields
-    3. Improve error handling
-    4. Run: npm test -- composite.streaming after each change
-    5. Commit: "fix: composite streaming response structure"
-
-    **Phase 4: Validation (5 min)**
-    1. Run: npm run gates:g0
-    2. Run full test suite: npm run test:fast
-    3. Verify: No regressions introduced
-
-    **Constraints:**
-    - Fix ONLY the identified bug
-    - NO unrelated changes
-    - NO refactoring in same commit
-    - Follow existing response patterns
-  `,
+  expect(result.response.success).toBe(false);
+  expect(result.response.error?.code).toBe('SPREADSHEET_NOT_FOUND');
 });
 ```
 
----
-
-## Example 3: Schema Change with Handler Updates
-
-```typescript
-Task({
-  subagent_type: 'general-purpose',
-  model: 'sonnet',
-  description: 'Add optional timeout parameter to all tools (40min)',
-  prompt: `
-    Add optional timeout parameter to all 22 tool schemas:
-
-    **Phase 1: Schema Design (10 min)**
-    1. Read src/schemas/shared.ts for common types
-    2. Design TimeoutOptions type:
-       - timeout?: number (milliseconds)
-       - default: 30000 (30s)
-       - max: 300000 (5 min)
-    3. Document in src/schemas/shared.ts
-
-    **Phase 2: Update Schemas (15 min)**
-    1. Add TimeoutOptions to all 22 schemas in src/schemas/*.ts
-    2. Make it optional (z.optional())
-    3. Add validation: z.number().min(1000).max(300000)
-    4. Run: npm run schema:commit (auto-generates metadata)
-
-    **Phase 3: Update BaseHandler (10 min)**
-    1. Read src/handlers/base.ts
-    2. Extract timeout from request
-    3. Pass to Google API client
-    4. Add timeout handling logic
-    5. Write tests for timeout behavior
-
-    **Phase 4: Validation (5 min)**
-    1. Run: npm run gates:g0
-    2. Run: npm run gates:g1
-    3. Verify: All metadata updated correctly
-    4. Check: No breaking changes to existing code
-
-    **Constraints:**
-    - Backward compatible (optional parameter)
-    - Consistent across all 22 tools
-    - Default timeout preserves existing behavior
-  `,
-});
+Criteria:
+- Tests use envelope format: { request: { action, ... } }
+- Assertions are specific (not .toContain([true, false]))
+- Fixtures are deterministic (no Math.random())
+- Error assertions check error code
 ```
 
----
+**Output Format:**
 
-## Cost Optimization: When to Use Sonnet vs Opus
+```
+Tests added to tests/handlers/core.test.ts
+Lines 450-480: success test
+Lines 481-495: validation error test
+Lines 496-510: not found error test
+Total test lines: +60 lines
+Test coverage: 3/3 paths tested (success + 2 error cases)
+```
 
-**Use Sonnet (Default):** $3-8 per feature
-✅ Standard feature implementation
-✅ Bug fixes with clear reproduction
-✅ Schema changes following patterns
-✅ Test-driven development
+### Phase 5: Verification (10 min)
 
-**Upgrade to Opus:** $15-40 per feature (5x more expensive)
-⚠️ Novel algorithm design
-⚠️ Complex multi-system integration
-⚠️ Critical bugs without clear root cause
-⚠️ Architectural decisions
+**Prompt:**
 
-**Example Cost Comparison:**
+```markdown
+# Verification Checklist
 
-| Task             | Sonnet Cost | Opus Cost | Savings |
-| ---------------- | ----------- | --------- | ------- |
-| Add new action   | $5          | $25       | 80%     |
-| Fix standard bug | $3          | $15       | 80%     |
-| Schema change    | $4          | $20       | 80%     |
-| Complex refactor | $15         | $40       | 62%     |
+Run these commands:
 
----
+1. npm run schema:commit (regenerate metadata)
+2. npm run test:fast (run unit + contract tests)
+3. npm run verify:safe (full verification: typecheck + test + drift)
 
-## Integration with Other Agents
+Report:
+- Errors found: [list]
+- Tests passing: [count]/2253
+- TypeScript errors: [count]
+- Drift check: [pass/fail]
+- Ready to commit: [yes/no]
+```
 
-**Typical Workflow:**
+**Expected Output:**
 
-1. **Research Agent** (Haiku - $0.50)
-   - Analyze existing patterns
-   - Find similar implementations
+```markdown
+# Verification Results ✅
 
-2. **Planning Agent** (Sonnet - $2)
-   - Design implementation approach
-   - Create file change plan
+✅ npm run schema:commit
+   - Metadata regenerated
+   - ACTION_COUNT: 408 → 409 (new action added)
 
-3. **Implementation Agent** (Sonnet - $8) ← **THIS TEMPLATE**
-   - Write tests first
-   - Implement feature
-   - Run validation
+✅ npm run test:fast
+   - Tests passing: 2253/2253
+   - New tests: 3 (all passing)
 
-4. **Validation Agent** (Haiku - $0.30)
-   - Run full gate pipeline
-   - Verify no regressions
+✅ npm run verify:safe
+   - TypeScript: 0 errors
+   - Drift: No metadata drift
+   - Ready to commit
+```
 
-**Total Cost:** ~$11 (vs $70 all-Opus approach)
+## Cost Estimate
 
----
+**Per-action TDD cost:**
+- Schema: 5 min ($0.15)
+- Handler: 15 min ($0.50)
+- Tests: 15 min ($0.50)
+- Verification: 5 min ($0.15)
+- **Total: 40 min, $1.30 per action**
 
-## Tips for Successful Implementation
+**For 10 actions (typical feature):**
+- Cost: ~$13
+- Time: ~7 hours
+- Quality: 100% test coverage
 
-1. **Always TDD:** Write tests first - enforces clear requirements
-2. **Small Commits:** test → feat → chore (easy to review/revert)
-3. **Follow Patterns:** Reference similar code (less cognitive load)
-4. **Validate Early:** Run gates:g0 after each commit
-5. **No Scope Creep:** Fix only what's in the prompt
+## Common Pitfalls & Fixes
 
----
+### Pitfall 1: Forgetting schema:commit
 
-## Success Metrics
+**Symptom:** Tests fail with "unknown action" error  
+**Cause:** Schema changed but metadata not regenerated  
+**Fix:** `npm run schema:commit`
 
-**Good Implementation Session:**
+### Pitfall 2: Non-deterministic tests
 
-- ✓ Tests written before code
-- ✓ All tests passing
-- ✓ G0 and G1 gates passing
-- ✓ 3-5 focused commits
-- ✓ No unrelated changes
-- ✓ Cost: $5-15 (Sonnet)
+**Symptom:** Test passes sometimes, fails other times  
+**Cause:** Math.random() in fixture data  
+**Fix:** Use deterministic sequence:
 
-**Needs Improvement:**
+```typescript
+// ❌ Wrong
+const data = Array.from({ length: 100 }, () => Math.random());
 
-- ✗ Code before tests
-- ✗ Tests still failing
-- ✗ Gates failing
-- ✗ Single massive commit
-- ✗ Refactoring + feature in same PR
-- ✗ Cost: $25+ (used Opus unnecessarily)
+// ✅ Right
+const data = Array.from({ length: 100 }, (_, i) => (i + 1) * 10);
+```
 
----
+### Pitfall 3: Tautological assertions
 
-**Related Templates:**
+**Symptom:** Test passes even when handler is broken  
+**Cause:** Assertion doesn't test specific value  
+**Fix:** Assert specific expected value:
 
-- `research-agent.md` - Find patterns before implementing
-- `planning-agent.md` - Design before coding
-- `validation-agent.md` - Verify after implementing
+```typescript
+// ❌ Wrong
+expect([true, false]).toContain(response.success);
 
-## Runtime Guardrails
+// ✅ Right
+expect(response.success).toBe(true);
+```
 
-Before taking tool actions, load `.claude/AGENT_GUARDRAILS.md`.
-If it exists, load `.agent-context/learning-memory.md` and apply the top recurring fixes first.
+### Pitfall 4: Wrong response format
+
+**Symptom:** Tests pass but handler returns wrong MCP format  
+**Cause:** BaseHandler vs Standalone handler mismatch  
+**Fix:** BaseHandler returns `this.success()`; standalone returns `{ response: { ... } }`
+
+## Checklist Before Committing
+
+- [ ] Schema added to discriminated union
+- [ ] `npm run schema:commit` ran successfully
+- [ ] Handler method added with 5-step pattern
+- [ ] Case statement added to switch
+- [ ] 3+ test cases added (success + errors)
+- [ ] All tests passing (2253/2253)
+- [ ] No TypeScript errors (`npm run typecheck`)
+- [ ] No console.log (`npm run check:debug-prints`)
+- [ ] No TODO/FIXME (`npm run check:placeholders`)
+- [ ] `npm run verify:safe` all green

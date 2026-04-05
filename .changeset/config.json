@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/changesets@2.26.0/schema.json",
+  "changelog": [
+    ["@changesets/changelog-github", { "repo": "khill1269/servalsheets" }]
+  ],
+  "commit": false,
+  "fixed": [],
+  "linked": [
+    ["servalsheets", "@serval/core", "@serval/mcp-http", "@serval/mcp-stdio", "@serval/mcp-client", "@serval/mcp-runtime"]
+  ],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": ["@serval/docs"],
+  "privatePackages": {
+    "@serval/scripts": true,
+    "@serval/test-utils": true
+  }
+}

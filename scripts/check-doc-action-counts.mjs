@@ -170,7 +170,7 @@ function scanFile(filePath, severity = 'warning') {
       );
     }
 
-    for (const match of line.matchAll(/(?<![\d.])(\d{1,4})\s+(?:MCP\s+)?resources?\b(?!\s+templates?\b)/gi)) {
+    for (const match of line.matchAll(/(?<![\d.]|RFC\s\d)(\d{1,4})\s+(?:MCP\s+)?resources?\b(?!\s+templates?\b)/gi)) {
       recordCountMismatch(
         lineNumber,
         'resource count',

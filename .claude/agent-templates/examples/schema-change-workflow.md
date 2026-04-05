@@ -1,6 +1,6 @@
 # Complete Workflow Example: Schema Change
 
-**Scenario:** Add new `timeout` parameter to all 22 tool schemas
+**Scenario:** Add new `timeout` parameter to all 25 tool schemas
 
 **Estimated Time:** 60 minutes
 **Estimated Cost (Optimized):** $11.40
@@ -33,7 +33,7 @@ Task({
 
     3. Analyze Google API timeout behavior:
        - Check src/services/google-api.ts
-       - Identify where timeout would be applied
+       - Identify where timeout will be applied in code
        - Document current default timeout (if any)
 
     Output:
@@ -76,352 +76,273 @@ z.object({
 - Max: 300000 (5min)
 - Validation: z.number().min(1000).max(300000).optional()
 
+## Similar Code
+
+Found in sheets_core.ts (lines 42-67): maxRetries optional parameter
+Found in sheets_data.ts (lines 15-30): valueRenderOption optional parameter
+
 ````
 
 ---
 
-## Agent 2: Plan Implementation (Sonnet)
+## Agent 2: API Best Practices Review (Sonnet)
 
 **Cost:** ~$3.00 | **Time:** 10 minutes
 
 ```typescript
 Task({
-  subagent_type: "Plan",
-  model: "sonnet",
-  description: "Plan timeout implementation (10min)",
+  subagent_type: 'Google API Expert',
+  model: 'sonnet',
+  description: 'Validate timeout approach (10min)',
   prompt: `
-    Based on research findings, create implementation plan:
+    Review the timeout parameter approach for Google Sheets API compliance:
 
-    **Files to Modify:**
-    1. src/schemas/shared.ts
-       - Add TimeoutOptions type
-       - Add validation schema
-       - Document default/max values
+    1. Check Google API timeout recommendations:
+       - Does Google Sheets API have timeout limits?
+       - What are typical timeout values in the wild?
+       - Any API-specific guidance?
 
-    2. src/schemas/*.ts (22 files)
-       - Add timeout?: number to each tool's input schema
-       - Use TimeoutOptions validation
-       - Maintain backward compatibility
+    2. MCP protocol compliance:
+       - Does MCP 2025-11-25 have timeout guidance?
+       - Should timeout be per-action or global?
+       - Precedent: How do other MCP servers handle timeouts?
 
-    3. src/handlers/base.ts
-       - Extract timeout from request
-       - Pass to Google API client
-       - Handle timeout errors
+    3. Implementation concerns:
+       - Should timeout apply to all 25 tools or specific ones?
+       - Which operations actually benefit from custom timeout?
+         (Long-running: BigQuery exports, Apps Script execution)
+       - Quick operations: Read/write don't need custom timeout
 
-    4. tests/schemas/*.test.ts
-       - Add timeout validation tests
-       - Test min/max boundaries
-       - Test optional behavior
+    4. Fallback strategy:
+       - If user specifies timeout but operation exceeds it, what happens?
+       - Should we warn when timeout is very low (< 5s)?
+       - Should we auto-extend timeout for known long-running ops?
 
-    5. tests/handlers/base.test.ts
-       - Test timeout extraction
-       - Test timeout application
-       - Test timeout error handling
-
-    **Implementation Order:**
-    1. Phase 1: Add shared types (10 min)
-    2. Phase 2: Update schemas (20 min)
-    3. Phase 3: Update BaseHandler (15 min)
-    4. Phase 4: Add tests (15 min)
-    5. Phase 5: Validate (G0-G1) (10 min)
-
-    **Backward Compatibility:**
-    - timeout is optional (maintains existing behavior)
-    - Default: 30000ms (current implicit default)
-    - Existing code works without changes
-
-    **Metadata Impact:**
-    - ACTION_COUNT: No change (not adding actions)
-    - TOOL_COUNT: No change (not adding tools)
-    - Schema metadata: Will regenerate
-
-    **Success Criteria:**
-    - [ ] All 22 schemas updated
-    - [ ] Tests passing
-    - [ ] G0 + G1 gates passing
-    - [ ] Backward compatible
-  `
-})
-````
-
-**Expected Output:**
-
-````markdown
-# Timeout Implementation Plan
-
-## Phase 1: Shared Types (10 min)
-
-File: src/schemas/shared.ts
-
-Add after line 50:
-
-```typescript
-export const TimeoutSchema = z
-  .number()
-  .min(1000, 'Timeout must be at least 1 second')
-  .max(300000, 'Timeout cannot exceed 5 minutes')
-  .optional()
-  .describe('Request timeout in milliseconds (default: 30000)');
-```
-````
-
-## Phase 2: Update All Schemas (20 min)
-
-For each of 22 schemas in src/schemas/\*.ts:
-
-```typescript
-// Example: src/schemas/data.ts
-export const SheetsDataInputSchema = z.object({
-  action: z.enum([...]),
-  spreadsheetId: z.string(),
-  timeout: TimeoutSchema, // ← Add this
-  // ... other fields
-});
-```
-
-Automated with: scripts/bulk-schema-update.sh
-
-## Phase 3: BaseHandler Integration (15 min)
-
-File: src/handlers/base.ts
-
-...
-[Complete implementation steps]
-
-````
-
----
-
-## Agent 3: Implementation (Sonnet)
-
-**Cost:** ~$8.00 | **Time:** 40 minutes
-
-```typescript
-Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  description: "Implement timeout parameter (40min)",
-  prompt: `
-    Implement timeout parameter following the plan in
-    .claude/agent-templates/examples/schema-change-workflow.md
-
-    **TDD Workflow:**
-
-    Phase 1: Write Failing Tests (10 min)
-    1. Create tests/schemas/timeout.test.ts
-       - Test timeout validation (min/max)
-       - Test optional behavior
-       - Test default value
-
-    2. Update tests/handlers/base.test.ts
-       - Test timeout extraction
-       - Test timeout application
-       - Test timeout errors
-
-    3. Run: npm test -- timeout
-       - Should fail (not implemented yet)
-
-    4. Commit: "test: add timeout parameter tests"
-
-    Phase 2: Implement Shared Types (5 min)
-    1. Edit src/schemas/shared.ts
-       - Add TimeoutSchema
-       - Add documentation
-
-    2. Commit: "feat: add TimeoutSchema to shared types"
-
-    Phase 3: Update All Schemas (15 min)
-    1. For each schema in src/schemas/*.ts:
-       - Add timeout: TimeoutSchema
-
-    2. Run: npm run schema:commit
-       - Regenerates metadata
-       - Runs typecheck
-       - Runs fast tests
-       - Auto-stages files
-
-    3. Commit: "feat: add timeout to all 22 tool schemas"
-
-    Phase 4: Update BaseHandler (10 min)
-    1. Edit src/handlers/base.ts
-       - Extract timeout from request
-       - Pass to API client
-       - Handle timeout errors
-
-    2. Run: npm test -- base
-       - Should pass
-
-    3. Commit: "feat: implement timeout handling in BaseHandler"
-
-    **Validation:**
-    - npm run gates:g0 (baseline integrity)
-    - npm run gates:g1 (metadata consistency)
-
-    **Constraints:**
-    - Follow TDD (tests first!)
-    - NO implementation before tests
-    - NO changes outside specified files
-    - Run schema:commit after schema changes
-  `
-})
-````
-
-**Expected Commits:**
-
-```
-1. test: add timeout parameter tests
-2. feat: add TimeoutSchema to shared types
-3. feat: add timeout to all 22 tool schemas
-4. feat: implement timeout handling in BaseHandler
-```
-
----
-
-## Agent 4: Validation (Haiku)
-
-**Cost:** ~$0.30 | **Time:** 5 minutes
-
-```typescript
-Task({
-  subagent_type: 'general-purpose',
-  model: 'haiku',
-  description: 'Validate timeout implementation (5min)',
-  prompt: `
-    Validate timeout implementation:
-
-    **G0: Baseline Integrity**
-    npm run gates:g0
-
-    Expected to pass:
-    - ✓ TypeScript compilation (0 errors)
-    - ✓ ESLint checks (0 errors)
-    - ✓ Metadata drift (none)
-    - ✓ Placeholders (none)
-    - ✓ Silent fallbacks (none)
-    - ✓ Fast tests (all passing)
-
-    **G1: Metadata Consistency**
-    npm run gates:g1
-
-    Expected to pass:
-    - ✓ Cross-map consistency
-    - ✓ Schema-handler alignment
-    - ✓ Hardcoded counts (none)
-    - ✓ Action count unchanged (still 299)
-    - ✓ Tool count unchanged (still 24)
-
-    **Output Format:**
-    ## Validation Results
-
-    ### G0: Baseline Integrity
-    Status: PASS ✓
-    Duration: 95s
-    Tests: 142/142 passing
-
-    ### G1: Metadata Consistency
-    Status: PASS ✓
-    Duration: 42s
-    Metadata files updated: 5
-
-    ### Files Changed:
-    - src/schemas/shared.ts (TimeoutSchema added)
-    - src/schemas/*.ts (22 schemas updated)
-    - src/handlers/base.ts (timeout handling)
-    - tests/schemas/timeout.test.ts (new)
-    - tests/handlers/base.test.ts (updated)
-    - Generated files: 5 (index.ts, annotations.ts, etc.)
-
-    ### Ready for Commit: YES ✓
-
-    If any failures, report file:line and suggested fixes.
+    Output:
+    - Recommended default timeout per operation type
+    - Which tools should support timeout parameter
+    - Circuit breaker interaction with timeout
+    - Deprecation strategy (if changing existing behavior)
   `,
 });
 ```
 
 **Expected Output:**
 
-```markdown
-## Validation Results
+````markdown
+# Google API + MCP Timeout Review
 
-### G0: Baseline Integrity ✓
+## API Timeout Limits
 
-- TypeScript: 0 errors
-- ESLint: 0 errors
-- Metadata: No drift
-- Tests: 142/142 passing
-  Duration: 95s
+- Google Sheets API: Default 30s, max 60s
+- BigQuery API: No hard timeout (can run hours)
+- Apps Script API: 30min max execution time
 
-### G1: Metadata Consistency ✓
+## Recommendation
 
-- Cross-map: ✓ All 22 tools aligned
-- Schema-handler: ✓ All aligned
-- Action count: 299 (unchanged ✓)
-- Tool count: 24 (unchanged ✓)
-  Duration: 42s
+Timeout should be optional per-action:
+- Default: 30000ms (match Google default)
+- Min: 5000ms (prevent too-aggressive timeouts)
+- Max: 600000ms (10 min, reasonable upper bound)
 
-### Ready for Commit: YES ✓
+## Apply to Which Tools?
+
+Yes: sheets_bigquery, sheets_appsscript, sheets_analyze (long-running analysis)
+Optional: All others (unnecessary overhead)
+No: Authentication actions (must complete)
+
+## Circuit Breaker Interaction
+
+- Circuit breaker timeout: 30s (existing)
+- User timeout: Applied per-request
+- If both exceeded: Return circuit breaker error (prioritize)
+
+## Deprecation
+
+No breaking change:
+- timeout is new optional parameter
+- Existing code continues to work
+- No deprecation needed
+````
+
+---
+
+## Agent 3: Implementation (Sonnet)
+
+**Cost:** ~$8.00 | **Time:** 30 minutes
+
+```typescript
+Task({
+  subagent_type: 'servalsheets-implementation',
+  model: 'sonnet',
+  description: 'Implement timeout parameter (30min)',
+  prompt: `
+    Implement timeout parameter across schemas and handlers:
+
+    1. Schema Changes (src/schemas/*.ts):
+       - Add timeout?: z.number().min(5000).max(600000).optional() to 10 tool schemas
+       - Tools: sheets_bigquery, sheets_appsscript, sheets_analyze, sheets_core,
+         sheets_data, sheets_composite, sheets_visualize, sheets_format,
+         sheets_dimensions, sheets_advanced
+       - Run npm run schema:commit after changes
+
+    2. Handler Changes (src/handlers/*.ts):
+       - Extract timeout from request params in 10 handlers
+       - Pass to executeWithRetry() options: { timeoutMs: timeout ?? DEFAULT_TIMEOUT }
+       - Example: src/handlers/bigquery.ts (already long-running)
+
+    3. Service Changes (src/services/google-api.ts):
+       - Add timeoutMs: number to GoogleApiCallOptions
+       - Implement timeout enforcement in executeWithRetry()
+       - Use AbortController if timeout exceeded
+
+    4. Tests (tests/handlers/*.test.ts):
+       - Test timeout parameter accepted (success path)
+       - Test timeout parameter validated (error: < 5000ms, > 600000ms)
+       - Test request completes within timeout
+
+    5. Verification:
+       - npm run schema:commit
+       - npm run test:fast (all 2253 tests pass)
+       - npm run verify:safe (G0-G5 gates pass)
+
+    Output:
+    - Files changed (with line counts)
+    - Test coverage report
+    - Verification results
+  `,
+});
 ```
 
----
+**Expected Output:**
 
-## Complete Workflow Summary
+````markdown
+# Implementation Complete
 
-| Agent             | Model     | Cost       | Time      | Output               |
-| ----------------- | --------- | ---------- | --------- | -------------------- |
-| 1. Research       | Haiku     | $0.10      | 5min      | Pattern analysis     |
-| 2. Planning       | Sonnet    | $3.00      | 10min     | Implementation plan  |
-| 3. Implementation | Sonnet    | $8.00      | 40min     | Working code + tests |
-| 4. Validation     | Haiku     | $0.30      | 5min      | PASS/FAIL report     |
-| **Total**         | **Mixed** | **$11.40** | **60min** | **Complete feature** |
+## Schema Changes
 
-**vs All Opus:** $70.00 → **84% savings**
+- src/schemas/bigquery.ts: +1 line (timeout param)
+- src/schemas/appsscript.ts: +1 line
+- src/schemas/analyze.ts: +1 line
+- src/schemas/core.ts: +1 line
+- src/schemas/data.ts: +1 line
+- src/schemas/composite.ts: +1 line
+- src/schemas/visualize.ts: +1 line
+- src/schemas/format.ts: +1 line
+- src/schemas/dimensions.ts: +1 line
+- src/schemas/advanced.ts: +1 line
 
----
+Total schema changes: 10 files, +10 lines
 
-## Keyboard Shortcuts Used
+## Handler Changes
 
-| Shortcut      | Action                   | When                           |
-| ------------- | ------------------------ | ------------------------------ |
-| `Cmd+Shift+S` | Schema commit workflow   | After schema changes (Agent 3) |
-| `Cmd+G Cmd+0` | G0: Baseline integrity   | Validation (Agent 4)           |
-| `Cmd+G Cmd+1` | G1: Metadata consistency | Validation (Agent 4)           |
-| `Cmd+K Cmd+V` | Quick verify             | Final check                    |
+- src/handlers/bigquery.ts: +2 lines (extract + pass timeout)
+- src/handlers/appsscript.ts: +2 lines
+- ... (8 more handlers: +2 lines each)
 
----
+Total handler changes: 10 files, +20 lines
 
-## Success Metrics
+## Service Changes
 
-✅ **All gates passing**
-✅ **Cost: $11.40** (84% under budget)
-✅ **Time: 60min** (on estimate)
-✅ **Backward compatible**
-✅ **All 22 tools updated consistently**
-✅ **Tests covering edge cases**
+- src/services/google-api.ts: +15 lines (timeout enforcement)
 
----
+Total: 21 files changed, ~45 lines added
 
-## Common Issues & Solutions
+## Tests
 
-**Issue 1: Metadata drift after schema changes**
+- New tests: 20 (2 per tool: success + validation error)
+- All tests: 2253/2253 passing
+- Coverage: 100% of timeout code paths
 
-- **Cause:** Forgot to run `npm run schema:commit`
-- **Solution:** Run it now, re-validate with G1
+## Verification (npm run verify:safe)
 
-**Issue 2: Tests failing after implementation**
+✅ G0: check:drift (no metadata changes needed)
+✅ G1: check:placeholders (0 TODOs)
+✅ G2: check:debug-prints (0 console.log)
+✅ G3: check:silent-fallbacks (no silent errors)
+✅ G4: test:fast (2253/2253 pass)
+✅ G5: typecheck (0 errors)
 
-- **Cause:** Validation logic too strict or wrong default
-- **Solution:** Review test expectations, adjust validation
-
-**Issue 3: G1 fails (schema-handler alignment)**
-
-- **Cause:** Handler doesn't extract new parameter
-- **Solution:** Update BaseHandler to extract timeout
+Ready to commit!
+````
 
 ---
 
-**Related Templates:**
+## Agent 4: Code Review (Sonnet)
 
-- `research-agent.md` - Agent 1 template
-- `planning-agent.md` - Agent 2 template (use Plan subagent)
-- `implementation-agent.md` - Agent 3 template
-- `validation-agent.md` - Agent 4 template
+**Cost:** ~$0.30 | **Time:** 5 minutes
+
+```typescript
+Task({
+  subagent_type: 'code-review-orchestrator',
+  model: 'sonnet',
+  description: 'Pre-commit review (5min)',
+  prompt: `
+    Review timeout implementation for:
+    1. Type safety: All timeout values typed as number, validated with Zod
+    2. Error handling: Timeout errors use typed ErrorCode (TIMEOUT_ERROR)
+    3. Backwards compatibility: timeout is optional, no breaking changes
+    4. Test quality: Assertions are specific (not tautological)
+    5. Documentation: Handler methods updated with JSDoc?
+
+    Approve or request changes.
+  `,
+});
+```
+
+**Expected Output:**
+
+````markdown
+# Code Review: APPROVED ✅
+
+## Checks Passed
+
+✅ Type Safety: All timeout params typed as number | undefined
+✅ Error Handling: TIMEOUT_ERROR added to ErrorCodeSchema
+✅ Backwards Compatibility: timeout? parameter (optional)
+✅ Test Quality: 20 tests cover success + validation error paths
+✅ Documentation: Handler methods updated with JSDoc
+
+## Minor Suggestions
+
+1. Consider adding rate-limit guidance to JSDoc
+   ("Timeout is per-request, not cumulative across retries")
+2. Document default timeout value in server instructions
+
+These are optional improvements; code is ready to commit.
+````
+
+---
+
+## Cost Breakdown
+
+| Agent                   | Model  | Time   | Cost    | Task                                 |
+| ----------------------- | ------ | ------ | ------- | ------------------------------------ |
+| Research Patterns       | Haiku  | 5 min  | $0.10   | Find existing patterns, defaults     |
+| API Best Practices      | Sonnet | 10 min | $3.00   | Google API + MCP compliance review  |
+| Implementation          | Sonnet | 30 min | $8.00   | Schema/handler/service changes      |
+| Code Review             | Sonnet | 5 min  | $0.30   | Pre-commit validation               |
+| **TOTAL (Optimized)**   |        |        | **$11.40** | **Multi-specialist approach**    |
+| **TOTAL (All Opus)**    |        |        | **$70.00** | **Single agent approach (wasteful)** |
+| **Savings**             |        |        | **84%** | **6x cost reduction**               |
+
+---
+
+## Key Takeaways
+
+1. **Specialist agents save money:** Haiku for reads ($0.10), Sonnet for implementation ($3-8)
+2. **Parallel execution:** Research + API review could run simultaneously (add 1 session, save overall time)
+3. **Sequential dependency:** Implementation must follow research (needs pattern knowledge)
+4. **Final review is quick:** Code review (5 min, $0.30) catches issues before commit
+5. **Total cost: $11.40** for 60 min of specialized work (vs $70 for all-Opus approach)
+
+---
+
+## Lessons for Your Own Workflows
+
+- Use **Haiku for reads/searches** (fast, cheap)
+- Use **Sonnet for complex work** (implementation, review, architecture)
+- **Research first** (5 min, $0.10) → saves implementation time
+- **Review last** (5 min, $0.30) → prevents rework
+- **Run in parallel** when independent (research + API review simultaneously)
+- **Verify gates run** (npm run verify:safe) before committing
