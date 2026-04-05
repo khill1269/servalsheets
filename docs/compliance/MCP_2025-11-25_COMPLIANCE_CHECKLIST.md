@@ -17,7 +17,7 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 - Coordinator dossier: [docs/review/MCP_PROTOCOL_COORDINATOR_AUDIT.md](../review/MCP_PROTOCOL_COORDINATOR_AUDIT.md)
 - Runtime snapshot validated on 2026-03-15: **25 tools, 409 actions, 40 prompts, 56 resources**
 - Requested protocol target: **MCP 2025-11-25**
-- Official MCP landing page on 2026-03-15 advertised **2025-06-18** as the latest published revision, so this checklist is intentionally pinned to **2025-11-25** rather than “current MCP”.
+- Official MCP landing page on 2026-03-15 advertised **2025-06-18** as the latest published revision, so this checklist is intentionally pinned to **2025-11-25** rather than "current MCP".
 
 ## Status Summary
 
@@ -39,7 +39,7 @@ This checklist is the verified output of the March 15, 2026 coordinator audit. I
 | Surface                     | Verified Value   | How Verified                                                              |
 | --------------------------- | ---------------- | ------------------------------------------------------------------------- |
 | Tools                       | 25               | `TOOL_COUNT`, `TOOL_DEFINITIONS.length`, runtime `listTools()`            |
-| Actions                     | 408              | `ACTION_COUNT`, `TOOL_ACTIONS`, metadata consistency tests                |
+| Actions                     | 409              | `ACTION_COUNT`, `TOOL_ACTIONS`, metadata consistency tests                |
 | Prompts                     | 40               | `getPromptsCatalogCount()`, runtime `listPrompts()`                       |
 | Resources                   | 56               | runtime `listResources()` via `createServalSheetsTestHarness()`           |
 | Resource templates          | 12               | runtime `listResourceTemplates()` via `createServalSheetsTestHarness()`   |
