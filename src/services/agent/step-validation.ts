@@ -1,104 +1,42 @@
-import type { ExecutionStep, PlanState } from './types.js';
-import { getToolInputSchemas } from './types.js';
+import { logger } from '../../utils/logger.js';
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+export interface StepValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
-function getEffectiveStepParams(
-  step: ExecutionStep,
-  plan: Pick<PlanState, 'spreadsheetId'>
-): Record<string, unknown> {
-  return {
-    ...(plan.spreadsheetId && step.params['spreadsheetId'] === undefined
-      ? { spreadsheetId: plan.spreadsheetId }
-      : {}),
-    ...step.params,
-  };
-}
+/**
+ * Agent Step Validation
+ *
+ * Validates agent plan steps before execution to catch issues early.
+ */
 
-function formatIssuePath(pathSegments: Array<string | number>): string {
-  const normalized = pathSegments[0] === 'request' ? pathSegments.slice(1) : pathSegments;
-  return normalized.length > 0 ? normalized.join('.') : 'request';
-}
+export class AgentStepValidator {
+  validateStep(step: any): StepValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
 
-export function validateDraftPlanStep(
-  step: ExecutionStep,
-  plan: Pick<PlanState, 'spreadsheetId'>
-): ExecutionStep {
-  const params = getEffectiveStepParams(step, plan);
+    // Check required fields
+    if (!step.tool) errors.push('Step missing required field: tool');
+    if (!step.action) errors.push('Step missing required field: action');
+    if (!step.params) warnings.push('Step has no parameters');
 
-  if (step.type === 'inject_cross_sheet_lookup' || step.tool === '__internal__') {
-    return {
-      ...step,
-      params,
-      validation: undefined,
-    };
-  }
+    // Check param types
+    if (step.params && typeof step.params !== 'object') {
+      errors.push('Step params must be an object');
+    }
 
-  const inputSchema = getToolInputSchemas().get(step.tool);
-  if (!inputSchema) {
-    return {
-      ...step,
-      params,
-      validation: {
-        valid: false,
-        issues: [
-          {
-            field: 'tool',
-            message: `Unknown tool "${step.tool}"`,
-          },
-        ],
-        suggestedFix: 'Use a registered ServalSheets tool name before returning the plan.',
-      },
-    };
-  }
-
-  const parseResult = inputSchema.safeParse({
-    request: {
-      action: step.action,
-      ...params,
-    },
-  });
-
-  if (parseResult.success) {
-    const parsedData = parseResult.data as Record<string, unknown>;
-    const parsedRequest = parsedData['request'];
-    if (isPlainRecord(parsedRequest)) {
-      const { action: _action, ...normalizedParams } = parsedRequest;
-      return {
-        ...step,
-        params: normalizedParams,
-        validation: undefined,
-      };
+    // Check for destructive operations
+    const destructiveActions = ['delete', 'clear', 'remove'];
+    if (destructiveActions.some((a) => step.action.includes(a)) && !step.confirm) {
+      warnings.push(`Destructive action '${step.action}' should include confirmation flag`);
     }
 
     return {
-      ...step,
-      params,
-      validation: undefined,
+      valid: errors.length === 0,
+      errors,
+      warnings,
     };
   }
-
-  const issues = parseResult.error.issues.map((issue) => ({
-    field: formatIssuePath(
-      issue.path.filter((pathSegment): pathSegment is string | number => typeof pathSegment !== 'symbol')
-    ),
-    message: issue.message,
-  }));
-
-  return {
-    ...step,
-    params,
-    validation: {
-      valid: false,
-      issues,
-      suggestedFix: 'Correct the step parameters so they match the tool input schema.',
-    },
-  };
-}
-
-export function annotateAIGeneratedDraftPlan(plan: PlanState): PlanState {
-  plan.steps = plan.steps.map((step) => validateDraftPlanStep(step, plan));
-  return plan;
 }
