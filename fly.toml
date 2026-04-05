@@ -27,10 +27,27 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   SESSION_STORE_TYPE = "redis"
   # Node.js tuning for 1GB container
   NODE_OPTIONS = "--max-old-space-size=768 --enable-source-maps"
-  # Set these via: fly secrets set ...
-  # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OAUTH_CLIENT_SECRET,
-  # JWT_SECRET, STATE_SECRET, AUDIT_LOG_ENCRYPTION_KEY, REDIS_URL,
-  # CORS_ORIGINS, ALLOWED_REDIRECT_URIS
+  # Required secrets — set via: fly secrets set KEY=VALUE
+  #
+  # Redis (Upstash):
+  #   fly redis create --name servalsheets-redis --region iad
+  #   fly secrets set REDIS_URL="rediss://default:<password>@<host>:6379"
+  #   Note: Use rediss:// (TLS) for Upstash; plain redis:// only for internal
+  #
+  # Google OAuth:
+  #   fly secrets set GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
+  #   fly secrets set GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
+  #
+  # OR Google Service Account (alternative — no user consent required):
+  #   fly secrets set GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
+  #
+  # Security:
+  #   fly secrets set OAUTH_CLIENT_SECRET="<random-32-chars>"
+  #   fly secrets set JWT_SECRET="<random-32-chars>"
+  #   fly secrets set STATE_SECRET="<random-32-chars>"
+  #   fly secrets set AUDIT_LOG_ENCRYPTION_KEY="<random-64-hex-chars>"
+  #   fly secrets set CORS_ORIGINS="https://claude.ai,https://your-domain.com"
+  #   fly secrets set ALLOWED_REDIRECT_URIS="https://claude.ai/api/mcp/auth_callback"
 
 [http_service]
   internal_port = 3000

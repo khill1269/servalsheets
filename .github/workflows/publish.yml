@@ -50,12 +50,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build @serval/core
+        run: npm run build -w packages/serval-core
+
       - name: Pack release artifact
         id: pack
+        working-directory: packages/serval-core
         run: |
           npm pack --json > npm-pack.json
           TARBALL=$(node -e "const pack = JSON.parse(require('fs').readFileSync('npm-pack.json', 'utf8')); process.stdout.write(pack[0].filename)")
-          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "tarball=packages/serval-core/$TARBALL" >> "$GITHUB_OUTPUT"
           echo "Packed artifact: $TARBALL"
 
       - name: Attest package provenance

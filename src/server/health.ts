@@ -12,6 +12,7 @@ import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { getWriteLockStats } from '../middleware/write-lock-middleware.js';
 import { VERSION } from '../version.js';
+import type { SessionStore } from '../storage/session-store.js';
 
 export interface HealthCheck {
   name: string;
@@ -39,10 +40,12 @@ export interface HealthResponse {
 export class HealthService {
   private startTime: number;
   private googleClient: GoogleApiClient | null;
+  private sessionStore: SessionStore | null;
 
-  constructor(googleClient: GoogleApiClient | null) {
+  constructor(googleClient: GoogleApiClient | null, sessionStore?: SessionStore | null) {
     this.startTime = Date.now();
     this.googleClient = googleClient;
+    this.sessionStore = sessionStore ?? null;
   }
 
   /**
@@ -122,6 +125,16 @@ export class HealthService {
     const writeLockCheck = this.checkWriteLocks();
     checks.push(writeLockCheck);
     // Write lock stats are informational
+
+    // Check 6: Redis connectivity (when session store is Redis-backed)
+    if (this.sessionStore) {
+      const redisCheck = await this.checkRedis();
+      checks.push(redisCheck);
+      if (redisCheck.status === 'error') overallStatus = 'unhealthy';
+      else if (redisCheck.status === 'degraded' && overallStatus === 'healthy') {
+        overallStatus = 'degraded';
+      }
+    }
 
     return {
       status: overallStatus,
@@ -316,6 +329,42 @@ export class HealthService {
         name: 'write_locks',
         status: 'ok', // Write lock stats failure is non-critical
         message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Check Redis connectivity via session store ping
+   *
+   * Uses a lightweight has() probe to verify the Redis connection is alive.
+   * Critical in production where SESSION_STORE_TYPE=redis — Fly.io should
+   * not route traffic to instances that cannot reach Redis.
+   */
+  private async checkRedis(): Promise<HealthCheck> {
+    const start = Date.now();
+
+    try {
+      // Probe Redis with a lightweight key existence check
+      await this.sessionStore!.has('__health_check__');
+
+      return {
+        name: 'redis',
+        status: 'ok',
+        message: 'Redis connected',
+        latency: Date.now() - start,
+        metadata: {
+          storeType: 'redis',
+        },
+      };
+    } catch (error) {
+      return {
+        name: 'redis',
+        status: 'error',
+        message: `Redis unreachable: ${error instanceof Error ? error.message : String(error)}`,
+        latency: Date.now() - start,
+        metadata: {
+          storeType: 'redis',
+        },
       };
     }
   }
