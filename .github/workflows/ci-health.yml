@@ -1,0 +1,160 @@
+name: CI Health Monitor
+
+on:
+  # Run after every CI pipeline completion
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  # Daily health check
+  schedule:
+    - cron: '0 8 * * *'  # 8 AM UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  health-report:
+    name: CI Health Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          sparse-checkout: |
+            .github
+            scripts
+            package.json
+
+      - name: Generate CI health report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          echo "## CI Health Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated:** $(date -u '+%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Fetch last 20 CI runs on main
+          RUNS=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[:20] | map(select(.head_branch == "main")) | map({name, conclusion, created_at: .created_at, run_number, html_url})' \
+            2>/dev/null || echo "[]")
+
+          # Count pass/fail
+          PASS=$(echo "$RUNS" | jq '[.[] | select(.conclusion == "success")] | length')
+          FAIL=$(echo "$RUNS" | jq '[.[] | select(.conclusion == "failure")] | length')
+          TOTAL=$(echo "$RUNS" | jq 'length')
+
+          RATE="0"
+          if [ "$TOTAL" -gt 0 ]; then
+            RATE=$(echo "scale=1; $PASS * 100 / $TOTAL" | bc)
+          fi
+
+          # KPIs
+          echo "### Key Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Pass rate (last 20 runs) | **${RATE}%** (${PASS}/${TOTAL}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failures | ${FAIL} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Recent failures detail
+          FAILURES=$(echo "$RUNS" | jq -r '.[] | select(.conclusion == "failure") | "| [\(.name) #\(.run_number)](\(.html_url)) | \(.created_at[:16]) |"')
+          if [ -n "$FAILURES" ]; then
+            echo "### Recent Failures" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Run | Time |" >> $GITHUB_STEP_SUMMARY
+            echo "|-----|------|" >> $GITHUB_STEP_SUMMARY
+            echo "$FAILURES" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ No recent failures on main" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Workflow inventory
+          WORKFLOW_COUNT=$(ls .github/workflows/*.yml 2>/dev/null | wc -l)
+          echo "### Infrastructure" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Workflow files | ${WORKFLOW_COUNT} |" >> $GITHUB_STEP_SUMMARY
+
+          # Check for workflows with no timeout
+          NO_TIMEOUT=$(grep -rL 'timeout-minutes' .github/workflows/*.yml 2>/dev/null | wc -l || echo 0)
+          echo "| Workflows missing timeout | ${NO_TIMEOUT} |" >> $GITHUB_STEP_SUMMARY
+
+          # Check for unpinned actions
+          UNPINNED=$(grep -rh 'uses:' .github/workflows/*.yml | grep -v '#' | grep -cE '@v[0-9]' || echo 0)
+          echo "| Unpinned actions (tag only) | ${UNPINNED} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Optimization status
+          echo "### Optimization Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check ESLint cache
+          if grep -q 'eslintcache' .github/workflows/ci.yml 2>/dev/null; then
+            echo "- ✅ ESLint caching enabled" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ ESLint caching not configured" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for matrix redundancy
+          MATRIX_COUNT=$(grep -c 'node-version.*20.*22' .github/workflows/ci.yml 2>/dev/null || echo 0)
+          if [ "$MATRIX_COUNT" -gt 1 ]; then
+            echo "- ⚠️ Multiple Node version matrices in CI ($MATRIX_COUNT)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ✅ Minimal Node version matrices" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check mutation-testing scope
+          if grep -A2 'mutation-testing' .github/workflows/ci.yml | grep -q "if:"; then
+            echo "- ✅ Mutation testing scoped to main/release" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Mutation testing runs on all branches" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check all jobs have timeouts
+          JOBS_NO_TIMEOUT=$(python3 -c "
+          import yaml
+          with open('.github/workflows/ci.yml') as f:
+              ci = yaml.safe_load(f)
+          missing = [name for name, job in ci.get('jobs', {}).items() if 'timeout-minutes' not in job]
+          print(','.join(missing) if missing else '')
+          " 2>/dev/null || echo "check-failed")
+
+          if [ -z "$JOBS_NO_TIMEOUT" ]; then
+            echo "- ✅ All CI jobs have explicit timeouts" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ Jobs missing timeout: $JOBS_NO_TIMEOUT" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Generated by CI Health Monitor*" >> $GITHUB_STEP_SUMMARY
+
+      - name: Alert on failure streak
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Check if this is 3+ consecutive failures
+          RECENT_CONCLUSIONS=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '[.workflow_runs[:5] | .[] | select(.head_branch == "main" and .name == "CI") | .conclusion] | join(",")' \
+            2>/dev/null || echo "")
+
+          CONSECUTIVE_FAILS=$(echo "$RECENT_CONCLUSIONS" | tr ',' '\n' | awk '/failure/{count++} /success/{exit} END{print count}')
+
+          if [ "${CONSECUTIVE_FAILS:-0}" -ge 3 ]; then
+            echo "::error::CI has failed ${CONSECUTIVE_FAILS} consecutive times on main! Investigate immediately."
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🚨 ALERT: ${CONSECUTIVE_FAILS} consecutive CI failures on main" >> $GITHUB_STEP_SUMMARY
+          fi

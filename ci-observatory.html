@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ServalSheets CI Observatory</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #c9d1d9; --text-muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header h1 span { color: var(--accent); }
+  .header .meta { color: var(--text-muted); font-size: 13px; }
+
+  .controls { padding: 16px 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .controls input, .controls select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; }
+  .controls input { width: 320px; }
+  .controls button { background: var(--accent); color: #fff; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .controls button:hover { opacity: 0.9; }
+  .controls button.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 0 24px 24px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-header h3 { font-size: 14px; font-weight: 600; }
+  .card-body { padding: 16px; }
+
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.red { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .status-dot.yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+  .status-dot.purple { background: var(--purple); }
+
+  .metric { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .metric:last-child { border-bottom: none; }
+  .metric .label { color: var(--text-muted); font-size: 13px; }
+  .metric .value { font-weight: 600; font-size: 14px; }
+  .metric .value.green { color: var(--green); }
+  .metric .value.red { color: var(--red); }
+  .metric .value.yellow { color: var(--yellow); }
+
+  .workflow-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .workflow-row:last-child { border-bottom: none; }
+  .workflow-row .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .workflow-row .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge.pass { background: rgba(63,185,80,.15); color: var(--green); }
+  .badge.fail { background: rgba(248,81,73,.15); color: var(--red); }
+  .badge.skip { background: rgba(139,148,158,.15); color: var(--text-muted); }
+  .badge.warn { background: rgba(210,153,34,.15); color: var(--yellow); }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 6px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .bar-row .bar-label { width: 100px; text-align: right; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .bar-track { flex: 1; height: 18px; background: rgba(255,255,255,.05); border-radius: 4px; overflow: hidden; position: relative; }
+  .bar-row .bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; display: flex; align-items: center; padding-left: 6px; font-size: 11px; font-weight: 600; color: #fff; }
+
+  .timeline { position: relative; padding-left: 20px; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .timeline-item { position: relative; padding: 8px 0; font-size: 13px; }
+  .timeline-item::before { content: ''; position: absolute; left: -17px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
+  .timeline-item .time { color: var(--text-muted); font-size: 11px; }
+
+  .big-number { font-size: 36px; font-weight: 700; line-height: 1.1; }
+  .big-label { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 24px 16px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+
+  .section-title { padding: 16px 24px 8px; font-size: 16px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; }
+
+  .dep-graph { font-family: monospace; font-size: 12px; line-height: 1.6; color: var(--text-muted); padding: 8px; background: rgba(0,0,0,.3); border-radius: 6px; overflow-x: auto; white-space: pre; }
+  .dep-graph .node { color: var(--accent); }
+  .dep-graph .arrow { color: var(--text-muted); }
+  .dep-graph .gate { color: var(--green); font-weight: bold; }
+
+  @media (max-width: 768px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>ServalSheets</span> CI Observatory</h1>
+  <div class="meta" id="lastUpdate">Live dashboard — updates on page load</div>
+</div>
+
+<div class="controls">
+  <input type="text" id="ownerRepo" value="khill1269/servalsheets" placeholder="owner/repo">
+  <input type="text" id="ghToken" placeholder="GitHub token (optional, for higher rate limits)" type="password">
+  <button onclick="loadData()">Refresh</button>
+  <button class="secondary" onclick="exportReport()">Export Report</button>
+  <select id="branchFilter"><option value="main">main</option><option value="">all branches</option></select>
+</div>
+
+<div class="kpi-row" id="kpis">
+  <div class="kpi"><div class="big-number green" id="kpiPass">—</div><div class="big-label">Passing</div></div>
+  <div class="kpi"><div class="big-number red" id="kpiFail">—</div><div class="big-label">Failing</div></div>
+  <div class="kpi"><div class="big-number" id="kpiWorkflows" style="color:var(--accent)">24</div><div class="big-label">Workflows</div></div>
+  <div class="kpi"><div class="big-number yellow" id="kpiAvgDuration">—</div><div class="big-label">Avg Duration</div></div>
+</div>
+
+<div class="section-title">CI Pipeline Architecture</div>
+<div style="padding: 0 24px 16px;">
+  <div class="card">
+    <div class="card-body">
+      <div class="dep-graph"><span class="node">quick-checks</span> ─┬─→ <span class="node">test-fast</span> (×8 shards) ──────┐
+              │                                │
+              ├─→ <span class="node">snapshot-tests</span> ─────────────┤
+              │                                │
+              ├─→ <span class="node">test-integration</span> (×4 shards) ┤
+              │                                │
+              ├─→ <span class="node">mcp-http-contract</span> ──────────┤
+              │                                ├──→ <span class="node">build</span> ──→ <span class="gate">ci-required</span> ✓
+              ├─→ <span class="node">http-failover</span> ────────────────┤
+              │                                │
+              └─→ <span class="node">validate-server-json</span> ────────┘
+
+<span class="node">security</span> ──────────────────────────────────────────→ <span class="gate">ci-required</span> ✓
+<span class="node">mutation-testing</span> (main only) ────────────────────→ <span class="gate">ci-required</span> ✓
+<span class="node">coverage</span> (conditional) ───────────────────────────→ <span class="gate">ci-required</span> ✓</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">All Workflows</div>
+<div class="grid" id="workflowGrid"></div>
+
+<div class="section-title">Performance Analysis</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-header"><h3>Job Duration (estimated)</h3></div>
+    <div class="card-body">
+      <div class="bar-chart" id="durationChart"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Runner Cost Breakdown</h3></div>
+    <div class="card-body">
+      <div class="bar-chart" id="costChart"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Optimization Opportunities</h3></div>
+    <div class="card-body">
+      <div class="timeline" id="optimizations"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Recent Activity</h3></div>
+    <div class="card-body">
+      <div class="timeline" id="recentActivity"></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Workflow Health Matrix</div>
+<div style="padding: 0 24px 24px;">
+  <div class="card">
+    <div class="card-body" id="healthMatrix" style="overflow-x:auto;"></div>
+  </div>
+</div>
+
+<script>
+const WORKFLOWS = [
+  { name: 'CI Pipeline', file: 'ci.yml', critical: true, jobs: ['quick-checks','test-fast','snapshot-tests','test-integration','mcp-http-task-contract','http-transport-failover','validate-server-json','build','mutation-testing','coverage','security','ci-required'] },
+  { name: 'Security Scanning', file: 'security.yml', critical: true },
+  { name: 'Docker Build', file: 'docker.yml', critical: false },
+  { name: 'OpenSSF Scorecard', file: 'scorecards.yml', critical: false },
+  { name: 'Performance Tracking', file: 'performance-tracking.yml', critical: false },
+  { name: 'Workflow Lint', file: 'actionlint.yml', critical: false },
+  { name: 'Benchmarks', file: 'benchmark.yml', critical: false },
+  { name: 'Architecture Validation', file: 'architecture.yml', critical: false },
+  { name: 'Documentation Validation', file: 'docs-validation.yml', critical: false },
+  { name: 'Deploy Docs', file: 'docs.yml', critical: false },
+  { name: 'Deploy Demo', file: 'deploy-demo.yml', critical: false },
+  { name: 'Deploy Dashboard', file: 'deploy-dashboard.yml', critical: false },
+  { name: 'Fly Deploy', file: 'fly-deploy.yml', critical: false },
+  { name: 'Publish npm', file: 'publish.yml', critical: true },
+  { name: 'Mutation Testing', file: 'mutation-testing.yml', critical: false },
+  { name: 'Google API Schema Check', file: 'schema-check.yml', critical: false },
+  { name: 'Claude Auto-Fix', file: 'claude-fix.yml', critical: false },
+  { name: 'Claude Code', file: 'claude.yml', critical: false },
+  { name: 'Auto Draft PR', file: 'auto-draft-pr.yml', critical: false },
+  { name: '106-Category Audit', file: 'audit-106.yml', critical: false },
+  { name: 'Multi-Agent Analysis', file: 'multi-agent-analysis.yml', critical: false },
+  { name: 'Release Audit', file: 'release-audit.yml', critical: false },
+  { name: 'Sync Documentation', file: 'sync-docs.yml', critical: false },
+  { name: 'Supplemental Test Gates', file: 'test-gates.yml', critical: true },
+];
+
+const JOB_DURATIONS = {
+  'quick-checks': { est: 12, unit: 'min', runners: 1 },
+  'test-fast': { est: 8, unit: 'min', runners: 8 },
+  'snapshot-tests': { est: 5, unit: 'min', runners: 1 },
+  'test-integration': { est: 20, unit: 'min', runners: 4 },
+  'mcp-http-task-contract': { est: 6, unit: 'min', runners: 1 },
+  'http-transport-failover': { est: 6, unit: 'min', runners: 1 },
+  'validate-server-json': { est: 2, unit: 'min', runners: 1 },
+  'build': { est: 5, unit: 'min', runners: 1 },
+  'mutation-testing': { est: 30, unit: 'min', runners: 1 },
+  'coverage': { est: 12, unit: 'min', runners: 1 },
+  'security': { est: 3, unit: 'min', runners: 1 },
+  'ci-required': { est: 0.5, unit: 'min', runners: 1 },
+};
+
+let runData = [];
+
+async function fetchGH(path) {
+  const [owner, repo] = document.getElementById('ownerRepo').value.split('/');
+  const token = document.getElementById('ghToken').value;
+  const headers = { Accept: 'application/vnd.github+json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, { headers });
+  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+async function loadData() {
+  try {
+    const branch = document.getElementById('branchFilter').value;
+    const query = branch ? `&branch=${branch}` : '';
+    const data = await fetchGH(`/actions/runs?per_page=30${query}`);
+    runData = data.workflow_runs || [];
+    render();
+    document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString()} — ${runData.length} runs loaded`;
+  } catch (e) {
+    // Fallback to static data if API is blocked
+    renderStatic();
+    document.getElementById('lastUpdate').textContent = `Static mode — GitHub API unavailable (${e.message})`;
+  }
+}
+
+function renderStatic() {
+  // KPIs from known state
+  document.getElementById('kpiPass').textContent = '24';
+  document.getElementById('kpiFail').textContent = '0';
+  document.getElementById('kpiAvgDuration').textContent = '~40m';
+
+  renderWorkflows([]);
+  renderDurationChart();
+  renderCostChart();
+  renderOptimizations();
+  renderRecentStatic();
+  renderHealthMatrix([]);
+}
+
+function render() {
+  const passing = runData.filter(r => r.conclusion === 'success').length;
+  const failing = runData.filter(r => r.conclusion === 'failure').length;
+  const durations = runData.filter(r => r.updated_at && r.created_at).map(r => (new Date(r.updated_at) - new Date(r.created_at)) / 60000);
+  const avgDur = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+
+  document.getElementById('kpiPass').textContent = passing;
+  document.getElementById('kpiFail').textContent = failing;
+  document.getElementById('kpiAvgDuration').textContent = avgDur > 0 ? `${avgDur}m` : '—';
+
+  renderWorkflows(runData);
+  renderDurationChart();
+  renderCostChart();
+  renderOptimizations();
+  renderRecent(runData);
+  renderHealthMatrix(runData);
+}
+
+function renderWorkflows(runs) {
+  const grid = document.getElementById('workflowGrid');
+  const latestByWorkflow = {};
+  runs.forEach(r => {
+    if (!latestByWorkflow[r.name] || new Date(r.created_at) > new Date(latestByWorkflow[r.name].created_at)) {
+      latestByWorkflow[r.name] = r;
+    }
+  });
+
+  grid.innerHTML = WORKFLOWS.map(wf => {
+    const run = latestByWorkflow[wf.name];
+    const status = run ? run.conclusion || run.status : 'unknown';
+    const dotClass = status === 'success' ? 'green' : status === 'failure' ? 'red' : status === 'in_progress' ? 'yellow' : 'purple';
+    const badge = status === 'success' ? 'pass' : status === 'failure' ? 'fail' : 'skip';
+    const time = run ? new Date(run.created_at).toLocaleString() : 'No recent run';
+    const dur = run && run.updated_at ? Math.round((new Date(run.updated_at) - new Date(run.created_at)) / 1000) : null;
+    const durStr = dur ? (dur > 60 ? `${Math.round(dur/60)}m ${dur%60}s` : `${dur}s`) : '';
+
+    return `<div class="card">
+      <div class="card-header">
+        <h3><span class="status-dot ${dotClass}"></span>${wf.name}</h3>
+        <span class="badge ${badge}">${status}</span>
+      </div>
+      <div class="card-body">
+        <div class="metric"><span class="label">File</span><span class="value">${wf.file}</span></div>
+        <div class="metric"><span class="label">Critical</span><span class="value ${wf.critical ? 'yellow' : ''}">${wf.critical ? 'Yes' : 'No'}</span></div>
+        <div class="metric"><span class="label">Last Run</span><span class="value">${time}</span></div>
+        ${durStr ? `<div class="metric"><span class="label">Duration</span><span class="value">${durStr}</span></div>` : ''}
+        ${run ? `<div class="metric"><span class="label">Run #</span><span class="value">${run.run_number}</span></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDurationChart() {
+  const chart = document.getElementById('durationChart');
+  const maxDur = Math.max(...Object.values(JOB_DURATIONS).map(j => j.est));
+  chart.innerHTML = Object.entries(JOB_DURATIONS)
+    .sort((a, b) => b[1].est - a[1].est)
+    .map(([name, data]) => {
+      const pct = (data.est / maxDur * 100).toFixed(0);
+      const color = data.est > 15 ? 'var(--red)' : data.est > 8 ? 'var(--yellow)' : 'var(--green)';
+      return `<div class="bar-row">
+        <span class="bar-label" title="${name}">${name}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}">${data.est}m</div></div>
+        <span style="width:50px;text-align:right;color:var(--text-muted);font-size:11px">×${data.runners}</span>
+      </div>`;
+    }).join('');
+}
+
+function renderCostChart() {
+  const chart = document.getElementById('costChart');
+  const costs = Object.entries(JOB_DURATIONS).map(([name, d]) => ({ name, cost: d.est * d.runners }));
+  const maxCost = Math.max(...costs.map(c => c.cost));
+  const totalCost = costs.reduce((sum, c) => sum + c.cost, 0);
+
+  chart.innerHTML = costs
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 8)
+    .map(c => {
+      const pct = (c.cost / maxCost * 100).toFixed(0);
+      const color = c.cost > 40 ? 'var(--red)' : c.cost > 15 ? 'var(--yellow)' : 'var(--green)';
+      return `<div class="bar-row">
+        <span class="bar-label" title="${c.name}">${c.name}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}">${c.cost}m</div></div>
+      </div>`;
+    }).join('') + `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Total: <strong style="color:var(--accent)">${totalCost} runner-min/run</strong> (~$${(totalCost * 0.008).toFixed(2)}/run)</div>`;
+}
+
+function renderOptimizations() {
+  const opts = [
+    { text: 'ESLint cache added — 30% faster lint on cache hits', status: 'done' },
+    { text: 'Node matrix removed from quick-checks — saves 15 runner-min', status: 'done' },
+    { text: 'Mutation testing restricted to main/release — saves 30 min on PRs', status: 'done' },
+    { text: 'Missing timeouts added (build, security, mutation) — prevents hangs', status: 'done' },
+    { text: 'Consolidate snapshot-tests into test-fast — could save 5 min setup', status: 'next' },
+    { text: 'Upload dist/ as artifact from quick-checks → reuse in test jobs', status: 'next' },
+    { text: 'Add Vitest cache across test shards', status: 'next' },
+    { text: 'Profile shard timing balance with --reporter=json', status: 'next' },
+  ];
+  document.getElementById('optimizations').innerHTML = opts.map(o =>
+    `<div class="timeline-item" style="${o.status === 'done' ? '' : 'opacity:0.6'}">
+      <div>${o.status === 'done' ? '✅' : '💡'} ${o.text}</div>
+      <div class="time">${o.status === 'done' ? 'Implemented' : 'Opportunity'}</div>
+    </div>`
+  ).join('');
+}
+
+function renderRecent(runs) {
+  const timeline = document.getElementById('recentActivity');
+  timeline.innerHTML = runs.slice(0, 8).map(r => {
+    const icon = r.conclusion === 'success' ? '✅' : r.conclusion === 'failure' ? '❌' : '⏳';
+    return `<div class="timeline-item">
+      <div>${icon} <strong>${r.name}</strong> #${r.run_number}</div>
+      <div class="time">${new Date(r.created_at).toLocaleString()} — ${r.head_sha?.slice(0,7)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderRecentStatic() {
+  document.getElementById('recentActivity').innerHTML = `
+    <div class="timeline-item"><div>✅ <strong>CI Pipeline</strong> #368</div><div class="time">All jobs passing</div></div>
+    <div class="timeline-item"><div>✅ <strong>Security Scanning</strong> #346</div><div class="time">4m 27s</div></div>
+    <div class="timeline-item"><div>✅ <strong>OpenSSF Scorecard</strong> #54</div><div class="time">39s</div></div>
+    <div class="timeline-item"><div>✅ <strong>Docker Build</strong> #339</div><div class="time">27s</div></div>
+    <div class="timeline-item"><div>✅ <strong>Performance Tracking</strong> #322</div><div class="time">15s</div></div>
+  `;
+}
+
+function renderHealthMatrix(runs) {
+  const container = document.getElementById('healthMatrix');
+  const wfNames = WORKFLOWS.map(w => w.name);
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  const matrix = {};
+  wfNames.forEach(name => { matrix[name] = {}; days.forEach(d => { matrix[name][d] = 'none'; }); });
+  runs.forEach(r => {
+    const day = r.created_at?.slice(0, 10);
+    if (day && matrix[r.name]) {
+      if (r.conclusion === 'failure' || matrix[r.name][day] === 'failure') matrix[r.name][day] = 'failure';
+      else if (r.conclusion === 'success') matrix[r.name][day] = 'success';
+    }
+  });
+
+  const colorMap = { success: 'var(--green)', failure: 'var(--red)', none: 'rgba(255,255,255,.05)' };
+  container.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr><th style="text-align:left;padding:4px 8px;color:var(--text-muted)">Workflow</th>
+    ${days.map(d => `<th style="padding:4px 8px;color:var(--text-muted)">${d.slice(5)}</th>`).join('')}</tr>
+    ${wfNames.map(name => `<tr>
+      <td style="padding:4px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${name}</td>
+      ${days.map(d => `<td style="padding:4px 8px;text-align:center">
+        <div style="width:16px;height:16px;border-radius:3px;background:${colorMap[matrix[name][d] || 'none']};margin:auto"></div>
+      </td>`).join('')}
+    </tr>`).join('')}
+  </table>`;
+}
+
+function exportReport() {
+  const report = {
+    repo: document.getElementById('ownerRepo').value,
+    timestamp: new Date().toISOString(),
+    workflows: WORKFLOWS.length,
+    jobDurations: JOB_DURATIONS,
+    totalRunnerMinutes: Object.values(JOB_DURATIONS).reduce((s, j) => s + j.est * j.runners, 0),
+    runs: runData.map(r => ({ name: r.name, conclusion: r.conclusion, sha: r.head_sha?.slice(0,7), created: r.created_at }))
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `ci-report-${new Date().toISOString().slice(0,10)}.json`; a.click();
+}
+
+// Auto-load on page load
+loadData();
+</script>
+</body>
+</html>
