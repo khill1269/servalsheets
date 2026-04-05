@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { startStdioTransport } from '../../../packages/mcp-stdio/src/start-stdio-transport.js';
+import { ACTION_COUNT, TOOL_COUNT } from '../../../src/generated/action-counts.js';
 
 describe('@serval/mcp-stdio startStdioTransport', () => {
   it('connects stdio transport before running post-connect bootstrap and shuts down on unexpected close', async () => {
@@ -26,8 +27,8 @@ describe('@serval/mcp-stdio startStdioTransport', () => {
       shutdown,
       getIsShutdown: () => false,
       getProcessBreadcrumbs: () => ({ resourcesRegistered: true }),
-      toolCount: 25,
-      actionCount: 408,
+      toolCount: TOOL_COUNT,
+      actionCount: ACTION_COUNT,
       log,
     });
 
@@ -38,7 +39,7 @@ describe('@serval/mcp-stdio startStdioTransport', () => {
     );
     expect(log.info).toHaveBeenCalledWith('[Phase 2/3] Creating STDIO transport');
     expect(log.info).toHaveBeenCalledWith(
-      '[Phase 3/3] \u2713 ServalSheets ready (25 tools, 408 actions)',
+      `[Phase 3/3] ✓ ServalSheets ready (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`,
       expect.objectContaining({
         transport: 'stdio',
         timing: expect.objectContaining({

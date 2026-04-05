@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createHttpServer } from '../../../packages/mcp-http/src/create-http-server.js';
+import { ACTION_COUNT, TOOL_COUNT } from '../../../src/generated/action-counts.js';
 
 describe('@serval/mcp-http createHttpServer', () => {
   it('orchestrates the HTTP server runtime and returns lifecycle handles', () => {
@@ -79,8 +80,8 @@ describe('@serval/mcp-http createHttpServer', () => {
       onShutdown: vi.fn(),
       redisUrl: 'redis://localhost:6379',
       sessionStoreType: 'redis',
-      toolCount: 25,
-      actionCount: 408,
+      toolCount: TOOL_COUNT,
+      actionCount: ACTION_COUNT,
       log,
     };
 
@@ -166,8 +167,8 @@ describe('@serval/mcp-http createHttpServer', () => {
       stopMetricsServer: dependencies.stopMetricsServer,
       initTelemetry: dependencies.initTelemetry,
       onShutdown: dependencies.onShutdown,
-      toolCount: 25,
-      actionCount: 408,
+      toolCount: TOOL_COUNT,
+      actionCount: ACTION_COUNT,
       log,
     });
 
