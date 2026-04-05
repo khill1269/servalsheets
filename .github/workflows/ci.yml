@@ -134,6 +134,7 @@ jobs:
 
       - name: Check metadata drift
         run: npm run check:drift
+        timeout-minutes: 2
 
       - name: Type check
         run: npm run typecheck
@@ -486,16 +487,9 @@ jobs:
           tests/utils/circuit-breaker-fallback.test.ts
           tests/unit/circuit-breaker-fallback.test.ts
 
-      - name: Run mutation tests on critical paths (advisory)
+      - name: Run mutation tests on critical paths
         id: mutation_critical
-        continue-on-error: true
         run: npx stryker run stryker.critical.conf.mjs
-
-      - name: Report mutation runner instability
-        if: steps.mutation_critical.outcome == 'failure'
-        run: |
-          echo "::warning::Stryker did not discover tests with the current Vitest runner integration."
-          echo "::warning::Keeping mutation testing advisory for now; the critical-path regression suite above is still enforced."
 
   coverage:
     if: |
@@ -704,12 +698,24 @@ jobs:
         run: |
           node --input-type=module <<'EOF'
           const needs = JSON.parse(process.env.NEEDS_JSON);
-          const allowedSkipped = new Set(['build', 'mutation-testing', 'coverage']);
+          // Jobs that may be skipped without failing CI
+          const allowedSkipped = new Set(['mutation-testing', 'coverage']);
+          // Jobs that may fail without failing CI
           const optionalFailures = new Set(['mutation-testing']);
+          // Jobs that MUST succeed (never allowed to skip)
+          const requiredJobs = new Set([
+            'quick-checks', 'test-fast', 'snapshot-tests',
+            'test-integration', 'mcp-http-task-contract',
+            'http-transport-failover', 'validate-server-json'
+          ]);
           const failures = [];
 
           for (const [job, result] of Object.entries(needs)) {
             if (result.result === 'success') continue;
+            if (result.result === 'skipped' && requiredJobs.has(job)) {
+              failures.push(`${job}=skipped (REQUIRED job must not skip)`);
+              continue;
+            }
             if (result.result === 'skipped' && allowedSkipped.has(job)) continue;
             if (result.result === 'failure' && optionalFailures.has(job)) continue;
             failures.push(`${job}=${result.result}`);
