@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   CI: true
 
 jobs:
@@ -24,10 +24,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: TypeScript check
-        run: npm run typecheck
       - name: Check for hardcoded secrets
         run: npm run check:secrets
+      - name: TypeScript check
+        run: npm run typecheck
 
   fast-tests:
     name: Fast Tests (Unit + Contract)
@@ -80,7 +80,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     needs: quick-checks
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +144,7 @@ jobs:
   security:
     name: Security Checks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     needs: quick-checks
     steps:
       - uses: actions/checkout@v4
@@ -172,8 +172,32 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Restore ESLint cache
+        uses: actions/cache@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            eslint-${{ runner.os }}-
       - name: Run ESLint
-        run: npm run lint
+        run: npm run lint -- --cache
+
+  mutation-testing:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: quick-checks
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run mutation tests
+        run: npm run test:mutation
 
   test-mcp-http:
     name: MCP HTTP Tests
@@ -242,6 +266,39 @@ jobs:
       - coverage
     if: always()
     steps:
+      - name: Collect job results
+        id: results
+        run: |
+          echo "quick-checks: ${{ needs.quick-checks.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "fast-tests: ${{ needs.fast-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "snapshot-tests: ${{ needs.snapshot-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "integration-tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "build: ${{ needs.build.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "metadata-validation: ${{ needs.metadata-validation.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "architecture-check: ${{ needs.architecture-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "lint: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "test-mcp-http: ${{ needs.test-mcp-http.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "test-http-failover: ${{ needs.test-http-failover.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "coverage: ${{ needs.coverage.result }}" >> $GITHUB_STEP_SUMMARY
+      - name: CI Gate Summary
+        run: |
+          echo "# CI Gate Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Quick Checks | $([[ '${{ needs.quick-checks.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.quick-checks.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fast Tests | $([[ '${{ needs.fast-tests.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.fast-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Snapshot Tests | $([[ '${{ needs.snapshot-tests.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.snapshot-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | $([[ '${{ needs.integration-tests.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | $([[ '${{ needs.build.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Metadata Validation | $([[ '${{ needs.metadata-validation.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.metadata-validation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture Check | $([[ '${{ needs.architecture-check.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.architecture-check.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | $([[ '${{ needs.security.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | $([[ '${{ needs.lint.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP HTTP Tests | $([[ '${{ needs.test-mcp-http.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.test-mcp-http.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| HTTP Failover | $([[ '${{ needs.test-http-failover.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.test-http-failover.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | $([[ '${{ needs.coverage.result }}' == 'success' ]] && echo '✅' || echo '❌') ${{ needs.coverage.result }} |" >> $GITHUB_STEP_SUMMARY
       - name: Check all checks passed
         run: |
           if [ "${{ needs.quick-checks.result }}" != "success" ] || \
