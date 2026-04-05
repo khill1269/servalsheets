@@ -37,12 +37,25 @@ function extractStringSet(source, exportName) {
 }
 
 function hasDependency(packageJson, dependencyName) {
-  return Boolean(
+  // Check direct dependencies in package.json
+  if (
     packageJson.dependencies?.[dependencyName] ??
-      packageJson.devDependencies?.[dependencyName] ??
-      packageJson.optionalDependencies?.[dependencyName] ??
-      packageJson.peerDependencies?.[dependencyName]
-  );
+    packageJson.devDependencies?.[dependencyName] ??
+    packageJson.optionalDependencies?.[dependencyName] ??
+    packageJson.peerDependencies?.[dependencyName]
+  ) {
+    return true;
+  }
+  // Also check if available as a transitive dependency (in node_modules or lockfile)
+  try {
+    const lockfile = JSON.parse(read('package-lock.json'));
+    if (lockfile.packages?.[`node_modules/${dependencyName}`]) return true;
+    // Check nested lockfile format
+    if (lockfile.dependencies?.[dependencyName]) return true;
+  } catch {
+    // No lockfile or unreadable — fall through to false
+  }
+  return false;
 }
 
 const issues = [];
