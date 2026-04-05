@@ -9,6 +9,14 @@
     ".": {
       "import": "./dist/server.js",
       "types": "./dist/server.d.ts"
+    },
+    "./utils/webhook-verification": {
+      "import": "./dist/utils/webhook-verification.js",
+      "types": "./dist/utils/webhook-verification.d.ts"
+    },
+    "./security/webhook-signature": {
+      "import": "./dist/security/webhook-signature.js",
+      "types": "./dist/security/webhook-signature.d.ts"
     }
   },
   "engines": {
@@ -37,10 +45,6 @@
     "check:mutation-actions": "node scripts/check-mutation-actions.mjs",
     "validate:alignment": "node --import tsx scripts/validate-schema-handler-alignment.ts",
     "validate:dead-code": "bash scripts/verify-dead-code-claims.sh",
-    "validate:actions": "node scripts/validate-actions.mjs",
-    "validate:server-json": "node scripts/validate-server-json.mjs",
-    "validate:server-json-extended": "node --import tsx scripts/validate-server-json-extended.ts",
-    "validate:audit": "node scripts/validate-audit.mjs",
     "gates": "npm run typecheck && npm run test:run && npm run check:drift",
     "audit:coverage": "node scripts/action-coverage.ts",
     "audit:perf": "vitest --run tests/audit/performance-profile.bench.ts",
@@ -50,13 +54,16 @@
     "audit:full": "npm run audit:coverage && npm run audit:perf && npm run audit:memory && npm run audit:gate && npm run audit:snapshot",
     "generate:metadata": "node scripts/generate-metadata.ts",
     "generate:state": "node .serval/generate-state.mjs",
+    "validate:actions": "node scripts/validate-actions.mjs",
+    "validate:server-json": "node scripts/validate-server-json.mjs",
+    "validate:server-json-extended": "node --import tsx scripts/validate-server-json-extended.ts",
     "check:metadata-strict": "node --import tsx scripts/check-metadata-strict.ts",
     "check:zod-markers": "node scripts/check-zod-markers.mjs",
     "check:architecture": "bash scripts/check-architecture.sh",
     "check:jwt-scope": "bash scripts/check-jwt-scope.sh",
     "check:secrets": "bash scripts/check-secrets.sh",
     "check:security-exceptions": "node scripts/check-security-exceptions.mjs",
-    "docs:sync": "node scripts/sync-doc-counts.mjs",
+    "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
     "smoke": "bash scripts/smoke-test.sh",
     "test:snapshots": "vitest --run tests/snapshots",
@@ -124,6 +131,7 @@
     "axios": "^1.8.1",
     "got": "^14.10.1",
     "eventemitter3": "^5.0.1",
+    "graphql": "^16.9.0",
     "hyperformula": "^3.2.0",
     "js-base64": "^3.7.6",
     "date-fns": "^3.6.0",
