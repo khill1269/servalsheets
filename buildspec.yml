@@ -1,0 +1,33 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_ACCOUNT_ID: '050752643237'
+    ECR_REPO: servalsheets/mcp-server
+    NODE_OPTIONS: '--max-old-space-size=6144'
+
+phases:
+  pre_build:
+    commands:
+      - echo 'Logging into ECR...'
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+
+  build:
+    commands:
+      - echo "Building Docker image from deployment/docker/Dockerfile..."
+      - docker build -f deployment/docker/Dockerfile -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO:$COMMIT_HASH -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO:latest .
+      - echo "Pushing images to ECR..."
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO:$COMMIT_HASH
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO:latest
+
+  post_build:
+    commands:
+      - echo 'Generating deployment artifacts...'
+      - printf '[{"name":"mcp-server","imageUri":"%s.dkr.ecr.%s.amazonaws.com/%s:%s"}]' $AWS_ACCOUNT_ID $AWS_DEFAULT_REGION $ECR_REPO $COMMIT_HASH > imagedefinitions.json
+      - echo "Build completed — image tag: $COMMIT_HASH"
+
+artifacts:
+  files:
+    - imagedefinitions.json
