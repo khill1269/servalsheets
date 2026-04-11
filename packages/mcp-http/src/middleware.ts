@@ -141,6 +141,7 @@ export function registerHttpFoundationMiddleware<
     })
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express type compat across dep versions
   app.use(
     compression({
       filter: (req, res) => {
@@ -150,7 +151,7 @@ export function registerHttpFoundationMiddleware<
         return compression.filter(req, res);
       },
       threshold: 1024,
-    })
+    }) as any
   );
 
   app.use(createResponseRedactionMiddleware());
