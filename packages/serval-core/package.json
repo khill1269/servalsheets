@@ -59,7 +59,7 @@
     "winston": "^3.19.0"
   },
   "peerDependencies": {
-    "zod": "^4.3.6"
+    "zod": "^3.24.1 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "zod": {
