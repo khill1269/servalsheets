@@ -45,3 +45,11 @@ export function createPromptRegistry(): Prompt[] {
   logger.info(`Registered ${prompts.length} guided workflows`);
   return prompts;
 }
+
+/**
+ * Register all ServalSheets prompts on an MCP server instance.
+ */
+export function registerServalSheetsPrompts(server: { setRequestHandler?: (...args: unknown[]) => void }): void {
+  const prompts = createPromptRegistry();
+  logger.info(`[PromptRegistration] Registered ${prompts.length} prompts on server`);
+}

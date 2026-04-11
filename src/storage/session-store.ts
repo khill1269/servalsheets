@@ -150,3 +150,18 @@ export class MemorySessionStore implements SessionStore {
     };
   }
 }
+
+// ============================================================================
+// Factory
+// ============================================================================
+
+/**
+ * Create a SessionStore instance based on configuration.
+ * If a Redis URL is provided, returns a RedisSessionStore; otherwise InMemorySessionStore.
+ */
+export function createSessionStore(redisUrl?: string): SessionStore {
+  if (redisUrl) {
+    return new RedisSessionStore(redisUrl);
+  }
+  return new InMemorySessionStore();
+}

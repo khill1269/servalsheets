@@ -1,6 +1,42 @@
-import { ResourceContent } from '@modelcontextprotocol/sdk/types';
+import type { ResourceContents } from '@modelcontextprotocol/sdk/types';
+import { randomUUID } from 'crypto';
 
-export function getAnalyzeResources(): { uri: string; contents: ResourceContent }[] {
+// ============================================================================
+// Analysis Result Storage
+// ============================================================================
+// Stores analysis results in memory so they can be retrieved as MCP resources
+// via analyze://results/{id}. Results are evicted after MAX_RESULTS to bound
+// memory usage.
+
+const MAX_RESULTS = 100;
+const analysisResults = new Map<string, { spreadsheetId: string; result: unknown; createdAt: Date }>();
+
+/**
+ * Store an analysis result and return an ID for resource retrieval.
+ * Used when analysis responses exceed inline size limits — the response
+ * includes a resource URI instead of the full payload.
+ */
+export function storeAnalysisResult(spreadsheetId: string, result: unknown): string {
+  const id = randomUUID();
+  // Evict oldest if at capacity
+  if (analysisResults.size >= MAX_RESULTS) {
+    const oldestKey = analysisResults.keys().next().value;
+    if (oldestKey) analysisResults.delete(oldestKey);
+  }
+  analysisResults.set(id, { spreadsheetId, result, createdAt: new Date() });
+  return id;
+}
+
+/**
+ * Retrieve a stored analysis result by ID.
+ */
+export function getAnalysisResult(id: string): { spreadsheetId: string; result: unknown } | undefined {
+  const entry = analysisResults.get(id);
+  if (!entry) return undefined;
+  return { spreadsheetId: entry.spreadsheetId, result: entry.result };
+}
+
+export function getAnalyzeResources(): { uri: string; contents: ResourceContents }[] {
   return [
     {
       uri: 'analyze://stats',

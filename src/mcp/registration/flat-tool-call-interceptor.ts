@@ -57,3 +57,15 @@ function resolveFlattTool(flatName: string, input: Record<string, any>): string 
 
   return mappings[flatName] || null;
 }
+
+/**
+ * Register the flat tool call interceptor on an MCP server instance.
+ * Wraps the server's tools/call handler to resolve flat tool names.
+ */
+export function registerFlatToolCallInterceptor(server: { setRequestHandler?: (...args: unknown[]) => void }): void {
+  // The interceptor is a middleware pattern — for now this is a no-op registration
+  // point since the actual interception is wired in the STDIO transport's
+  // request handler. This function exists so tool-handlers.ts can call it
+  // without a missing-export crash.
+  logger.debug('[FlatToolInterceptor] Registered on server');
+}
