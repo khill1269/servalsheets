@@ -2,6 +2,11 @@ FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153
 
 WORKDIR /app
 
+# Install build dependencies for native modules (sharp, canvas, bcrypt, duckdb)
+RUN apk add --no-cache python3 make g++ pkgconfig \
+    cairo-dev pango-dev jpeg-dev giflib-dev librsvg-dev pixman-dev \
+    linux-headers
+
 # Copy package files first to maximize Docker layer cache hits.
 COPY package*.json ./
 COPY packages/serval-core/package*.json ./packages/serval-core/
@@ -21,7 +26,8 @@ FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153
 
 WORKDIR /app
 
-RUN apk add --no-cache curl
+# Runtime deps for native modules (canvas needs cairo/pango at runtime)
+RUN apk add --no-cache curl cairo pango jpeg giflib librsvg pixman
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
