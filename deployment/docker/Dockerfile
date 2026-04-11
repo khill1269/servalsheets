@@ -16,7 +16,12 @@ COPY packages/mcp-http/package*.json ./packages/mcp-http/
 COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
 COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
-RUN npm install --legacy-peer-deps
+# --ignore-scripts prevents the "prepare" lifecycle hook from running
+# tsc before src/ is copied. We rebuild native modules separately.
+RUN npm install --legacy-peer-deps --ignore-scripts
+
+# Rebuild native modules that --ignore-scripts skipped (canvas, sharp, bcrypt)
+RUN npm rebuild
 
 COPY . .
 
