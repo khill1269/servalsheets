@@ -22,12 +22,13 @@ RUN npm install --legacy-peer-deps --ignore-scripts && npm rebuild
 COPY . .
 
 # Build workspace packages first (main project imports from their dist/)
-# Then build main project with --skipLibCheck for Docker dep resolution diffs
-RUN npm run build --workspace=packages/serval-core --if-present && \
-    npm run build --workspace=packages/mcp-client --if-present && \
-    npm run build --workspace=packages/mcp-http --if-present && \
-    npm run build --workspace=packages/mcp-runtime --if-present && \
-    npm run build --workspace=packages/mcp-stdio --if-present && \
+# Use tsc directly with --skipLibCheck for all builds to handle Express/googleapis
+# type mismatches from Docker's fresh dependency resolution
+RUN npx tsc -p packages/serval-core/tsconfig.build.json --skipLibCheck && \
+    npx tsc -p packages/mcp-client/tsconfig.build.json --skipLibCheck && \
+    npx tsc -p packages/mcp-http/tsconfig.build.json --skipLibCheck && \
+    npx tsc -p packages/mcp-runtime/tsconfig.build.json --skipLibCheck && \
+    npx tsc -p packages/mcp-stdio/tsconfig.build.json --skipLibCheck && \
     npx tsc --skipLibCheck
 
 RUN npm prune --production --legacy-peer-deps --ignore-scripts
