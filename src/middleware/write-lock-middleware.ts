@@ -8,7 +8,7 @@
  * across multiple Claude sessions or parallel tool calls.
  */
 
-import PQueue, { TimeoutError } from 'p-queue';
+import PQueue from 'p-queue';
 import { logger } from '../utils/logger.js';
 import { ServiceError } from '../core/errors.js';
 import { ErrorCodes } from '../handlers/error-codes.js';
@@ -316,7 +316,7 @@ export async function withWriteLock<T>(
     try {
       return await withMultipleWriteLocks(spreadsheetIds, fn);
     } catch (err) {
-      if (err instanceof TimeoutError) {
+      if (err instanceof Error && err.name === 'TimeoutError') {
         throw new ServiceError(
           `Write lock acquisition timed out after ${LOCK_TIMEOUT_MS}ms for action '${action}'. ` +
             'Another operation is holding the write lock. Retry after the concurrent write completes.',
