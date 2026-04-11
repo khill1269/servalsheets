@@ -21,7 +21,15 @@ RUN npm install --legacy-peer-deps --ignore-scripts && npm rebuild
 
 COPY . .
 
-RUN npm run build
+# Build workspace packages first (main project imports from their dist/)
+# Then build main project with --skipLibCheck for Docker dep resolution diffs
+RUN npm run build --workspace=packages/serval-core --if-present && \
+    npm run build --workspace=packages/mcp-client --if-present && \
+    npm run build --workspace=packages/mcp-http --if-present && \
+    npm run build --workspace=packages/mcp-runtime --if-present && \
+    npm run build --workspace=packages/mcp-stdio --if-present && \
+    npx tsc --skipLibCheck
+
 RUN npm prune --production --legacy-peer-deps --ignore-scripts
 
 FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
