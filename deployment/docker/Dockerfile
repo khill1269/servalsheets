@@ -63,6 +63,12 @@ RUN grep -q 'getCircuitBreakerConfig' dist/config/env.js || \
     (echo "FATAL: dist/config/env.js missing getCircuitBreakerConfig" && exit 1)
 RUN grep -q 'getParallelExecutor' dist/services/parallel-executor.js || \
     (echo "FATAL: dist/services/parallel-executor.js missing getParallelExecutor" && exit 1)
+# Broad sanity check: verify JS output file count is reasonable (expect 350+ for 409 actions).
+# If tsc silently OOM'd mid-emit, the file count will be far lower.
+RUN JS_COUNT=$(find dist/ -name '*.js' | wc -l) && \
+    echo "tsc emitted $JS_COUNT .js files" && \
+    test "$JS_COUNT" -gt 300 || \
+    (echo "FATAL: tsc only emitted $JS_COUNT .js files — expected 350+. Likely OOM mid-emit." && exit 1)
 RUN echo "Export verification passed: key functions found in compiled output"
 
 # NOTE: Intentionally skip npm prune --production. Many production
