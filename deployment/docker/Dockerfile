@@ -32,7 +32,10 @@ RUN npx tsc -p tsconfig.docker.json || true
 RUN test -f dist/server.js && test -f dist/http-server.js || \
     (echo "FATAL: dist/server.js or dist/http-server.js missing after tsc" && exit 1)
 
-RUN npm prune --production --legacy-peer-deps --ignore-scripts
+# NOTE: Intentionally skip npm prune --production. Many production
+# imports rely on transitive deps (e.g. @node-saml/node-saml,
+# google-auth-library, express-rate-limit, @modelcontextprotocol/sdk)
+# that prune removes. Larger image but reliable at runtime.
 
 # ── Runtime stage ──────────────────────────────────────────────
 FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
@@ -46,7 +49,10 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/server.json ./
 
-# Copy workspace packages (dist + package.json for Node.js resolution)
+# Copy workspace packages (dist + package.json for Node.js resolution).
+# Docker COPY preserves symlinks as-is, so node_modules/@serval/* will
+# be broken symlinks pointing to ../../packages/*. We copy the real
+# package content here and re-create the symlinks below.
 COPY --from=builder /app/packages/serval-core/dist ./packages/serval-core/dist
 COPY --from=builder /app/packages/serval-core/package.json ./packages/serval-core/package.json
 COPY --from=builder /app/packages/mcp-client/dist ./packages/mcp-client/dist
@@ -58,9 +64,11 @@ COPY --from=builder /app/packages/mcp-runtime/package.json ./packages/mcp-runtim
 COPY --from=builder /app/packages/mcp-stdio/dist ./packages/mcp-stdio/dist
 COPY --from=builder /app/packages/mcp-stdio/package.json ./packages/mcp-stdio/package.json
 
-# Wire workspace symlinks so @serval/* imports resolve at runtime.
-# npm prune --production removes these, so we recreate them manually.
-RUN mkdir -p node_modules/@serval && \
+# Fix workspace symlinks — Docker COPY copies symlinks as-is, leaving
+# broken node_modules/@serval/* -> ../../packages/* links. Replace with
+# valid absolute symlinks to the copied workspace package directories.
+RUN rm -rf node_modules/@serval && \
+    mkdir -p node_modules/@serval && \
     ln -sf /app/packages/serval-core node_modules/@serval/core && \
     ln -sf /app/packages/mcp-client node_modules/@serval/mcp-client && \
     ln -sf /app/packages/mcp-http node_modules/@serval/mcp-http && \
