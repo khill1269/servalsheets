@@ -79,7 +79,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Check for circular dependencies
         id: circular
@@ -149,7 +149,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Check for dead code
         id: knip
@@ -223,7 +223,7 @@ jobs:
           npx syncpack lint
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build Main Project
         run: npm run build

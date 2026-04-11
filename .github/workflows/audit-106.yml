@@ -47,7 +47,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Create audit output directory
         run: mkdir -p ${{ env.AUDIT_OUTPUT_DIR }}

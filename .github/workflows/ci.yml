@@ -38,7 +38,9 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          # --ignore-scripts prevents prepare→build→tsc from running during install.
+          # The explicit build steps below handle compilation.
+          command: npm ci --ignore-scripts --ignore-scripts
 
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -80,8 +82,14 @@ jobs:
       - name: Validate action metadata consistency
         run: npm run validate:actions
 
-      - name: Build (required for dynamic imports)
-        run: npm run build
+      - name: Build @serval/core
+        run: npm run build -w packages/serval-core
+
+      - name: Emit dist/ (noCheck — type errors gate at the typecheck step below)
+        run: node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
+
+      - name: Generate metadata
+        run: npm run generate:metadata
 
       - name: Verify documentation matches code
         run: |
@@ -226,7 +234,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          command: npm ci --ignore-scripts --ignore-scripts
 
       - name: Run fast tests with retry (shard ${{ matrix.shard }}/4)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -258,7 +266,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          command: npm ci --ignore-scripts
 
       - name: Run snapshot regression suite
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -307,7 +315,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          command: npm ci --ignore-scripts
 
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -349,7 +357,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          command: npm ci --ignore-scripts
 
       - name: Run MCP HTTP task contract checks
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -381,7 +389,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          command: npm ci --ignore-scripts
 
       - name: Run HTTP transport failover regression
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -408,7 +416,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Validate server.json
         run: npm run validate:server-json
@@ -442,7 +450,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Download dist from quick-checks
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -450,8 +458,11 @@ jobs:
           name: dist-build
           path: dist
 
-      - name: Rebuild (incremental — dist already seeded)
-        run: npm run build
+      - name: Build @serval/core
+        run: npm run build -w packages/serval-core
+
+      - name: Rebuild dist (incremental — dist already seeded)
+        run: node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
 
       - name: Smoke test built artifacts
         run: npm run smoke
@@ -478,7 +489,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run critical-path regression suite
         run: >
@@ -526,7 +537,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run coverage tracking suite
         run: npm run test:coverage:tracking
@@ -667,7 +678,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Check security exception review dates
         run: npm run check:security-exceptions

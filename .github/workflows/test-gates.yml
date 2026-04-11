@@ -40,7 +40,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run schema tests
         run: npm test -- --run tests/schemas
@@ -81,7 +81,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run unit tests
         run: npm test -- --run tests/unit tests/core
@@ -108,7 +108,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run integration tests
         run: npm test -- --run tests/integration tests/services
@@ -146,7 +146,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run contract tests
         run: npm test -- --run tests/contracts
@@ -198,7 +198,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run safety tests
         run: npm test -- --run tests/safety
@@ -241,7 +241,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run infrastructure tests
         run: npm test -- --run tests/live-api/infrastructure.test.ts
@@ -300,7 +300,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Check live API credentials
         id: check-creds
