@@ -1,7 +1,8 @@
 {
   "name": "servalsheets",
+  "mcpName": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade MCP server for Google Sheets with 25 tools and 409 actions",
+  "description": "Production-grade MCP server for Google Sheets — 25 tools, 409 actions",
   "type": "module",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
@@ -52,7 +53,7 @@
     "audit:snapshot": "node scripts/generate-health-snapshot.ts",
     "audit:gate": "bash scripts/audit-gate.sh",
     "audit:full": "npm run audit:coverage && npm run audit:perf && npm run audit:memory && npm run audit:gate && npm run audit:snapshot",
-    "generate:metadata": "node scripts/generate-metadata.ts",
+    "generate:metadata": "tsx scripts/generate-metadata.ts",
     "generate:state": "node .serval/generate-state.mjs",
     "validate:actions": "node scripts/validate-actions.mjs",
     "validate:server-json": "node scripts/validate-server-json.mjs",
@@ -180,6 +181,7 @@
     "vite": "^7.3.1",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.2",
+    "search-insights": "^2.17.3",
     "yaml": "^2.8.2",
     "zod-to-json-schema": "^3.25.2"
   },

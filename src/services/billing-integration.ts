@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
-import LRUCache from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import Stripe from 'stripe';
+import type { RuntimeBillingBootstrapConfig } from '../../packages/mcp-runtime/dist/billing-bootstrap-config.js';
 
 export interface BillingCustomer {
   tenantId: string;
@@ -45,7 +46,8 @@ export class BillingIntegration extends EventEmitter {
     if (!customerId) return null;
 
     try {
-      const customer = await this.stripe.customers.retrieve(customerId);
+      const customerResult = await this.stripe.customers.retrieve(customerId);
+      const customer = customerResult as Stripe.Customer;
       const result: BillingCustomer = {
         tenantId,
         customerId: customer.id,
@@ -109,13 +111,38 @@ export class BillingIntegration extends EventEmitter {
     return invoice.id;
   }
 
+  async listInvoices(_tenantId: string, _limit: number = 10): Promise<unknown[]> {
+    // Stub: would fetch invoices from Stripe for the given tenant
+    return [];
+  }
+
   private getPlanFromCustomer(customer: Stripe.Customer): string {
     // Extract plan from customer metadata or subscriptions
-    return customer.metadata?.plan || 'free';
+    return customer.metadata?.['plan'] || 'free';
   }
 
   private getMonthlySpend(customer: Stripe.Customer): number {
     // Calculate from invoices or subscription price
     return 0; // Placeholder
   }
+}
+
+let _billingInstance: BillingIntegration | null = null;
+
+/**
+ * Initialize the billing integration singleton
+ */
+export function initializeBillingIntegration(
+  config: RuntimeBillingBootstrapConfig
+): BillingIntegration | null {
+  if (!config.enabled || !config.stripeSecretKey) return null;
+  _billingInstance = new BillingIntegration(config.stripeSecretKey);
+  return _billingInstance;
+}
+
+/**
+ * Get the billing integration singleton
+ */
+export function getBillingIntegration(): BillingIntegration | null {
+  return _billingInstance;
 }

@@ -521,7 +521,7 @@ export function buildToolResponse(
   const env = getEnv();
   const treatAsNonFatal =
     hasFailure &&
-    env.MCP_NON_FATAL_TOOL_ERRORS !== 'false' &&
+    env.MCP_NON_FATAL_TOOL_ERRORS !== false &&
     typeof responseErrorCode === 'string' &&
     NON_FATAL_TOOL_ERROR_CODES.has(responseErrorCode);
   const isError = hasFailure && !treatAsNonFatal;

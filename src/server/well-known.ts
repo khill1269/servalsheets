@@ -318,7 +318,7 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
     (v, i, a) => a.indexOf(v) === i
   );
   const env = getEnv();
-  const corsOrigins = env.CORS_ORIGINS.split(',')
+  const corsOrigins = ( env.CORS_ORIGINS ?? '' ).split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
   const effectiveCorsOrigins =
@@ -441,7 +441,7 @@ export function getMcpServerCardWithRuntimeConfig(
   );
   const env = getEnv();
   return composeMcpServerCard(baseUrl, allScopes, {
-    corsOrigins: runtimeConfig.corsOrigins ?? env.CORS_ORIGINS.split(',').map((v) => v.trim()),
+    corsOrigins: runtimeConfig.corsOrigins ?? ( env.CORS_ORIGINS ?? '' ).split(',').map((v) => v.trim()),
     rateLimitMax: runtimeConfig.rateLimitMax ?? env.RATE_LIMIT_MAX,
     legacySseEnabled: runtimeConfig.legacySseEnabled ?? env.ENABLE_LEGACY_SSE,
     authenticationRequired: runtimeConfig.authenticationRequired ?? false,

@@ -1,10 +1,11 @@
-import { ResourceContent } from '@modelcontextprotocol/sdk/types';
+import { TextResourceContents } from '@modelcontextprotocol/sdk/types.js';
 
-export function getAnalyzeResources(): { uri: string; contents: ResourceContent }[] {
+export function getAnalyzeResources(): { uri: string; contents: TextResourceContents }[] {
   return [
     {
       uri: 'analyze://stats',
       contents: {
+        uri: 'analyze://stats',
         mimeType: 'text/plain',
         text: `Analysis Statistics
 
@@ -30,6 +31,7 @@ Note: Analyses are cached for 5 minutes per range.`,
     {
       uri: 'analyze://help',
       contents: {
+        uri: 'analyze://help',
         mimeType: 'text/plain',
         text: `Analysis Action Guide
 
@@ -60,4 +62,14 @@ analyze_performance
       },
     },
   ];
+}
+
+/** Register analyze resources on an MCP server */
+export function registerAnalyzeResources(_server: unknown): number {
+  return getAnalyzeResources().length;
+}
+
+/** Store analysis result (stub for compatibility) */
+export function storeAnalysisResult(_spreadsheetId: string, _result: unknown): void {
+  // No-op: results are stored in memory by the analysis service
 }

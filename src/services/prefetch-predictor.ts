@@ -235,8 +235,8 @@ export class PrefetchPredictor {
     // Extract successful results and filter out failures
     // Check both task-level success and result-level success
     const results = allResults
-      .filter((r) => r.success && r.result && r.result.success)
-      .map((r) => r.result!);
+      .filter((r): r is Exclude<typeof r, Error> => !(r instanceof Error) && (r as any).success && (r as any).result?.success)
+      .map((r) => (r as any).result!);
 
     this.stats.totalPrefetches += allResults.length;
     this.stats.successfulPrefetches += results.filter((r) => r.success).length;

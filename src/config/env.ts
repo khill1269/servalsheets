@@ -55,11 +55,11 @@ const GoogleCloudSchema = z.object({
 /**
  * Validate Google credentials are present in at least one form
  */
-export function hasGoogleCredentials(env: Partial<Record<string, string>>): boolean {
-  const hasServiceAccount = !!env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  const hasADC = !!env.GOOGLE_APPLICATION_CREDENTIALS;
+export function hasGoogleCredentials(env: Partial<Record<string, unknown>>): boolean {
+  const hasServiceAccount = !!env['GOOGLE_SERVICE_ACCOUNT_KEY'];
+  const hasADC = !!env['GOOGLE_APPLICATION_CREDENTIALS'];
   const hasOAuth =
-    !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET && !!env.GOOGLE_REDIRECT_URI;
+    !!env['GOOGLE_CLIENT_ID'] && !!env['GOOGLE_CLIENT_SECRET'] && !!env['GOOGLE_REDIRECT_URI'];
 
   return hasServiceAccount || hasADC || hasOAuth;
 }
@@ -68,12 +68,10 @@ export function hasGoogleCredentials(env: Partial<Record<string, string>>): bool
 // Circuit Breaker Configurations
 // ============================================================================
 
-const CircuitBreakerSchema: z.ZodType<CircuitBreakerConfig> = z.object({
-  enabled: z.boolean().default(true),
+const CircuitBreakerSchema = z.object({
   failureThreshold: z.number().int().min(1).default(5),
-  resetTimeout: z.number().int().min(1000).default(30000),
-  halfOpenRequests: z.number().int().min(1).default(3),
-  readOnlyMode: z.boolean().default(false),
+  successThreshold: z.number().int().min(1).default(2),
+  timeout: z.number().int().min(1000).default(30000),
 });
 
 // ============================================================================
@@ -143,19 +141,27 @@ export const EnvSchema = z
     METRICS_PORT: z.coerce.number().default(9090),
     METRICS_HOST: z.string().default('0.0.0.0'),
     ENABLE_BILLING_INTEGRATION: StrictBooleanSchema.default(false),
+    ENABLE_GRANULAR_PROGRESS: StrictBooleanSchema.default(false),
+    ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: StrictBooleanSchema.default(false),
+    ENABLE_RBAC: StrictBooleanSchema.default(false),
+    TASK_WATCHDOG_MS: z.coerce.number().int().min(1000).default(300000),
 
     // Google Cloud
     ...GoogleCloudSchema.shape,
 
     // Sessions
-    ...SessionStoreTypeSchema.optional().transform(() => ({})).shape,
     ...RedisSchema.shape,
 
     // OTEL
     ...OtelSchema.shape,
+    OTEL_LOG_SPANS: StrictBooleanSchema.default(false),
+    OTEL_EXPORTER_OTLP_ENDPOINT: URLSchema.optional(),
+    OTEL_EXPORTER_OTLP_BATCH_SIZE: z.coerce.number().int().min(1).default(100),
+    OTEL_EXPORTER_OTLP_EXPORT_INTERVAL_MS: z.coerce.number().int().min(100).default(5000),
 
     // Prefetch
     ...PrefetchSchema.shape,
+    PREFETCH_MAX_PREDICTIONS: z.coerce.number().int().min(1).default(50),
 
     // Circuit Breakers
     CIRCUIT_BREAKER_OAUTH: z.string().optional(),
@@ -175,8 +181,142 @@ export const EnvSchema = z
     CHECKPOINT_DIR: z.string().optional(),
     PERSIST_CHECKPOINTS: StrictBooleanSchema.default(false),
     ENABLE_SAMPLING: StrictBooleanSchema.default(true),
-  })
-  .strict();
+
+    // Tenant / Session
+    ENABLE_TENANT_ISOLATION: StrictBooleanSchema.default(false),
+    SESSION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(3600000),
+
+    // Admin Authentication
+    ADMIN_SECRET: z.string().optional(),
+    ADMIN_API_KEY: z.string().optional(),
+    ADMIN_VIEWER_KEY: z.string().optional(),
+
+    // OAuth
+    OAUTH_ISSUER: z.string().default(''),
+    OAUTH_MAX_TOKEN_TTL: z.coerce.number().int().min(1).default(86400),
+    OAUTH_CLIENT_ID: z.string().default(''),
+    OAUTH_CLIENT_SECRET: z.string().optional(),
+    ALLOWED_REDIRECT_URIS: z.string().default(''),
+    ACCESS_TOKEN_TTL: z.coerce.number().int().min(1).default(3600),
+    REFRESH_TOKEN_TTL: z.coerce.number().int().min(1).default(86400),
+
+    // Rate Limiting
+    RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(1000),
+    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(300),
+    RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).default(10000),
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
+    RATE_LIMIT_BURST: z.coerce.number().int().min(1).default(50),
+
+    // Request Limits
+    MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).default(100),
+    REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60000),
+    SAMPLING_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+
+    // Response Handling
+    COMPACT_RESPONSES: StrictBooleanSchema.default(true),
+    VALIDATE_OUTPUT_SCHEMAS: StrictBooleanSchema.default(false),
+    MCP_NON_FATAL_TOOL_ERRORS: StrictBooleanSchema.default(false),
+    STRICT_MCP_PROTOCOL_VERSION: StrictBooleanSchema.default(false),
+
+    // Parallel Executor
+    PARALLEL_CONCURRENCY: z.coerce.number().int().min(1).default(20),
+    PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().min(1).default(100),
+    PARALLEL_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+
+    // Request Merging
+    REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().min(0).default(50),
+
+    // ETag Cache
+    ETAG_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).default(1000),
+
+    // Composite operations
+    COMPOSITE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(120000),
+
+    // Per-spreadsheet throttling
+    PER_SPREADSHEET_RPS: z.coerce.number().min(0.1).default(10),
+
+    // Discovery API
+    DISCOVERY_API_ENABLED: StrictBooleanSchema.default(true),
+    DISCOVERY_CACHE_TTL: z.coerce.number().int().min(1000).default(300000),
+
+    // Streamable HTTP event store
+    STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().int().min(1000).default(300000),
+    STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().min(1).default(1000),
+
+    // Legacy compatibility
+    ENABLE_LEGACY_SSE: StrictBooleanSchema.default(false),
+
+    // Idempotency
+    ENABLE_IDEMPOTENCY: StrictBooleanSchema.default(false),
+
+    // Payload Validation
+    ENABLE_PAYLOAD_VALIDATION: StrictBooleanSchema.default(true),
+
+    // Checkpoints
+    ENABLE_CHECKPOINTS: StrictBooleanSchema.default(false),
+    TRANSACTION_WAL_DIR: z.string().optional(),
+
+    // Audit Logging
+    ENABLE_AUDIT_LOGGING: StrictBooleanSchema.default(false),
+    AUDIT_HMAC_SECRET: z.string().optional(),
+    AUDIT_LOG_DIR: z.string().optional(),
+    AUDIT_LOG_ENCRYPTION_KEY: z.string().optional(),
+    AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(90),
+
+    // Action Log Sheet
+    ENABLE_ACTION_LOG_SHEET: StrictBooleanSchema.default(false),
+    ACTION_LOG_SPREADSHEET_ID: z.string().optional(),
+    ACTION_LOG_SHEET_NAME: z.string().default('Action Log'),
+
+    // CORS
+    CORS_ORIGINS: z.string().default(''),
+
+    // Federation
+    MCP_FEDERATION_SERVERS: z.string().optional(),
+    MCP_FEDERATION_DNS_STRICT: StrictBooleanSchema.default(true),
+    MCP_REMOTE_EXECUTOR_DNS_STRICT: StrictBooleanSchema.default(true),
+    PLAN_ENCRYPTION_KEY: z.string().optional(),
+
+    // Webhooks
+    WEBHOOK_DNS_STRICT: StrictBooleanSchema.default(true),
+    WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
+
+    // Transactions
+    TRANSACTIONS_ENABLED: StrictBooleanSchema.default(true),
+    TRANSACTIONS_AUTO_SNAPSHOT: StrictBooleanSchema.default(true),
+    TRANSACTIONS_AUTO_ROLLBACK: StrictBooleanSchema.default(true),
+    MAX_TRANSACTION_OPS: z.coerce.number().int().min(1).default(100),
+
+    // Access Pattern Tracking
+    ACCESS_PATTERN_MAX_HISTORY: z.coerce.number().int().min(1).default(100),
+    ACCESS_PATTERN_WINDOW_MS: z.coerce.number().int().min(1000).default(300000),
+
+    // Sampling Consent
+    SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(300000),
+
+    // BigQuery
+    MAX_BIGQUERY_RESULT_ROWS: z.coerce.number().int().min(1).default(100000),
+
+    // AppsScript
+    APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().min(1).default(5),
+    ENABLE_APPSSCRIPT_TRIGGER_COMPAT: StrictBooleanSchema.default(false),
+
+    // Google API
+    GOOGLE_API_HTTP2_ENABLED: StrictBooleanSchema.default(true),
+    ENABLE_CONDITIONAL_REQUESTS: StrictBooleanSchema.default(true),
+    ENABLE_DATAFILTER_BATCH: StrictBooleanSchema.default(true),
+    ENABLE_TABLE_APPENDS: StrictBooleanSchema.default(true),
+    ENABLE_AUTO_CONNECTION_RESET: StrictBooleanSchema.default(true),
+
+    // Python Compute
+    ENABLE_PYTHON_COMPUTE: StrictBooleanSchema.default(false),
+
+    // Mutation Safety
+    MUTATION_VERIFY_STRICT: StrictBooleanSchema.default(false),
+
+    // Incremental OAuth Consent
+    INCREMENTAL_CONSENT_ENABLED: StrictBooleanSchema.default(true),
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 
@@ -188,8 +328,8 @@ export function validateEnv(): Env {
   const result = EnvSchema.safeParse(process.env);
 
   if (!result.success) {
-    // Compatible with both Zod v3 (.errors) and Zod v4 (.issues)
-    const errorList = result.error.errors ?? result.error.issues ?? [];
+    // Zod v4 uses .issues; v3 used .errors
+    const errorList = result.error.issues ?? [];
     const errors = Array.isArray(errorList)
       ? errorList.map((e) => `${(e.path ?? []).join('.')}: ${e.message}`).join('\n  ')
       : String(result.error);
@@ -203,7 +343,7 @@ export function validateEnv(): Env {
   // Production Validation
   // ========================================================================
 
-  if (env.NODE_ENV === 'production') {
+  if (env.NODE_ENV === 'production' && process.env['SKIP_PREFLIGHT'] !== 'true') {
     // Google credentials must be present
     if (!hasGoogleCredentials(env)) {
       logger.error(
@@ -315,18 +455,190 @@ export function parseCircuitBreakerConfig(
 }
 
 /**
+ * Get default circuit breaker configuration
+ */
+export function getCircuitBreakerConfig(): CircuitBreakerConfig {
+  return parseCircuitBreakerConfig('CIRCUIT_BREAKER_DEFAULT', {
+    failureThreshold: 5,
+    successThreshold: 2,
+    timeout: 30000,
+  });
+}
+
+/**
+ * Get API-specific circuit breaker configuration
+ * Falls back to defaults if the env var is not set or invalid
+ */
+export function getApiSpecificCircuitBreakerConfig(apiName: string): CircuitBreakerConfig {
+  const key = `CIRCUIT_BREAKER_${apiName.toUpperCase()}`;
+  return parseCircuitBreakerConfig(key, {
+    failureThreshold: 5,
+    successThreshold: 2,
+    timeout: 30000,
+  });
+}
+
+/**
  * Default directory for user profile storage (volatile fallback)
  */
 export const DEFAULT_PROFILE_STORAGE_DIR = '/tmp/servalsheets-profiles';
 
 /**
+ * Default directory for checkpoints
+ */
+export const DEFAULT_CHECKPOINT_DIR = '/tmp/serval-checkpoints';
+
+/**
+ * Get session store configuration
+ */
+export function getSessionStoreConfig(): { type: 'memory' | 'redis'; redisUrl?: string } {
+  const e = getEnv();
+  return {
+    type: e.SESSION_STORE_TYPE,
+    redisUrl: e.REDIS_URL,
+  };
+}
+
+/**
+ * Get federation configuration
+ */
+export function getFederationConfig(): {
+  enabled: boolean;
+  servers: string[];
+  dnsStrict: boolean;
+  serversJson?: string;
+} {
+  const e = getEnv();
+  const servers = e.MCP_FEDERATION_SERVERS
+    ? e.MCP_FEDERATION_SERVERS.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+  return {
+    enabled: servers.length > 0,
+    servers,
+    dnsStrict: e.MCP_FEDERATION_DNS_STRICT,
+    serversJson: e.MCP_FEDERATION_SERVERS,
+  };
+}
+
+/**
+ * Get OTLP export configuration
+ */
+export function getOtlpExportConfig(): {
+  endpoint: string;
+  serviceName: string;
+  enabled: boolean;
+  batchSize: number;
+  exportIntervalMs: number;
+} {
+  const e = getEnv();
+  return {
+    endpoint: e.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318',
+    serviceName: e.OTEL_SERVICE_NAME,
+    enabled: e.OTEL_ENABLED,
+    batchSize: e.OTEL_EXPORTER_OTLP_BATCH_SIZE,
+    exportIntervalMs: e.OTEL_EXPORTER_OTLP_EXPORT_INTERVAL_MS,
+  };
+}
+
+/**
+ * Get background analysis configuration
+ */
+export function getBackgroundAnalysisConfig(): {
+  enabled: boolean;
+  minCells: number;
+  debounceMs: number;
+} {
+  const e = getEnv();
+  return {
+    enabled: e.NODE_ENV !== 'test',
+    minCells: 50,
+    debounceMs: 5000,
+  };
+}
+
+/**
+ * Get distributed cache configuration
+ */
+export function getDistributedCacheConfig(): {
+  enabled: boolean;
+  redisUrl?: string;
+  ttlMs: number;
+} {
+  const e = getEnv();
+  return {
+    enabled: e.SESSION_STORE_TYPE === 'redis' && !!e.REDIS_URL,
+    redisUrl: e.REDIS_URL,
+    ttlMs: e.REDIS_CACHE_TTL_MS,
+  };
+}
+
+/**
+ * Get prefetch configuration
+ */
+export function getPrefetchConfig(): {
+  enabled: boolean;
+  minConfidence: number;
+  maxConcurrency: number;
+  batchSize: number;
+  timeoutMs: number;
+  maxPredictions: number;
+} {
+  const e = getEnv();
+  return {
+    enabled: e.ENABLE_PREFETCH,
+    minConfidence: e.PREFETCH_MIN_CONFIDENCE,
+    maxConcurrency: e.PREFETCH_MAX_CONCURRENCY,
+    batchSize: e.PREFETCH_BATCH_SIZE,
+    timeoutMs: e.PREFETCH_TIMEOUT_MS,
+    maxPredictions: e.PREFETCH_MAX_PREDICTIONS,
+  };
+}
+
+/**
+ * Get remote MCP executor configuration
+ */
+export function getRemoteMcpExecutorConfig(): {
+  enabled: boolean;
+  url?: string;
+  timeoutMs: number;
+  allowedTools: string[];
+  auth?: { readonly type: 'bearer' | 'api-key'; readonly token: string };
+} {
+  const e = getEnv();
+  return {
+    enabled: false, // Feature not yet enabled via env
+    url: undefined,
+    timeoutMs: e.REQUEST_TIMEOUT_MS,
+    allowedTools: [],
+  };
+}
+
+/**
+ * Check if resource discovery should be deferred
+ */
+export function shouldDeferResourceDiscovery(): boolean {
+  return getEnv().NODE_ENV === 'production';
+}
+
+/**
  * Get validated environment on module load
  */
-export const env = validateEnv();
+export let env: Env = validateEnv();
+
+/**
+ * Reset the env cache. FOR TEST USE ONLY.
+ * Call before setting process.env vars that need to be re-parsed.
+ */
+export function resetEnvForTest(): void {
+  env = undefined as unknown as Env;
+}
 
 /**
  * Lazy accessor for validated environment (used by modules that may load before env is ready)
  */
 export function getEnv(): Env {
+  if (!env) {
+    env = validateEnv();
+  }
   return env;
 }

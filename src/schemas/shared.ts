@@ -210,6 +210,13 @@ export const A1NotationSchema = z.preprocess(
     )
 );
 
+/** A1 Range (simple cell/range reference without sheet name, e.g. "A1" or "A1:B10") */
+export const A1RangeSchema = z
+  .string()
+  .min(1)
+  .regex(/^[A-Z]+\d+(:([A-Z]+\d+))?$/i, 'Invalid A1 range format')
+  .describe('A1 range reference: "A1" (single cell) or "A1:B10" (range)');
+
 /** Sheet name */
 export const SheetNameSchema = z
   .string()
