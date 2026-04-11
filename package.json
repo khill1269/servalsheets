@@ -141,11 +141,9 @@
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
     "@types/uuid": "^10.0.0",
-    "@types/node-saml": "^1.4.2",
     "@types/bcrypt": "^5.0.2",
     "@types/papaparse": "^5.3.14",
     "@types/pdfkit": "^0.12.11",
-    "@types/canvas": "^2.6.38",
     "typescript": "^5.5.4",
     "tsx": "^4.21.0",
     "vitest": "^2.1.2",
@@ -157,8 +155,10 @@
     "prettier": "^3.4.1"
   },
   "workspaces": [
-    "packages/mcp-core",
+    "packages/mcp-client",
     "packages/mcp-http",
+    "packages/mcp-runtime",
+    "packages/mcp-stdio",
     "packages/serval-core"
   ]
 }
