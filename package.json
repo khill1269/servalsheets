@@ -90,7 +90,7 @@
     "@google-cloud/bigquery": "^8.0.0",
     "@google-cloud/storage": "^8.0.0",
     "@google-cloud/monitoring": "^4.0.0",
-    "@google-auth-library-nodejs": "^10.0.0",
+    "google-auth-library": "^10.0.0",
     "@googleapis/sheets": "^6.0.0",
     "@googleapis/docs": "^6.0.0",
     "@googleapis/slides": "^6.0.0",
