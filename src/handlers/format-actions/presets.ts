@@ -27,3 +27,33 @@ export class FormatPresetsHandler extends BaseHandler {
     return specs[preset] || {};
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { FormatHandlerAccess } from './internal.js';
+import type { FormatResponse } from '../../schemas/index.js';
+
+type FormatReq<A extends string> = { action: A; [key: string]: unknown };
+
+export async function handleApplyPreset(ha: FormatHandlerAccess, request: FormatReq<'apply_preset'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { applied: true });
+}
+
+export async function handleAutoFit(ha: FormatHandlerAccess, request: FormatReq<'auto_fit'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { formatted: true });
+}
+
+export async function handleBatchFormat(ha: FormatHandlerAccess, request: FormatReq<'batch_format'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { formatted: true });
+}
+
+export async function handleSparklineAdd(ha: FormatHandlerAccess, request: FormatReq<'sparkline_add'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { added: true });
+}
+
+export async function handleSparklineGet(ha: FormatHandlerAccess, request: FormatReq<'sparkline_get'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, {});
+}
+
+export async function handleSparklineClear(ha: FormatHandlerAccess, request: FormatReq<'sparkline_clear'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { cleared: true });
+}

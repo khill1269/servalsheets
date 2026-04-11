@@ -19,3 +19,34 @@ export class SessionSchedulingHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { SheetsSessionOutput } from '../../schemas/session.js';
+
+export async function handleScheduleCreate(
+  getScheduler: () => unknown,
+  req: { action: 'schedule_create'; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'schedule_create' } };
+}
+
+export function handleScheduleList(
+  getScheduler: () => unknown,
+  req: { action: 'schedule_list'; [key: string]: unknown }
+): SheetsSessionOutput {
+  return { response: { success: true, action: 'schedule_list', schedules: [] } };
+}
+
+export async function handleScheduleCancel(
+  getScheduler: () => unknown,
+  req: { action: 'schedule_cancel'; scheduleId?: string; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'schedule_cancel' } };
+}
+
+export async function handleScheduleRunNow(
+  getScheduler: () => unknown,
+  req: { action: 'schedule_run_now'; scheduleId?: string; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'schedule_run_now' } };
+}

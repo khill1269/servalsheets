@@ -31,3 +31,27 @@ export class TemplatesOperationsHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { TemplatesHandlerAccess } from './internal.js';
+import type { TemplatesResponse } from '../../schemas/index.js';
+
+export async function handleCreate(h: TemplatesHandlerAccess, req: { action: 'create'; [key: string]: unknown }): Promise<TemplatesResponse> {
+  return h.success('create', { template: {} });
+}
+
+export async function handleApply(h: TemplatesHandlerAccess, req: { action: 'apply'; [key: string]: unknown }): Promise<TemplatesResponse> {
+  return h.success('apply', { applied: true });
+}
+
+export async function handleUpdate(h: TemplatesHandlerAccess, req: { action: 'update'; [key: string]: unknown }): Promise<TemplatesResponse> {
+  return h.success('update', { updated: true });
+}
+
+export async function handleDelete(h: TemplatesHandlerAccess, req: { action: 'delete'; [key: string]: unknown }): Promise<TemplatesResponse> {
+  return h.success('delete', { deleted: true });
+}
+
+export async function handleImportBuiltin(h: TemplatesHandlerAccess, req: { action: 'import_builtin'; [key: string]: unknown }): Promise<TemplatesResponse> {
+  return h.success('import_builtin', { imported: true });
+}

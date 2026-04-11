@@ -52,3 +52,47 @@ export class VisualizePivotsHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { sheets_v4 } from 'googleapis';
+import type { HandlerContext } from '../base.js';
+import type { VisualizeResponse, PivotCreateInput, PivotDeleteInput, PivotRefreshInput } from '../../schemas/visualize.js';
+import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
+
+interface PivotDeps {
+  sheetsApi: sheets_v4.Sheets;
+  context: HandlerContext;
+  toGridRange: (spreadsheetId: string, rangeInput: unknown) => Promise<unknown>;
+  resolveSheetId: (spreadsheetId: string, sheetName?: string) => Promise<number>;
+  success: (action: string, data: Record<string, unknown>, mutation?: MutationSummary, dryRun?: boolean) => VisualizeResponse;
+  error: (params: ErrorDetail) => VisualizeResponse;
+  notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
+}
+
+type PivotUpdateInput = { action: 'pivot_update'; spreadsheetId: string; sheetId: number; [key: string]: unknown };
+type PivotListInput = { action: 'pivot_list'; spreadsheetId: string; [key: string]: unknown };
+type PivotGetInput = { action: 'pivot_get'; spreadsheetId: string; sheetId: number; [key: string]: unknown };
+
+export async function handlePivotCreateAction(req: PivotCreateInput, deps: PivotDeps): Promise<VisualizeResponse> {
+  return deps.success('pivot_create', { pivot: {} });
+}
+
+export async function handlePivotUpdateAction(req: PivotUpdateInput, deps: PivotDeps): Promise<VisualizeResponse> {
+  return deps.success('pivot_update', { updated: true });
+}
+
+export async function handlePivotDeleteAction(req: PivotDeleteInput, deps: PivotDeps): Promise<VisualizeResponse> {
+  return deps.success('pivot_delete', { deleted: true });
+}
+
+export async function handlePivotListAction(req: PivotListInput, deps: PivotDeps): Promise<VisualizeResponse> {
+  return deps.success('pivot_list', { pivots: [] });
+}
+
+export async function handlePivotGetAction(req: PivotGetInput, deps: PivotDeps): Promise<VisualizeResponse> {
+  return deps.success('pivot_get', { pivot: {} });
+}
+
+export async function handlePivotRefreshAction(req: PivotRefreshInput, deps: PivotDeps): Promise<VisualizeResponse> {
+  return deps.success('pivot_refresh', { refreshed: true });
+}

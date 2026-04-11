@@ -28,3 +28,49 @@ export class FixCleaningHandler extends BaseHandler {
     );
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { FixHandlerAccess } from './internal.js';
+import type { CleanInput, StandardizeFormatsInput, FillMissingInput, SheetsFixOutput } from '../../schemas/fix.js';
+
+export async function handleCleanAction(
+  handler: FixHandlerAccess,
+  req: CleanInput,
+  _verbosity: 'minimal' | 'standard' | 'detailed'
+): Promise<SheetsFixOutput> {
+  const { spreadsheetId, range } = req;
+  try {
+    const data = await handler._fetchRangeData(spreadsheetId!, range as string);
+    const cleaned = data.map((row) =>
+      row.map((cell) => {
+        if (typeof cell === 'string') return cell.trim();
+        return cell;
+      })
+    );
+    const response = {
+      success: true as const,
+      action: 'clean' as const,
+      cleaned,
+      summary: { rowsCleaned: cleaned.length },
+    };
+    return { response: handler._applyVerbosityFilter(response, _verbosity) };
+  } catch (error) {
+    return { response: handler._mapError(error) };
+  }
+}
+
+export async function handleStandardizeFormatsAction(
+  handler: FixHandlerAccess,
+  req: StandardizeFormatsInput,
+  _verbosity: 'minimal' | 'standard' | 'detailed'
+): Promise<SheetsFixOutput> {
+  return { response: handler._mapError(new Error('standardize_formats: not yet migrated to standalone function')) };
+}
+
+export async function handleFillMissingAction(
+  handler: FixHandlerAccess,
+  req: FillMissingInput,
+  _verbosity: 'minimal' | 'standard' | 'detailed'
+): Promise<SheetsFixOutput> {
+  return { response: handler._mapError(new Error('fill_missing: not yet migrated to standalone function')) };
+}

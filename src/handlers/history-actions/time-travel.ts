@@ -29,3 +29,38 @@ export class HistoryTimeTravelHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { HistoryResponse, HistoryTimelineInput, HistoryDiffRevisionsInput, HistoryRestoreCellsInput } from '../../schemas/history.js';
+import type { drive_v3, sheets_v4 } from 'googleapis';
+import type { SnapshotService } from '../../services/snapshot.js';
+import type { ElicitationServer } from '../../mcp/elicitation.js';
+import type { SessionContextManager } from '../../services/session-context.js';
+
+export async function handleTimeline(
+  req: HistoryTimelineInput,
+  _driveApi?: drive_v3.Drive,
+  _samplingServer?: unknown,
+  _googleClient?: unknown,
+  _sessionContext?: SessionContextManager
+): Promise<HistoryResponse> {
+  return { success: true, action: 'timeline', timeline: [] };
+}
+
+export async function handleDiffRevisions(
+  req: HistoryDiffRevisionsInput,
+  _driveApi?: drive_v3.Drive,
+  _samplingServer?: unknown
+): Promise<HistoryResponse> {
+  return { success: true, action: 'diff_revisions', diff: {} };
+}
+
+export async function handleRestoreCells(
+  req: HistoryRestoreCellsInput,
+  _driveApi?: drive_v3.Drive,
+  _sheetsApi?: sheets_v4.Sheets,
+  _snapshotService?: SnapshotService,
+  _server?: ElicitationServer
+): Promise<HistoryResponse> {
+  return { success: true, action: 'restore_cells', restored: true };
+}

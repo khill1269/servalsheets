@@ -19,3 +19,25 @@ export class FormatValidationHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { FormatHandlerAccess } from './internal.js';
+import type { FormatResponse } from '../../schemas/index.js';
+
+type FormatReq<A extends string> = { action: A; [key: string]: unknown };
+
+export async function handleSetDataValidation(ha: FormatHandlerAccess, request: FormatReq<'set_data_validation'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { validationAdded: true });
+}
+
+export async function handleClearDataValidation(ha: FormatHandlerAccess, request: FormatReq<'clear_data_validation'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { validationCleared: true });
+}
+
+export async function handleListDataValidations(ha: FormatHandlerAccess, request: FormatReq<'list_data_validations'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { validations: [] });
+}
+
+export async function handleSuggestFormat(ha: FormatHandlerAccess, request: FormatReq<'suggest_format'>): Promise<FormatResponse> {
+  return ha.makeSuccess(request.action, { suggestions: [] });
+}

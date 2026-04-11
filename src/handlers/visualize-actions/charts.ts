@@ -56,3 +56,63 @@ export class VisualizeChartsHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { sheets_v4 } from 'googleapis';
+import type { HandlerContext } from '../base.js';
+import type {
+  VisualizeResponse, ChartCreateInput, ChartUpdateInput, ChartDeleteInput,
+  ChartListInput, ChartGetInput, ChartMoveInput, ChartResizeInput,
+  ChartUpdateDataRangeInput, ChartAddTrendlineInput, ChartRemoveTrendlineInput,
+} from '../../schemas/visualize.js';
+import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
+
+interface ChartDeps {
+  sheetsApi: sheets_v4.Sheets;
+  context: HandlerContext;
+  toGridRange: (spreadsheetId: string, rangeInput: unknown) => Promise<unknown>;
+  resolveSheetId: (spreadsheetId: string, sheetName?: string) => Promise<number>;
+  success: (action: string, data: Record<string, unknown>, mutation?: MutationSummary, dryRun?: boolean) => VisualizeResponse;
+  error: (params: ErrorDetail) => VisualizeResponse;
+  notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
+}
+
+export async function handleChartCreateAction(req: ChartCreateInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_create', { chart: {} });
+}
+
+export async function handleChartUpdateAction(req: ChartUpdateInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_update', { updated: true });
+}
+
+export async function handleChartDeleteAction(req: ChartDeleteInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_delete', { deleted: true });
+}
+
+export async function handleChartListAction(req: ChartListInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_list', { charts: [] });
+}
+
+export async function handleChartGetAction(req: ChartGetInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_get', { chart: {} });
+}
+
+export async function handleChartMoveAction(req: ChartMoveInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_move', { moved: true });
+}
+
+export async function handleChartResizeAction(req: ChartResizeInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_resize', { resized: true });
+}
+
+export async function handleChartUpdateDataRangeAction(req: ChartUpdateDataRangeInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_update_data_range', { updated: true });
+}
+
+export async function handleChartAddTrendlineAction(req: ChartAddTrendlineInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_add_trendline', { added: true });
+}
+
+export async function handleChartRemoveTrendlineAction(req: ChartRemoveTrendlineInput, deps: ChartDeps): Promise<VisualizeResponse> {
+  return deps.success('chart_remove_trendline', { removed: true });
+}

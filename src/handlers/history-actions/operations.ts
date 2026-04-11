@@ -29,3 +29,35 @@ export class HistoryOperationsHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { HistoryResponse } from '../../schemas/history.js';
+import type { ElicitationServer } from '../../mcp/elicitation.js';
+import { getHistoryService } from '../../services/history-service.js';
+
+export async function handleList(req: { action: 'list'; spreadsheetId?: string; limit?: number }): Promise<HistoryResponse> {
+  const historyService = getHistoryService();
+  const operations = historyService.list(req.spreadsheetId!, req.limit ?? 50);
+  return { success: true, action: 'list', operations };
+}
+
+export async function handleGet(req: { action: 'get'; operationId?: string }): Promise<HistoryResponse> {
+  const historyService = getHistoryService();
+  const operation = historyService.getById(req.operationId!);
+  return { success: true, action: 'get', operation: operation ?? undefined };
+}
+
+export async function handleStats(req: { action: 'stats'; spreadsheetId?: string }): Promise<HistoryResponse> {
+  const historyService = getHistoryService();
+  const stats = historyService.getStats(req.spreadsheetId!);
+  return { success: true, action: 'stats', stats };
+}
+
+export async function handleClear(
+  req: { action: 'clear'; spreadsheetId?: string },
+  _server?: ElicitationServer
+): Promise<HistoryResponse> {
+  const historyService = getHistoryService();
+  historyService.clear(req.spreadsheetId!);
+  return { success: true, action: 'clear', message: 'History cleared' };
+}

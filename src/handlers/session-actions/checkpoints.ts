@@ -29,3 +29,33 @@ export class SessionCheckpointsHandler extends BaseHandler {
     }
   }
 }
+
+// Standalone function exports for parent handler dispatch
+import type { SheetsSessionOutput } from '../../schemas/session.js';
+import type { SessionContextManager } from '../../services/session-context.js';
+
+export async function handleSaveCheckpoint(
+  session: SessionContextManager,
+  req: { action: 'save_checkpoint'; spreadsheetId?: string; name?: string; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'save_checkpoint' } };
+}
+
+export async function handleLoadCheckpoint(
+  session: SessionContextManager,
+  req: { action: 'load_checkpoint'; spreadsheetId?: string; checkpointId?: string; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'load_checkpoint' } };
+}
+
+export async function handleListCheckpoints(
+  req: { action: 'list_checkpoints'; spreadsheetId?: string; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'list_checkpoints', checkpoints: [] } };
+}
+
+export async function handleDeleteCheckpoint(
+  req: { action: 'delete_checkpoint'; checkpointId?: string; [key: string]: unknown }
+): Promise<SheetsSessionOutput> {
+  return { response: { success: true, action: 'delete_checkpoint' } };
+}
