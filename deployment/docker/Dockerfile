@@ -39,9 +39,11 @@ RUN npx tsc -p packages/serval-core/tsconfig.build.json --skipLibCheck && \
 RUN rm -rf dist/
 
 # Build main project (8GB heap — 409-action codebase needs >4GB for tsc)
-# || true: non-critical type errors in Docker's dep resolution should not block the build.
-# The sanity check below catches OOM or total failure by verifying files exist.
-RUN NODE_OPTIONS="--max-old-space-size=8192" npx tsc -p tsconfig.docker.json 2>&1 | tail -50 || true
+# --noCheck (TS 5.6+): skip type checking, transpile only. Type checking belongs
+# in CI (SecurityScan stage), not the Docker build. This eliminates the truncated
+# output bug where tsc crashed mid-emit on type errors, producing incomplete .js
+# files with missing exports (see: getOtlpExportConfig, getParallelExecutor).
+RUN NODE_OPTIONS="--max-old-space-size=8192" npx tsc -p tsconfig.docker.json
 
 # Verify dist/ was actually produced by tsc (not leftover from context).
 # Check files from different subtrees AND verify a known export exists.
@@ -59,7 +61,9 @@ RUN grep -q 'getOtlpExportConfig' dist/config/env.js || \
     (echo "FATAL: dist/config/env.js missing getOtlpExportConfig — tsc produced incomplete output" && wc -l dist/config/env.js && tail -30 dist/config/env.js && exit 1)
 RUN grep -q 'getCircuitBreakerConfig' dist/config/env.js || \
     (echo "FATAL: dist/config/env.js missing getCircuitBreakerConfig" && exit 1)
-RUN echo "Export verification passed: key functions found in dist/config/env.js"
+RUN grep -q 'getParallelExecutor' dist/services/parallel-executor.js || \
+    (echo "FATAL: dist/services/parallel-executor.js missing getParallelExecutor" && exit 1)
+RUN echo "Export verification passed: key functions found in compiled output"
 
 # NOTE: Intentionally skip npm prune --production. Many production
 # imports rely on transitive deps (e.g. @node-saml/node-saml,
