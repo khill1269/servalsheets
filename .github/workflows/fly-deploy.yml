@@ -97,16 +97,17 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Post-deploy smoke test
+        id: smoke
+        continue-on-error: true    # capture outcome; rollback step checks SMOKE_FAILED
         run: |
           echo "Waiting for deployment to stabilize..."
           sleep 15
 
-          # Health check
+          # Health check (primary gate)
           HTTP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' https://servalsheets.fly.dev/health/ready || echo "000")
           if [ "$HTTP_CODE" != "200" ]; then
             echo "❌ Health check failed: HTTP $HTTP_CODE"
-            echo "Rolling back..."
-            flyctl releases --json | head -1
+            echo "SMOKE_FAILED=true" >> $GITHUB_ENV
             exit 1
           fi
           echo "✅ Health check passed: HTTP $HTTP_CODE"
@@ -120,6 +121,16 @@ jobs:
           echo "Metrics endpoint: HTTP $HTTP_CODE"
 
           echo "✅ Smoke tests passed"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Rollback on smoke failure
+        if: env.SMOKE_FAILED == 'true'
+        run: |
+          echo "⚠️ Smoke test failed — rolling back to previous release..."
+          flyctl releases rollback --yes
+          echo "::error::Deployment rolled back due to failing health check. Investigate the failed deployment."
+          exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 

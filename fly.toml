@@ -93,6 +93,8 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   size = "shared-cpu-1x"
   memory = "1gb"
   processes = ["app"]
+  kill_signal = "SIGTERM"
+  kill_timeout = "30s"
 
 [[mounts]]
   source = "servalsheets_data"
@@ -106,12 +108,7 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   port = 3000
   path = "/metrics"
 
-# Graceful shutdown — allow in-flight MCP requests to complete
-[experimental]
-  kill_signal = "SIGTERM"
-  kill_timeout = "30s"
-
 # Deploy strategy: canary with automatic rollback
 [deploy]
   strategy = "canary"
-  release_command = "node -e \"require('./dist/schemas/index.js')\" || exit 1"
+  release_command = "node --input-type=module -e \"import('./dist/schemas/index.js').catch(e => { console.error(e); process.exit(1); })\""

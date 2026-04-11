@@ -179,7 +179,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Node**: $(node --version)" >> $GITHUB_STEP_SUMMARY
           echo "- **TypeScript**: $(npx tsc --version)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tools**: $(node -e "const c=require('./src/generated/action-counts.ts').replace(/export /g,'');eval(c.replace(/:.*/g,''));console.log('check server.json')" 2>/dev/null || echo 'see server.json')" >> $GITHUB_STEP_SUMMARY
+          TOOLS=$(node --input-type=module -e "import { TOOL_COUNT } from './dist/schemas/index.js'; console.log(TOOL_COUNT)" 2>/dev/null || echo '?')
+          ACTIONS=$(node --input-type=module -e "import { ACTION_COUNT } from './dist/schemas/index.js'; console.log(ACTION_COUNT)" 2>/dev/null || echo '?')
+          echo "- **Tools/Actions**: ${TOOLS} tools, ${ACTIONS} actions" >> $GITHUB_STEP_SUMMARY
 
   # Fast unit tests with Vitest sharding
   test-fast:
@@ -667,10 +669,10 @@ jobs:
         run: npm run check:security-exceptions
 
       - name: Run security audit (fail on high/critical)
-        # continue-on-error: node-saml → xml-encryption → node-forge has unfixable high/critical
-        # vulns with no upstream fix. Re-evaluate when node-saml v4 stable ships.
-        continue-on-error: true
-        run: npm audit --audit-level=high
+        # GHSA-65ch-62r8-g69g: node-saml → xml-encryption → node-forge — no upstream fix.
+        # Allowlisted explicitly so any NEW high/critical CVE still fails CI.
+        # Re-evaluate when node-saml v4 stable ships. See SECURITY_EXCEPTIONS.md.
+        run: npm audit --audit-level=high --allow-ghsas GHSA-65ch-62r8-g69g
 
       - name: Run security audit (warn on moderate)
         run: npm audit --audit-level=moderate
