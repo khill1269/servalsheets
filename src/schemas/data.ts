@@ -116,6 +116,7 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .default('full')
     .describe('Output size profile for returned values (full, compact, preview)'),
 })
+  .strict()
   .superRefine((val, ctx) => {
     // Exactly ONE of range or dataFilter must be provided
     if (!val.range && !val.dataFilter) {
@@ -133,7 +134,6 @@ const ReadActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
 
 const WriteActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -163,6 +163,7 @@ const WriteActionSchema = CommonFieldsSchema.extend({
       'When true, uses batchUpdate/updateCells with fields=userEnteredValue so data validation rules on target cells are not cleared. Slightly slower than the default values.update path.'
     ),
 })
+  .strict()
   .superRefine((val, ctx) => {
     // Exactly ONE of range or dataFilter must be provided
     if (!val.range && !val.dataFilter) {
@@ -180,7 +181,6 @@ const WriteActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
 
 const AppendActionSchema = CommonFieldsSchema.extend({
   action: z.literal('append').describe('Append rows after the last row of data in a range'),
@@ -194,6 +194,7 @@ const AppendActionSchema = CommonFieldsSchema.extend({
     .default('INSERT_ROWS')
     .describe('Whether to overwrite or insert rows (INSERT_ROWS or OVERWRITE)'),
 })
+  .strict()
   .superRefine((val, ctx) => {
     if (!val.range && !val.tableId) {
       ctx.addIssue({
@@ -203,7 +204,6 @@ const AppendActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
 
 const ClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear').describe('Clear cell values from a range (keeps formatting)'),
@@ -219,6 +219,7 @@ const ClearActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Show what would change without applying'),
 })
+  .strict()
   .superRefine((val, ctx) => {
     // Exactly ONE of range or dataFilter must be provided
     if (!val.range && !val.dataFilter) {
@@ -236,7 +237,6 @@ const ClearActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
 
 const BatchWriteEntrySchema = z
   .object({
@@ -293,6 +293,7 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
     .default('full')
     .describe('Output size profile for returned ranges (full, compact, preview)'),
 })
+  .strict()
   .superRefine((val, ctx) => {
     const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
     const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
@@ -311,7 +312,6 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_write').describe('Write to multiple ranges in a single API call'),
@@ -326,6 +326,7 @@ const BatchWriteActionSchema = CommonFieldsSchema.extend({
   includeValuesInResponse: z.boolean().optional().default(false).describe('Return written values'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
 })
+  .strict()
   .superRefine((val, ctx) => {
     const hasRanges = val.data.some((entry) => entry.range !== undefined);
     const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
@@ -337,7 +338,6 @@ const BatchWriteActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
 
 const BatchClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_clear').describe('Clear multiple ranges in a single API call'),
@@ -835,7 +835,7 @@ export const SheetsDataInputSchema = z.object({
       CrossQueryActionSchema, // Search across multiple spreadsheets
       CrossWriteActionSchema, // Copy data between spreadsheets
       CrossCompareActionSchema, // Diff ranges across two spreadsheets
-    ])
+    ] as any)
   ),
 });
 

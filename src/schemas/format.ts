@@ -1170,7 +1170,7 @@ export const SheetsFormatInputSchema = z.object({
       AddConditionalFormatRuleActionSchema,
       GenerateConditionalFormatActionSchema,
       BuildDependentDropdownActionSchema,
-    ])
+    ] as any)
   ),
 });
 

@@ -86,6 +86,7 @@ const GetActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe('Specific ranges to fetch if includeGridData=true'),
 })
+  .strict()
   .superRefine((data, ctx) => {
     if (data.includeGridData === true && (!data.ranges || data.ranges.length === 0)) {
       ctx.addIssue({
@@ -95,7 +96,7 @@ const GetActionSchema = CommonFieldsSchema.extend({
       });
     }
   })
-  .strict();
+
 
 const CreateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('create').describe('Create a new spreadsheet'),
@@ -540,7 +541,7 @@ export const SheetsCoreInputSchema = z.object({
     // Batch operations (Issue #2 fix - efficient multi-sheet operations)
     BatchDeleteSheetsActionSchema,
     BatchUpdateSheetsActionSchema,
-  ]),
+  ] as any),
 });
 
 const CoreResponseSchema = z.discriminatedUnion('success', [

@@ -148,7 +148,7 @@ export const CustomValidationRuleSchema = z.discriminatedUnion('type', [
   CustomPatternRuleSchema,
   CustomLengthRuleSchema,
   CustomOneOfRuleSchema,
-]);
+] as any);
 
 export const ValidationRuleInputSchema = z.union([
   BuiltinValidationRuleSchema,
