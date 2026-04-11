@@ -373,14 +373,14 @@ export async function handleClearSheetAction(
   };
 
   if (resetSheet) {
-    const targetTables = targetSheet.tables ?? [];
+    const targetTables = (targetSheet as any).tables ?? [];
     for (const table of targetTables) {
       if (table.tableId) {
         requests.push({
           deleteTable: {
             tableId: table.tableId,
           },
-        });
+        } as any);
         clearedArtifacts.tables++;
       }
     }

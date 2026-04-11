@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsHistoryInput, HistoryOutput } from '../../schemas/history.js';
 import { logger } from '../../utils/logger.js';
 
-export class HistoryTimeTravelHandler extends BaseHandler {
+export class HistoryTimeTravelHandler extends BaseHandler<any, any> {
   async handleTimeline(req: SheetsHistoryInput & { action: 'timeline' }): Promise<HistoryOutput> {
     const { spreadsheetId, range } = req;
 
@@ -28,6 +28,7 @@ export class HistoryTimeTravelHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -45,6 +46,7 @@ export async function handleTimeline(
   _sessionContext?: SessionContextManager
 ): Promise<HistoryResponse> {
   return { success: true, action: 'timeline', timeline: [] };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleDiffRevisions(
@@ -53,6 +55,7 @@ export async function handleDiffRevisions(
   _samplingServer?: unknown
 ): Promise<HistoryResponse> {
   return { success: true, action: 'diff_revisions', diff: {} };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleRestoreCells(
@@ -63,4 +66,5 @@ export async function handleRestoreCells(
   _server?: ElicitationServer
 ): Promise<HistoryResponse> {
   return { success: true, action: 'restore_cells', restored: true };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsSessionInput, SessionOutput } from '../../schemas/session.js';
 import { logger } from '../../utils/logger.js';
 
-export class SessionPreferencesHandler extends BaseHandler {
+export class SessionPreferencesHandler extends BaseHandler<any, any> {
   async handleUpdatePreferences(req: SheetsSessionInput & { action: 'update_preferences' }): Promise<SessionOutput> {
     const { preferences } = req;
 
@@ -15,6 +15,7 @@ export class SessionPreferencesHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -28,11 +29,13 @@ export function handleUpdatePreferences(
   const { action, ...preferences } = req;
   session.updatePreferences(preferences);
   return { response: { success: true, action: 'update_preferences' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export function handleGetPreferences(session: SessionContextManager): SheetsSessionOutput {
   const preferences = session.getPreferences();
   return { response: { success: true, action: 'get_preferences', preferences } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleUpdateProfilePreferences(
@@ -40,4 +43,5 @@ export async function handleUpdateProfilePreferences(
   req: { action: 'update_profile_preferences'; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'update_profile_preferences' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

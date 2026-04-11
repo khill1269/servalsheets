@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsSessionInput, SessionOutput } from '../../schemas/session.js';
 import { logger } from '../../utils/logger.js';
 
-export class SessionCheckpointsHandler extends BaseHandler {
+export class SessionCheckpointsHandler extends BaseHandler<any, any> {
   async handleSaveCheckpoint(req: SheetsSessionInput & { action: 'save_checkpoint' }): Promise<SessionOutput> {
     const { spreadsheetId, name } = req;
 
@@ -28,6 +28,7 @@ export class SessionCheckpointsHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -39,6 +40,7 @@ export async function handleSaveCheckpoint(
   req: { action: 'save_checkpoint'; spreadsheetId?: string; name?: string; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'save_checkpoint' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleLoadCheckpoint(
@@ -46,16 +48,19 @@ export async function handleLoadCheckpoint(
   req: { action: 'load_checkpoint'; spreadsheetId?: string; checkpointId?: string; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'load_checkpoint' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleListCheckpoints(
   req: { action: 'list_checkpoints'; spreadsheetId?: string; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'list_checkpoints', checkpoints: [] } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleDeleteCheckpoint(
   req: { action: 'delete_checkpoint'; checkpointId?: string; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'delete_checkpoint' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

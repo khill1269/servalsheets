@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsHistoryInput, HistoryOutput } from '../../schemas/history.js';
 import { logger } from '../../utils/logger.js';
 
-export class HistoryOperationsHandler extends BaseHandler {
+export class HistoryOperationsHandler extends BaseHandler<any, any> {
   async handleUndo(req: SheetsHistoryInput & { action: 'undo' }): Promise<HistoryOutput> {
     const { spreadsheetId } = req;
 
@@ -28,6 +28,7 @@ export class HistoryOperationsHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -39,18 +40,21 @@ export async function handleList(req: { action: 'list'; spreadsheetId?: string; 
   const historyService = getHistoryService();
   const operations = historyService.list(req.spreadsheetId!, req.limit ?? 50);
   return { success: true, action: 'list', operations };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleGet(req: { action: 'get'; operationId?: string }): Promise<HistoryResponse> {
   const historyService = getHistoryService();
   const operation = historyService.getById(req.operationId!);
   return { success: true, action: 'get', operation: operation ?? undefined };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleStats(req: { action: 'stats'; spreadsheetId?: string }): Promise<HistoryResponse> {
   const historyService = getHistoryService();
   const stats = historyService.getStats(req.spreadsheetId!);
   return { success: true, action: 'stats', stats };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleClear(
@@ -60,4 +64,5 @@ export async function handleClear(
   const historyService = getHistoryService();
   historyService.clear(req.spreadsheetId!);
   return { success: true, action: 'clear', message: 'History cleared' };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

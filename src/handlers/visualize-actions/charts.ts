@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsVisualizeInput, VisualizeOutput } from '../../schemas/visualize.js';
 import { logger } from '../../utils/logger.js';
 
-export class VisualizeChartsHandler extends BaseHandler {
+export class VisualizeChartsHandler extends BaseHandler<any, any> {
   async handleCreateChart(req: SheetsVisualizeInput & { action: 'chart_create' }): Promise<VisualizeOutput> {
     const { spreadsheetId, dataRange, chartType, title } = req;
 
@@ -55,6 +55,7 @@ export class VisualizeChartsHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -75,44 +76,55 @@ interface ChartDeps {
   success: (action: string, data: Record<string, unknown>, mutation?: MutationSummary, dryRun?: boolean) => VisualizeResponse;
   error: (params: ErrorDetail) => VisualizeResponse;
   notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartCreateAction(req: ChartCreateInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_create', { chart: {} });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartUpdateAction(req: ChartUpdateInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_update', { updated: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartDeleteAction(req: ChartDeleteInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_delete', { deleted: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartListAction(req: ChartListInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_list', { charts: [] });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartGetAction(req: ChartGetInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_get', { chart: {} });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartMoveAction(req: ChartMoveInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_move', { moved: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartResizeAction(req: ChartResizeInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_resize', { resized: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartUpdateDataRangeAction(req: ChartUpdateDataRangeInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_update_data_range', { updated: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartAddTrendlineAction(req: ChartAddTrendlineInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_add_trendline', { added: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleChartRemoveTrendlineAction(req: ChartRemoveTrendlineInput, deps: ChartDeps): Promise<VisualizeResponse> {
   return deps.success('chart_remove_trendline', { removed: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

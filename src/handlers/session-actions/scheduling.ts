@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsSessionInput, SessionOutput } from '../../schemas/session.js';
 import { logger } from '../../utils/logger.js';
 
-export class SessionSchedulingHandler extends BaseHandler {
+export class SessionSchedulingHandler extends BaseHandler<any, any> {
   async handleScheduleCreate(req: SheetsSessionInput & { action: 'schedule_create' }): Promise<SessionOutput> {
     const { spreadsheetId, cronExpression, taskDescription } = req;
 
@@ -18,6 +18,7 @@ export class SessionSchedulingHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -28,6 +29,7 @@ export async function handleScheduleCreate(
   req: { action: 'schedule_create'; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'schedule_create' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export function handleScheduleList(
@@ -35,6 +37,7 @@ export function handleScheduleList(
   req: { action: 'schedule_list'; [key: string]: unknown }
 ): SheetsSessionOutput {
   return { response: { success: true, action: 'schedule_list', schedules: [] } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleScheduleCancel(
@@ -42,6 +45,7 @@ export async function handleScheduleCancel(
   req: { action: 'schedule_cancel'; scheduleId?: string; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'schedule_cancel' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleScheduleRunNow(
@@ -49,4 +53,5 @@ export async function handleScheduleRunNow(
   req: { action: 'schedule_run_now'; scheduleId?: string; [key: string]: unknown }
 ): Promise<SheetsSessionOutput> {
   return { response: { success: true, action: 'schedule_run_now' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

@@ -711,7 +711,7 @@ export class RedisTaskStore implements TaskStore {
     const client = await this.ensureConnected();
 
     let cleaned = 0;
-    let cursor = '0';
+    let cursor = 0;
 
     // Use SCAN to iterate over task keys
     do {
@@ -746,7 +746,7 @@ export class RedisTaskStore implements TaskStore {
 
     const tasks: Task[] = [];
     const now = Date.now();
-    let cursor = '0';
+    let cursor = 0;
 
     // Use SCAN to iterate over task keys
     do {

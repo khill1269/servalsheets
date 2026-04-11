@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsSessionInput, SessionOutput } from '../../schemas/session.js';
 import { logger } from '../../utils/logger.js';
 
-export class SessionContextHandler extends BaseHandler {
+export class SessionContextHandler extends BaseHandler<any, any> {
   async handleGetContext(req: SheetsSessionInput & { action: 'get_context' }): Promise<SessionOutput> {
     try {
       const context = this.context.sessionContext.getContext();
@@ -26,6 +26,7 @@ export class SessionContextHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -40,16 +41,19 @@ export function handleSetActive(
     session.setActiveSpreadsheet(req.spreadsheetId, req.title);
   }
   return { response: { success: true, action: 'set_active' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export function handleGetActive(session: SessionContextManager): SheetsSessionOutput {
   const active = session.getActiveSpreadsheet();
   return { response: { success: true, action: 'get_active', spreadsheet: active } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export function handleGetContext(session: SessionContextManager): SheetsSessionOutput {
   const context = session.getContext();
   return { response: { success: true, action: 'get_context', context } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export function handleRecordOperation(
@@ -63,9 +67,11 @@ export function handleRecordOperation(
     timestamp: Date.now(),
   });
   return { response: { success: true, action: 'record_operation' } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export function handleGetLastOperation(session: SessionContextManager): SheetsSessionOutput {
   const operation = session.getLastOperation();
   return { response: { success: true, action: 'get_last_operation', operation } };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsVisualizeInput, VisualizeOutput } from '../../schemas/visualize.js';
 import { logger } from '../../utils/logger.js';
 
-export class VisualizePivotsHandler extends BaseHandler {
+export class VisualizePivotsHandler extends BaseHandler<any, any> {
   async handleCreatePivot(req: SheetsVisualizeInput & { action: 'pivot_create' }): Promise<VisualizeOutput> {
     const { spreadsheetId, sourceRange, rows, columns, values } = req;
 
@@ -51,6 +51,7 @@ export class VisualizePivotsHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -67,6 +68,7 @@ interface PivotDeps {
   success: (action: string, data: Record<string, unknown>, mutation?: MutationSummary, dryRun?: boolean) => VisualizeResponse;
   error: (params: ErrorDetail) => VisualizeResponse;
   notFoundError: (resourceType: string, resourceId: string | number) => VisualizeResponse;
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 type PivotUpdateInput = { action: 'pivot_update'; spreadsheetId: string; sheetId: number; [key: string]: unknown };
@@ -75,24 +77,30 @@ type PivotGetInput = { action: 'pivot_get'; spreadsheetId: string; sheetId: numb
 
 export async function handlePivotCreateAction(req: PivotCreateInput, deps: PivotDeps): Promise<VisualizeResponse> {
   return deps.success('pivot_create', { pivot: {} });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handlePivotUpdateAction(req: PivotUpdateInput, deps: PivotDeps): Promise<VisualizeResponse> {
   return deps.success('pivot_update', { updated: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handlePivotDeleteAction(req: PivotDeleteInput, deps: PivotDeps): Promise<VisualizeResponse> {
   return deps.success('pivot_delete', { deleted: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handlePivotListAction(req: PivotListInput, deps: PivotDeps): Promise<VisualizeResponse> {
   return deps.success('pivot_list', { pivots: [] });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handlePivotGetAction(req: PivotGetInput, deps: PivotDeps): Promise<VisualizeResponse> {
   return deps.success('pivot_get', { pivot: {} });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handlePivotRefreshAction(req: PivotRefreshInput, deps: PivotDeps): Promise<VisualizeResponse> {
   return deps.success('pivot_refresh', { refreshed: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

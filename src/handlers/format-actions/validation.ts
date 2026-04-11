@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsFormatInput, FormatOutput } from '../../schemas/format.js';
 import { logger } from '../../utils/logger.js';
 
-export class FormatValidationHandler extends BaseHandler {
+export class FormatValidationHandler extends BaseHandler<any, any> {
   async handleSetDataValidation(req: SheetsFormatInput & { action: 'set_data_validation' }): Promise<FormatOutput> {
     const { spreadsheetId, range, validationType, validationOptions } = req;
 
@@ -18,6 +18,7 @@ export class FormatValidationHandler extends BaseHandler {
       throw error;
     }
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -28,16 +29,20 @@ type FormatReq<A extends string> = { action: A; [key: string]: unknown };
 
 export async function handleSetDataValidation(ha: FormatHandlerAccess, request: FormatReq<'set_data_validation'>): Promise<FormatResponse> {
   return ha.makeSuccess(request.action, { validationAdded: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleClearDataValidation(ha: FormatHandlerAccess, request: FormatReq<'clear_data_validation'>): Promise<FormatResponse> {
   return ha.makeSuccess(request.action, { validationCleared: true });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleListDataValidations(ha: FormatHandlerAccess, request: FormatReq<'list_data_validations'>): Promise<FormatResponse> {
   return ha.makeSuccess(request.action, { validations: [] });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleSuggestFormat(ha: FormatHandlerAccess, request: FormatReq<'suggest_format'>): Promise<FormatResponse> {
   return ha.makeSuccess(request.action, { suggestions: [] });
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

@@ -70,6 +70,7 @@ interface AuthorizationCode {
   googleAccessToken: string | undefined;
   googleRefreshToken: string | undefined;
   expiresAt: number;
+  [key: string]: unknown;
 }
 
 interface RefreshTokenData {
@@ -78,6 +79,7 @@ interface RefreshTokenData {
   scope: string;
   googleRefreshToken?: string;
   expiresAt: number;
+  [key: string]: unknown;
 }
 
 interface StateData {
@@ -89,6 +91,7 @@ interface StateData {
   // clientId is carried through Google OAuth state so the callback knows which
   // MCP client initiated the request (required for confused deputy prevention).
   clientId: string;
+  [key: string]: unknown;
 }
 
 interface DcrClientData {
@@ -102,12 +105,14 @@ interface DcrClientData {
   token_endpoint_auth_method: string;
   client_id_issued_at: number;
   created_at: string;
+  [key: string]: unknown;
 }
 
 interface ConsentRecord {
   clientName: string;
   grantedAt: number;
   redirectUris: string[];
+  [key: string]: unknown;
 }
 
 /**
@@ -142,7 +147,7 @@ export class OAuthProvider {
     };
 
     // ✅ SECURITY: Enforce max OAuth token TTL (default 30 minutes)
-    const maxTokenTtl = env.OAUTH_MAX_TOKEN_TTL;
+    const maxTokenTtl = env.OAUTH_MAX_TOKEN_TTL as number;
     if (this.config.accessTokenTtl > maxTokenTtl) {
       logger.warn('OAuth access token TTL exceeds max allowed, capping to max', {
         requested: this.config.accessTokenTtl,
@@ -165,8 +170,8 @@ export class OAuthProvider {
     const oauthConfig = getApiSpecificCircuitBreakerConfig('oauth');
     this.oauthCircuit = new CircuitBreaker({
       failureThreshold: oauthConfig.failureThreshold,
-      successThreshold: oauthConfig.successThreshold,
-      timeout: oauthConfig.timeout,
+      successThreshold: 2,
+      timeout: oauthConfig.resetTimeout,
       name: 'google-oauth',
     });
 

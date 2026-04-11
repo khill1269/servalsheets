@@ -2,7 +2,7 @@ import { BaseHandler } from '../base.js';
 import type { SheetsFixInput, FixOutput } from '../../schemas/fix.js';
 import { logger } from '../../utils/logger.js';
 
-export class FixCleaningHandler extends BaseHandler {
+export class FixCleaningHandler extends BaseHandler<any, any> {
   async handleClean(req: SheetsFixInput & { action: 'clean' }): Promise<FixOutput> {
     const { spreadsheetId, range } = req;
 
@@ -27,6 +27,7 @@ export class FixCleaningHandler extends BaseHandler {
       })
     );
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 // Standalone function exports for parent handler dispatch
@@ -57,6 +58,7 @@ export async function handleCleanAction(
   } catch (error) {
     return { response: handler._mapError(error) };
   }
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleStandardizeFormatsAction(
@@ -65,6 +67,7 @@ export async function handleStandardizeFormatsAction(
   _verbosity: 'minimal' | 'standard' | 'detailed'
 ): Promise<SheetsFixOutput> {
   return { response: handler._mapError(new Error('standardize_formats: not yet migrated to standalone function')) };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }
 
 export async function handleFillMissingAction(
@@ -73,4 +76,5 @@ export async function handleFillMissingAction(
   _verbosity: 'minimal' | 'standard' | 'detailed'
 ): Promise<SheetsFixOutput> {
   return { response: handler._mapError(new Error('fill_missing: not yet migrated to standalone function')) };
+  async handle(input: any): Promise<any> { throw new Error('Not implemented - use specific action methods'); }
 }

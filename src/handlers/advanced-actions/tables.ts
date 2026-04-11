@@ -148,7 +148,7 @@ async function validateCreateTablePreconditions(
     });
   }
 
-  const overlappingTable = (targetSheet?.tables ?? []).find((table) =>
+  const overlappingTable = ((targetSheet as any)?.tables ?? []).find((table: any) =>
     rangesOverlap(targetRange, table.range)
   );
   if (overlappingTable) {
@@ -200,7 +200,7 @@ export async function handleCreateTableAction(
     return preconditionError;
   }
 
-  let columnProperties: sheets_v4.Schema$TableColumnProperties[] | undefined;
+  let columnProperties: any[] | undefined;
   const hasHeaders = req.hasHeaders ?? true;
   const headerRowCount = req.headerRowCount ?? 1;
 
@@ -228,7 +228,7 @@ export async function handleCreateTableAction(
     }));
   }
 
-  const response = await deps.sheetsApi.spreadsheets.batchUpdate({
+  const response = await (deps.sheetsApi.spreadsheets as any).batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
       requests: [
@@ -244,7 +244,7 @@ export async function handleCreateTableAction(
     },
   });
 
-  const table = response.data?.replies?.[0]?.addTable?.table;
+  const table = (response as any).data?.replies?.[0]?.addTable?.table;
 
   return deps.success('create_table', {
     table: table
@@ -277,7 +277,7 @@ export async function handleDeleteTableAction(
     req.safety
   );
 
-  await deps.sheetsApi.spreadsheets.batchUpdate({
+  await (deps.sheetsApi.spreadsheets as any).batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
       requests: [
@@ -307,7 +307,7 @@ export async function handleListTablesAction(
 
   const allItems: NonNullable<AdvancedSuccess['tables']> = [];
   for (const sheet of response.data.sheets ?? []) {
-    for (const table of sheet.tables ?? []) {
+    for (const table of (sheet as any).tables ?? []) {
       const range = table.range;
       const columnCount = table.columnProperties?.length ?? 0;
       const rowCount = range ? (range.endRowIndex ?? 0) - (range.startRowIndex ?? 0) : 0;
@@ -365,7 +365,7 @@ export async function handleUpdateTableAction(
   }
 
   if (updates.length > 0) {
-    await deps.sheetsApi.spreadsheets.batchUpdate({
+    await (deps.sheetsApi.spreadsheets as any).batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: { requests: updates },
     });
@@ -388,9 +388,9 @@ export async function handleRenameTableColumnAction(
     fields: 'sheets.tables',
   });
 
-  let targetTable: sheets_v4.Schema$Table | undefined;
+  let targetTable: any | undefined;
   for (const sheet of response.data.sheets ?? []) {
-    for (const table of sheet.tables ?? []) {
+    for (const table of (sheet as any).tables ?? []) {
       if (table.tableId === req.tableId) {
         targetTable = table;
         break;
@@ -430,7 +430,7 @@ export async function handleRenameTableColumnAction(
     columnName: req.newName,
   };
 
-  await deps.sheetsApi.spreadsheets.batchUpdate({
+  await (deps.sheetsApi.spreadsheets as any).batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
       requests: [
@@ -464,9 +464,9 @@ export async function handleSetTableColumnPropertiesAction(
     fields: 'sheets.tables',
   });
 
-  let targetTable: sheets_v4.Schema$Table | undefined;
+  let targetTable: any | undefined;
   for (const sheet of response.data.sheets ?? []) {
-    for (const table of sheet.tables ?? []) {
+    for (const table of (sheet as any).tables ?? []) {
       if (table.tableId === req.tableId) {
         targetTable = table;
         break;
@@ -581,7 +581,7 @@ export async function handleSetTableColumnPropertiesAction(
     });
   }
 
-  await deps.sheetsApi.spreadsheets.batchUpdate({
+  await (deps.sheetsApi.spreadsheets as any).batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
       requests,
