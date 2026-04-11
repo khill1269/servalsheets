@@ -1,5 +1,6 @@
 {
   "name": "servalsheets",
+  "mcpName": "ServalSheets",
   "version": "2.0.0",
   "description": "Production-grade MCP server for Google Sheets with 25 tools and 409 actions",
   "type": "module",
@@ -24,6 +25,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "prebuild": "npm run build -w packages/serval-core",
     "build": "tsc && npm run generate:metadata",
     "build:docker": "npm run build --workspaces --if-present && tsc",
     "build:cli": "tsc && node dist/cli.js",
