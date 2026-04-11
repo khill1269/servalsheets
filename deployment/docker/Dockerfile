@@ -32,11 +32,19 @@ RUN npx tsc -p packages/serval-core/tsconfig.build.json --skipLibCheck && \
     npx tsc -p packages/mcp-runtime/tsconfig.build.json --skipLibCheck && \
     npx tsc -p packages/mcp-stdio/tsconfig.build.json --skipLibCheck
 
+# Purge any stale dist/ that leaked in via Docker context (.dockerignore
+# includes !dist/ for Fly builds). Without this, tsc failures masked by
+# || true leave pre-existing local dist/ intact and sanity checks pass
+# on STALE files whose exports may not match current source.
+RUN rm -rf dist/
+
 # Build main project (8GB heap — 409-action codebase needs >4GB for tsc)
 # || true: non-critical type errors in Docker's dep resolution should not block the build.
-# WARNING: if tsc OOMs, || true swallows it, producing incomplete dist/.
-# The sanity check below catches this by verifying files from different parts of the tree.
-RUN NODE_OPTIONS="--max-old-space-size=8192" npx tsc -p tsconfig.docker.json || true
+# The sanity check below catches OOM or total failure by verifying files exist.
+RUN NODE_OPTIONS="--max-old-space-size=8192" npx tsc -p tsconfig.docker.json 2>&1 | tail -50 || true
+
+# Verify dist/ was actually produced by tsc (not leftover from context).
+# Check files from different subtrees AND verify a known export exists.
 RUN test -f dist/server.js && \
     test -f dist/http-server.js && \
     test -f dist/config/env.js && \
@@ -44,6 +52,14 @@ RUN test -f dist/server.js && \
     test -f dist/handlers/base.js && \
     test -f dist/schemas/index.js || \
     (echo "FATAL: dist/ is incomplete — tsc likely OOM'd. Missing one of: server.js, http-server.js, config/env.js, observability/otel-export.js, handlers/base.js, schemas/index.js" && ls -la dist/ dist/config/ dist/observability/ 2>/dev/null && exit 1)
+# Verify key exports exist in compiled JS (can't dynamic-import env.js because
+# validateEnv() runs at module load and calls process.exit without env vars).
+# grep for the ESM export declarations that were missing at runtime.
+RUN grep -q 'getOtlpExportConfig' dist/config/env.js || \
+    (echo "FATAL: dist/config/env.js missing getOtlpExportConfig — tsc produced incomplete output" && wc -l dist/config/env.js && tail -30 dist/config/env.js && exit 1)
+RUN grep -q 'getCircuitBreakerConfig' dist/config/env.js || \
+    (echo "FATAL: dist/config/env.js missing getCircuitBreakerConfig" && exit 1)
+RUN echo "Export verification passed: key functions found in dist/config/env.js"
 
 # NOTE: Intentionally skip npm prune --production. Many production
 # imports rely on transitive deps (e.g. @node-saml/node-saml,
