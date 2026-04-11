@@ -1,4 +1,4 @@
-FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c AS builder
+FROM public.ecr.aws/docker/library/node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -44,7 +44,7 @@ RUN test -f dist/server.js && test -f dist/http-server.js || \
 # that prune removes. Larger image but reliable at runtime.
 
 # ── Runtime stage ──────────────────────────────────────────────
-FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
+FROM public.ecr.aws/docker/library/node:20-alpine
 
 WORKDIR /app
 
