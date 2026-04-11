@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import LRUCache from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 import Stripe from 'stripe';
 
 export interface BillingCustomer {
