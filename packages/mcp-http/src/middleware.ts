@@ -2,7 +2,7 @@ import compression from 'compression';
 import cors from 'cors';
 import express, { type Application, type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 
 export interface HttpFoundationLogger {
   warn(message: string, meta?: unknown): void;
@@ -253,7 +253,7 @@ export function registerHttpFoundationMiddleware<
     validate: false,
     keyGenerator: (req: Request) => {
       const ip = extractTrustedClientIp(req);
-      return `${ipKeyGenerator(ip)}:${req.method}:${req.path}`;
+      return `${ip}:${req.method}:${req.path}`;
     },
     message: { error: 'Too many requests, please try again later' },
     handler: (_req: Request, res: Response) => {
