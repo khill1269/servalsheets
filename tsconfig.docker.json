@@ -4,6 +4,8 @@
     "skipLibCheck": true,
     "noPropertyAccessFromIndexSignature": false,
     "noUnusedLocals": false,
-    "noCheck": true
+    "noCheck": true,
+    "declaration": false,
+    "declarationMap": false
   }
 }
