@@ -32,8 +32,9 @@ RUN npx tsc -p packages/serval-core/tsconfig.build.json --skipLibCheck && \
     npx tsc -p packages/mcp-runtime/tsconfig.build.json --skipLibCheck && \
     npx tsc -p packages/mcp-stdio/tsconfig.build.json --skipLibCheck
 
-# Build main project (|| true for non-critical type errors in Docker's dep resolution)
-RUN npx tsc -p tsconfig.docker.json || true
+# Build main project (4GB heap — multi-workspace tsc is memory-intensive)
+# || true: non-critical type errors in Docker's dep resolution should not block the build.
+RUN NODE_OPTIONS="--max-old-space-size=4096" npx tsc -p tsconfig.docker.json || true
 RUN test -f dist/server.js && test -f dist/http-server.js || \
     (echo "FATAL: dist/server.js or dist/http-server.js missing after tsc" && exit 1)
 
