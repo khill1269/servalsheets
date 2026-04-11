@@ -130,7 +130,10 @@ export function createHttpServer(options: HttpServerOptions = {}): {
  */
 export async function startHttpServer(options: HttpServerOptions = {}): Promise<void> {
   const port = options.port ?? parseInt(process.env['PORT'] ?? '3000', 10);
-  const server = createHttpServer({ ...options, port });
+  // Read HOST env var so containerized deployments can bind to 0.0.0.0
+  // (required for ALB health checks to reach the container)
+  const host = options.host ?? process.env['HOST'] ?? DEFAULT_HOST;
+  const server = createHttpServer({ ...options, port, host });
   await server.start();
 }
 
