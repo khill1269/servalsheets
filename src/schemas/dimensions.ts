@@ -731,7 +731,7 @@ export const SheetsDimensionsInputSchema = z.object({
       UpdateSlicerActionSchema,
       DeleteSlicerActionSchema,
       ListSlicersActionSchema,
-    ] as any)
+    ])
   ),
 });
 

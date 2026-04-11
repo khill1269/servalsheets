@@ -34,7 +34,6 @@
  */
 
 import { z, type ZodTypeAny } from '../lib/schema.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { logger } from './logger.js';
 import { ValidationError } from '../core/errors.js';
 
@@ -184,11 +183,19 @@ export function zodSchemaToJsonSchema(
   _options: JsonSchemaOptions = {}
 ): Record<string, unknown> {
   try {
-    // Use zod-to-json-schema for Zod v3 compatibility
-    // This handles discriminated unions, objects, unions, etc. correctly.
-    const jsonSchema = zodToJsonSchema(schema, {
-      $refStrategy: USE_SCHEMA_REFS ? 'root' : 'none',
-    });
+    // Use Zod v4's native JSON Schema conversion
+    // This works correctly with discriminated unions, objects, unions, etc.
+    //
+    // When USE_SCHEMA_REFS is enabled, use `reused: 'ref'` to create $defs
+    // for shared types. This reduces payload by ~60% (527KB → 209KB).
+    //
+    // For schemas with transforms, we use io: 'input' to get the input schema
+    // since transforms cannot be represented in JSON Schema.
+    const jsonSchemaOptions = {
+      ...(USE_SCHEMA_REFS ? { reused: 'ref' as const } : {}),
+      io: 'input' as const, // Use input schema to avoid transform errors
+    };
+    const jsonSchema = z.toJSONSchema(schema, jsonSchemaOptions);
 
     // Keep $schema property for MCP 2025-11-25 compliance (JSON Schema 2020-12)
     if (typeof jsonSchema === 'object' && jsonSchema !== null) {
@@ -196,7 +203,7 @@ export function zodSchemaToJsonSchema(
     }
 
     // Unexpected format from Zod
-    logger.warn('Unexpected JSON Schema format from zodToJsonSchema', {
+    logger.warn('Unexpected JSON Schema format from z.toJSONSchema', {
       component: 'schema-compat',
       schemaType: typeof jsonSchema,
     });

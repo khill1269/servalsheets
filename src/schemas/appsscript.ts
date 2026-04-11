@@ -722,7 +722,7 @@ const AppsScriptRequestSchema = z.discriminatedUnion('action', [
   UpdateTriggerActionSchema,
   // SERVAL Formula
   InstallServalFunctionActionSchema,
-] as any);
+]);
 
 export const SheetsAppsScriptInputSchema = z.object({
   request: z.preprocess((val) => {

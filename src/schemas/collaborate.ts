@@ -564,7 +564,7 @@ const CollaborateActionUnionSchema = z.discriminatedUnion('action', [
   LabelListSchema,
   LabelApplySchema,
   LabelRemoveSchema,
-] as any);
+]);
 
 export const SheetsCollaborateInputSchema = z.object({
   request: CollaborateActionUnionSchema,

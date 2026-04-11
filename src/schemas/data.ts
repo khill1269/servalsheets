@@ -835,7 +835,7 @@ export const SheetsDataInputSchema = z.object({
       CrossQueryActionSchema, // Search across multiple spreadsheets
       CrossWriteActionSchema, // Copy data between spreadsheets
       CrossCompareActionSchema, // Diff ranges across two spreadsheets
-    ] as any)
+    ])
   ),
 });
 

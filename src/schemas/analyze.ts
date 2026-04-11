@@ -1275,7 +1275,7 @@ export const SheetsAnalyzeInputSchema = z.object({
     ScheduleIntelligenceActionSchema,
     GetIntelligenceReportActionSchema,
     CancelIntelligenceActionSchema,
-  ] as any),
+  ]),
 });
 
 /**

@@ -9,7 +9,7 @@
 
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
-import type { CircuitBreakerConfig } from '../utils/circuit-breaker.js';
+import type { CircuitBreakerConfig as _CircuitBreakerConfig } from '../utils/circuit-breaker.js';
 
 // ============================================================================
 // Base Schemas
@@ -55,7 +55,7 @@ const GoogleCloudSchema = z.object({
 /**
  * Validate Google credentials are present in at least one form
  */
-export function hasGoogleCredentials(env: Partial<Record<string, string>>): boolean {
+export function hasGoogleCredentials(env: Record<string, unknown>): boolean {
   const hasServiceAccount = !!env.GOOGLE_SERVICE_ACCOUNT_KEY;
   const hasADC = !!env.GOOGLE_APPLICATION_CREDENTIALS;
   const hasOAuth =
@@ -68,7 +68,7 @@ export function hasGoogleCredentials(env: Partial<Record<string, string>>): bool
 // Circuit Breaker Configurations
 // ============================================================================
 
-const CircuitBreakerSchema: z.ZodType<CircuitBreakerConfig> = z.object({
+const CircuitBreakerSchema = z.object({
   enabled: z.boolean().default(true),
   failureThreshold: z.number().int().min(1).default(5),
   resetTimeout: z.number().int().min(1000).default(30000),
@@ -147,8 +147,7 @@ export const EnvSchema = z
     // Google Cloud
     ...GoogleCloudSchema.shape,
 
-    // Sessions
-    ...SessionStoreTypeSchema.optional().transform(() => ({})).shape,
+    // Sessions — SessionStoreTypeSchema shape not spreadable after transform, omit
     ...RedisSchema.shape,
 
     // OTEL
@@ -205,7 +204,7 @@ export function validateEnv(): Env {
 
   if (!result.success) {
     // Compatible with both Zod v3 (.errors) and Zod v4 (.issues)
-    const errorList = result.error.errors ?? result.error.issues ?? [];
+    const errorList = result.error.issues ?? [];
     const errors = Array.isArray(errorList)
       ? errorList.map((e) => `${(e.path ?? []).join('.')}: ${e.message}`).join('\n  ')
       : String(result.error);
@@ -314,10 +313,12 @@ export function validateEnv(): Env {
 /**
  * Parse circuit breaker config from JSON or use defaults
  */
+type InternalCircuitBreakerConfig = z.infer<typeof CircuitBreakerSchema>;
+
 export function parseCircuitBreakerConfig(
   key: string,
-  defaultConfig: CircuitBreakerConfig
-): CircuitBreakerConfig {
+  defaultConfig: InternalCircuitBreakerConfig
+): InternalCircuitBreakerConfig {
   const value = process.env[key];
   if (!value) return defaultConfig;
 
@@ -377,11 +378,11 @@ export function getOtlpExportConfig(): {
   };
 }
 
-export function getCircuitBreakerConfig(): CircuitBreakerConfig {
-  return { enabled: true, failureThreshold: 5, resetTimeoutMs: 30000 };
+export function getCircuitBreakerConfig(): InternalCircuitBreakerConfig {
+  return { enabled: true, failureThreshold: 5, resetTimeout: 30000, halfOpenRequests: 3, readOnlyMode: false };
 }
 
-export function getApiSpecificCircuitBreakerConfig(api: string): CircuitBreakerConfig {
+export function getApiSpecificCircuitBreakerConfig(api: string): InternalCircuitBreakerConfig {
   const key = `CIRCUIT_BREAKER_${api.toUpperCase()}`;
   return parseCircuitBreakerConfig(key, getCircuitBreakerConfig());
 }

@@ -541,7 +541,7 @@ export const SheetsCoreInputSchema = z.object({
     // Batch operations (Issue #2 fix - efficient multi-sheet operations)
     BatchDeleteSheetsActionSchema,
     BatchUpdateSheetsActionSchema,
-  ] as any),
+  ]),
 });
 
 const CoreResponseSchema = z.discriminatedUnion('success', [

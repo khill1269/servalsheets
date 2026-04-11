@@ -565,7 +565,7 @@ export const SheetsAdvancedInputSchema = z.object({
     AddDriveChipActionSchema,
     AddRichLinkChipActionSchema,
     ListChipsActionSchema,
-  ] as any),
+  ]),
 });
 
 const AdvancedResponseSchema = z.discriminatedUnion('success', [

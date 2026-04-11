@@ -500,7 +500,7 @@ export const SheetsSessionInputSchema = z.object({
     ScheduleListActionSchema,
     ScheduleCancelActionSchema,
     ScheduleRunNowActionSchema,
-  ] as any),
+  ]),
 });
 
 export type SheetsSessionInput = z.infer<typeof SheetsSessionInputSchema>;
