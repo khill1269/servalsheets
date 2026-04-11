@@ -10,12 +10,12 @@ COPY packages/mcp-http/package*.json ./packages/mcp-http/
 COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
 COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 
 RUN npm run build
-RUN npm prune --production
+RUN npm prune --production --legacy-peer-deps
 
 FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
 
