@@ -40,3 +40,11 @@ export class AgentStepValidator {
     };
   }
 }
+
+// Standalone function export for plan-compiler.ts
+export function annotateAIGeneratedDraftPlan(plan: { steps?: unknown[]; metadata?: Record<string, unknown> }): void {
+  if (plan.metadata) {
+    plan.metadata.aiGenerated = true;
+    plan.metadata.annotatedAt = Date.now();
+  }
+}

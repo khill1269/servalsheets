@@ -579,3 +579,7 @@ export const SHEETS_FIX_ANNOTATIONS: ToolAnnotations = {
   idempotentHint: false,
   openWorldHint: true,
 };
+
+// Aliases for handler convenience
+export type FixOutput = SheetsFixOutput;
+export { SheetsFixOutputSchema as FixOutputSchema };

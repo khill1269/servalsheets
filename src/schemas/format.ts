@@ -1307,5 +1307,9 @@ export type FormatResponse = z.infer<typeof FormatResponseSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type FormatRequest = SheetsFormatInput['request'];
 
+// Aliases for handler convenience
+export type FormatOutput = SheetsFormatOutput;
+export { SheetsFormatOutputSchema as FormatOutputSchema };
+
 // Note: Type narrowing helpers are not needed with discriminated unions.
 // TypeScript automatically narrows types in switch statements based on the action field.

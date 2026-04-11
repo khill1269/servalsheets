@@ -66,3 +66,25 @@ export class ActionRecommender {
     });
   }
 }
+
+// Type alias for consumer modules
+export interface SuggestedAction {
+  tool: string;
+  action: string;
+  reason: string;
+  params?: Record<string, unknown>;
+  priority?: 'high' | 'medium' | 'low';
+}
+
+// Rule lookup tables for action recommendation service
+export const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {};
+export const ERROR_RECOVERY_RULES: Record<string, SuggestedAction[]> = {};
+export const RANGE_CARRYING_ACTIONS = new Set<string>();
+
+export interface WorkflowChain {
+  workflow: string;
+  trigger: string;
+  steps: SuggestedAction[];
+}
+
+export const WORKFLOW_CHAINS: WorkflowChain[] = [];

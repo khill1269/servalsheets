@@ -119,3 +119,8 @@ export class BillingIntegration extends EventEmitter {
     return 0; // Placeholder
   }
 }
+
+// Factory function for service initialization
+export function initializeBillingIntegration(apiKey: string): BillingIntegration {
+  return new BillingIntegration(apiKey);
+}

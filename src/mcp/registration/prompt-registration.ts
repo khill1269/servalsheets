@@ -1,4 +1,4 @@
-import type { Prompt } from '@anthropic-ai/sdk/resources/messages';
+import type { Prompt } from '@modelcontextprotocol/sdk/types.js';
 import { TOOLS_BY_CATEGORY } from '../../constants/tool-categories.js';
 import { logger } from '../../utils/logger.js';
 

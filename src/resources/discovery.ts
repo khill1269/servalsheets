@@ -4,3 +4,6 @@ export const discoveryResource = {
   description: 'Complete tool catalog with actions, descriptions, and examples',
   mimeType: 'application/json',
 };
+
+// Alias for resources/index.ts re-export
+export const registerDiscoveryResources = discoveryResource;

@@ -4,3 +4,6 @@ export const cacheResource = {
   description: 'Current state of sheet cache (hit rate, size, TTL)',
   mimeType: 'application/json',
 };
+
+// Alias for resources/index.ts re-export
+export const registerCacheResources = cacheResource;

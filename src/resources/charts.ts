@@ -4,3 +4,6 @@ export const chartsResource = {
   description: 'List of all charts in the currently active sheet',
   mimeType: 'application/json',
 };
+
+// Alias for resources/index.ts re-export
+export const registerChartResources = chartsResource;

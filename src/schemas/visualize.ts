@@ -722,6 +722,9 @@ export const SHEETS_VISUALIZE_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsVisualizeInput = z.infer<typeof SheetsVisualizeInputSchema>;
 export type SheetsVisualizeOutput = z.infer<typeof SheetsVisualizeOutputSchema>;
+
+// Alias for handler convenience
+export type VisualizeOutput = SheetsVisualizeOutput;
 export type VisualizeResponse = z.infer<typeof VisualizeResponseSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type VisualizeRequest = SheetsVisualizeInput['request'];

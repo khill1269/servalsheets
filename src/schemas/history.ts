@@ -381,6 +381,9 @@ export const SHEETS_HISTORY_ANNOTATIONS: ToolAnnotations = {
 export type SheetsHistoryInput = z.infer<typeof SheetsHistoryInputSchema>;
 export type SheetsHistoryOutput = z.infer<typeof SheetsHistoryOutputSchema>;
 
+// Alias for handler convenience
+export type HistoryOutput = SheetsHistoryOutput;
+
 export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 
 // Type narrowing helpers for handler methods

@@ -1,4 +1,4 @@
-import type { Resource, TextResourceContents } from '@anthropic-ai/sdk/resources/messages';
+import type { Resource, TextResourceContents } from '@modelcontextprotocol/sdk/types.js';
 import { TOOL_ACTIONS } from '../../mcp/completions.js';
 import { logger } from '../../utils/logger.js';
 
@@ -55,3 +55,6 @@ export function createResourceRegistry(): Resource[] {
   logger.info(`Registered ${resources.length} resources and ${templates.length} templates`);
   return resources;
 }
+
+// Alias for mcp/registration/index.ts re-export
+export const registerServalSheetsResources = createResourceRegistry;

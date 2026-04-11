@@ -1,5 +1,5 @@
-import type { JSONRPCMessage } from '@anthropic-ai/sdk/resources/messages';
-import type { Tool } from '@anthropic-ai/sdk/resources/messages';
+import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../../utils/logger.js';
 
 /**
