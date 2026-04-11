@@ -70,7 +70,7 @@ export class MutationVerifier {
   constructor(private sheetsApi: sheets_v4.Sheets) {}
 
   private finalize(result: VerificationResult): VerificationResult {
-    if (result.status === 'diverged' && getEnv().MUTATION_VERIFY_STRICT) {
+    if (result.status === 'diverged' && getEnv()['MUTATION_VERIFY_STRICT']) {
       throw new ServiceError(
         `Mutation verification diverged for ${result.operation}: ${result.details ?? 'read-back mismatch'}`,
         'INTERNAL_ERROR',

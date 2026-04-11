@@ -98,7 +98,7 @@ export class WorkspaceEventsService {
   }
 
   private getDefaultPersistencePath(): string {
-    return join(getEnv().DATA_DIR, 'workspace-events-subscriptions.json');
+    return join(getEnv()['DATA_DIR'], 'workspace-events-subscriptions.json');
   }
 
   private serializeSubscription(subscription: ActiveSubscription): PersistedSubscription {

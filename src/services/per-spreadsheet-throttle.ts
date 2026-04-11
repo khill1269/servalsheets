@@ -64,7 +64,7 @@ export class PerSpreadsheetThrottle {
   }
 
   private get rps(): number {
-    return getEnv().PER_SPREADSHEET_RPS;
+    return getEnv()['PER_SPREADSHEET_RPS'];
   }
 
   async throttle(spreadsheetId: string): Promise<void> {

@@ -153,7 +153,7 @@ const MAX_STRING_LENGTH = 200;
  * (disabled only if explicitly set to 'false')
  */
 export function isCompactModeEnabled(): boolean {
-  return getEnv().COMPACT_RESPONSES;
+  return getEnv()['COMPACT_RESPONSES'];
 }
 
 /**
@@ -162,7 +162,7 @@ export function isCompactModeEnabled(): boolean {
  * @returns True if truncation should be skipped
  */
 export function shouldSkipTruncation(verbosity?: string): boolean {
-  return verbosity === 'detailed' || !getEnv().COMPACT_RESPONSES;
+  return verbosity === 'detailed' || !getEnv()['COMPACT_RESPONSES'];
 }
 
 /**

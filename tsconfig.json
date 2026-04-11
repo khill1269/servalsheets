@@ -19,7 +19,7 @@
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
     "exactOptionalPropertyTypes": false /* Disabled: incompatible with googleapis types */,
-    "noPropertyAccessFromIndexSignature": true,
+    "noPropertyAccessFromIndexSignature": false,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "noEmit": true

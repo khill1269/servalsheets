@@ -72,7 +72,7 @@ export async function initializePerformanceOptimizations(
   // Initialize request merger first so CachedSheetsApi can use it (20-40% API savings)
   const requestMerger = new RequestMerger({
     enabled: true,
-    windowMs: cfg.REQUEST_MERGER_WINDOW_MS,
+    windowMs: cfg['REQUEST_MERGER_WINDOW_MS'],
     maxWindowSize: 100,
   });
 
@@ -82,22 +82,22 @@ export async function initializePerformanceOptimizations(
   // Initialize parallel executor for concurrent batch operations (40% faster batch ops)
   // Concurrency capped at 5 (quota-safe default from remediation phase 1 — ISSUE-233)
   const parallelExecutor = new ParallelExecutor({
-    concurrency: cfg.PARALLEL_CONCURRENCY,
+    concurrency: cfg['PARALLEL_CONCURRENCY'],
     retryOnError: true,
-    maxRetries: cfg.PARALLEL_MAX_RETRIES,
+    maxRetries: cfg['PARALLEL_MAX_RETRIES'],
   });
 
   // Initialize prefetch predictor for predictive caching (200-500ms latency reduction)
   const prefetchPredictor = new PrefetchPredictor({
-    minConfidence: cfg.PREFETCH_MIN_CONFIDENCE,
-    maxPredictions: cfg.PREFETCH_MAX_PREDICTIONS,
+    minConfidence: cfg['PREFETCH_MIN_CONFIDENCE'],
+    maxPredictions: cfg['PREFETCH_MAX_PREDICTIONS'],
     enablePrefetch: true,
   });
 
   // Initialize access pattern tracker for learning user patterns
   const accessPatternTracker = new AccessPatternTracker({
-    maxHistory: cfg.ACCESS_PATTERN_MAX_HISTORY,
-    patternWindow: cfg.ACCESS_PATTERN_WINDOW_MS,
+    maxHistory: cfg['ACCESS_PATTERN_MAX_HISTORY'],
+    patternWindow: cfg['ACCESS_PATTERN_WINDOW_MS'],
   });
 
   // Initialize adaptive query optimizer for ML-based optimization

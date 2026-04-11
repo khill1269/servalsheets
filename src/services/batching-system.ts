@@ -5,6 +5,14 @@
  * Respects 100-operation limit per API call.
  */
 
+/**
+ * Factory function to create and initialize a BatchingSystem instance.
+ * Used by performance-init.ts for dynamic import.
+ */
+export function initBatchingSystem(_sheetsApi?: unknown): BatchingSystem {
+  return new BatchingSystem();
+}
+
 export class BatchingSystem {
   private maxOpsPerBatch = 100;
 

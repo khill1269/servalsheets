@@ -51,7 +51,7 @@ const MAX_CHECKPOINTS_PER_SESSION = 10;
 const CHECKPOINT_FILE_EXTENSION = '.checkpoint.json';
 
 function getCheckpointDir(): string {
-  return getEnv().CHECKPOINT_DIR || DEFAULT_CHECKPOINT_DIR;
+  return getEnv()['CHECKPOINT_DIR'] || DEFAULT_CHECKPOINT_DIR;
 }
 
 async function ensureCheckpointDir(): Promise<void> {
@@ -63,7 +63,7 @@ async function ensureCheckpointDir(): Promise<void> {
 }
 
 export function isCheckpointsEnabled(): boolean {
-  return getEnv().ENABLE_CHECKPOINTS;
+  return getEnv()['ENABLE_CHECKPOINTS'];
 }
 
 // ============================================================================

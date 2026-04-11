@@ -14,6 +14,7 @@ export interface SessionInfo {
   created: number;
   expires: number;
   metadata?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface SessionManagerConfig {
@@ -199,13 +200,16 @@ export class SessionManager {
     totalSessions: number;
     storeStats?: { totalKeys: number; memoryUsage?: number };
   }> {
-    const keys = this.store.keys ? await this.store.keys('session:*') : [];
+    const keys = this.store.keys ? await this.store.keys() : [];
+    const sessionKeys = keys.filter((k) => k.startsWith('session:'));
 
     const storeStats = this.store.stats ? await this.store.stats() : undefined;
 
     return {
-      totalSessions: keys.length,
-      storeStats,
+      totalSessions: sessionKeys.length,
+      storeStats: storeStats
+        ? { totalKeys: storeStats.itemCount, memoryUsage: storeStats.size }
+        : undefined,
     };
   }
 

@@ -73,13 +73,18 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
       continue;
     }
 
-    // Unwrap pipes (preprocess/transform in Zod v4)
+    // Unwrap pipes (preprocess/transform in Zod v3 ZodPipeline)
     // Two cases:
-    // 1. z.preprocess(fn, schema) → pipe.in=ZodTransform, pipe.out=schema → use .out
-    // 2. z.string().transform(fn) → pipe.in=ZodString, pipe.out=ZodTransform → use .in
-    if (current instanceof z.ZodPipe) {
-      const pipeIn = current.in as ZodTypeAny;
-      const pipeOut = current.out as ZodTypeAny;
+    // 1. z.preprocess(fn, schema) → pipe._def.in=ZodTransform, pipe._def.out=schema → use .out
+    // 2. z.string().transform(fn) → pipe._def.in=ZodString, pipe._def.out=ZodTransform → use .in
+    if (current instanceof z.ZodPipeline) {
+      const pipeDef = (current as unknown as DefCarrier)._def as
+        | { in?: ZodTypeAny; out?: ZodTypeAny }
+        | undefined;
+      const pipeIn = pipeDef?.in;
+      const pipeOut = pipeDef?.out;
+
+      if (!pipeIn || !pipeOut) break;
 
       // Check if .in is a transform (preprocess case)
       // ZodTransform has _def.type === 'transform'
