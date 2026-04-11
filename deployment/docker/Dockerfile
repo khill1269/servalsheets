@@ -32,11 +32,18 @@ RUN npx tsc -p packages/serval-core/tsconfig.build.json --skipLibCheck && \
     npx tsc -p packages/mcp-runtime/tsconfig.build.json --skipLibCheck && \
     npx tsc -p packages/mcp-stdio/tsconfig.build.json --skipLibCheck
 
-# Build main project (4GB heap — multi-workspace tsc is memory-intensive)
+# Build main project (8GB heap — 409-action codebase needs >4GB for tsc)
 # || true: non-critical type errors in Docker's dep resolution should not block the build.
-RUN NODE_OPTIONS="--max-old-space-size=4096" npx tsc -p tsconfig.docker.json || true
-RUN test -f dist/server.js && test -f dist/http-server.js || \
-    (echo "FATAL: dist/server.js or dist/http-server.js missing after tsc" && exit 1)
+# WARNING: if tsc OOMs, || true swallows it, producing incomplete dist/.
+# The sanity check below catches this by verifying files from different parts of the tree.
+RUN NODE_OPTIONS="--max-old-space-size=8192" npx tsc -p tsconfig.docker.json || true
+RUN test -f dist/server.js && \
+    test -f dist/http-server.js && \
+    test -f dist/config/env.js && \
+    test -f dist/observability/otel-export.js && \
+    test -f dist/handlers/base.js && \
+    test -f dist/schemas/index.js || \
+    (echo "FATAL: dist/ is incomplete — tsc likely OOM'd. Missing one of: server.js, http-server.js, config/env.js, observability/otel-export.js, handlers/base.js, schemas/index.js" && ls -la dist/ dist/config/ dist/observability/ 2>/dev/null && exit 1)
 
 # NOTE: Intentionally skip npm prune --production. Many production
 # imports rely on transitive deps (e.g. @node-saml/node-saml,
