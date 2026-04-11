@@ -16,7 +16,8 @@ COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
 COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
 # --ignore-scripts: skip prepare hook (npm run build) since source isn't copied yet
-RUN npm install --legacy-peer-deps --ignore-scripts
+# npm rebuild: recompile native addons (sharp, canvas, bcrypt, duckdb)
+RUN npm install --legacy-peer-deps --ignore-scripts && npm rebuild
 
 COPY . .
 
