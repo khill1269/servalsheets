@@ -15,12 +15,13 @@ COPY packages/mcp-http/package*.json ./packages/mcp-http/
 COPY packages/mcp-runtime/package*.json ./packages/mcp-runtime/
 COPY packages/mcp-stdio/package*.json ./packages/mcp-stdio/
 
-RUN npm install --legacy-peer-deps
+# --ignore-scripts: skip prepare hook (npm run build) since source isn't copied yet
+RUN npm install --legacy-peer-deps --ignore-scripts
 
 COPY . .
 
 RUN npm run build
-RUN npm prune --production --legacy-peer-deps
+RUN npm prune --production --legacy-peer-deps --ignore-scripts
 
 FROM node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
 
