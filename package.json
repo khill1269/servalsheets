@@ -98,7 +98,7 @@
     "@opentelemetry/sdk-logs": "^0.200.0",
     "@opentelemetry/resources": "^2.0.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
-    "duckdb": "^1.14.0",
+    "duckdb": "^1.0.0",
     "pyodide": "^0.27.0",
     "csv-parser": "^3.0.0",
     "xlsx": "^0.18.5",
