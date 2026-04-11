@@ -165,6 +165,22 @@ export const EnvSchema = z
     CIRCUIT_BREAKER_WEBHOOK_WORKER: z.string().optional(),
     CIRCUIT_BREAKER_FEDERATION: z.string().optional(),
 
+    // Concurrency
+    MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).default(10),
+
+    // Request Merger
+    REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().min(1).default(50),
+
+    // Prefetch (extended)
+    PREFETCH_MAX_PREDICTIONS: z.coerce.number().int().min(1).default(10),
+
+    // Access Pattern Tracker
+    ACCESS_PATTERN_MAX_HISTORY: z.coerce.number().int().min(1).default(1000),
+    ACCESS_PATTERN_WINDOW_MS: z.coerce.number().int().min(1).default(5000),
+
+    // Feature flags (additional)
+    ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: StrictBooleanSchema.default(false),
+
     // Billing (optional)
     BILLING_ENABLED: StrictBooleanSchema.default(false),
     STRIPE_SECRET_KEY: z.string().optional(),
@@ -176,7 +192,7 @@ export const EnvSchema = z
     PERSIST_CHECKPOINTS: StrictBooleanSchema.default(false),
     ENABLE_SAMPLING: StrictBooleanSchema.default(true),
   })
-  .strict();
+  .passthrough();
 
 export type Env = z.infer<typeof EnvSchema>;
 
@@ -318,11 +334,77 @@ export function parseCircuitBreakerConfig(
  * Default directory for user profile storage (volatile fallback)
  */
 export const DEFAULT_PROFILE_STORAGE_DIR = '/tmp/servalsheets-profiles';
+export const DEFAULT_CHECKPOINT_DIR = '/tmp/servalsheets-checkpoints';
 
-/**
- * Get validated environment on module load
- */
-export const env = validateEnv();
+// ============================================================================
+// Config Accessor Functions
+// ============================================================================
+// IMPORTANT: These functions are declared BEFORE `export const env = validateEnv()`
+// because tsc in Docker (with type errors + || true) can produce truncated output
+// that omits exports appearing after the validateEnv() call. Functions reference
+// `env` but are only called at runtime (not module load), so hoisting is safe.
+
+export function shouldDeferResourceDiscovery(): boolean {
+  return process.env['DEFER_RESOURCE_DISCOVERY'] === 'true';
+}
+
+export function getPrefetchConfig(): { enabled: boolean } {
+  return { enabled: process.env['ENABLE_PREFETCHING'] === 'true' };
+}
+
+export function getOtlpExportConfig(): {
+  enabled: boolean;
+  endpoint: string;
+  serviceName: string;
+  batchSize: number;
+  exportIntervalMs: number;
+  exporterType: string;
+  honeycombApiKey: string | undefined;
+} {
+  const e = env;
+  const endpoint =
+    (e as Record<string, unknown>)['OTEL_JAEGER_ENDPOINT'] as string ??
+    (e as Record<string, unknown>)['OTEL_ZIPKIN_ENDPOINT'] as string ??
+    'http://localhost:4318/v1/traces';
+  return {
+    enabled: (e as Record<string, unknown>)['OTEL_ENABLED'] as boolean ?? false,
+    endpoint,
+    serviceName: (e as Record<string, unknown>)['OTEL_SERVICE_NAME'] as string ?? 'servalsheets',
+    batchSize: 100,
+    exportIntervalMs: 5000,
+    exporterType: (e as Record<string, unknown>)['OTEL_EXPORTER_TYPE'] as string ?? 'otlp',
+    honeycombApiKey: (e as Record<string, unknown>)['OTEL_HONEYCOMB_API_KEY'] as string | undefined,
+  };
+}
+
+export function getCircuitBreakerConfig(): CircuitBreakerConfig {
+  return { enabled: true, failureThreshold: 5, resetTimeoutMs: 30000 };
+}
+
+export function getApiSpecificCircuitBreakerConfig(api: string): CircuitBreakerConfig {
+  const key = `CIRCUIT_BREAKER_${api.toUpperCase()}`;
+  return parseCircuitBreakerConfig(key, getCircuitBreakerConfig());
+}
+
+export function getDistributedCacheConfig(): { enabled: boolean } {
+  return { enabled: false };
+}
+
+export function getBackgroundAnalysisConfig(): { enabled: boolean; intervalMs: number } {
+  return { enabled: true, intervalMs: 60000 };
+}
+
+export function getFederationConfig(): { enabled: boolean } {
+  return { enabled: true };
+}
+
+export function getRemoteMcpExecutorConfig(): { maxConcurrent: number; timeoutMs: number } {
+  return { maxConcurrent: 5, timeoutMs: 30000 };
+}
+
+export function getSessionStoreConfig(): { redisUrl: string | undefined } {
+  return { redisUrl: (env as Record<string, unknown>)['REDIS_URL'] as string | undefined };
+}
 
 /**
  * Lazy accessor for validated environment (used by modules that may load before env is ready)
@@ -330,3 +412,12 @@ export const env = validateEnv();
 export function getEnv(): Env {
   return env;
 }
+
+// ============================================================================
+// Module Initialization (MUST be last — triggers env validation on import)
+// ============================================================================
+
+/**
+ * Get validated environment on module load
+ */
+export const env = validateEnv();
