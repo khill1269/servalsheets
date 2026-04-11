@@ -1,0 +1,40 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing dependencies..."
+      - npm ci --legacy-peer-deps --ignore-scripts
+
+  build:
+    commands:
+      - echo "Running AI code audit checks..."
+
+      # Verify no placeholder/TODO code in source
+      - npm run check:placeholders
+
+      # Verify no debug console.log in handlers
+      - npm run check:debug-prints
+
+      # Verify no silent fallback returns
+      - npm run check:silent-fallbacks
+
+      # Schema-handler alignment check
+      - npm run validate:alignment
+
+      # Verify integration wiring (action names, mutation sets)
+      - npm run check:integration-wiring
+
+      # Verify mutation action parity (audit-middleware vs mutation-safety-middleware)
+      - npm run check:mutation-actions
+
+  post_build:
+    commands:
+      - echo "AI code audit complete"
+
+artifacts:
+  files:
+    - "**/*"
+  discard-paths: no
