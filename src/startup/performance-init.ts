@@ -81,11 +81,7 @@ export async function initializePerformanceOptimizations(
 
   // Initialize parallel executor for concurrent batch operations (40% faster batch ops)
   // Concurrency capped at 5 (quota-safe default from remediation phase 1 — ISSUE-233)
-  const parallelExecutor = new ParallelExecutor({
-    concurrency: cfg.PARALLEL_CONCURRENCY,
-    retryOnError: true,
-    maxRetries: cfg.PARALLEL_MAX_RETRIES,
-  });
+  const parallelExecutor = new ParallelExecutor(5);
 
   // Initialize prefetch predictor for predictive caching (200-500ms latency reduction)
   const prefetchPredictor = new PrefetchPredictor({

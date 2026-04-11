@@ -73,19 +73,22 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
       continue;
     }
 
-    // Unwrap pipes (preprocess/transform in Zod v4)
-    // Two cases:
-    // 1. z.preprocess(fn, schema) → pipe.in=ZodTransform, pipe.out=schema → use .out
-    // 2. z.string().transform(fn) → pipe.in=ZodString, pipe.out=ZodTransform → use .in
-    if (current instanceof z.ZodPipe) {
-      const pipeIn = current.in as ZodTypeAny;
-      const pipeOut = current.out as ZodTypeAny;
+    // Unwrap effects (transform/preprocess in Zod v3)
+    // ZodEffects wraps: z.string().transform(...), z.preprocess(...), z.string().refine(...)
+    if (current instanceof z.ZodEffects) {
+      const innerType = (
+        (current as unknown as DefCarrier)._def as { schema?: ZodTypeAny } | undefined
+      )?.schema;
+      if (!innerType) break;
+      current = innerType;
+      continue;
+    }
 
-      // Check if .in is a transform (preprocess case)
-      // ZodTransform has _def.type === 'transform'
+    // Unwrap pipes (Zod v4 only — guard so this never throws on v3)
+    if ((z as Record<string, unknown>)['ZodPipe'] && current instanceof ((z as Record<string, unknown>)['ZodPipe'] as new (...a: unknown[]) => unknown)) {
+      const pipeIn = (current as Record<string, unknown>)['in'] as ZodTypeAny;
+      const pipeOut = (current as Record<string, unknown>)['out'] as ZodTypeAny;
       const inIsTransform = (pipeIn as unknown as DefCarrier)._def?.['type'] === 'transform';
-
-      // For preprocess, use .out (the target schema); for transform, use .in (the input schema)
       current = inIsTransform ? pipeOut : pipeIn;
       continue;
     }
@@ -150,7 +153,7 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
  */
 export function isEnumLike(schema: ZodTypeAny): boolean {
   const unwrapped = unwrapSchema(schema);
-  return unwrapped instanceof z.ZodEnum;
+  return unwrapped instanceof z.ZodEnum || unwrapped instanceof z.ZodNativeEnum;
 }
 
 /**

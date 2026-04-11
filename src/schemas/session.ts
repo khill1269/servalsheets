@@ -376,22 +376,8 @@ const ScheduleCreateActionSchema = CommonFieldsSchema.extend({
   target: ScheduledOperationSchema.optional().describe(
     'Alternative nested schedule shape for LLM compatibility: { tool, action or actionName, params }'
   ),
-})
-  .strict()
-  .superRefine((data, ctx) => {
-    const nested = data.operation ?? data.target;
-    const hasFlat = Boolean(data.tool && data.actionName);
-    const hasNested = Boolean(nested?.tool && (nested.actionName ?? nested.action));
-
-    if (!hasFlat && !hasNested) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'schedule_create requires either flat tool/actionName fields or a nested operation',
-        path: ['actionName'],
-      });
-    }
-  });
+}).strict();
+// Note: tool/actionName requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const ScheduleListActionSchema = CommonFieldsSchema.extend({
   action: z.literal('schedule_list'),

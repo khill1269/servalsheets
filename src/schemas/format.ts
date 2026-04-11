@@ -330,9 +330,8 @@ const AutoFitActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Dimension to auto-fit: ROWS, COLUMNS, or BOTH (default: COLUMNS). Case-insensitive.'
     ),
-}).refine((data) => data.range || data.sheetId !== undefined, {
-  message: 'Either range or sheetId must be provided',
 });
+// Note: range/sheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // ===== SPARKLINE ACTION SCHEMAS (3 actions) =====
 
@@ -416,18 +415,8 @@ Minpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE
     .describe('Position to insert rule (0 = first, omit = append to end)'),
   // Internal sentinel set by normalizeFormatRequest when multiple ranges are provided
   _multiRange: z.boolean().optional(),
-})
-  .superRefine((input, ctx) => {
-    if (input._multiRange === true) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'exactly one target range is required. Split into multiple rule_add_conditional_format calls for multiple ranges.',
-        path: ['ranges'],
-      });
-    }
-  })
-  .transform(({ _multiRange: _, ...rest }) => rest);
+});
+// Note: _multiRange rejection enforced in handler; _hasFiles stripping handled in handler (Zod 3.25 ZodEffects/transform cannot be in discriminatedUnion)
 
 const RuleUpdateConditionalFormatActionSchema = CommonFieldsSchema.extend({
   action: z

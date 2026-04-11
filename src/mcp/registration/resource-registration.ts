@@ -1,5 +1,5 @@
-import type { Resource, TextResourceContents } from '@anthropic-ai/sdk/resources/messages';
-import { TOOL_ACTIONS } from '../../mcp/completions.js';
+import type { Resource } from '@anthropic-ai/sdk/resources/messages';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -54,4 +54,28 @@ export function createResourceRegistry(): Resource[] {
 
   logger.info(`Registered ${resources.length} resources and ${templates.length} templates`);
   return resources;
+}
+
+export function registerServalSheetsResources(server: McpServer, _googleClient?: unknown): void {
+  const registry = createResourceRegistry();
+  for (const resource of registry) {
+    const uri = resource.uri as string;
+    const name = resource.name as string;
+    const description = (resource.description as string) ?? '';
+    const mimeType = (resource.mimeType as string) ?? 'application/json';
+    server.registerResource(
+      name,
+      uri,
+      { description, mimeType },
+      async (resolvedUri) => ({
+        contents: [
+          {
+            uri: typeof resolvedUri === 'string' ? resolvedUri : resolvedUri.toString(),
+            mimeType,
+            text: JSON.stringify({ uri, name, description }),
+          },
+        ],
+      })
+    );
+  }
 }

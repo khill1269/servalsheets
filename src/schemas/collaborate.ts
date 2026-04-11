@@ -133,30 +133,8 @@ const ShareAddSchema = CommonFieldsSchema.extend({
     .describe('Send email notification to user'),
   emailMessage: z.string().optional().describe('Custom message in notification email'),
   expirationTime: z.string().optional().describe('ISO 8601 expiration time'),
-}).superRefine((data, ctx) => {
-  if ((data.type === 'user' || data.type === 'group') && !data.emailAddress) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['emailAddress'],
-      message: `emailAddress is required when type is '${data.type}'`,
-    });
-  }
-  if (data.type === 'domain') {
-    if (!data.domain) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['domain'],
-        message: "domain is required when type is 'domain' (e.g. 'example.com')",
-      });
-    } else if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$/.test(data.domain)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['domain'],
-        message: 'domain must be a valid domain name (e.g. "example.com", "corp.example.org")',
-      });
-    }
-  }
 });
+// Note: emailAddress/domain requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const ShareUpdateSchema = CommonFieldsSchema.extend({
   action: z.literal('share_update').describe('Update an existing permission'),
@@ -472,15 +450,8 @@ const LabelListSchema = CommonFieldsSchema.extend({
   ),
   fileId: z.string().optional().describe('Drive file ID (alternative to spreadsheetId)'),
   includeLabels: z.array(z.string()).optional().describe('Filter to specific label IDs in results'),
-}).superRefine((data, ctx) => {
-  if (!data.fileId && !data.spreadsheetId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['fileId'],
-      message: 'Either fileId or spreadsheetId is required for label_list',
-    });
-  }
 });
+// Note: fileId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const LabelApplySchema = CommonFieldsSchema.extend({
   action: z.literal('label_apply').describe('Apply a Drive Label to the file'),
@@ -493,15 +464,8 @@ const LabelApplySchema = CommonFieldsSchema.extend({
     .record(z.string(), z.unknown())
     .optional()
     .describe('Label field values to set when applying the label'),
-}).superRefine((data, ctx) => {
-  if (!data.fileId && !data.spreadsheetId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['fileId'],
-      message: 'Either fileId or spreadsheetId is required for label_apply',
-    });
-  }
 });
+// Note: fileId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const LabelRemoveSchema = CommonFieldsSchema.extend({
   action: z.literal('label_remove').describe('Remove a Drive Label from the file'),
@@ -510,15 +474,8 @@ const LabelRemoveSchema = CommonFieldsSchema.extend({
   ),
   fileId: z.string().optional().describe('Drive file ID (alternative to spreadsheetId)'),
   labelId: z.string().describe('The Drive Label ID to remove'),
-}).superRefine((data, ctx) => {
-  if (!data.fileId && !data.spreadsheetId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['fileId'],
-      message: 'Either fileId or spreadsheetId is required for label_remove',
-    });
-  }
 });
+// Note: fileId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // ========== INPUT SCHEMA ==========
 

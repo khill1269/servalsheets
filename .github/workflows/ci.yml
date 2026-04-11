@@ -159,6 +159,12 @@ jobs:
       - name: Check integration wiring
         run: npm run check:integration-wiring
 
+      - name: Check test determinism (no Math.random/Date.now in core tests)
+        run: npm run check:test-determinism
+
+      - name: Check tautological assertions
+        run: npm run check:tautologies
+
       - name: Format check
         run: npm run format:check
 

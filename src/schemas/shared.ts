@@ -210,6 +210,19 @@ export const A1NotationSchema = z.preprocess(
     )
 );
 
+/**
+ * A1Range — strict A1 range schema (no full-column unbounded refs, no sheet prefix required).
+ * Accepts: A1, A1:B10, $A$1, $A$1:$B$10
+ * Rejects: free-form text like "not a range"
+ */
+export const A1RangeSchema = z
+  .string()
+  .min(1)
+  .regex(
+    /^(\$?[A-Z]{1,3}\$?\d{1,7})(:\$?[A-Z]{1,3}\$?\d{1,7})?$/i,
+    'Invalid A1 range format'
+  );
+
 /** Sheet name */
 export const SheetNameSchema = z
   .string()

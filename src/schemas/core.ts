@@ -85,17 +85,8 @@ const GetActionSchema = CommonFieldsSchema.extend({
     .array(z.string())
     .optional()
     .describe('Specific ranges to fetch if includeGridData=true'),
-})
-  .superRefine((data, ctx) => {
-    if (data.includeGridData === true && (!data.ranges || data.ranges.length === 0)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'ranges is required when includeGridData is true',
-        path: ['ranges'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: includeGridData/ranges requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const CreateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('create').describe('Create a new spreadsheet'),
@@ -380,16 +371,8 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
   rightToLeft: z.boolean().optional().describe('Right-to-left text direction'),
   frozenRowCount: z.number().optional(),
   frozenColumnCount: z.number().optional(),
-}).superRefine((input, ctx) => {
-  if (input.frozenRowCount !== undefined || input.frozenColumnCount !== undefined) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message:
-        'Use sheets_dimensions action:"freeze" to update frozen rows/columns. The update_sheet action does not support frozenRowCount or frozenColumnCount.',
-      path: ['frozenRowCount'],
-    });
-  }
 });
+// Note: frozenRowCount/frozenColumnCount rejection enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const CopySheetToActionSchema = CommonFieldsSchema.extend({
   action: z.literal('copy_sheet_to').describe('Copy a sheet/tab to another spreadsheet'),

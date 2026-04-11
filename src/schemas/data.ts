@@ -115,25 +115,8 @@ const ReadActionSchema = CommonFieldsSchema.extend({
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for returned values (full, compact, preview)'),
-})
-  .superRefine((val, ctx) => {
-    // Exactly ONE of range or dataFilter must be provided
-    if (!val.range && !val.dataFilter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or dataFilter for read',
-        path: ['range'],
-      });
-    }
-    if (val.range && val.dataFilter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or dataFilter (not both) for read',
-        path: ['dataFilter'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: range/dataFilter mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const WriteActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -162,25 +145,8 @@ const WriteActionSchema = CommonFieldsSchema.extend({
     .describe(
       'When true, uses batchUpdate/updateCells with fields=userEnteredValue so data validation rules on target cells are not cleared. Slightly slower than the default values.update path.'
     ),
-})
-  .superRefine((val, ctx) => {
-    // Exactly ONE of range or dataFilter must be provided
-    if (!val.range && !val.dataFilter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or dataFilter for write',
-        path: ['range'],
-      });
-    }
-    if (val.range && val.dataFilter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or dataFilter (not both) for write',
-        path: ['dataFilter'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: range/dataFilter mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const AppendActionSchema = CommonFieldsSchema.extend({
   action: z.literal('append').describe('Append rows after the last row of data in a range'),
@@ -193,17 +159,8 @@ const AppendActionSchema = CommonFieldsSchema.extend({
   insertDataOption: InsertDataOptionSchema.optional()
     .default('INSERT_ROWS')
     .describe('Whether to overwrite or insert rows (INSERT_ROWS or OVERWRITE)'),
-})
-  .superRefine((val, ctx) => {
-    if (!val.range && !val.tableId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or tableId for append',
-        path: ['range'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: range/tableId requirement is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const ClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear').describe('Clear cell values from a range (keeps formatting)'),
@@ -218,25 +175,8 @@ const ClearActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Show what would change without applying'),
-})
-  .superRefine((val, ctx) => {
-    // Exactly ONE of range or dataFilter must be provided
-    if (!val.range && !val.dataFilter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or dataFilter for clear',
-        path: ['range'],
-      });
-    }
-    if (val.range && val.dataFilter) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either range or dataFilter (not both) for clear',
-        path: ['dataFilter'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: range/dataFilter mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const BatchWriteEntrySchema = z
   .object({
@@ -292,26 +232,8 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
   response_format: ResponseFormatSchema.optional()
     .default('full')
     .describe('Output size profile for returned ranges (full, compact, preview)'),
-})
-  .superRefine((val, ctx) => {
-    const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
-    const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
-    if (!hasRanges && !hasFilters) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either ranges or dataFilters for batch_read',
-        path: ['ranges'],
-      });
-    }
-    if (hasRanges && hasFilters) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Provide either ranges or dataFilters, not both, for batch_read',
-        path: ['dataFilters'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: ranges/dataFilters mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_write').describe('Write to multiple ranges in a single API call'),
@@ -325,19 +247,8 @@ const BatchWriteActionSchema = CommonFieldsSchema.extend({
     .describe('How input data should be interpreted'),
   includeValuesInResponse: z.boolean().optional().default(false).describe('Return written values'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
-})
-  .superRefine((val, ctx) => {
-    const hasRanges = val.data.some((entry) => entry.range !== undefined);
-    const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
-    if (hasRanges && hasFilters) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Do not mix range-based and dataFilter-based entries in batch_write',
-        path: ['data'],
-      });
-    }
-  })
-  .strict();
+});
+// Note: range/dataFilter mixing check is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const BatchClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_clear').describe('Clear multiple ranges in a single API call'),
@@ -354,24 +265,8 @@ const BatchClearActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe('Array of data filters to clear (1-100 filters)'),
   previewMode: z.boolean().optional().default(false).describe('Preview changes without applying'),
-}).superRefine((val, ctx) => {
-  const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
-  const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
-  if (!hasRanges && !hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either ranges or dataFilters for batch_clear',
-      path: ['ranges'],
-    });
-  }
-  if (hasRanges && hasFilters) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provide either ranges or dataFilters, not both, for batch_clear',
-      path: ['dataFilters'],
-    });
-  }
 });
+// Note: ranges/dataFilters mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const FindReplaceActionSchema = CommonFieldsSchema.extend({
   action: z

@@ -11,9 +11,7 @@ import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import type { CircuitBreakerConfig } from '../utils/circuit-breaker.js';
 
-// ============================================================================
 // Base Schemas
-// ============================================================================
 
 /**
  * Strict boolean parsing: rejects string values like "false", "0", "no"
@@ -35,9 +33,7 @@ const LogLevelSchema = z.enum(['debug', 'info', 'warn', 'error']).default('info'
 
 const SessionStoreTypeSchema = z.enum(['memory', 'redis']).default('memory');
 
-// ============================================================================
 // Google Cloud Configuration
-// ============================================================================
 
 const GoogleCloudSchema = z.object({
   // Service account key (JSON format)
@@ -64,9 +60,7 @@ export function hasGoogleCredentials(env: Partial<Record<string, string>>): bool
   return hasServiceAccount || hasADC || hasOAuth;
 }
 
-// ============================================================================
 // Circuit Breaker Configurations
-// ============================================================================
 
 const CircuitBreakerSchema: z.ZodType<CircuitBreakerConfig> = z.object({
   enabled: z.boolean().default(true),
@@ -76,9 +70,7 @@ const CircuitBreakerSchema: z.ZodType<CircuitBreakerConfig> = z.object({
   readOnlyMode: z.boolean().default(false),
 });
 
-// ============================================================================
 // Redis Configuration
-// ============================================================================
 
 const RedisSchema = z.object({
   SESSION_STORE_TYPE: SessionStoreTypeSchema,
@@ -89,9 +81,7 @@ const RedisSchema = z.object({
   REDIS_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(300000),
 });
 
-// ============================================================================
 // OTEL Configuration
-// ============================================================================
 
 const OtelSchema = z.object({
   OTEL_ENABLED: StrictBooleanSchema,
@@ -104,9 +94,7 @@ const OtelSchema = z.object({
   OTEL_LOG_LEVEL: LogLevelSchema,
 });
 
-// ============================================================================
 // Prefetch Configuration
-// ============================================================================
 
 const PrefetchSchema = z.object({
   PREFETCH_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.8),
@@ -115,9 +103,7 @@ const PrefetchSchema = z.object({
   PREFETCH_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
 });
 
-// ============================================================================
 // Main Environment Schema
-// ============================================================================
 
 export const EnvSchema = z
   .object({
@@ -196,9 +182,7 @@ export const EnvSchema = z
 
 export type Env = z.infer<typeof EnvSchema>;
 
-// ============================================================================
 // Validation & Export
-// ============================================================================
 
 export function validateEnv(): Env {
   const result = EnvSchema.safeParse(process.env);
@@ -215,9 +199,7 @@ export function validateEnv(): Env {
 
   const env = result.data;
 
-  // ========================================================================
   // Production Validation
-  // ========================================================================
 
   if (env.NODE_ENV === 'production') {
     // Google credentials must be present
@@ -264,18 +246,14 @@ export function validateEnv(): Env {
     }
   }
 
-  // ========================================================================
   // Redis Validation
-  // ========================================================================
 
   if (env.SESSION_STORE_TYPE === 'redis' && !env.REDIS_URL) {
     logger.error('SESSION_STORE_TYPE=redis requires REDIS_URL to be set');
     process.exit(1);
   }
 
-  // ========================================================================
   // OTEL Validation
-  // ========================================================================
 
   if (env.OTEL_ENABLED) {
     if (!env.OTEL_EXPORTER_TYPE) {
@@ -299,9 +277,7 @@ export function validateEnv(): Env {
     }
   }
 
-  // ========================================================================
   // Billing Validation
-  // ========================================================================
 
   if (env.BILLING_ENABLED && !env.STRIPE_SECRET_KEY) {
     logger.error('BILLING_ENABLED requires STRIPE_SECRET_KEY');
@@ -336,13 +312,12 @@ export function parseCircuitBreakerConfig(
 export const DEFAULT_PROFILE_STORAGE_DIR = '/tmp/servalsheets-profiles';
 export const DEFAULT_CHECKPOINT_DIR = '/tmp/servalsheets-checkpoints';
 
-// ============================================================================
 // Config Accessor Functions
-// ============================================================================
 // IMPORTANT: These functions are declared BEFORE `export const env = validateEnv()`
 // because tsc in Docker (with type errors + || true) can produce truncated output
 // that omits exports appearing after the validateEnv() call. Functions reference
 // `env` but are only called at runtime (not module load), so hoisting is safe.
+// See: https://github.com/khill1269/servalsheets/issues/docker-truncated-emit
 
 export function shouldDeferResourceDiscovery(): boolean {
   return process.env['DEFER_RESOURCE_DISCOVERY'] === 'true';
@@ -413,9 +388,7 @@ export function getEnv(): Env {
   return env;
 }
 
-// ============================================================================
 // Module Initialization (MUST be last — triggers env validation on import)
-// ============================================================================
 
 /**
  * Get validated environment on module load

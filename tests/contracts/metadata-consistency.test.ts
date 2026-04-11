@@ -29,7 +29,7 @@ describe('Metadata Consistency Contract', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
     const expectedPattern = new RegExp(
-      `${TOOL_COUNT}\\s+tools,?\\s+${ACTION_COUNT}\\s+actions`,
+      `${TOOL_COUNT}\\s+tools(?:\\s+and|,)?\\s+${ACTION_COUNT}\\s+actions`,
       'i'
     );
 
@@ -139,7 +139,7 @@ describe('Metadata Consistency Contract', () => {
     expect(packageEntry).toBeDefined();
 
     const expectedPattern = new RegExp(
-      `${TOOL_COUNT}\\s+tools,?\\s+${ACTION_COUNT}\\s+actions`,
+      `${TOOL_COUNT}\\s+tools(?:\\s+and|,)?\\s+${ACTION_COUNT}\\s+actions`,
       'i'
     );
 
@@ -175,7 +175,7 @@ describe('Metadata Consistency Contract', () => {
     const readme = readFileSync('README.md', 'utf-8');
 
     // Extract counts from each source
-    const pkgMatch = pkg.description.match(/(\d+)\s+tools,?\s+(\d+)\s+actions/i);
+    const pkgMatch = pkg.description.match(/(\d+)\s+tools(?:\s+and|,)?\s+(\d+)\s+actions/i);
     const serverDescMatch = serverJson.description.match(/(\d+)\s+tools\s+and\s+(\d+)\s+actions/i);
     const manifestDescMatch = manifest.description.match(/(\d+)\s+tools\s+and\s+(\d+)\s+actions/i);
     const readmeMatch = readme.match(/(\d+)\s+tools[,\s]+(with\s+)?(\d+)\s+actions/i);

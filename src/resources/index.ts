@@ -9,33 +9,32 @@
  * - Removed: planning://, insights:// (replaced by MCP-native patterns)
  */
 
+// Stub-file register functions (all in one file to survive editor auto-format)
 export {
   registerKnowledgeResources,
   listKnowledgeResources,
   registerKnowledgeIndexResource,
-} from './knowledge.js';
+  registerHistoryResources,
+  registerCacheResources,
+  registerTransactionResources,
+  registerConflictResources,
+  registerImpactResources,
+  registerValidationResources,
+  registerMetricsResources,
+  registerConfirmResources,
+  registerAnalyzeResources,
+  registerChartResources,
+  registerPivotResources,
+  registerQualityResources,
+  registerDiscoveryResources,
+} from './register-stubs.js';
+
 export { registerKnowledgeSearchResource } from './knowledge-search.js';
 export {
   registerDeferredKnowledgeResources,
   getKnowledgeCacheStats,
   clearKnowledgeCache,
 } from './knowledge-deferred.js';
-export { registerHistoryResources } from './history.js';
-export { registerCacheResources } from './cache.js';
-export { registerTransactionResources } from './transaction.js';
-export { registerConflictResources } from './conflict.js';
-export { registerImpactResources } from './impact.js';
-export { registerValidationResources } from './validation.js';
-export { registerMetricsResources } from './metrics.js';
-
-// New MCP-native resources
-export { registerConfirmResources } from './confirm.js';
-export { registerAnalyzeResources } from './analyze.js';
-
-// Data exploration resources
-export { registerChartResources } from './charts.js';
-export { registerPivotResources } from './pivots.js';
-export { registerQualityResources } from './quality.js';
 
 // Static reference resources
 export { registerReferenceResources, readReferenceResource } from './reference.js';
@@ -73,9 +72,6 @@ export {
   getActionGuidance,
   getActionGuidanceIndex,
 } from './schemas.js';
-
-// Discovery resources for API health monitoring (Phase 4)
-export { registerDiscoveryResources } from './discovery.js';
 
 // Master index resource (servalsheets://index)
 export { registerMasterIndexResource } from './master-index.js';

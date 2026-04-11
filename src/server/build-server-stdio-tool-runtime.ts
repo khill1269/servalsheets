@@ -47,6 +47,7 @@ import {
 } from '../../packages/mcp-stdio/dist/build-stdio-tool-runtime.js';
 import { createMetadataCache } from '../services/metadata-cache.js';
 import { recordToolCall, updateQueueMetrics } from '../observability/metrics.js';
+import { setRegisteredToolRuntime } from '../mcp/registration/registered-tool-runtime.js';
 
 type CachedHandlerMap = Record<string, (args: unknown, extra?: unknown) => Promise<unknown>>;
 
@@ -203,6 +204,12 @@ export function buildServerStdioToolRuntime(
             cb: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>
           ) => void
         )(name, config, handler);
+        // Populate registered-tool-runtime so flat interceptor can find handlers
+        setRegisteredToolRuntime(name, {
+          enabled: true,
+          execution: config.execution,
+          handler,
+        });
       },
       initializeStageManager: (registerNewTools) => {
         toolStageManager.initialize(TOOL_DEFINITIONS, registerNewTools);

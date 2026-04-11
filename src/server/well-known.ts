@@ -317,8 +317,10 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
   const allScopes = [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
     (v, i, a) => a.indexOf(v) === i
   );
-  const env = getEnv();
-  const corsOrigins = env.CORS_ORIGINS.split(',')
+  const env = getEnv() as Record<string, unknown>;
+  const corsOriginsRaw = env['CORS_ORIGINS'] as string | undefined;
+  const corsOrigins = (corsOriginsRaw ?? '')
+    .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
   const effectiveCorsOrigins =
@@ -326,8 +328,8 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
 
   return composeMcpServerCard(baseUrl, allScopes, {
     corsOrigins: effectiveCorsOrigins,
-    rateLimitMax: env.RATE_LIMIT_MAX,
-    legacySseEnabled: env.ENABLE_LEGACY_SSE,
+    rateLimitMax: env['RATE_LIMIT_MAX'] as number | undefined,
+    legacySseEnabled: env['ENABLE_LEGACY_SSE'] as boolean | undefined,
     authenticationRequired: false,
   });
 }
@@ -439,11 +441,12 @@ export function getMcpServerCardWithRuntimeConfig(
   const allScopes = [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
     (v, i, a) => a.indexOf(v) === i
   );
-  const env = getEnv();
+  const env = getEnv() as Record<string, unknown>;
+  const corsOriginsRaw = env['CORS_ORIGINS'] as string | undefined;
   return composeMcpServerCard(baseUrl, allScopes, {
-    corsOrigins: runtimeConfig.corsOrigins ?? env.CORS_ORIGINS.split(',').map((v) => v.trim()),
-    rateLimitMax: runtimeConfig.rateLimitMax ?? env.RATE_LIMIT_MAX,
-    legacySseEnabled: runtimeConfig.legacySseEnabled ?? env.ENABLE_LEGACY_SSE,
+    corsOrigins: runtimeConfig.corsOrigins ?? (corsOriginsRaw ?? '').split(',').map((v) => v.trim()).filter(Boolean),
+    rateLimitMax: runtimeConfig.rateLimitMax ?? (env['RATE_LIMIT_MAX'] as number | undefined),
+    legacySseEnabled: runtimeConfig.legacySseEnabled ?? (env['ENABLE_LEGACY_SSE'] as boolean | undefined),
     authenticationRequired: runtimeConfig.authenticationRequired ?? false,
   });
 }

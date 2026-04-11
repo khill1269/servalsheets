@@ -24,7 +24,7 @@
 ## Exit 0 = all pass. Exit 1 = failure with clear message.
 ##
 
-set -euo pipefail
+set -uo pipefail
 
 # Colors (only if terminal supports it)
 if [ -t 1 ]; then
@@ -85,42 +85,42 @@ echo ""
 echo "Running ${TOTAL_GATES} gates..."
 echo ""
 
-run_gate "A1: TypeScript compiles" "npx tsc --noEmit" || true
+run_gate "A1: TypeScript compiles" "npx tsc --noEmit"
 
 # A2: Metadata drift
-run_gate "A2: No metadata drift" "npm run check:drift" || true
+run_gate "A2: No metadata drift" "npm run check:drift"
 
 # A3: Architecture boundaries
-run_gate "A3: Architecture boundaries" "npm run check:architecture" || true
+run_gate "A3: Architecture boundaries" "npm run check:architecture"
 
 # A4: Integration wiring
-run_gate "A4: Integration wiring" "npm run check:integration-wiring" || true
+run_gate "A4: Integration wiring" "npm run check:integration-wiring"
 
 # A5: Silent fallbacks
-run_gate "A5: No silent fallbacks" "npm run check:silent-fallbacks" || true
+run_gate "A5: No silent fallbacks" "npm run check:silent-fallbacks"
 
 # A6: Debug prints
-run_gate "A6: No debug prints" "npm run check:debug-prints" || true
+run_gate "A6: No debug prints" "npm run check:debug-prints"
 
 # A7: Action coverage
-run_gate "A7: Action coverage passes" "npx vitest run tests/audit/action-coverage.test.ts" || true
+run_gate "A7: Action coverage passes" "npx vitest run tests/audit/action-coverage.test.ts"
 
 # A8: Memory leak tests
-run_gate "A8: Memory leak tests pass" "npx vitest run tests/audit/memory-leaks.test.ts" || true
+run_gate "A8: Memory leak tests pass" "npx vitest run tests/audit/memory-leaks.test.ts"
 
 # A9: Contract tests
-run_gate "A9: Contract tests pass" "npx vitest run tests/contracts/" || true
+run_gate "A9: Contract tests pass" "npx vitest run tests/contracts/"
 
 # A10: Google API compliance (network-optional — uses cache if available)
 run_gate "A10: Google API compliance" \
-  "node scripts/audit-google-api-compliance.mjs --offline-ok" || true
+  "node scripts/audit-google-api-compliance.mjs --offline-ok"
 
 # A11: MCP protocol compliance (protocol version, features, tool schemas, transport)
 run_gate "A11: MCP protocol compliance" \
-  "npx vitest run tests/compliance/mcp-2025-11-25.test.ts tests/compliance/mcp-features.test.ts tests/compliance/mcp-evaluation-suite.test.ts tests/contracts/mcp-protocol.test.ts tests/contracts/mcp-http-transport-auth-security.test.ts tests/contracts/mcp-audit-docs.test.ts" || true
+  "npx vitest run tests/compliance/mcp-2025-11-25.test.ts tests/compliance/mcp-features.test.ts tests/compliance/mcp-evaluation-suite.test.ts tests/contracts/mcp-protocol.test.ts tests/contracts/mcp-http-transport-auth-security.test.ts tests/contracts/mcp-audit-docs.test.ts"
 
 # A12: Dead-code baseline (non-writing; prevents regressions without dirtying worktree)
-run_gate "A12: Dead-code baseline" "npm run check:dead-code:baseline" || true
+run_gate "A12: Dead-code baseline" "npm run check:dead-code:baseline"
 
 # Summary
 TOTAL_DURATION=$((SECONDS - START_TIME))

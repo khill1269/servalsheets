@@ -199,16 +199,8 @@ const GetProjectActionSchema = z
         'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
       ),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const GetContentActionSchema = z
   .object({
@@ -229,16 +221,8 @@ const GetContentActionSchema = z
       .optional()
       .describe('Specific version to retrieve (omit for HEAD)'),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const UpdateContentActionSchema = z
   .object({
@@ -260,16 +244,8 @@ const UpdateContentActionSchema = z
       .max(50)
       .describe('Complete set of files for the project (max 50)'),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // ============================================================================
 // Version Management Action Schemas (3 actions)
@@ -419,27 +395,8 @@ const RunActionSchema = z
     verbosity: VerbositySchema,
     // Internal sentinel set by normalizer when files field is included
     _hasFiles: z.boolean().optional(),
-  })
-  .superRefine((input, ctx) => {
-    if (input._hasFiles === true) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'The run action does not accept files. Use sheets_appsscript action:"update_content" to push source code first, then run the function.',
-        path: ['files'],
-      });
-    }
-
-    if (!input.devMode && !input.deploymentId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'deploymentId is required unless devMode:true. Deploy the script first, then call run with that deploymentId.',
-        path: ['deploymentId'],
-      });
-    }
-  })
-  .transform(({ _hasFiles: _, ...rest }) => rest);
+  });
+// Note: files-field rejection, deploymentId requirement enforced in handler; _hasFiles stripped in handler (Zod 3.25 ZodEffects/transform cannot be in discriminatedUnion)
 
 const ListProcessesActionSchema = z.object({
   action: z.literal('list_processes').describe('List script execution processes (logs)'),
@@ -544,16 +501,8 @@ const CreateTriggerActionSchema = z
       .optional()
       .describe('For weekly CLOCK triggers: day of the week'),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const ListTriggersActionSchema = z
   .object({
@@ -581,16 +530,8 @@ const ListTriggersActionSchema = z
       .describe('Max triggers to return'),
     pageToken: z.string().optional().describe('Page token for pagination'),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const DeleteTriggerActionSchema = z
   .object({
@@ -610,16 +551,8 @@ const DeleteTriggerActionSchema = z
       ),
     triggerId: z.string().min(1).describe('Trigger ID to delete (from list_triggers)'),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const UpdateTriggerActionSchema = z
   .object({
@@ -647,16 +580,8 @@ const UpdateTriggerActionSchema = z
       .optional()
       .describe('New interval for CLOCK triggers'),
     verbosity: VerbositySchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.scriptId && !data.spreadsheetId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either scriptId or spreadsheetId is required',
-        path: ['scriptId'],
-      });
-    }
   });
+// Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // SERVAL() formula installer schema
 const InstallServalFunctionActionSchema = z.object({

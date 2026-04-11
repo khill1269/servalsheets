@@ -119,3 +119,14 @@ export class BillingIntegration extends EventEmitter {
     return 0; // Placeholder
   }
 }
+
+let _billingIntegration: BillingIntegration | null = null;
+
+export function getBillingIntegration(): BillingIntegration | null {
+  return _billingIntegration;
+}
+
+export function initializeBillingIntegration(apiKey: string): BillingIntegration {
+  _billingIntegration = new BillingIntegration(apiKey);
+  return _billingIntegration;
+}
