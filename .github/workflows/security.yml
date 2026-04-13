@@ -21,6 +21,7 @@ jobs:
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
@@ -44,6 +45,7 @@ jobs:
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       security-events: write
       contents: read
@@ -72,6 +74,7 @@ jobs:
   npm-audit:
     name: npm Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -111,7 +114,7 @@ jobs:
 
       - name: Open issue for overdue security exception review
         if: github.event_name == 'schedule' && failure() && steps.security_exceptions.outcome == 'failure'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const title = 'Security exception review overdue';
@@ -152,6 +155,7 @@ jobs:
   sbom:
     name: Generate SBOM
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -181,6 +185,7 @@ jobs:
   secret-scanning:
     name: Secret Scanning
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -222,6 +227,7 @@ jobs:
   security-summary:
     name: Security Scanning Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     needs: [dependency-review, codeql, npm-audit, sbom, secret-scanning]
 

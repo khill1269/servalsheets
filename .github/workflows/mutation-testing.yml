@@ -31,8 +31,8 @@ jobs:
     name: Mutation Tests (critical paths)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Only run on PRs or manual triggers (expensive — skip routine pushes)
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    # Only run when manually dispatched (the only trigger for this workflow)
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code

@@ -14,6 +14,9 @@ permissions:
   pages: write
   id-token: write
 
+# NOTE: deploy-dashboard.yml also deploys to GitHub Pages. Each deployment
+# replaces the entire site, so the two workflows should eventually be merged.
+# See deploy-dashboard.yml for details.
 concurrency:
   group: pages
   cancel-in-progress: false

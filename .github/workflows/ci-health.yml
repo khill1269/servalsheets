@@ -92,7 +92,8 @@ jobs:
           echo "| Workflows missing timeout | ${NO_TIMEOUT} |" >> $GITHUB_STEP_SUMMARY
 
           # Check for unpinned actions
-          UNPINNED=$(grep -rh 'uses:' .github/workflows/*.yml | grep -v '#' | grep -cE '@v[0-9]' || echo 0)
+          # Count actions that use a tag ref (e.g. @v3) without a SHA pin comment
+          UNPINNED=$(grep -rh 'uses:' .github/workflows/*.yml | grep -E '@v[0-9]' | grep -cvE '@[0-9a-f]{40}' || echo 0)
           echo "| Unpinned actions (tag only) | ${UNPINNED} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
