@@ -176,41 +176,6 @@ jobs:
             echo "✅ No critical P0 issues found"
           fi
 
-      - name: Comment on PR (if applicable)
-        if: github.event_name == 'pull_request' && steps.audit.outcome == 'success'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        with:
-          script: |
-            const fs = require('fs');
-            const results = JSON.parse(fs.readFileSync('${{ env.AUDIT_OUTPUT_DIR }}/results.json', 'utf8'));
-
-            const score = results.total_percentage;
-            const issues = results.issues || [];
-            const p0 = issues.filter(i => i.priority === 'P0').length;
-            const p1 = issues.filter(i => i.priority === 'P1').length;
-
-            const comment = `## 📊 106-Category Audit Results
-
-            **Overall Score:** ${score}%
-
-            **Issues by Priority:**
-            - P0 (Critical): ${p0}
-            - P1 (High): ${p1}
-            - P2 (Medium): ${issues.filter(i => i.priority === 'P2').length}
-            - P3 (Low): ${issues.filter(i => i.priority === 'P3').length}
-
-            ${p0 > 0 ? '⚠️ **Action Required:** Critical issues found that must be addressed.' : '✅ No critical issues'}
-
-            [View Full Report](../actions/runs/${{ github.run_id }})
-            `;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-
       - name: Audit completion status
         if: always()
         run: |
