@@ -23,7 +23,7 @@ import {
   SERVER_ICON_DATA_URI,
   SERVER_ICON_MIME_TYPE,
   SERVER_ICON_SIZES,
-} from '../src/constants/server-icon.js';
+} from '../src/config/server-icon.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

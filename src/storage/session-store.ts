@@ -179,7 +179,7 @@ export class MemorySessionStore implements SessionStore {
     if (expiryTime && Date.now() > expiryTime) {
       this.store.delete(key);
       this.expirations.delete(key);
-      return undefined;
+      return undefined; // OK: TTL expiration — expired entries return undefined by contract
     }
     return this.store.get(key);
   }
