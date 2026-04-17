@@ -43,9 +43,14 @@ describe('AUTH_EXEMPT_ACTIONS contract', () => {
       // Extract the set of valid action names from the Zod discriminated union
       let knownActions: string[] | null = null;
       const schema = tool.inputSchema as { shape?: Record<string, unknown> };
-      const requestSchema = schema?.shape?.['request'] as {
-        _def?: { options?: Array<{ shape?: { action?: { _def?: { values?: unknown[] } } } }>; discriminator?: string };
-      } | undefined;
+      const requestSchema = schema?.shape?.['request'] as
+        | {
+            _def?: {
+              options?: Array<{ shape?: { action?: { _def?: { values?: unknown[] } } } }>;
+              discriminator?: string;
+            };
+          }
+        | undefined;
       if (
         requestSchema?._def?.discriminator === 'action' &&
         Array.isArray(requestSchema._def.options)
@@ -95,8 +100,7 @@ describe('AUTH_EXEMPT_ACTIONS contract', () => {
   it('auth-required tools without exemptions are not exempt', () => {
     const authRequiredTools = TOOL_DEFINITIONS.filter(
       (t) =>
-        t.authPolicy?.requiresAuth !== false &&
-        (t.authPolicy?.exemptActions?.length ?? 0) === 0
+        t.authPolicy?.requiresAuth !== false && (t.authPolicy?.exemptActions?.length ?? 0) === 0
     );
     expect(authRequiredTools.length).toBeGreaterThan(0);
 

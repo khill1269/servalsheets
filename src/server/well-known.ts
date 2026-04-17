@@ -328,8 +328,8 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
 
   return composeMcpServerCard(baseUrl, allScopes, {
     corsOrigins: effectiveCorsOrigins,
-    rateLimitMax: env['RATE_LIMIT_MAX'] as number | undefined,
-    legacySseEnabled: env['ENABLE_LEGACY_SSE'] as boolean | undefined,
+    rateLimitMax: (env['RATE_LIMIT_MAX'] as unknown as number) ?? undefined,
+    legacySseEnabled: (env['ENABLE_LEGACY_SSE'] as unknown as boolean) ?? undefined,
     authenticationRequired: false,
   });
 }
@@ -444,9 +444,18 @@ export function getMcpServerCardWithRuntimeConfig(
   const env = getEnv() as Record<string, unknown>;
   const corsOriginsRaw = env['CORS_ORIGINS'] as string | undefined;
   return composeMcpServerCard(baseUrl, allScopes, {
-    corsOrigins: runtimeConfig.corsOrigins ?? (corsOriginsRaw ?? '').split(',').map((v) => v.trim()).filter(Boolean),
-    rateLimitMax: runtimeConfig.rateLimitMax ?? (env['RATE_LIMIT_MAX'] as number | undefined),
-    legacySseEnabled: runtimeConfig.legacySseEnabled ?? (env['ENABLE_LEGACY_SSE'] as boolean | undefined),
+    corsOrigins:
+      runtimeConfig.corsOrigins ??
+      (corsOriginsRaw ?? '')
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
+    rateLimitMax:
+      runtimeConfig.rateLimitMax ?? (env['RATE_LIMIT_MAX'] as unknown as number) ?? undefined,
+    legacySseEnabled:
+      runtimeConfig.legacySseEnabled ??
+      (env['ENABLE_LEGACY_SSE'] as unknown as boolean) ??
+      undefined,
     authenticationRequired: runtimeConfig.authenticationRequired ?? false,
   });
 }
@@ -594,7 +603,9 @@ export function mcpConfigurationHandler(req: Request, res: Response): void {
  * Express handler for /.well-known/oauth-authorization-server
  */
 export function oauthAuthorizationServerHandler(req: Request, res: Response): void {
-  const metadata = getOAuthAuthorizationServerMetadata(getEnv().OAUTH_ISSUER);
+  const metadata = getOAuthAuthorizationServerMetadata(
+    (getEnv()['OAUTH_ISSUER'] as unknown as string) ?? ''
+  );
   const etag = computeETag(metadata);
 
   // Check If-None-Match for conditional request
@@ -620,7 +631,10 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const serverUrl = `${protocol}://${host}`;
 
-  const metadata = getOAuthProtectedResourceMetadata(serverUrl, getEnv().OAUTH_ISSUER);
+  const metadata = getOAuthProtectedResourceMetadata(
+    serverUrl,
+    (getEnv()['OAUTH_ISSUER'] as unknown as string) ?? ''
+  );
   const etag = computeETag(metadata);
 
   // Check If-None-Match for conditional request

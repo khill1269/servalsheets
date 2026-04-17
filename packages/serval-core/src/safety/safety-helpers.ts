@@ -27,7 +27,11 @@ export interface SafetyContext {
 }
 
 export interface SafetyWarning {
-  type: 'snapshot_recommended' | 'confirmation_recommended' | 'dry_run_recommended' | 'large_operation';
+  type:
+    | 'snapshot_recommended'
+    | 'confirmation_recommended'
+    | 'dry_run_recommended'
+    | 'large_operation';
   message: string;
   suggestion: string;
 }
@@ -196,14 +200,16 @@ export function shouldReturnPreview(safetyOptions?: SafetyOptions): boolean {
   return safetyOptions?.dryRun === true;
 }
 
-export function buildSnapshotInfo(snapshot: SnapshotResult | null): Record<string, unknown> | undefined {
+export function buildSnapshotInfo(
+  snapshot: SnapshotResult | null
+): Record<string, unknown> | undefined {
   if (!snapshot) return undefined;
   return {
     snapshotId: snapshot.snapshotId,
     createdAt: snapshot.createdAt,
     undoInstructions: [
       `Snapshot ID: ${snapshot.snapshotId}`,
-      'Use your platform\'s undo/restore capability with this snapshot ID',
+      "Use your platform's undo/restore capability with this snapshot ID",
     ],
   };
 }

@@ -1437,8 +1437,9 @@ export const CompositeErrorOutputSchema = z.object({
 
 /**
  * Combined composite response
+ * Note: using z.union instead of z.discriminatedUnion because multiple success schemas share success:true (Zod 3.25 requires unique discriminator values)
  */
-export const CompositeResponseSchema = z.discriminatedUnion('success', [
+export const CompositeResponseSchema = z.union([
   ImportCsvOutputSchema,
   SmartAppendOutputSchema,
   BulkUpdateOutputSchema,

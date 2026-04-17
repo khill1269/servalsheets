@@ -87,9 +87,7 @@ export function resolveHttpServerRuntimeConfig(
     host: options.host ?? defaultHost,
     corsOrigins:
       options.corsOrigins ??
-      (configuredCorsOrigins.length > 0
-        ? configuredCorsOrigins
-        : [...DEFAULT_HTTP_CORS_ORIGINS]),
+      (configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [...DEFAULT_HTTP_CORS_ORIGINS]),
     rateLimitWindowMs: options.rateLimitWindowMs ?? envConfig.RATE_LIMIT_WINDOW_MS,
     rateLimitMax: options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX,
     trustProxy: options.trustProxy ?? false,

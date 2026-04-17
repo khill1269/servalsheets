@@ -599,9 +599,7 @@ describe('TokenManager', () => {
     });
 
     it('10 concurrent refreshToken() calls increment totalRefreshes by 10', async () => {
-      await Promise.all(
-        Array.from({ length: 10 }, () => tokenManager.refreshToken())
-      );
+      await Promise.all(Array.from({ length: 10 }, () => tokenManager.refreshToken()));
 
       const metrics = tokenManager.getMetrics() as { totalRefreshes: number };
       // Without concurrency guard, each concurrent call increments independently
@@ -623,9 +621,7 @@ describe('TokenManager', () => {
     });
 
     it('concurrent refreshes do not leave credentials in an inconsistent state', async () => {
-      await Promise.all(
-        Array.from({ length: 5 }, () => tokenManager.refreshToken())
-      );
+      await Promise.all(Array.from({ length: 5 }, () => tokenManager.refreshToken()));
 
       // After all concurrent refreshes, credentials should still be valid
       const status = tokenManager.getTokenStatus();

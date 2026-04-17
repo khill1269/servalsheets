@@ -43,18 +43,20 @@ const PLAN_ID = 'plan-test-001';
 const STEP_ID = 'step-001';
 const CHECKPOINT_ID = 'ckpt-001';
 
-function makeStep(overrides?: Partial<{
-  stepId: string;
-  tool: string;
-  action: string;
-  params: Record<string, unknown>;
-  description: string;
-  validation: {
-    valid: boolean;
-    issues?: Array<{ field: string; message: string }>;
-    suggestedFix?: string;
-  };
-}>) {
+function makeStep(
+  overrides?: Partial<{
+    stepId: string;
+    tool: string;
+    action: string;
+    params: Record<string, unknown>;
+    description: string;
+    validation: {
+      valid: boolean;
+      issues?: Array<{ field: string; message: string }>;
+      suggestedFix?: string;
+    };
+  }>
+) {
   return {
     stepId: STEP_ID,
     tool: 'sheets_data',
@@ -260,7 +262,9 @@ describe('AgentHandler', () => {
         expect.stringContaining('Spreadsheet scout (live):')
       );
       expect(compilePlanAI.mock.calls[0]?.[3]).toContain('sheet="Revenue Data"');
-      expect(compilePlanAI.mock.calls[0]?.[3]).toContain('headers=["Month","Revenue","Cost","Profit"]');
+      expect(compilePlanAI.mock.calls[0]?.[3]).toContain(
+        'headers=["Month","Revenue","Cost","Profit"]'
+      );
       expect(compilePlanAI.mock.calls[0]?.[3]).toContain('sample=["Jan",100,40,60]');
     });
 
@@ -676,8 +680,18 @@ describe('AgentHandler', () => {
   describe('list_plans', () => {
     it('should list plans with default limit', async () => {
       const mockPlans = [
-        makePlanState({ planId: 'plan-001', description: 'Plan A', status: 'completed', createdAt: 1000 }),
-        makePlanState({ planId: 'plan-002', description: 'Plan B', status: 'draft', createdAt: 2000 }),
+        makePlanState({
+          planId: 'plan-001',
+          description: 'Plan A',
+          status: 'completed',
+          createdAt: 1000,
+        }),
+        makePlanState({
+          planId: 'plan-002',
+          description: 'Plan B',
+          status: 'draft',
+          createdAt: 2000,
+        }),
       ];
       listPlans.mockReturnValue(mockPlans);
 
@@ -698,9 +712,7 @@ describe('AgentHandler', () => {
     });
 
     it('should filter plans by status', async () => {
-      listPlans.mockReturnValue([
-        makePlanState({ status: 'completed' }),
-      ]);
+      listPlans.mockReturnValue([makePlanState({ status: 'completed' })]);
 
       const result = await handler.handle({
         request: {

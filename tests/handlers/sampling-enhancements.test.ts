@@ -45,7 +45,9 @@ vi.mock('../../src/utils/logger.js', () => {
 vi.mock('../../src/utils/request-context.js', () => ({
   sendProgress: vi.fn(),
   getRequestContext: vi.fn().mockReturnValue({ timeoutMs: 30000 }),
-  getRequestLogger: vi.fn().mockReturnValue({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+  getRequestLogger: vi
+    .fn()
+    .mockReturnValue({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   recordRequestLlmProvenance: vi.fn(),
   getRequestLlmProvenance: vi.fn(),
   getRequestAbortSignal: vi.fn(),
@@ -55,8 +57,12 @@ vi.mock('../../src/services/history-service.js', () => {
   let mockService: any = null;
   return {
     getHistoryService: vi.fn(() => mockService),
-    setHistoryService: vi.fn((service: any) => { mockService = service; }),
-    resetHistoryService: vi.fn(() => { mockService = null; }),
+    setHistoryService: vi.fn((service: any) => {
+      mockService = service;
+    }),
+    resetHistoryService: vi.fn(() => {
+      mockService = null;
+    }),
   };
 });
 
@@ -65,9 +71,7 @@ vi.mock('../../src/services/revision-timeline.js', () => ({
   diffRevisions: vi.fn().mockResolvedValue({
     revisionId1: 'rev-1',
     revisionId2: 'rev-2',
-    cellChanges: [
-      { cell: 'B2', oldValue: 'foo', newValue: 'bar' },
-    ],
+    cellChanges: [{ cell: 'B2', oldValue: 'foo', newValue: 'bar' }],
     summary: {
       metadataOnly: false,
       totalChanges: 1,
@@ -96,7 +100,9 @@ vi.mock('../../src/utils/url.js', () => ({
 }));
 
 vi.mock('../../src/mcp/sampling.js', async () => {
-  const actual = await vi.importActual<typeof import('../../src/mcp/sampling.js')>('../../src/mcp/sampling.js');
+  const actual = await vi.importActual<typeof import('../../src/mcp/sampling.js')>(
+    '../../src/mcp/sampling.js'
+  );
   return {
     ...actual,
     assertSamplingConsent: vi.fn().mockResolvedValue(undefined),
@@ -108,8 +114,12 @@ vi.mock('../../src/mcp/sampling.js', async () => {
 });
 
 vi.mock('../../src/utils/payload-validator.js', () => ({
-  validateValuesPayload: vi.fn().mockReturnValue({ valid: true, sizeBytes: 100, warningMessage: undefined }),
-  validateValuesBatchPayload: vi.fn().mockReturnValue({ valid: true, sizeBytes: 100, warningMessage: undefined }),
+  validateValuesPayload: vi
+    .fn()
+    .mockReturnValue({ valid: true, sizeBytes: 100, warningMessage: undefined }),
+  validateValuesBatchPayload: vi
+    .fn()
+    .mockReturnValue({ valid: true, sizeBytes: 100, warningMessage: undefined }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -140,19 +150,32 @@ describe('Sampling: data.find_replace (dryRun aiEstimate)', () => {
         get: vi.fn().mockResolvedValue({
           data: {
             spreadsheetId: 'test-id',
-            sheets: [{ properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: 100, columnCount: 10 } } }],
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  gridProperties: { rowCount: 100, columnCount: 10 },
+                },
+              },
+            ],
           },
         }),
         values: {
           get: vi.fn().mockResolvedValue({
             data: {
               range: 'Sheet1!A1:Z100',
-              values: [['Alice', 'Bob'], ['Alice', 'Carol']],
+              values: [
+                ['Alice', 'Bob'],
+                ['Alice', 'Carol'],
+              ],
             },
           }),
           batchGet: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
         },
-        batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [{ findReplace: { occurrencesChanged: 2 } }] } }),
+        batchUpdate: vi
+          .fn()
+          .mockResolvedValue({ data: { replies: [{ findReplace: { occurrencesChanged: 2 } }] } }),
       },
     };
 
@@ -164,7 +187,13 @@ describe('Sampling: data.find_replace (dryRun aiEstimate)', () => {
           a1Notation: 'Sheet1!A1:Z100',
           sheetId: 0,
           sheetName: 'Sheet1',
-          gridRange: { sheetId: 0, startRowIndex: 0, endRowIndex: 100, startColumnIndex: 0, endColumnIndex: 26 },
+          gridRange: {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 100,
+            startColumnIndex: 0,
+            endColumnIndex: 26,
+          },
           resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
         }),
       } as any,
@@ -225,15 +254,35 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
       spreadsheets: {
         get: vi.fn().mockResolvedValue({
           data: {
-            sheets: [{
-              properties: { sheetId: 0, title: 'Sheet1' },
-              data: [{
-                rowData: [
-                  { values: [{ formattedValue: 'Revenue', effectiveValue: { stringValue: 'Revenue' }, effectiveFormat: {} }] },
-                  { values: [{ formattedValue: '1000', effectiveValue: { numberValue: 1000 }, effectiveFormat: {} }] },
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+                data: [
+                  {
+                    rowData: [
+                      {
+                        values: [
+                          {
+                            formattedValue: 'Revenue',
+                            effectiveValue: { stringValue: 'Revenue' },
+                            effectiveFormat: {},
+                          },
+                        ],
+                      },
+                      {
+                        values: [
+                          {
+                            formattedValue: '1000',
+                            effectiveValue: { numberValue: 1000 },
+                            effectiveFormat: {},
+                          },
+                        ],
+                      },
+                    ],
+                  },
                 ],
-              }],
-            }],
+              },
+            ],
           },
         }),
         batchUpdate: vi.fn().mockResolvedValue({ data: {} }),
@@ -249,17 +298,33 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
   it('adds aiRationale to suggestions when samplingServer is available', async () => {
     const mockServer = {
       getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
-      createMessage: vi.fn()
+      createMessage: vi
+        .fn()
         // First call: primary suggest_format response
         .mockResolvedValueOnce({
-          content: { type: 'text', text: JSON.stringify({ suggestions: [{ title: 'Bold Headers', explanation: 'Makes headers stand out', confidence: 90, formatOptions: {} }] }) },
+          content: {
+            type: 'text',
+            text: JSON.stringify({
+              suggestions: [
+                {
+                  title: 'Bold Headers',
+                  explanation: 'Makes headers stand out',
+                  confidence: 90,
+                  formatOptions: {},
+                },
+              ],
+            }),
+          },
           model: 'claude',
           stopReason: 'end_turn',
           role: 'assistant',
         })
         // Second call: aiRationale enrichment
         .mockResolvedValueOnce({
-          content: { type: 'text', text: 'Bold headers improve readability by creating visual hierarchy.' },
+          content: {
+            type: 'text',
+            text: 'Bold headers improve readability by creating visual hierarchy.',
+          },
           model: 'claude',
           stopReason: 'end_turn',
           role: 'assistant',
@@ -270,7 +335,14 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
       googleClient: {} as any,
       batchCompiler: { compile: vi.fn(), execute: vi.fn(), executeAll: vi.fn() } as any,
       rangeResolver: {
-        resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:D10', sheetId: 0, sheetName: 'Sheet1', resolution: { method: 'a1_direct', confidence: 1.0, path: '' } }),
+        resolve: vi
+          .fn()
+          .mockResolvedValue({
+            a1Notation: 'Sheet1!A1:D10',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
+          }),
       } as any,
       server: mockServer as any,
       samplingServer: mockServer as any,
@@ -302,7 +374,19 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
     const mockServer = {
       getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
       createMessage: vi.fn().mockResolvedValue({
-        content: { type: 'text', text: JSON.stringify({ suggestions: [{ title: 'Bold Headers', explanation: 'Makes headers stand out', confidence: 90, formatOptions: {} }] }) },
+        content: {
+          type: 'text',
+          text: JSON.stringify({
+            suggestions: [
+              {
+                title: 'Bold Headers',
+                explanation: 'Makes headers stand out',
+                confidence: 90,
+                formatOptions: {},
+              },
+            ],
+          }),
+        },
         model: 'claude',
         stopReason: 'end_turn',
         role: 'assistant',
@@ -313,7 +397,14 @@ describe('Sampling: format.suggest_format (aiRationale)', () => {
       googleClient: {} as any,
       batchCompiler: { compile: vi.fn(), execute: vi.fn(), executeAll: vi.fn() } as any,
       rangeResolver: {
-        resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:D10', sheetId: 0, sheetName: 'Sheet1', resolution: { method: 'a1_direct', confidence: 1.0, path: '' } }),
+        resolve: vi
+          .fn()
+          .mockResolvedValue({
+            a1Notation: 'Sheet1!A1:D10',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
+          }),
       } as any,
       server: mockServer as any,
       // No samplingServer
@@ -352,9 +443,11 @@ describe('Sampling: dependencies.model_scenario (aiNarrative)', () => {
       spreadsheets: {
         get: vi.fn().mockResolvedValue({
           data: {
-            sheets: [{
-              properties: { sheetId: 0, title: 'Sheet1' },
-            }],
+            sheets: [
+              {
+                properties: { sheetId: 0, title: 'Sheet1' },
+              },
+            ],
           },
         }),
         values: {
@@ -371,8 +464,12 @@ describe('Sampling: dependencies.model_scenario (aiNarrative)', () => {
   });
 
   it('adds aiNarrative to model_scenario response when samplingServer is available', async () => {
-    const samplingServer = createMockSamplingServer('Changing B2 will affect revenue totals in rows 5-10, reducing the quarterly sum by approximately 20%.');
-    const handler = new DependenciesHandler(mockSheetsApi, { samplingServer: samplingServer as any });
+    const samplingServer = createMockSamplingServer(
+      'Changing B2 will affect revenue totals in rows 5-10, reducing the quarterly sum by approximately 20%.'
+    );
+    const handler = new DependenciesHandler(mockSheetsApi, {
+      samplingServer: samplingServer as any,
+    });
 
     const result = await handler.handle({
       request: {
@@ -423,7 +520,15 @@ describe('Sampling: history.diff_revisions (aiExplanation)', () => {
       getRecent: vi.fn().mockReturnValue([]),
       getById: vi.fn(),
       getBySpreadsheet: vi.fn().mockReturnValue([]),
-      getStats: vi.fn().mockReturnValue({ totalOperations: 0, successfulOperations: 0, failedOperations: 0, successRate: 100, averageDuration: 0 }),
+      getStats: vi
+        .fn()
+        .mockReturnValue({
+          totalOperations: 0,
+          successfulOperations: 0,
+          failedOperations: 0,
+          successRate: 100,
+          averageDuration: 0,
+        }),
       clear: vi.fn(),
       size: vi.fn().mockReturnValue(0),
       getLastUndoable: vi.fn(),
@@ -446,7 +551,9 @@ describe('Sampling: history.diff_revisions (aiExplanation)', () => {
   });
 
   it('adds aiExplanation to diff_revisions response when samplingServer is available', async () => {
-    const samplingServer = createMockSamplingServer('The value in B2 was changed from "foo" to "bar", suggesting a data correction was applied.');
+    const samplingServer = createMockSamplingServer(
+      'The value in B2 was changed from "foo" to "bar", suggesting a data correction was applied.'
+    );
 
     const handler = new HistoryHandler({
       samplingServer: samplingServer as any,
@@ -504,7 +611,15 @@ describe('Sampling: collaborate.comment_add (aiSuggestedReply)', () => {
         delete: vi.fn().mockResolvedValue({}),
       },
       files: {
-        get: vi.fn().mockResolvedValue({ data: { id: 'test-id', name: 'Test', mimeType: 'application/vnd.google-apps.spreadsheet' } }),
+        get: vi
+          .fn()
+          .mockResolvedValue({
+            data: {
+              id: 'test-id',
+              name: 'Test',
+              mimeType: 'application/vnd.google-apps.spreadsheet',
+            },
+          }),
         copy: vi.fn().mockResolvedValue({ data: { id: 'copy-id', name: 'Copy' } }),
         export: vi.fn().mockResolvedValue({ data: Buffer.from('data') }),
       },
@@ -541,7 +656,14 @@ describe('Sampling: collaborate.comment_add (aiSuggestedReply)', () => {
       googleClient: {} as any,
       batchCompiler: { compile: vi.fn(), execute: vi.fn(), executeAll: vi.fn() } as any,
       rangeResolver: {
-        resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B10', sheetId: 0, sheetName: 'Sheet1', resolution: { method: 'a1_direct', confidence: 1.0, path: '' } }),
+        resolve: vi
+          .fn()
+          .mockResolvedValue({
+            a1Notation: 'Sheet1!A1:B10',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
+          }),
       } as any,
       auth: {
         hasElevatedAccess: true,
@@ -559,7 +681,9 @@ describe('Sampling: collaborate.comment_add (aiSuggestedReply)', () => {
   });
 
   it('adds aiSuggestedReply when comment contains a question and samplingServer is available', async () => {
-    const samplingServer = createMockSamplingServer('The Q4 target is $250,000 based on the current spreadsheet data.');
+    const samplingServer = createMockSamplingServer(
+      'The Q4 target is $250,000 based on the current spreadsheet data.'
+    );
     mockContext.samplingServer = samplingServer as any;
 
     const handler = new CollaborateHandler(mockContext, mockDriveApi);

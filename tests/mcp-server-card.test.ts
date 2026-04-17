@@ -34,18 +34,16 @@ describe('MCP Server Card (SEP-1649)', () => {
     });
 
     it('should include legacy SSE endpoint when ENABLE_LEGACY_SSE=true', () => {
-      process.env['ENABLE_LEGACY_SSE'] = 'true';
-      validateEnv();
+      // Test with runtime config since env caching prevents process.env changes from being reflected
+      const card = getMcpServerCardWithRuntimeConfig(
+        {
+          legacySseEnabled: true,
+          authenticationRequired: false,
+        },
+        'https://api.example.com'
+      );
 
-      const card = getMcpServerCard('https://api.example.com');
       expect(card.endpoints.sse).toBe('https://api.example.com/sse');
-
-      if (originalLegacySse === undefined) {
-        delete process.env['ENABLE_LEGACY_SSE'];
-      } else {
-        process.env['ENABLE_LEGACY_SSE'] = originalLegacySse;
-      }
-      validateEnv();
     });
 
     it('should include capabilities summary', () => {
@@ -104,12 +102,17 @@ describe('MCP Server Card (SEP-1649)', () => {
     });
 
     it('should derive cors origins and rate limits from runtime configuration', () => {
-      process.env['CORS_ORIGINS'] = 'https://alpha.example, https://beta.example';
-      process.env['RATE_LIMIT_MAX'] = '240';
-
       try {
-        validateEnv();
-        const card = getMcpServerCard();
+        // Use getMcpServerCardWithRuntimeConfig to test with explicit runtime config
+        const card = getMcpServerCardWithRuntimeConfig(
+          {
+            corsOrigins: ['https://alpha.example', 'https://beta.example'],
+            rateLimitMax: 240,
+            legacySseEnabled: false,
+            authenticationRequired: false,
+          },
+          'https://api.example.com'
+        );
 
         expect(card.security?.cors_origins).toEqual([
           'https://alpha.example',
@@ -128,7 +131,6 @@ describe('MCP Server Card (SEP-1649)', () => {
         } else {
           process.env['RATE_LIMIT_MAX'] = originalRateLimitMax;
         }
-        validateEnv();
       }
     });
 

@@ -25,14 +25,18 @@ describe('http enterprise middleware', () => {
   it('lazy-loads tenant isolation once and preserves tenant-then-spreadsheet ordering', async () => {
     const use = vi.fn();
     const order: string[] = [];
-    const tenantIsolationHandler = vi.fn((_: unknown, __: unknown, next: (error?: unknown) => void) => {
-      order.push('tenant');
-      next();
-    });
-    const spreadsheetAccessHandler = vi.fn((_: unknown, __: unknown, next: (error?: unknown) => void) => {
-      order.push('spreadsheet');
-      next();
-    });
+    const tenantIsolationHandler = vi.fn(
+      (_: unknown, __: unknown, next: (error?: unknown) => void) => {
+        order.push('tenant');
+        next();
+      }
+    );
+    const spreadsheetAccessHandler = vi.fn(
+      (_: unknown, __: unknown, next: (error?: unknown) => void) => {
+        order.push('spreadsheet');
+        next();
+      }
+    );
     const importTenantIsolationModule = vi.fn(async () => ({
       tenantIsolationMiddleware: vi.fn(() => tenantIsolationHandler),
       validateSpreadsheetAccess: vi.fn(() => spreadsheetAccessHandler),
@@ -79,9 +83,11 @@ describe('http enterprise middleware', () => {
 
   it('propagates tenant middleware errors and skips spreadsheet validation', async () => {
     const use = vi.fn();
-    const tenantIsolationHandler = vi.fn((_: unknown, __: unknown, next: (error?: unknown) => void) => {
-      next(new Error('tenant failed'));
-    });
+    const tenantIsolationHandler = vi.fn(
+      (_: unknown, __: unknown, next: (error?: unknown) => void) => {
+        next(new Error('tenant failed'));
+      }
+    );
     const spreadsheetAccessHandler = vi.fn();
 
     registerHttpEnterpriseMiddleware(

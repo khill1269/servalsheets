@@ -46,14 +46,12 @@ describe('B3: elicitation rejection tracking', () => {
     });
 
     // Same type + tool: should be rejected
-    expect(
-      manager.wasRecentlyRejected('confirm_destructive', { tool: 'sheets_format' })
-    ).toBe(true);
+    expect(manager.wasRecentlyRejected('confirm_destructive', { tool: 'sheets_format' })).toBe(
+      true
+    );
 
     // Same type but different tool: should NOT be rejected
-    expect(
-      manager.wasRecentlyRejected('confirm_destructive', { tool: 'sheets_data' })
-    ).toBe(false);
+    expect(manager.wasRecentlyRejected('confirm_destructive', { tool: 'sheets_data' })).toBe(false);
   });
 
   it('wasRecentlyRejected matches on action when provided', () => {
@@ -63,13 +61,13 @@ describe('B3: elicitation rejection tracking', () => {
       action: 'delete_sheet',
     });
 
-    expect(
-      manager.wasRecentlyRejected('confirm_destructive', { action: 'delete_sheet' })
-    ).toBe(true);
+    expect(manager.wasRecentlyRejected('confirm_destructive', { action: 'delete_sheet' })).toBe(
+      true
+    );
 
-    expect(
-      manager.wasRecentlyRejected('confirm_destructive', { action: 'set_format' })
-    ).toBe(false);
+    expect(manager.wasRecentlyRejected('confirm_destructive', { action: 'set_format' })).toBe(
+      false
+    );
   });
 
   it('rejection list is bounded at 50 entries', () => {

@@ -245,7 +245,7 @@ export function registerActiveTools(options: {
   registerToolsListCompatibilityHandler(options.server);
 
   const registeredToolNames = tools.map((tool) => tool.name);
-  if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
+  if (getEnv()['ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS']) {
     resourceNotifications.syncToolList(registeredToolNames, {
       emitOnFirstSet: false,
       reason: 'registered active tool definitions',

@@ -146,7 +146,8 @@ describe('server google runtime bootstrap', () => {
       getCostTracker: googleRuntimeBootstrapMocks.getCostTracker,
     });
     expect(googleRuntimeBootstrapMocks.createGoogleHandlerContext).toHaveBeenCalledOnce();
-    const contextOptions = googleRuntimeBootstrapMocks.createGoogleHandlerContext.mock.calls[0]?.[0];
+    const contextOptions =
+      googleRuntimeBootstrapMocks.createGoogleHandlerContext.mock.calls[0]?.[0];
     expect(contextOptions.googleClient).toBe(googleClient);
     expect(contextOptions.onProgress).toBe(onProgress);
     expect(contextOptions.requestDeduplicator).toBe(requestDeduplicator);

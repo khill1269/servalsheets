@@ -3,10 +3,7 @@ import {
   buildToolCallExecutionContext,
   mergeAbortSignals,
 } from '../../src/mcp/registration/tool-call-context.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 describe('tool call context', () => {
   it('derives trace, principal, idempotency, and progress metadata from request headers', () => {
@@ -77,10 +74,7 @@ describe('tool call context', () => {
   it('merges request and session abort signals', () => {
     const requestAbortController = new AbortController();
     const sessionAbortController = new AbortController();
-    const merged = mergeAbortSignals(
-      requestAbortController.signal,
-      sessionAbortController.signal
-    );
+    const merged = mergeAbortSignals(requestAbortController.signal, sessionAbortController.signal);
 
     expect(merged?.aborted).toBe(false);
 

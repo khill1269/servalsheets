@@ -59,10 +59,7 @@ describe('Tool Discovery Contract', () => {
 
     it('should include every expected tool', () => {
       for (const expected of EXPECTED_TOOLS) {
-        expect(
-          definedToolNames,
-          `Missing tool: ${expected}`
-        ).toContain(expected);
+        expect(definedToolNames, `Missing tool: ${expected}`).toContain(expected);
       }
     });
 

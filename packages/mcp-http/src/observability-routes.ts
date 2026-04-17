@@ -39,7 +39,14 @@ export function registerHttpObservabilityRoutes<
   THealthService,
   TUserRateLimiter,
   TObservabilityOptions,
->(options: RegisterHttpObservabilityRoutesOptions<TApp, THealthService, TUserRateLimiter, TObservabilityOptions>): void {
+>(
+  options: RegisterHttpObservabilityRoutesOptions<
+    TApp,
+    THealthService,
+    TUserRateLimiter,
+    TObservabilityOptions
+  >
+): void {
   const {
     app,
     healthService,

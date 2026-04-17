@@ -5,15 +5,17 @@ import { dispatchServerToolCall } from '../../src/server/handler-dispatch.js';
 describe('dispatchServerToolCall', () => {
   it('routes tool execution through the stdio routing helper', async () => {
     const localHandler = vi.fn(async () => ({ response: { success: true, source: 'local' } }));
-    const executeRoutedToolCall = vi.fn(async ({ localExecute }: { localExecute: () => Promise<unknown> }) => {
-      return await Promise.resolve({
-        response: {
-          success: true,
-          source: 'remote',
-        },
-        localExecuteDefined: typeof localExecute === 'function',
-      });
-    });
+    const executeRoutedToolCall = vi.fn(
+      async ({ localExecute }: { localExecute: () => Promise<unknown> }) => {
+        return await Promise.resolve({
+          response: {
+            success: true,
+            source: 'remote',
+          },
+          localExecuteDefined: typeof localExecute === 'function',
+        });
+      }
+    );
 
     const result = await dispatchServerToolCall(
       {

@@ -187,7 +187,11 @@ describe('Action Matrix Support', () => {
   });
 
   it('builds execution profiles with slow lanes for high-latency actions', () => {
-    const clearSheetProfile = buildMatrixExecutionProfile('sheets_core.clear_sheet', 'mcp_execute', true);
+    const clearSheetProfile = buildMatrixExecutionProfile(
+      'sheets_core.clear_sheet',
+      'mcp_execute',
+      true
+    );
     const clearProfile = buildMatrixExecutionProfile('sheets_data.clear', 'mcp_execute', true);
     const readProfile = buildMatrixExecutionProfile('sheets_data.read', 'mcp_execute', false);
     const probeProfile = buildMatrixExecutionProfile(

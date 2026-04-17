@@ -73,7 +73,13 @@ describe('analyzeData() — session context enrichment', () => {
   it('prompt is unchanged when no session context provided', async () => {
     await analyzeData(
       server,
-      { data: [['A', 'B'], [1, 2]], question: 'What is the sum?' },
+      {
+        data: [
+          ['A', 'B'],
+          [1, 2],
+        ],
+        question: 'What is the sum?',
+      },
       {}
     );
 
@@ -95,8 +101,17 @@ describe('analyzeData() — session context enrichment', () => {
 
     await analyzeData(
       server,
-      { data: [['Product', 'Sales'], ['A', 100]], question: 'Best product?' },
-      { sessionContext: sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager }
+      {
+        data: [
+          ['Product', 'Sales'],
+          ['A', 100],
+        ],
+        question: 'Best product?',
+      },
+      {
+        sessionContext:
+          sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager,
+      }
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
@@ -119,7 +134,10 @@ describe('analyzeData() — session context enrichment', () => {
     await analyzeData(
       server,
       { data: [['X'], [1]], question: 'Analyze this.' },
-      { sessionContext: sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager }
+      {
+        sessionContext:
+          sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager,
+      }
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
@@ -140,7 +158,10 @@ describe('analyzeData() — session context enrichment', () => {
     await analyzeData(
       server,
       { data: [['X'], [1]], question: 'Analyze.' },
-      { sessionContext: sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager }
+      {
+        sessionContext:
+          sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager,
+      }
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;
@@ -167,7 +188,10 @@ describe('analyzeData() — session context enrichment', () => {
     await analyzeData(
       server,
       { data: [['X'], [1]], question: 'Analyze.' },
-      { sessionContext: sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager }
+      {
+        sessionContext:
+          sessionContext as unknown as import('../../src/services/session-context.js').SessionContextManager,
+      }
     );
 
     const messages = capturedMessages[0] as Array<{ content: { text: string } }>;

@@ -19,7 +19,7 @@ import { getEnv } from '../../config/env.js';
 
 export function getFieldMask(operation: 'metadata' | 'sheets_list' | 'full'): string | undefined {
   // Feature flag check
-  const aggressiveMasking = getEnv().ENABLE_AGGRESSIVE_FIELD_MASKS;
+  const aggressiveMasking = Boolean(getEnv()['ENABLE_AGGRESSIVE_FIELD_MASKS']);
 
   if (!aggressiveMasking) {
     return undefined; // OK: Explicit empty — Full response

@@ -95,10 +95,7 @@ export {
   SENSITIVE_STRING_PATTERNS,
 } from './utils/index.js';
 
-export {
-  BoundedCache,
-  type BoundedCacheOptions,
-} from './utils/index.js';
+export { BoundedCache, type BoundedCacheOptions } from './utils/index.js';
 
 export {
   createLogger,

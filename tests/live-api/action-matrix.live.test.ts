@@ -25,10 +25,7 @@ import {
   shouldRunIntegrationTests,
   type TestCredentials,
 } from '../helpers/credential-loader.js';
-import {
-  generateAllFixtures,
-  type ActionFixture,
-} from '../audit/action-coverage-fixtures.js';
+import { generateAllFixtures, type ActionFixture } from '../audit/action-coverage-fixtures.js';
 import { LiveApiClient } from './setup/live-api-client.js';
 import { TestSpreadsheetManager } from './setup/test-spreadsheet-manager.js';
 import { getQuotaManager } from './setup/quota-manager.js';
@@ -210,7 +207,11 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   }
 
   it('overall: action accounting matches fixture coverage', () => {
-    const report = summarizeMatrixResults(results, new Date().toISOString(), Date.now() - startTime);
+    const report = summarizeMatrixResults(
+      results,
+      new Date().toISOString(),
+      Date.now() - startTime
+    );
 
     expect(results).toHaveLength(MATRIX_FIXTURES.length);
     expect(report.executed + report.probed + report.skipped).toBe(MATRIX_FIXTURES.length);
@@ -305,10 +306,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     capability: ActionCapability,
     context: MatrixExecutionContext
   ): Promise<MatrixActionResult> {
-    const requestEnvelope = materializeFixtureRequest(
-      fixture,
-      getMaterializeOptions(context)
-    );
+    const requestEnvelope = materializeFixtureRequest(fixture, getMaterializeOptions(context));
 
     const start = Date.now();
     const profile = capability.executionProfile;
@@ -319,14 +317,18 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
       attemptCount = attempt;
 
       try {
-        const result = (await harness.client.callTool({
-          name: fixture.tool,
-          arguments: requestEnvelope,
-        }, undefined, {
-          timeout: profile.callTimeoutMs,
-          maxTotalTimeout: profile.maxTotalTimeoutMs,
-          resetTimeoutOnProgress: true,
-        })) as CallToolResult;
+        const result = (await harness.client.callTool(
+          {
+            name: fixture.tool,
+            arguments: requestEnvelope,
+          },
+          undefined,
+          {
+            timeout: profile.callTimeoutMs,
+            maxTotalTimeout: profile.maxTotalTimeoutMs,
+            resetTimeoutOnProgress: true,
+          }
+        )) as CallToolResult;
         recordExecutionEstimate(capability);
 
         const parsed = parseMcpOutcome(result);
@@ -428,10 +430,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     capability: ActionCapability,
     context: MatrixExecutionContext
   ): Promise<MatrixActionResult> {
-    const requestEnvelope = materializeFixtureRequest(
-      fixture,
-      getMaterializeOptions(context)
-    );
+    const requestEnvelope = materializeFixtureRequest(fixture, getMaterializeOptions(context));
     const request = requestEnvelope['request'] as Record<string, unknown>;
     const start = Date.now();
 
@@ -591,10 +590,7 @@ async function createMatrixHarness(credentials: TestCredentials): Promise<McpTes
 
 function createHarnessGoogleApiOptions(credentials: TestCredentials) {
   if (credentials.serviceAccount) {
-    const tempFilePath = path.join(
-      os.tmpdir(),
-      `servalsheets-action-matrix-${randomUUID()}.json`
-    );
+    const tempFilePath = path.join(os.tmpdir(), `servalsheets-action-matrix-${randomUUID()}.json`);
 
     fs.writeFileSync(tempFilePath, JSON.stringify(credentials.serviceAccount, null, 2));
     registerTempServiceAccountPath(tempFilePath);
@@ -745,8 +741,8 @@ async function createMatrixSpreadsheet(
   await seedMatrixSpreadsheet(client, spreadsheetId);
 
   const sheet1 =
-    response.data.sheets?.find((sheet) => sheet.properties?.title === 'Sheet1')?.properties?.sheetId ??
-    0;
+    response.data.sheets?.find((sheet) => sheet.properties?.title === 'Sheet1')?.properties
+      ?.sheetId ?? 0;
 
   return {
     id: spreadsheetId,
@@ -755,10 +751,7 @@ async function createMatrixSpreadsheet(
   };
 }
 
-async function seedMatrixSpreadsheet(
-  client: LiveApiClient,
-  spreadsheetId: string
-): Promise<void> {
+async function seedMatrixSpreadsheet(client: LiveApiClient, spreadsheetId: string): Promise<void> {
   const baseValues = [
     ['Name', 'Revenue', 'Cost', 'Date', 'Status', 'Profit'],
     ['Alice', 12500, 7800, '2024-01-01', 'Active', '=B2-C2'],

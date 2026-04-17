@@ -28,22 +28,24 @@ const httpTransportFailoverMocks = vi.hoisted(() => {
 });
 
 const httpTransportFailoverGoogleClientMocks = vi.hoisted(() => ({
-  createTokenBackedGoogleClient: vi.fn(async (options?: { accessToken?: string; refreshToken?: string }) => ({
-    authType: 'oauth2',
-    sheets: {},
-    drive: {},
-    oauth2: {
-      getAccessToken: vi
-        .fn()
-        .mockResolvedValue({ token: options?.accessToken ?? 'http-failover-access-token' }),
-    },
-    getTokenStatus: vi.fn(() => ({
-      hasAccessToken: true,
-      hasRefreshToken: Boolean(options?.refreshToken),
-      expiryDate: Date.now() + 60 * 60 * 1000,
-    })),
-    validateToken: vi.fn().mockResolvedValue({ valid: true }),
-  })),
+  createTokenBackedGoogleClient: vi.fn(
+    async (options?: { accessToken?: string; refreshToken?: string }) => ({
+      authType: 'oauth2',
+      sheets: {},
+      drive: {},
+      oauth2: {
+        getAccessToken: vi
+          .fn()
+          .mockResolvedValue({ token: options?.accessToken ?? 'http-failover-access-token' }),
+      },
+      getTokenStatus: vi.fn(() => ({
+        hasAccessToken: true,
+        hasRefreshToken: Boolean(options?.refreshToken),
+        expiryDate: Date.now() + 60 * 60 * 1000,
+      })),
+      validateToken: vi.fn().mockResolvedValue({ valid: true }),
+    })
+  ),
 }));
 
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
@@ -114,11 +116,9 @@ const canListenLocalhost = await new Promise<boolean>((resolve) => {
   });
 });
 
-function createJwtLikeBearerToken(
-  audience: string,
-  overrides?: Record<string, unknown>
-): string {
-  const encode = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+function createJwtLikeBearerToken(audience: string, overrides?: Record<string, unknown>): string {
+  const encode = (value: object): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
 
   return [
     encode({ alg: 'none', typ: 'JWT' }),
@@ -133,7 +133,10 @@ function createJwtLikeBearerToken(
   ].join('.');
 }
 
-function extractJsonRpcResult(response: request.Response, requestId: number): Record<string, unknown> | undefined {
+function extractJsonRpcResult(
+  response: request.Response,
+  requestId: number
+): Record<string, unknown> | undefined {
   if (response.body?.result) {
     return response.body.result as Record<string, unknown>;
   }
@@ -285,9 +288,7 @@ describe.skipIf(!canListenLocalhost)('HTTP transport hosted failover', () => {
           },
         },
       });
-      expect(httpTransportFailoverMocks.getRemoteToolClient).toHaveBeenCalledWith(
-        'sheets_compute'
-      );
+      expect(httpTransportFailoverMocks.getRemoteToolClient).toHaveBeenCalledWith('sheets_compute');
       expect(httpTransportFailoverMocks.remoteToolCall).toHaveBeenCalledWith('sheets_compute', {
         request: expect.objectContaining({
           action: 'evaluate',
@@ -408,9 +409,7 @@ describe.skipIf(!canListenLocalhost)('HTTP transport hosted failover', () => {
           },
         },
       });
-      expect(httpTransportFailoverMocks.getRemoteToolClient).toHaveBeenCalledWith(
-        'sheets_analyze'
-      );
+      expect(httpTransportFailoverMocks.getRemoteToolClient).toHaveBeenCalledWith('sheets_analyze');
       expect(httpTransportFailoverMocks.remoteToolCall).toHaveBeenCalledWith('sheets_analyze', {
         request: expect.objectContaining({
           action: 'analyze_data',

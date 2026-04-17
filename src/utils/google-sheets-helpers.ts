@@ -448,7 +448,7 @@ export function buildPersonChip(
         },
       },
     ],
-  };
+  } as sheets_v4.Schema$CellData;
 }
 
 /**
@@ -489,7 +489,7 @@ export function buildDriveChip(fileId: string, displayText?: string): sheets_v4.
         },
       },
     ],
-  };
+  } as sheets_v4.Schema$CellData;
 }
 
 /**
@@ -530,7 +530,7 @@ export function buildRichLinkChip(uri: string, displayText?: string): sheets_v4.
         },
       },
     ],
-  };
+  } as sheets_v4.Schema$CellData;
 }
 
 /**
@@ -546,7 +546,8 @@ export function buildRichLinkChip(uri: string, displayText?: string): sheets_v4.
  * @see https://developers.google.com/workspace/sheets/api/guides/chips
  */
 export function parseChipRuns(cell: sheets_v4.Schema$CellData, cellA1: string): ParsedChip | null {
-  const chipRuns = cell.chipRuns;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chipRuns = (cell as any).chipRuns;
   if (!chipRuns || chipRuns.length === 0) {
     return null;
   }

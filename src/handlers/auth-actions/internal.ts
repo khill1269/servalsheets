@@ -55,14 +55,9 @@ export function createOAuthClient(
   return new google.auth.OAuth2(oauthClientId, oauthClientSecret, redirectUri);
 }
 
-export function createFreshAuthUrl(
-  oauthClient: OAuth2Client,
-  scopes?: string[]
-): string {
+export function createFreshAuthUrl(oauthClient: OAuth2Client, scopes?: string[]): string {
   const requestedScopes =
-    scopes && scopes.length > 0
-      ? Array.from(new Set(scopes))
-      : Array.from(getRecommendedScopes());
+    scopes && scopes.length > 0 ? Array.from(new Set(scopes)) : Array.from(getRecommendedScopes());
   const state = generateOAuthState();
 
   try {

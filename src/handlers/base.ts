@@ -194,7 +194,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected checkOperationScopes(operation: string): void {
     // Skip validation if incremental consent is disabled or auth context missing
-    if (!getEnv().INCREMENTAL_CONSENT_ENABLED || !this.context.auth) {
+    if (!getEnv()['INCREMENTAL_CONSENT_ENABLED'] || !this.context.auth) {
       return;
     }
 

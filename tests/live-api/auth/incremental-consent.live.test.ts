@@ -13,9 +13,7 @@ import { SheetsTemplatesHandler as TemplatesHandler } from '../../../src/handler
 import { CollaborateHandler } from '../../../src/handlers/collaborate.js';
 import type { HandlerContext } from '../../../src/handlers/base.js';
 import { IncrementalScopeRequiredError } from '../../../src/security/incremental-scope.js';
-import {
-  ELEVATED_SCOPES as FULL_SCOPES,
-} from '../../../src/services/google-api.js';
+import { ELEVATED_SCOPES as FULL_SCOPES } from '../../../src/services/google-api.js';
 import { MINIMAL_SCOPES } from '../../../src/config/oauth-scopes.js';
 import { shouldRunIntegrationTests } from '../../helpers/credential-loader.js';
 import { getLiveApiClient } from '../setup/index.js';

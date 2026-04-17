@@ -74,9 +74,7 @@ describe('VaultSecretsProvider', () => {
   });
 
   it('returns undefined for 404 (secret not found)', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response('not found', { status: 404 })
-    );
+    fetchSpy.mockResolvedValueOnce(new Response('not found', { status: 404 }));
 
     const provider = new VaultSecretsProvider('https://vault.example.com', 'test-token');
     expect(await provider.getSecret('MISSING')).toBeUndefined();

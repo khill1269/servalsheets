@@ -2211,9 +2211,9 @@ export function initTransactionManager(
   if (!transactionManagerInstance) {
     const env = getEnv();
     transactionManagerInstance = new TransactionManager({
-      enabled: env.TRANSACTIONS_ENABLED,
-      autoSnapshot: env.TRANSACTIONS_AUTO_SNAPSHOT,
-      autoRollback: env.TRANSACTIONS_AUTO_ROLLBACK,
+      enabled: env['TRANSACTIONS_ENABLED'] as boolean | undefined,
+      autoSnapshot: env['TRANSACTIONS_AUTO_SNAPSHOT'] as boolean | undefined,
+      autoRollback: env['TRANSACTIONS_AUTO_ROLLBACK'] as boolean | undefined,
       maxOperationsPerTransaction: parseInt(process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'),
       transactionTimeoutMs: parseInt(process.env['TRANSACTIONS_TIMEOUT_MS'] || '300000'),
       snapshotRetentionMs: parseInt(process.env['TRANSACTIONS_SNAPSHOT_RETENTION_MS'] || '3600000'),
@@ -2225,7 +2225,7 @@ export function initTransactionManager(
           | 'read_committed'
           | 'serializable') || 'read_committed',
       googleClient,
-      walDir: env.TRANSACTION_WAL_DIR,
+      walDir: env['TRANSACTION_WAL_DIR'] as string | undefined,
     });
   }
   return transactionManagerInstance;

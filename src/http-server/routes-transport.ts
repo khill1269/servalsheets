@@ -73,6 +73,8 @@ export function registerHttpTransportRoutes(params: {
       createSessionSecurityContext,
       normalizeMcpSessionHeader,
       verifySessionSecurityContext,
-    },
-  });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 }

@@ -193,11 +193,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
           ],
         },
       };
-      const importHandler = new CompositeHandler(
-        authorizedContext,
-        mockSheetsApi,
-        mockDriveApi
-      );
+      const importHandler = new CompositeHandler(authorizedContext, mockSheetsApi, mockDriveApi);
       const result = await importHandler.handle({
         request: {
           action: 'import_csv',

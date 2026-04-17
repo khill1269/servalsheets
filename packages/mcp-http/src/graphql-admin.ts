@@ -61,9 +61,7 @@ export function registerHttpGraphQlAndAdmin<
   TApp,
   TContext,
   TRequestDeduplicator extends HttpGraphQlAdminRequestDeduplicator,
->(
-  options: RegisterHttpGraphQlAndAdminOptions<TApp, TContext, TRequestDeduplicator>
-): void {
+>(options: RegisterHttpGraphQlAndAdminOptions<TApp, TContext, TRequestDeduplicator>): void {
   const {
     app,
     sessions,

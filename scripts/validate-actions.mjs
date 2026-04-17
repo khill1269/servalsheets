@@ -14,21 +14,36 @@ if (!fs.existsSync(actionCountsPath)) {
 
 const content = fs.readFileSync(actionCountsPath, 'utf-8');
 
-// Parse TOOL_COUNT
-const toolCountMatch = content.match(/export const TOOL_COUNT = (\d+)/);
-if (!toolCountMatch) {
-  console.error('❌ Could not find TOOL_COUNT export');
-  process.exit(1);
+// Parse TOOL_COUNT — supports both literal (= 25) and computed (= Object.keys(...).length) forms
+let toolCount;
+const toolCountLiteral = content.match(/export const TOOL_COUNT = (\d+)/);
+if (toolCountLiteral) {
+  toolCount = parseInt(toolCountLiteral[1], 10);
+} else {
+  // Computed form: count top-level keys in ACTION_COUNTS object
+  const countsBlock = content.match(/export const ACTION_COUNTS[^=]+=\s*\{([\s\S]*?)\};/);
+  if (!countsBlock) {
+    console.error('❌ Could not find TOOL_COUNT or ACTION_COUNTS export');
+    process.exit(1);
+  }
+  toolCount = (countsBlock[1].match(/^\s+\w/gm) || []).length;
 }
-const toolCount = parseInt(toolCountMatch[1], 10);
 
-// Parse ACTION_COUNT
-const actionCountMatch = content.match(/export const ACTION_COUNT = (\d+)/);
-if (!actionCountMatch) {
-  console.error('❌ Could not find ACTION_COUNT export');
-  process.exit(1);
+// Parse ACTION_COUNT — supports both literal and computed forms
+let actionCount;
+const actionCountLiteral = content.match(/export const ACTION_COUNT = (\d+)/);
+if (actionCountLiteral) {
+  actionCount = parseInt(actionCountLiteral[1], 10);
+} else {
+  // Computed form: sum all values in ACTION_COUNTS
+  const countsBlock = content.match(/export const ACTION_COUNTS[^=]+=\s*\{([\s\S]*?)\};/);
+  if (!countsBlock) {
+    console.error('❌ Could not find ACTION_COUNT or ACTION_COUNTS export');
+    process.exit(1);
+  }
+  actionCount = (countsBlock[1].match(/:\s*(\d+)/g) || [])
+    .reduce((sum, m) => sum + parseInt(m.replace(/:\s*/, ''), 10), 0);
 }
-const actionCount = parseInt(actionCountMatch[1], 10);
 
 // Validation
 if (toolCount < 1 || toolCount > 100) {

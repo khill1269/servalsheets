@@ -93,9 +93,7 @@ export async function handleTimeline(
       .slice(0, 10)
       .map((e) => {
         const entry = e as unknown as Record<string, unknown>;
-        const ts = entry['timestamp']
-          ? new Date(entry['timestamp'] as string).toISOString()
-          : '?';
+        const ts = entry['timestamp'] ? new Date(entry['timestamp'] as string).toISOString() : '?';
         const author = entry['author'] ? ` (${entry['author']})` : '';
         const desc = entry['description'] ?? entry['summary'] ?? 'unknown change';
         return `${ts}: ${desc}${author}`;
@@ -139,12 +137,7 @@ export async function handleDiffRevisions(
     };
   }
 
-  const diff = await diffRevisions(
-    driveApi,
-    req.spreadsheetId,
-    req.revisionId1,
-    req.revisionId2
-  );
+  const diff = await diffRevisions(driveApi, req.spreadsheetId, req.revisionId1, req.revisionId2);
 
   // If sampling is available, generate an explanation of the diff
   let aiExplanation: string | undefined;
@@ -175,9 +168,7 @@ export async function handleDiffRevisions(
       );
       const text = Array.isArray(explanationResult.content)
         ? ((
-            explanationResult.content.find((c) => c.type === 'text') as
-              | { text: string }
-              | undefined
+            explanationResult.content.find((c) => c.type === 'text') as { text: string } | undefined
           )?.text ?? '')
         : ((explanationResult.content as { text?: string }).text ?? '');
       aiExplanation = text.trim();

@@ -150,7 +150,7 @@ export function buildServerStdioRuntimeDependencies(
       });
     },
     preloadPythonCompute: (envConfig, log) => {
-      if (!envConfig.ENABLE_PYTHON_COMPUTE) {
+      if (!(envConfig['ENABLE_PYTHON_COMPUTE'] as unknown as boolean)) {
         return;
       }
 
@@ -183,7 +183,7 @@ export function buildServerStdioRuntimeDependencies(
       log.debug('Connector sheet writer not configured (Sheets client unavailable)');
     },
     initializeBilling: (envConfig) => {
-      initializeBillingIntegration(buildBillingBootstrapConfig(envConfig));
+      initializeBillingIntegration(buildBillingBootstrapConfig(envConfig) as unknown as string);
     },
     registerCompletions: (log) =>
       recordStartupPhaseSync('register_completions', () => {

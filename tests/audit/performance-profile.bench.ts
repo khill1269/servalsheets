@@ -177,7 +177,13 @@ describe('Response Building — buildToolResponse()', () => {
   const successResult = {
     response: {
       success: true,
-      data: { values: [['a', 'b'], ['c', 'd']], range: 'Sheet1!A1:B2' },
+      data: {
+        values: [
+          ['a', 'b'],
+          ['c', 'd'],
+        ],
+        range: 'Sheet1!A1:B2',
+      },
     },
   };
 
@@ -233,7 +239,15 @@ describe('JSON Serialization — MCP Output', () => {
   const smallPayload = {
     content: [{ type: 'text', text: 'Success: read 4 cells' }],
     structuredContent: {
-      response: { success: true, data: { values: [['a', 'b'], ['c', 'd']] } },
+      response: {
+        success: true,
+        data: {
+          values: [
+            ['a', 'b'],
+            ['c', 'd'],
+          ],
+        },
+      },
     },
   };
 

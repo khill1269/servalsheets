@@ -60,7 +60,9 @@ const createMockContext = (): HandlerContext => ({
     execute: vi.fn().mockResolvedValue({ replies: [] }),
   } as any,
   rangeResolver: {
-    resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2', sheetId: 0, sheetName: 'Sheet1' }),
+    resolve: vi
+      .fn()
+      .mockResolvedValue({ a1Notation: 'Sheet1!A1:B2', sheetId: 0, sheetName: 'Sheet1' }),
   } as any,
   auth: { scopes: ['https://www.googleapis.com/auth/spreadsheets'] } as any,
   samplingServer: undefined,
@@ -130,7 +132,9 @@ describe('Category 13: Elicitation & Wizards', () => {
 
     it('13.1b chart_create with title (step 2) dispatches', async () => {
       mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
-        data: { replies: [{ addChart: { chart: { chartId: 123, spec: { title: 'Revenue Chart' } } } }] },
+        data: {
+          replies: [{ addChart: { chart: { chartId: 123, spec: { title: 'Revenue Chart' } } } }],
+        },
       });
 
       const result = await handler.handle({
@@ -406,26 +410,34 @@ describe('Category 13: Elicitation & Wizards', () => {
   });
 
   describe('13.10 OAuth URL-Mode (Not Form-Mode)', () => {
-    it.skipIf(!canListenLocalhost)('13.10 OAuth uses URL-mode for credentials (not form-mode)', async () => {
-      const handle = await startOAuthCredentialsServer({ provider: 'Test OAuth', timeout: 50 });
+    it.skipIf(!canListenLocalhost)(
+      '13.10 OAuth uses URL-mode for credentials (not form-mode)',
+      async () => {
+        const handle = await startOAuthCredentialsServer({ provider: 'Test OAuth', timeout: 50 });
 
-      expect(handle.url).toMatch(/^http:\/\/localhost:\d+\/setup-oauth$/);
-      handle.shutdown();
-      await expect(handle.credentialsPromise).rejects.toThrow('OAuth credentials server shut down');
-    });
+        expect(handle.url).toMatch(/^http:\/\/localhost:\d+\/setup-oauth$/);
+        handle.shutdown();
+        await expect(handle.credentialsPromise).rejects.toThrow(
+          'OAuth credentials server shut down'
+        );
+      }
+    );
 
-    it.skipIf(!canListenLocalhost)('13.10b API key server redirects to localhost on random port', async () => {
-      const handle = await startApiKeyServer({
-        provider: 'Test Provider',
-        signupUrl: 'https://example.com/signup',
-        hint: 'Starts with tp-',
-        timeout: 50,
-      });
+    it.skipIf(!canListenLocalhost)(
+      '13.10b API key server redirects to localhost on random port',
+      async () => {
+        const handle = await startApiKeyServer({
+          provider: 'Test Provider',
+          signupUrl: 'https://example.com/signup',
+          hint: 'Starts with tp-',
+          timeout: 50,
+        });
 
-      expect(handle.url).toMatch(/^http:\/\/localhost:\d+\/setup-key$/);
-      handle.shutdown();
-      await expect(handle.keyPromise).rejects.toThrow('API key server shut down');
-    });
+        expect(handle.url).toMatch(/^http:\/\/localhost:\d+\/setup-key$/);
+        handle.shutdown();
+        await expect(handle.keyPromise).rejects.toThrow('API key server shut down');
+      }
+    );
   });
 
   describe('13.x Confirmation Order Validation', () => {

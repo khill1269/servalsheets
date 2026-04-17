@@ -126,7 +126,13 @@ const createMockContext = (requestId: string): HandlerContext =>
         a1Notation: 'Sheet1!A1:D4',
         sheetId: 0,
         sheetName: 'Sheet1',
-        gridRange: { sheetId: 0, startRowIndex: 0, endRowIndex: 4, startColumnIndex: 0, endColumnIndex: 4 },
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 4,
+          startColumnIndex: 0,
+          endColumnIndex: 4,
+        },
         resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
       }),
     } as any,
@@ -184,7 +190,9 @@ describe('Concurrent Stress — 100 simultaneous reads', () => {
     const rejected = results.filter((r) => r.status === 'rejected');
     expect(rejected.length).toBe(0);
 
-    const fulfilled = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<unknown>[];
+    const fulfilled = results.filter(
+      (r) => r.status === 'fulfilled'
+    ) as PromiseFulfilledResult<unknown>[];
     expect(fulfilled.length).toBe(N);
 
     for (const result of fulfilled) {
@@ -262,7 +270,9 @@ describe('Concurrent Stress — 50 simultaneous writes', () => {
     const rejected = results.filter((r) => r.status === 'rejected');
     expect(rejected.length).toBe(0);
 
-    const fulfilled = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<unknown>[];
+    const fulfilled = results.filter(
+      (r) => r.status === 'fulfilled'
+    ) as PromiseFulfilledResult<unknown>[];
     expect(fulfilled.length).toBe(N);
 
     for (const result of fulfilled) {
@@ -288,7 +298,11 @@ describe('Concurrent Stress — mixed operations interleaved', () => {
 
   it('30 reads + 20 writes + 10 clears — all complete, shapes valid', async () => {
     const reads = Array.from({ length: 30 }, (_, i) =>
-      handler.handle({ action: 'read', spreadsheetId: 'test-id', range: `Sheet1!A${i + 1}:D${i + 2}` })
+      handler.handle({
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: `Sheet1!A${i + 1}:D${i + 2}`,
+      })
     );
     const writes = Array.from({ length: 20 }, (_, i) =>
       handler.handle({

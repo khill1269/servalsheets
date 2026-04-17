@@ -124,7 +124,9 @@ describe('@serval/mcp-stdio startCliRuntime', () => {
       exit,
     });
 
-    expect(output.error).toHaveBeenCalledWith('\n❌ Pre-flight checks failed - cannot start server\n');
+    expect(output.error).toHaveBeenCalledWith(
+      '\n❌ Pre-flight checks failed - cannot start server\n'
+    );
     expect(output.error).toHaveBeenCalledWith(
       '  ✗ build-artifacts: dist/ directory not found - project not built'
     );

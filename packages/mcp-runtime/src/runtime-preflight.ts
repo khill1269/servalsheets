@@ -21,7 +21,6 @@ export function prepareRuntimePreflight<TEnv extends RuntimePreflightEnv>(
 
   return {
     envConfig,
-    costTrackingEnabled:
-      envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION,
+    costTrackingEnabled: envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION,
   };
 }

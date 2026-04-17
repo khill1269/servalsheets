@@ -91,9 +91,7 @@ describe('CollaborateHandler rate limiter integration', () => {
   });
 
   it('returns error response when rate limiter throws', async () => {
-    vi.spyOn(driveRateLimiter, 'acquire').mockRejectedValue(
-      new Error('Rate limit exceeded')
-    );
+    vi.spyOn(driveRateLimiter, 'acquire').mockRejectedValue(new Error('Rate limit exceeded'));
     const handler = new CollaborateHandler(createMockContext(), createMockDriveApi() as any);
 
     const result = await handler.handle({

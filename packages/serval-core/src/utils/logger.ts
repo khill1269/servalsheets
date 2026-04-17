@@ -32,9 +32,10 @@ const redactSensitive = winston.format((info) => {
  * Create a logger instance for a Serval service
  */
 export function createLogger(config: LoggerConfig = {}): ServalLogger {
-  const level = config.level
-    ?? process.env['LOG_LEVEL']
-    ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug');
+  const level =
+    config.level ??
+    process.env['LOG_LEVEL'] ??
+    (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug');
 
   const stderrAll = config.stderrAll ?? true;
 
@@ -64,7 +65,10 @@ export function createLogger(config: LoggerConfig = {}): ServalLogger {
 /**
  * Create a child logger with additional metadata
  */
-export function createChildLogger(parent: ServalLogger, meta: Record<string, unknown>): ServalLogger {
+export function createChildLogger(
+  parent: ServalLogger,
+  meta: Record<string, unknown>
+): ServalLogger {
   return parent.child(meta);
 }
 

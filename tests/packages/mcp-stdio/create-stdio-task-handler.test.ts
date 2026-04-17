@@ -27,7 +27,9 @@ describe('@serval/mcp-stdio createStdioTaskHandler', () => {
         content: [{ type: 'text', text: 'ok' }],
       })),
       buildCancelledTaskResult: (message) => ({
-        structuredContent: { response: { success: false, error: { code: 'TASK_CANCELLED', message } } },
+        structuredContent: {
+          response: { success: false, error: { code: 'TASK_CANCELLED', message } },
+        },
       }),
       buildInternalErrorResult: (error) => ({
         structuredContent: {
@@ -81,7 +83,9 @@ describe('@serval/mcp-stdio createStdioTaskHandler', () => {
         throw error;
       }),
       buildCancelledTaskResult: (message) => ({
-        structuredContent: { response: { success: false, error: { code: 'TASK_CANCELLED', message } } },
+        structuredContent: {
+          response: { success: false, error: { code: 'TASK_CANCELLED', message } },
+        },
       }),
       buildInternalErrorResult: (error) => ({
         structuredContent: {

@@ -365,7 +365,7 @@ export function createToolHandlerMap(
     map[toolName] = withRequestMetadataCache(fn, googleClient);
   }
 
-  const finalMap = getEnv().ENABLE_IDEMPOTENCY ? wrapToolMapWithIdempotency(map) : map;
+  const finalMap = getEnv()['ENABLE_IDEMPOTENCY'] ? wrapToolMapWithIdempotency(map) : map;
 
   registerPipelineDispatch((tool: string, args: Record<string, unknown>) => {
     const fn = finalMap[tool];

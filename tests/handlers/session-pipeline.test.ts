@@ -7,8 +7,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PipelineExecutor, type PipelineStep, type ToolDispatch } from '../../src/services/pipeline-executor.js';
-import { registerPipelineDispatch, getPipelineDispatch } from '../../src/services/pipeline-registry.js';
+import {
+  PipelineExecutor,
+  type PipelineStep,
+  type ToolDispatch,
+} from '../../src/services/pipeline-executor.js';
+import {
+  registerPipelineDispatch,
+  getPipelineDispatch,
+} from '../../src/services/pipeline-registry.js';
 
 // ============================================================================
 // Helpers
@@ -31,12 +38,7 @@ function makeDispatch(
   return { dispatch, calls };
 }
 
-function makeStep(
-  id: string,
-  tool: string,
-  action: string,
-  dependsOn?: string[]
-): PipelineStep {
+function makeStep(id: string, tool: string, action: string, dependsOn?: string[]): PipelineStep {
   return { id, tool, action, params: {}, dependsOn };
 }
 
@@ -76,7 +78,12 @@ describe('PipelineExecutor', () => {
       };
       const exec = new PipelineExecutor(dispatch);
       await exec.executePipeline([
-        { id: 's1', tool: 'sheets_data', action: 'write', params: { spreadsheetId: 'abc', range: 'A1' } },
+        {
+          id: 's1',
+          tool: 'sheets_data',
+          action: 'write',
+          params: { spreadsheetId: 'abc', range: 'A1' },
+        },
       ]);
 
       expect(dispatched[0]).toMatchObject({
@@ -227,10 +234,7 @@ describe('PipelineExecutor', () => {
       const exec = new PipelineExecutor(dispatch);
       // Two independent steps — even if write fails, read should still run
       const result = await exec.executePipeline(
-        [
-          makeStep('w1', 'sheets_data', 'write'),
-          makeStep('r1', 'sheets_data', 'read'),
-        ],
+        [makeStep('w1', 'sheets_data', 'write'), makeStep('r1', 'sheets_data', 'read')],
         { failFast: false }
       );
 
@@ -278,9 +282,7 @@ describe('PipelineExecutor', () => {
     it('returns error for self-dependency', async () => {
       const { dispatch } = makeDispatch();
       const exec = new PipelineExecutor(dispatch);
-      const result = await exec.executePipeline([
-        makeStep('s1', 'sheets_data', 'write', ['s1']),
-      ]);
+      const result = await exec.executePipeline([makeStep('s1', 'sheets_data', 'write', ['s1'])]);
 
       expect(result.success).toBe(false);
     });

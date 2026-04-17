@@ -51,7 +51,10 @@ async function withTimeout<T>(
     return await Promise.race([
       operation,
       new Promise<T>((_resolve, reject) => {
-        timeoutId = setTimeout(() => reject(createTimeoutError(createServiceError, timeoutMs)), timeoutMs);
+        timeoutId = setTimeout(
+          () => reject(createTimeoutError(createServiceError, timeoutMs)),
+          timeoutMs
+        );
       }),
     ]);
   } finally {
@@ -121,10 +124,7 @@ export class RemoteToolClient {
     return client;
   }
 
-  async callRemoteTool(
-    toolName: string,
-    input: Record<string, unknown>
-  ): Promise<CallToolResult> {
+  async callRemoteTool(toolName: string, input: Record<string, unknown>): Promise<CallToolResult> {
     const client = await this.getClient();
     const timeoutMs = this.config.timeoutMs ?? 30000;
 

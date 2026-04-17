@@ -35,9 +35,7 @@ export function registerHttpLoggingSetLevelHandler(params: {
   subscribers: Map<string, HttpLoggingSubscriber>;
   installLoggingBridge: () => void;
   createRateLimitState: () => HttpMcpLogRateLimitState;
-  handleLoggingSetLevel: (params: {
-    level: LoggingLevel;
-  }) => Promise<HttpLoggingSetLevelResponse>;
+  handleLoggingSetLevel: (params: { level: LoggingLevel }) => Promise<HttpLoggingSetLevelResponse>;
   log?: HttpLoggingRegistrationLogger;
 }): void {
   const {

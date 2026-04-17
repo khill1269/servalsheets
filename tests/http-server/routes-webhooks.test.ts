@@ -80,7 +80,9 @@ describe('http webhook routes', () => {
       } as never,
     });
 
-    const workspaceHandler = post.mock.calls.find((call) => call[0] === '/webhook/workspace-events')?.[1];
+    const workspaceHandler = post.mock.calls.find(
+      (call) => call[0] === '/webhook/workspace-events'
+    )?.[1];
     const res = createResponseDouble();
 
     workspaceHandler({ body: { id: 'evt-1' } } as never, res as never);

@@ -14,28 +14,168 @@ export interface SuggestedAction {
  */
 export const RECOMMENDATION_RULES: Record<string, SuggestedAction[]> = {
   'sheets_data.read': [
-    { tool: 'sheets_analyze', action: 'detect_patterns', reason: 'Detect patterns in data just read', confidence: 0.8, priority: 1 },
-    { tool: 'sheets_analyze', action: 'scout', reason: 'Analyze data just read', confidence: 0.7, priority: 2 },
+    {
+      tool: 'sheets_analyze',
+      action: 'detect_patterns',
+      reason: 'Detect patterns in data just read',
+      confidence: 0.8,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Analyze data just read',
+      confidence: 0.7,
+      priority: 2,
+    },
   ],
   'sheets_fix.suggest_cleaning': [
-    { tool: 'sheets_fix', action: 'clean', reason: 'Apply suggested cleaning', confidence: 0.9, priority: 1 },
+    {
+      tool: 'sheets_fix',
+      action: 'clean',
+      reason: 'Apply suggested cleaning',
+      confidence: 0.9,
+      priority: 1,
+    },
   ],
   'sheets_analyze.scout': [
-    { tool: 'sheets_analyze', action: 'comprehensive', reason: 'Deep analysis after quick scan', confidence: 0.6, priority: 3 },
+    {
+      tool: 'sheets_analyze',
+      action: 'comprehensive',
+      reason: 'Deep analysis after quick scan',
+      confidence: 0.6,
+      priority: 3,
+    },
   ],
   'sheets_data.write': [
-    { tool: 'sheets_format', action: 'suggest_format', reason: 'Apply formatting after writing data', confidence: 0.7, priority: 2 },
-    { tool: 'sheets_session', action: 'record_operation', reason: 'Track mutation for undo support', confidence: 0.95, priority: 1 },
+    {
+      tool: 'sheets_format',
+      action: 'suggest_format',
+      reason: 'Apply formatting after writing data',
+      confidence: 0.7,
+      priority: 2,
+    },
+    {
+      tool: 'sheets_session',
+      action: 'record_operation',
+      reason: 'Track mutation for undo support',
+      confidence: 0.95,
+      priority: 1,
+    },
   ],
   'sheets_composite.import_csv': [
-    { tool: 'sheets_fix', action: 'clean', reason: 'Clean imported CSV data', confidence: 0.85, priority: 1 },
-    { tool: 'sheets_analyze', action: 'scout', reason: 'Analyze imported data structure', confidence: 0.7, priority: 2 },
+    {
+      tool: 'sheets_fix',
+      action: 'clean',
+      reason: 'Clean imported CSV data',
+      confidence: 0.85,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Analyze imported data structure',
+      confidence: 0.7,
+      priority: 2,
+    },
   ],
   'sheets_visualize.chart_create': [
-    { tool: 'sheets_visualize', action: 'chart_update', reason: 'Refine chart settings after creation', confidence: 0.75, priority: 1 },
+    {
+      tool: 'sheets_visualize',
+      action: 'chart_update',
+      reason: 'Refine chart settings after creation',
+      confidence: 0.75,
+      priority: 1,
+    },
   ],
   'sheets_data.append': [
-    { tool: 'sheets_quality', action: 'validate', reason: 'Validate data quality after append', confidence: 0.8, priority: 1 },
+    {
+      tool: 'sheets_quality',
+      action: 'validate',
+      reason: 'Validate data quality after append',
+      confidence: 0.8,
+      priority: 1,
+    },
+  ],
+  'sheets_data.cross_write': [
+    {
+      tool: 'sheets_data',
+      action: 'cross_read',
+      reason: 'Verify data before cross-spreadsheet write',
+      confidence: 0.9,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_data',
+      action: 'cross_compare',
+      reason: 'Compare source and destination after write',
+      confidence: 0.8,
+      priority: 2,
+    },
+  ],
+  'sheets_data.cross_query': [
+    {
+      tool: 'sheets_data',
+      action: 'cross_read',
+      reason: 'Read raw data for cross-spreadsheet query',
+      confidence: 0.85,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_analyze',
+      action: 'scout',
+      reason: 'Understand structure before querying',
+      confidence: 0.7,
+      priority: 2,
+    },
+  ],
+  'sheets_analyze.quick_insights': [
+    {
+      tool: 'sheets_analyze',
+      action: 'comprehensive',
+      reason: 'Get deeper analysis beyond quick insights',
+      confidence: 0.75,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_fix',
+      action: 'suggest_cleaning',
+      reason: 'Review cleaning suggestions from insights',
+      confidence: 0.7,
+      priority: 2,
+    },
+  ],
+  'sheets_analyze.auto_enhance': [
+    {
+      tool: 'sheets_analyze',
+      action: 'suggest_next_actions',
+      reason: 'Get next action suggestions after enhancement',
+      confidence: 0.8,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_visualize',
+      action: 'suggest_chart',
+      reason: 'Suggest visualization after enhancement',
+      confidence: 0.75,
+      priority: 2,
+    },
+  ],
+  'sheets_federation.call_remote': [
+    {
+      tool: 'sheets_data',
+      action: 'write',
+      reason: 'Store results from remote call',
+      confidence: 0.85,
+      priority: 1,
+    },
+    {
+      tool: 'sheets_session',
+      action: 'get_context',
+      reason: 'Get context for federation workflow',
+      confidence: 0.7,
+      priority: 2,
+    },
   ],
 };
 
@@ -53,22 +193,46 @@ export const WORKFLOW_CHAINS: WorkflowChain[] = [
     trigger: 'sheets_analyze.comprehensive',
     workflow: 'Analyze & Clean',
     steps: [
-      { tool: 'sheets_fix', action: 'suggest_cleaning', reason: 'Review cleaning suggestions after comprehensive analysis', confidence: 0.8, priority: 1 },
-      { tool: 'sheets_analyze', action: 'quick_insights', reason: 'Get quick insights summary', confidence: 0.7, priority: 2 },
+      {
+        tool: 'sheets_fix',
+        action: 'suggest_cleaning',
+        reason: 'Review cleaning suggestions after comprehensive analysis',
+        confidence: 0.8,
+        priority: 1,
+      },
+      {
+        tool: 'sheets_analyze',
+        action: 'quick_insights',
+        reason: 'Get quick insights summary',
+        confidence: 0.7,
+        priority: 2,
+      },
     ],
   },
   {
     trigger: 'sheets_data.write',
     workflow: 'Write & Track',
     steps: [
-      { tool: 'sheets_session', action: 'record_operation', reason: 'Track mutation for undo support', confidence: 0.95, priority: 1 },
+      {
+        tool: 'sheets_session',
+        action: 'record_operation',
+        reason: 'Track mutation for undo support',
+        confidence: 0.95,
+        priority: 1,
+      },
     ],
   },
   {
     trigger: 'sheets_fix.clean',
     workflow: 'Clean & Validate',
     steps: [
-      { tool: 'sheets_quality', action: 'validate', reason: 'Validate data quality after cleaning', confidence: 0.85, priority: 1 },
+      {
+        tool: 'sheets_quality',
+        action: 'validate',
+        reason: 'Validate data quality after cleaning',
+        confidence: 0.85,
+        priority: 1,
+      },
     ],
   },
 ];
@@ -146,7 +310,9 @@ export interface RecommendationRule {
   id: string;
   name: string;
   description: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trigger: (context: any) => boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recommendation: (context: any) => string;
   action?: {
     tool: string;
@@ -197,6 +363,7 @@ export class ActionRecommender {
     },
   ];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   recommendActions(context: any): RecommendationRule[] {
     return this.rules.filter((rule) => {
       try {

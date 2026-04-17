@@ -21,10 +21,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { buildToolResponse } from '../../src/mcp/registration/tool-handlers.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -197,7 +194,9 @@ describe('_meta contract — error response metadata', () => {
   it('_meta.errorCode present for known error codes', async () => {
     const ctx = createRequestContext({ requestId: 'err-req-001' });
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('SHEET_NOT_FOUND', 'Sheet missing'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(errorResponse('SHEET_NOT_FOUND', 'Sheet missing'), 'sheets_data')
+      )
     );
 
     const meta = getMeta(result);
@@ -213,7 +212,9 @@ describe('_meta contract — error response metadata', () => {
     const ctx = createRequestContext({ requestId: 'err-req-002' });
     // INTERNAL_ERROR is not in NON_FATAL_TOOL_ERROR_CODES — it is fatal
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('INTERNAL_ERROR', 'server crash'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(errorResponse('INTERNAL_ERROR', 'server crash'), 'sheets_data')
+      )
     );
 
     // buildToolResponse: isError = hasFailure && !treatAsNonFatal
@@ -224,7 +225,9 @@ describe('_meta contract — error response metadata', () => {
   it('response.error.code is preserved through buildToolResponse', async () => {
     const ctx = createRequestContext({ requestId: 'err-code-001' });
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('QUOTA_EXCEEDED', 'Rate limited'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(errorResponse('QUOTA_EXCEEDED', 'Rate limited'), 'sheets_data')
+      )
     );
 
     const resp = getResponse(result);
@@ -293,7 +296,9 @@ describe('_meta contract — suggestedFix injection', () => {
   it('suggestedFix injected for PERMISSION_DENIED', async () => {
     const ctx = createRequestContext({ requestId: 'fix-req-001' });
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('PERMISSION_DENIED', 'No access'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(errorResponse('PERMISSION_DENIED', 'No access'), 'sheets_data')
+      )
     );
 
     const resp = getResponse(result);
@@ -308,7 +313,12 @@ describe('_meta contract — suggestedFix injection', () => {
   it('suggestedFix injected for SHEET_NOT_FOUND', async () => {
     const ctx = createRequestContext({ requestId: 'fix-req-002' });
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('SHEET_NOT_FOUND', 'Sheet "Sales" not found'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(
+          errorResponse('SHEET_NOT_FOUND', 'Sheet "Sales" not found'),
+          'sheets_data'
+        )
+      )
     );
 
     const resp = getResponse(result);
@@ -438,7 +448,9 @@ describe('_meta contract — never breaks response', () => {
   it('_meta injection does not add keys inside response.error', async () => {
     const ctx = createRequestContext({ requestId: 'err-clean-001' });
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('INTERNAL_ERROR', 'server error'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(errorResponse('INTERNAL_ERROR', 'server error'), 'sheets_data')
+      )
     );
 
     const resp = getResponse(result);
@@ -477,7 +489,9 @@ describe('_meta contract — nonFatalError injection', () => {
     // RATE_LIMITED is often in NON_FATAL_TOOL_ERROR_CODES
     // We test that if the flag is injected, it has the correct shape
     const result = await runWithRequestContext(ctx, () =>
-      Promise.resolve(buildToolResponse(errorResponse('RATE_LIMITED', 'Too many requests'), 'sheets_data'))
+      Promise.resolve(
+        buildToolResponse(errorResponse('RATE_LIMITED', 'Too many requests'), 'sheets_data')
+      )
     );
 
     const meta = getMeta(result);
@@ -561,7 +575,11 @@ describe('_meta contract — _hints injection in primary pipeline', () => {
             response: {
               success: true,
               action: 'read',
-              values: [['A', 'B'], [1, 2], [3, 4]],
+              values: [
+                ['A', 'B'],
+                [1, 2],
+                [3, 4],
+              ],
             },
           },
           'sheets_format'

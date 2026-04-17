@@ -9,7 +9,10 @@ describe('@serval/mcp-stdio createStdioRuntimeDependencies', () => {
 
     const dependencies = createStdioRuntimeDependencies({
       ensureToolIntegrityVerified: vi.fn(async () => undefined),
-      prepareRuntimePreflight: vi.fn(() => ({ envConfig: { mode: 'test' }, costTrackingEnabled: true })),
+      prepareRuntimePreflight: vi.fn(() => ({
+        envConfig: { mode: 'test' },
+        costTrackingEnabled: true,
+      })),
       createAuthHandler: vi.fn(() => ({ kind: 'auth-handler' })),
       createOptionalGoogleClient: vi.fn(async () => null),
       initializeGoogleRuntime: vi.fn(async () => ({
@@ -42,7 +45,10 @@ describe('@serval/mcp-stdio createStdioRuntimeDependencies', () => {
   it('provides a default no-op resource deferral hook', () => {
     const dependencies = createStdioRuntimeDependencies({
       ensureToolIntegrityVerified: vi.fn(async () => undefined),
-      prepareRuntimePreflight: vi.fn(() => ({ envConfig: { mode: 'test' }, costTrackingEnabled: false })),
+      prepareRuntimePreflight: vi.fn(() => ({
+        envConfig: { mode: 'test' },
+        costTrackingEnabled: false,
+      })),
       createAuthHandler: vi.fn(() => ({ kind: 'auth-handler' })),
       createOptionalGoogleClient: vi.fn(async () => null),
       initializeGoogleRuntime: vi.fn(async () => ({

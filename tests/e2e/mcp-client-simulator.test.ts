@@ -60,9 +60,9 @@ describe('MCP HTTP Client Simulator', () => {
       }
     ).handleIncomingNotification(notification);
 
-    await expect(client.waitForNotification('notifications/resources/updated')).resolves.toMatchObject(
-      notification
-    );
+    await expect(
+      client.waitForNotification('notifications/resources/updated')
+    ).resolves.toMatchObject(notification);
 
     const futureWait = client.waitForNotification('notifications/progress', 200);
     setTimeout(() => {

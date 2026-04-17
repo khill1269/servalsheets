@@ -18,9 +18,9 @@ function nameFromUri(uri: string): string {
   return uri
     .split('/')
     .pop()!
-    .split('-')
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-    .join(' ');
+    .replace(/[^a-z0-9]+/gi, '_')
+    .toLowerCase()
+    .replace(/^_|_$/g, '');
 }
 
 function registerItems(
@@ -34,7 +34,9 @@ function registerItems(
       item.uri,
       { description: '', mimeType },
       async (uri) => ({
-        contents: [{ uri: typeof uri === 'string' ? uri : uri.toString(), mimeType, text: item.text }],
+        contents: [
+          { uri: typeof uri === 'string' ? uri : uri.toString(), mimeType, text: item.text },
+        ],
       })
     );
   }
@@ -980,7 +982,9 @@ Completions:
   ]);
 }
 
-export async function listKnowledgeResources(): Promise<Array<{ uri: string; contents: { mimeType: string; text: string } }>> {
+export async function listKnowledgeResources(): Promise<
+  Array<{ uri: string; contents: { mimeType: string; text: string } }>
+> {
   return [
     { uri: 'knowledge://formula-library', contents: { mimeType: 'text/plain', text: '' } },
     { uri: 'knowledge://data-cleaning', contents: { mimeType: 'text/plain', text: '' } },
@@ -996,17 +1000,19 @@ export function registerKnowledgeIndexResource(server: McpServer): void {
     'knowledge://index',
     { description: 'Index of all knowledge resources', mimeType: 'text/plain' },
     async (uri) => ({
-      contents: [{
-        uri: typeof uri === 'string' ? uri : uri.toString(),
-        mimeType: 'text/plain',
-        text: `Knowledge Resources
+      contents: [
+        {
+          uri: typeof uri === 'string' ? uri : uri.toString(),
+          mimeType: 'text/plain',
+          text: `Knowledge Resources
 
 - knowledge://formula-library
 - knowledge://data-cleaning
 - knowledge://analysis-workflow
 - knowledge://performance-tuning
 - knowledge://mcp-features`,
-      }],
+        },
+      ],
     })
   );
 }

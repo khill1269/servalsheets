@@ -527,36 +527,33 @@ const QueryNaturalLanguageActionSchema = CommonFieldsSchema.extend({
   conversationId: z.string().optional().describe('Conversation ID for multi-turn queries'),
 });
 
-const ExplainAnalysisActionSchema = z
-  .object({
-    action: z.literal('explain_analysis').describe('Conversational explanations'),
-    analysisResult: z
-      .record(
+const ExplainAnalysisActionSchema = z.object({
+  action: z.literal('explain_analysis').describe('Conversational explanations'),
+  analysisResult: z
+    .record(
+      z.string(),
+      z.union([
         z.string(),
-        z.union([
-          z.string(),
-          z.number(),
-          z.boolean(),
-          z.null(),
-          z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
-          z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-        ])
-      )
-      .optional()
-      .describe('Previous analysis result to explain'),
-    question: z.string().optional().describe('Specific question about the analysis'),
-    spreadsheetId: SpreadsheetIdSchema.optional().describe('Spreadsheet ID (optional for context)'),
-    sheetId: SheetIdSchema.optional().describe('Sheet ID (optional for context)'),
-    context: z.string().optional().describe('Additional context'),
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe('Response detail level'),
-  })
-  .refine((data) => !!data.analysisResult || !!data.question, {
-    message: 'Either analysisResult or question must be provided',
-  });
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+        z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+      ])
+    )
+    .optional()
+    .describe('Previous analysis result to explain'),
+  question: z.string().optional().describe('Specific question about the analysis'),
+  spreadsheetId: SpreadsheetIdSchema.optional().describe('Spreadsheet ID (optional for context)'),
+  sheetId: SheetIdSchema.optional().describe('Sheet ID (optional for context)'),
+  context: z.string().optional().describe('Additional context'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+// Note: analysisResult/question requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // ===== PROGRESSIVE ANALYSIS ACTIONS (5 actions) =====
 

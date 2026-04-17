@@ -169,7 +169,7 @@ async function validatePublicHttpsUrl(
 
 export async function validateWebhookUrl(urlString: string): Promise<void> {
   await validatePublicHttpsUrl(urlString, {
-    dnsStrict: getEnv().WEBHOOK_DNS_STRICT,
+    dnsStrict: getEnv()['WEBHOOK_DNS_STRICT'] as boolean,
     resourceLabel: 'Webhook URL',
     dnsStrictEnvVar: 'WEBHOOK_DNS_STRICT',
     component: 'webhook-url-validation',
@@ -178,7 +178,7 @@ export async function validateWebhookUrl(urlString: string): Promise<void> {
 
 export async function validateFederationServerUrl(urlString: string): Promise<void> {
   await validatePublicHttpsUrl(urlString, {
-    dnsStrict: getEnv().MCP_FEDERATION_DNS_STRICT,
+    dnsStrict: getEnv()['MCP_FEDERATION_DNS_STRICT'] as boolean,
     resourceLabel: 'Federation URL',
     dnsStrictEnvVar: 'MCP_FEDERATION_DNS_STRICT',
     component: 'federated-mcp-client',
@@ -187,7 +187,7 @@ export async function validateFederationServerUrl(urlString: string): Promise<vo
 
 export async function validateRemoteMcpExecutorUrl(urlString: string): Promise<void> {
   await validatePublicHttpsUrl(urlString, {
-    dnsStrict: getEnv().MCP_REMOTE_EXECUTOR_DNS_STRICT,
+    dnsStrict: getEnv()['MCP_REMOTE_EXECUTOR_DNS_STRICT'] as boolean,
     resourceLabel: 'Remote MCP executor URL',
     dnsStrictEnvVar: 'MCP_REMOTE_EXECUTOR_DNS_STRICT',
     component: 'remote-tool-client',

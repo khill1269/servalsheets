@@ -76,7 +76,9 @@ describe('raw action metadata contracts', () => {
     const rawMetadata = extractRawActionMetadataKeys();
     const staleTools = Object.keys(rawMetadata).filter((toolName) => !(toolName in TOOL_ACTIONS));
 
-    expect(staleTools, `Unexpected raw action metadata tools: ${staleTools.join(', ')}`).toEqual([]);
+    expect(staleTools, `Unexpected raw action metadata tools: ${staleTools.join(', ')}`).toEqual(
+      []
+    );
   });
 
   it('only contains canonical runtime action names for each tool', () => {

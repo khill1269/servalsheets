@@ -11,6 +11,7 @@ describe('remote MCP executor config', () => {
   });
 
   it('stays disabled when a URL is configured without an explicit tool allowlist', () => {
+    resetEnvForTest();
     process.env = {
       ...originalEnv,
       MCP_REMOTE_EXECUTOR_URL: 'https://example.com/mcp',
@@ -25,6 +26,7 @@ describe('remote MCP executor config', () => {
   });
 
   it('parses the tool allowlist and enables the executor only when tools are declared', () => {
+    resetEnvForTest();
     process.env = {
       ...originalEnv,
       MCP_REMOTE_EXECUTOR_URL: 'https://example.com/mcp',

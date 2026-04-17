@@ -35,7 +35,13 @@ vi.mock('../../src/utils/logger.js', () => {
     child: vi.fn().mockReturnThis(),
   };
   return {
-    logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn().mockReturnValue(child) },
+    logger: {
+      info: vi.fn(),
+      debug: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn().mockReturnValue(child),
+    },
     createChildLogger: vi.fn().mockReturnValue(child),
   };
 });
@@ -96,7 +102,9 @@ vi.mock('../../src/services/transaction-manager.js', () => ({
   getTransactionManager: vi.fn().mockReturnValue({
     begin: vi.fn().mockResolvedValue('tx_001'),
     queue: vi.fn().mockResolvedValue(undefined),
-    commit: vi.fn().mockResolvedValue({ success: true, operationResults: [], apiCallsSaved: 0, duration: 10 }),
+    commit: vi
+      .fn()
+      .mockResolvedValue({ success: true, operationResults: [], apiCallsSaved: 0, duration: 10 }),
     rollback: vi.fn().mockResolvedValue(undefined),
     getTransaction: vi.fn().mockReturnValue({ status: 'pending', operations: [] }),
     getActiveTransactions: vi.fn().mockReturnValue([]),
@@ -114,7 +122,10 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
-import { elicitSpreadsheetCreation, elicitConditionalFormatPreset } from '../../src/mcp/elicitation.js';
+import {
+  elicitSpreadsheetCreation,
+  elicitConditionalFormatPreset,
+} from '../../src/mcp/elicitation.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -142,7 +153,16 @@ const createMockSheetsApi = (): sheets_v4.Sheets =>
           spreadsheetId: 'new-spreadsheet-id',
           spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/new-spreadsheet-id/edit',
           properties: { title: 'Test Sheet', locale: 'en_US' },
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1', index: 0, gridProperties: { rowCount: 1000, columnCount: 26 } } }],
+          sheets: [
+            {
+              properties: {
+                sheetId: 0,
+                title: 'Sheet1',
+                index: 0,
+                gridProperties: { rowCount: 1000, columnCount: 26 },
+              },
+            },
+          ],
         },
       }),
       values: {
@@ -212,7 +232,10 @@ describe('VisualizeHandler — chart_create elicitation wizard', () => {
   });
 
   it('uses wizard chartType and title when elicitation available and chartType absent', async () => {
-    const elicitServer = createMockElicitationServer({ chartType: 'LINE', chartTitle: 'Revenue Trend' });
+    const elicitServer = createMockElicitationServer({
+      chartType: 'LINE',
+      chartTitle: 'Revenue Trend',
+    });
     const context = createMockContext(elicitServer);
     const handler = new VisualizeHandler(context, mockSheetsApi);
 

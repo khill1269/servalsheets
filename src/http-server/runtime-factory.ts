@@ -77,7 +77,8 @@ export async function createHttpMcpServerInstance(
     createTokenBackedInitializedGoogleHandlerBundle,
     sendProgress,
     requestDeduplicator,
-    buildBillingBootstrapConfig,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    buildBillingBootstrapConfig: buildBillingBootstrapConfig as any,
     initializeBillingIntegration,
     registerServalSheetsTools,
     registerServerPrompts,

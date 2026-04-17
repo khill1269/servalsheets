@@ -19,7 +19,10 @@ describe('MCP audit docs', () => {
   });
 
   it('compliance checklist reflects verified tool and action counts', () => {
-    const checklist = readFileSync('docs/compliance/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md', 'utf-8');
+    const checklist = readFileSync(
+      'docs/compliance/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md',
+      'utf-8'
+    );
 
     // Must contain current tool and action counts
     expect(checklist).toContain(`${TOOL_COUNT} tools`);

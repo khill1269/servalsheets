@@ -7,11 +7,7 @@
 import { ErrorCodes } from '../error-codes.js';
 import { extractRangeA1 } from '../../utils/range-helpers.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
-import {
-  fetchRangeData,
-  aggregate,
-  computeStatistics,
-} from '../../services/compute-engine.js';
+import { fetchRangeData, aggregate, computeStatistics } from '../../services/compute-engine.js';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/compute.js';
 import type { ComputeHandlerAccess } from './internal.js';
 import { resolveComputeInputData } from './header-resolution.js';
@@ -199,7 +195,11 @@ export async function handleEvaluate(
   // For now, resolve cell references if a range is provided
   let resolvedCells: Record<string, unknown> | undefined;
   if (req.range) {
-    const data = await fetchRangeData(access.sheetsApi, req.spreadsheetId, extractRangeA1(req.range));
+    const data = await fetchRangeData(
+      access.sheetsApi,
+      req.spreadsheetId,
+      extractRangeA1(req.range)
+    );
     resolvedCells = {};
     for (let r = 0; r < data.length; r++) {
       for (let c = 0; c < (data[r]?.length || 0); c++) {
@@ -361,10 +361,15 @@ export async function handleStatistical(
   req: SheetsComputeInput['request'] & { action: 'statistical' }
 ): Promise<SheetsComputeOutput> {
   const startMs = Date.now();
-  const resolvedData = await resolveComputeInputData(access.sheetsApi, req.spreadsheetId, req.range, {
-    hasHeaders: req.hasHeaders,
-    headerRow: req.headerRow,
-  });
+  const resolvedData = await resolveComputeInputData(
+    access.sheetsApi,
+    req.spreadsheetId,
+    req.range,
+    {
+      hasHeaders: req.hasHeaders,
+      headerRow: req.headerRow,
+    }
+  );
   if (!resolvedData.ok) {
     return {
       response: {

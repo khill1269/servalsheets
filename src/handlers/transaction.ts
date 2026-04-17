@@ -124,7 +124,7 @@ export class TransactionHandler {
           }
 
           // ISSUE-139: Hard cap on queued operations to prevent unbounded growth
-          const MAX_TRANSACTION_OPS = getEnv().MAX_TRANSACTION_OPS;
+          const MAX_TRANSACTION_OPS = Number(getEnv()['MAX_TRANSACTION_OPS']) as number;
           const preTx = transactionManager.getTransaction(req.transactionId);
           if (preTx.operations.length >= MAX_TRANSACTION_OPS) {
             throw new ServiceError(

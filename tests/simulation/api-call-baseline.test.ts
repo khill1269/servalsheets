@@ -128,7 +128,13 @@ const createMockContext = (requestId: string): HandlerContext =>
         a1Notation: 'Sheet1!A1:D4',
         sheetId: 0,
         sheetName: 'Sheet1',
-        gridRange: { sheetId: 0, startRowIndex: 0, endRowIndex: 4, startColumnIndex: 0, endColumnIndex: 4 },
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 4,
+          startColumnIndex: 0,
+          endColumnIndex: 4,
+        },
         resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
       }),
     } as any,
@@ -154,7 +160,10 @@ describe('API call baseline — single read fires exactly one values.get', () =>
     vi.clearAllMocks();
     resetETagCache();
     mockApi = createMockSheetsApi();
-    handler = new SheetsDataHandler(createMockContext('baseline-read'), mockApi as any as sheets_v4.Sheets);
+    handler = new SheetsDataHandler(
+      createMockContext('baseline-read'),
+      mockApi as any as sheets_v4.Sheets
+    );
   });
 
   it('single read calls values.get exactly once', async () => {
@@ -168,7 +177,11 @@ describe('API call baseline — single read fires exactly one values.get', () =>
   });
 
   it('successful read returns success:true', async () => {
-    const result = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+    const result = await handler.handle({
+      action: 'read',
+      spreadsheetId: 'test-id',
+      range: 'Sheet1!A1:D4',
+    });
     const resp = (result as any).response;
     expect(resp.success).toBe(true);
   });
@@ -184,7 +197,10 @@ describe('API call baseline — batch_read fires ONE batchGet', () => {
     vi.clearAllMocks();
     resetETagCache();
     mockApi = createMockSheetsApi();
-    handler = new SheetsDataHandler(createMockContext('batch-baseline'), mockApi as any as sheets_v4.Sheets);
+    handler = new SheetsDataHandler(
+      createMockContext('batch-baseline'),
+      mockApi as any as sheets_v4.Sheets
+    );
   });
 
   it('batch_read with 3 ranges fires exactly 1 batchGet call', async () => {
@@ -226,7 +242,10 @@ describe('API call baseline — writes do not inflate read API calls', () => {
     vi.clearAllMocks();
     resetETagCache();
     mockApi = createMockSheetsApi();
-    handler = new SheetsDataHandler(createMockContext('write-baseline'), mockApi as any as sheets_v4.Sheets);
+    handler = new SheetsDataHandler(
+      createMockContext('write-baseline'),
+      mockApi as any as sheets_v4.Sheets
+    );
   });
 
   it('write calls values.update (not values.get)', async () => {

@@ -73,11 +73,7 @@ describe('http request-context middleware', () => {
       debug: vi.fn(),
       log: vi.fn(),
     };
-    const generated = [
-      '11111111111111111111111111111111',
-      '2222222222222222',
-      '3333333333333333',
-    ];
+    const generated = ['11111111111111111111111111111111', '2222222222222222', '3333333333333333'];
     const traceContextMiddleware = createHttpTraceContextMiddleware({
       createRandomHex: () => generated.shift() ?? 'f'.repeat(32),
       log: log as never,

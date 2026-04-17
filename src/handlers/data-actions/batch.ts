@@ -8,7 +8,6 @@ import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import type { ValuesArray, RangeInput } from '../../schemas/index.js';
 import { getEnv } from '../../config/env.js';
 import { getETagCache } from '../../services/etag-cache.js';
-import { sendProgress } from '../../utils/request-context.js';
 import { calculateAffectedCells } from '../../utils/safety-helpers.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.js';
 import { validateSamplingOutput } from '../../services/sampling-validator.js';
@@ -310,21 +309,17 @@ export async function handleBatchRead(
         fields: 'valueRanges(range,values)',
       });
 
-      return (response.data.valueRanges ?? []).map(
-        (vr: sheets_v4.Schema$ValueRange) => ({
-          range: vr.range ?? '',
-          values: (vr.values ?? []) as ValuesArray,
-        })
-      );
+      return (response.data.valueRanges ?? []).map((vr: sheets_v4.Schema$ValueRange) => ({
+        range: vr.range ?? '',
+        values: (vr.values ?? []) as ValuesArray,
+      }));
     };
 
     // Run chunks in batches of CHUNK_CONCURRENCY
     const allValueRanges: Array<{ range: string; values: ValuesArray }> = [];
     for (let i = 0; i < chunks.length; i += CHUNK_CONCURRENCY) {
       const batch = chunks.slice(i, i + CHUNK_CONCURRENCY);
-      const results = await Promise.all(
-        batch.map((chunk, j) => fetchChunk(chunk, i + j))
-      );
+      const results = await Promise.all(batch.map((chunk, j) => fetchChunk(chunk, i + j)));
       for (const result of results) {
         allValueRanges.push(...result);
       }
@@ -388,8 +383,8 @@ export async function handleBatchRead(
   const env = getEnv();
   const useParallel =
     ha.context.parallelExecutor &&
-    env.ENABLE_PARALLEL_EXECUTOR &&
-    ranges.length > env.PARALLEL_EXECUTOR_THRESHOLD;
+    Boolean(env['ENABLE_PARALLEL_EXECUTOR']) &&
+    ranges.length > (Number(env['PARALLEL_EXECUTOR_THRESHOLD']) as number);
 
   let valueRanges: sheets_v4.Schema$ValueRange[];
 
@@ -415,17 +410,12 @@ export async function handleBatchRead(
       priority: 1,
     }));
 
-    const onProgress = env.ENABLE_GRANULAR_PROGRESS
-      ? async (progress: { completed: number; total: number }) => {
-          await sendProgress(
-            progress.completed,
-            progress.total,
-            `Reading ${progress.completed}/${mergeResult.mergedCount} merged ranges`
-          );
-        }
-      : undefined;
+    if (env['ENABLE_GRANULAR_PROGRESS']) {
+      // Note: ParallelExecutor.executeAllSuccessful() doesn't accept onProgress callback
+      // Progress reporting would need to be added via sendProgress() call separately if needed
+    }
 
-    const results = await ha.context.parallelExecutor!.executeAllSuccessful(tasks, onProgress);
+    const results = await ha.context.parallelExecutor!.executeAllSuccessful(tasks);
 
     valueRanges = new Array(ranges.length);
     for (const result of results) {
@@ -1024,11 +1014,16 @@ export async function handleFindReplace(
     const query = resolvedInput.matchCase ? resolvedInput.find : resolvedInput.find.toLowerCase();
     const limit = input.limit ?? 100;
 
-    for (let rangeIndex = 0; rangeIndex < valueRanges.length && matches.length < limit; rangeIndex++) {
+    for (
+      let rangeIndex = 0;
+      rangeIndex < valueRanges.length && matches.length < limit;
+      rangeIndex++
+    ) {
       const valueRange = valueRanges[rangeIndex];
       if (!valueRange) continue;
 
-      const sourceRange = valueRange.range ?? searchRanges[rangeIndex] ?? DEFAULT_FIND_REPLACE_SCAN_RANGE;
+      const sourceRange =
+        valueRange.range ?? searchRanges[rangeIndex] ?? DEFAULT_FIND_REPLACE_SCAN_RANGE;
       const parsedRange = parseA1Notation(sourceRange);
       const rowOffset = parsedRange.startRow;
       const columnOffset = parsedRange.startCol;

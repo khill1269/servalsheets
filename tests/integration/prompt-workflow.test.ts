@@ -16,10 +16,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../helpers/mcp-test-harness.js';
+import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -229,10 +226,9 @@ describe('Prompt workflow integration', () => {
       const toolActions = TOOL_ACTIONS[ref.tool];
       expect(toolActions, `Tool "${ref.tool}" not found in TOOL_ACTIONS`).toBeDefined();
       if (toolActions) {
-        expect(
-          toolActions,
-          `Action "${ref.action}" not found in ${ref.tool}`
-        ).toContain(ref.action);
+        expect(toolActions, `Action "${ref.action}" not found in ${ref.tool}`).toContain(
+          ref.action
+        );
       }
     }
   });
@@ -267,8 +263,6 @@ describe('Prompt workflow integration', () => {
       ).toHaveLength(0);
     }
 
-    expect(
-      failures.map((f) => `${f.name}: ${f.error}`),
-    ).toHaveLength(0);
+    expect(failures.map((f) => `${f.name}: ${f.error}`)).toHaveLength(0);
   });
 });

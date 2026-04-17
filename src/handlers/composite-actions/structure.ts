@@ -190,7 +190,9 @@ export async function handleImportAndFormatAction(
   if (input.hasHeader && input.headerFormat) {
     formatRequests.push({
       repeatCell: {
-        range: toGridRange(buildGridRangeInput(importResult.sheetId, 0, 1, 0, importResult.columnsImported)),
+        range: toGridRange(
+          buildGridRangeInput(importResult.sheetId, 0, 1, 0, importResult.columnsImported)
+        ),
         cell: {
           userEnteredFormat: {
             textFormat: {
@@ -331,7 +333,9 @@ export async function handleCloneStructureAction(
   if (!input.includeFormatting) {
     requests.push({
       updateCells: {
-        range: toGridRange(buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)),
+        range: toGridRange(
+          buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)
+        ),
         fields: 'userEnteredFormat',
       },
     });
@@ -355,7 +359,9 @@ export async function handleCloneStructureAction(
   if (!input.includeDataValidation) {
     requests.push({
       setDataValidation: {
-        range: toGridRange(buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)),
+        range: toGridRange(
+          buildGridRangeInput(newSheetId, headerRowCount, undefined, 0, undefined)
+        ),
         rule: undefined,
       },
     });

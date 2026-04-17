@@ -157,7 +157,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // =========================================================================
@@ -250,7 +250,11 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
 
       const response = result.response as any;
       expect(response.success).toBe(true);
-      const issues = response.audit.issues as Array<{ type: string; location: string; message: string }>;
+      const issues = response.audit.issues as Array<{
+        type: string;
+        location: string;
+        message: string;
+      }>;
       expect(issues.some((i) => i.type === 'empty_header')).toBe(true);
     });
 
@@ -345,7 +349,10 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
 
     it('should handle missing range gracefully (use full spreadsheet)', async () => {
       (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue(
-        makeValuesResponse([['A', 'B'], [1, 2]])
+        makeValuesResponse([
+          ['A', 'B'],
+          [1, 2],
+        ])
       );
 
       const result = await handler.handle({
@@ -390,9 +397,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
           sourceRange: { a1: 'Sheet1!A1:C6' },
-          steps: [
-            { type: 'filter', config: { column: 'Region', value: 'East' } },
-          ],
+          steps: [{ type: 'filter', config: { column: 'Region', value: 'East' } }],
           dryRun: true,
         },
       } as any);
@@ -412,9 +417,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
           sourceRange: { a1: 'Sheet1!A1:C6' },
-          steps: [
-            { type: 'sort', config: { column: 'Revenue', order: 'desc' } },
-          ],
+          steps: [{ type: 'sort', config: { column: 'Revenue', order: 'desc' } }],
           dryRun: true,
         },
       } as any);
@@ -431,9 +434,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
           action: 'data_pipeline',
           spreadsheetId: 'test-id',
           sourceRange: { a1: 'Sheet1!A1:C6' },
-          steps: [
-            { type: 'deduplicate', config: { columns: ['Name'] } },
-          ],
+          steps: [{ type: 'deduplicate', config: { columns: ['Name'] } }],
           dryRun: true,
         },
       } as any);
@@ -469,9 +470,7 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
           spreadsheetId: 'test-id',
           sourceRange: { a1: 'Sheet1!A1:C6' },
           outputRange: { a1: 'Output!A1' },
-          steps: [
-            { type: 'filter', config: { column: 'Region', value: 'West' } },
-          ],
+          steps: [{ type: 'filter', config: { column: 'Region', value: 'West' } }],
           dryRun: false,
         },
       } as any);
@@ -696,7 +695,9 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
     });
 
     it('should handle API failure gracefully', async () => {
-      (mockSheetsApi.spreadsheets.values.get as any).mockRejectedValue(new Error('Source read failed'));
+      (mockSheetsApi.spreadsheets.values.get as any).mockRejectedValue(
+        new Error('Source read failed')
+      );
 
       const result = await handler.handle({
         request: {

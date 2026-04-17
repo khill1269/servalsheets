@@ -24,7 +24,7 @@ const PACKAGE_VERSION = packageJson.version;
 
 import type PQueue from 'p-queue';
 import { TaskStoreAdapter } from './core/index.js';
-
+// Type compatibility: different p-queue instances from different node_modules paths
 import { GoogleApiClient } from './services/index.js';
 import type { GoogleApiClientOptions } from './services/google-api.js';
 // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
@@ -143,7 +143,7 @@ export class ServalSheetsServer {
     });
     this._server = infrastructure.server;
     this.taskStore = infrastructure.taskStore;
-    this.requestQueue = infrastructure.requestQueue;
+    this.requestQueue = infrastructure.requestQueue as unknown as PQueue;
     this.connectionHealthCheck = infrastructure.connectionHealthCheck;
     this.healthMonitor = infrastructure.healthMonitor;
 
@@ -274,7 +274,7 @@ export class ServalSheetsServer {
       taskStoreForCancellation: this.taskStore,
       taskAbortControllers: this.taskAbortControllers,
       taskWatchdogTimers: this.taskWatchdogTimers,
-      taskWatchdogMs: getEnv().TASK_WATCHDOG_MS,
+      taskWatchdogMs: (getEnv()['TASK_WATCHDOG_MS'] as unknown as number) ?? 30000,
       runTool: (args, extra) =>
         this.handleToolCall(toolName, args, {
           sendNotification: extra?.sendNotification,

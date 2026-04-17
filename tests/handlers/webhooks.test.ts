@@ -957,9 +957,9 @@ describe('WebhookHandler', () => {
       expect(result.response.error?.code).toBe('CONFIG_ERROR');
       expect(result.response.error?.message).toContain('Redis backend is required');
       expect(result.response.error?.resolutionSteps?.join(' ')).toContain('REDIS_URL');
-      expect((result.response.error?.details as { durabilityMode?: string } | undefined)?.durabilityMode).toBe(
-        'redis_required'
-      );
+      expect(
+        (result.response.error?.details as { durabilityMode?: string } | undefined)?.durabilityMode
+      ).toBe('redis_required');
     });
   });
 

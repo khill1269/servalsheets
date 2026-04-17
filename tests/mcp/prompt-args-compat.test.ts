@@ -19,10 +19,9 @@ describe('prompt argument compatibility', () => {
   });
 
   it('setup_collaboration accepts comma-separated collaborators from prompt arguments', async () => {
-    const prompts = getPrivateField<Record<string, { callback: (args: Record<string, unknown>) => Promise<unknown> }>>(
-      server as unknown,
-      '_registeredPrompts'
-    );
+    const prompts = getPrivateField<
+      Record<string, { callback: (args: Record<string, unknown>) => Promise<unknown> }>
+    >(server as unknown, '_registeredPrompts');
     const setupCollaboration = prompts?.['setup_collaboration'];
 
     expect(setupCollaboration).toBeDefined();

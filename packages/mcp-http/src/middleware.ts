@@ -93,9 +93,7 @@ function buildAllowedHosts(
 export function registerHttpFoundationMiddleware<
   TLog extends HttpFoundationLogger,
   TVersionSelection extends HttpVersionSelection,
->(
-  params: RegisterHttpFoundationMiddlewareParams<TLog, TVersionSelection>
-): void {
+>(params: RegisterHttpFoundationMiddlewareParams<TLog, TVersionSelection>): void {
   const {
     app,
     corsOrigins,

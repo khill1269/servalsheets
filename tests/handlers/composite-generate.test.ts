@@ -100,12 +100,14 @@ const SAMPLE_DEFINITION = {
         { header: 'Category', type: 'text' as const, width: 180 },
         { header: 'Jan', type: 'currency' as const, width: 120 },
         { header: 'Feb', type: 'currency' as const, width: 120 },
-        { header: 'Q1 Total', type: 'formula' as const, width: 130, formula: '=SUM(B{row}:C{row})' },
+        {
+          header: 'Q1 Total',
+          type: 'formula' as const,
+          width: 130,
+          formula: '=SUM(B{row}:C{row})',
+        },
       ],
-      rows: [
-        { values: ['Revenue', 50000, 55000, null] },
-        { values: ['COGS', 20000, 22000, null] },
-      ],
+      rows: [{ values: ['Revenue', 50000, 55000, null] }, { values: ['COGS', 20000, 22000, null] }],
       formatting: {
         headerStyle: 'bold_blue_background',
         numberFormat: '$#,##0',
@@ -185,7 +187,7 @@ describe('CompositeHandler (F1 Sheet Generator)', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // =========================================================================

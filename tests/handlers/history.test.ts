@@ -11,10 +11,7 @@ import type { SnapshotService } from '../../src/services/snapshot.js';
 import type { OperationHistory, OperationHistoryStats } from '../../src/types/history.js';
 import { SheetsHistoryOutputSchema } from '../../src/schemas/history.js';
 import { SessionContextManager } from '../../src/services/session-context.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Mock HistoryService
 const createMockHistoryService = (): HistoryService =>

@@ -202,7 +202,7 @@ describe('CollaborateHandler — Approval Actions', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // =========================================================================
@@ -232,7 +232,10 @@ describe('CollaborateHandler — Approval Actions', () => {
       expect(response.action).toBe('approval_create');
       expect(response.approval.approvalId).toMatch(/^approval_/);
       expect(response.approval.status).toBe('pending');
-      expect(response.approval.approvers).toEqual(['approver1@example.com', 'approver2@example.com']);
+      expect(response.approval.approvers).toEqual([
+        'approver1@example.com',
+        'approver2@example.com',
+      ]);
       expect(response.approval.approvedBy).toEqual([]);
       expect(response.approval.requiredApprovals).toBe(1);
       expect(response.approval.range).toBe('Sheet1!A1:C10');
@@ -732,9 +735,8 @@ describe('CollaborateHandler — Approval Actions', () => {
     });
 
     it('should call createSnapshotIfNeeded after confirmation when cancellation proceeds', async () => {
-      const { createSnapshotIfNeeded: mockSnapshot, requestSafetyConfirmation } = await import(
-        '../../src/utils/safety-helpers.js'
-      );
+      const { createSnapshotIfNeeded: mockSnapshot, requestSafetyConfirmation } =
+        await import('../../src/utils/safety-helpers.js');
 
       await handler.handle({
         action: 'approval_cancel',

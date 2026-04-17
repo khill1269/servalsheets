@@ -420,7 +420,7 @@ export class GoogleApiClient {
 
     // Enable HTTP/2 for improved performance (5-15% latency reduction)
     // gaxios automatically negotiates HTTP/2 via ALPN if server supports it
-    const enableHTTP2 = getEnv().GOOGLE_API_HTTP2_ENABLED; // Enabled by default
+    const enableHTTP2 = getEnv()['GOOGLE_API_HTTP2_ENABLED'] as boolean; // Enabled by default
 
     // Validate HTTP/2 configuration
     const validation = validateHTTP2Config(enableHTTP2);
@@ -593,7 +593,7 @@ export class GoogleApiClient {
     this.httpAgents = createHttpAgents();
 
     // Recreate API clients with new agents
-    const enableHTTP2 = getEnv().GOOGLE_API_HTTP2_ENABLED;
+    const enableHTTP2 = getEnv()['GOOGLE_API_HTTP2_ENABLED'] as boolean;
 
     const sheetsApi = google.sheets({
       version: 'v4',
@@ -871,7 +871,7 @@ export class GoogleApiClient {
    * Only runs if DISCOVERY_API_ENABLED environment variable is true
    */
   private async validateSchemasWithDiscovery(): Promise<void> {
-    if (!getEnv().DISCOVERY_API_ENABLED) {
+    if (!getEnv()['DISCOVERY_API_ENABLED'] as boolean) {
       return;
     }
 
@@ -1024,7 +1024,7 @@ export class GoogleApiClient {
 
         // Reset HTTP agents to prevent GOAWAY errors
         const { env } = await import('../config/env.js');
-        if (env.ENABLE_AUTO_CONNECTION_RESET) {
+        if (env['ENABLE_AUTO_CONNECTION_RESET'] as boolean) {
           await this.resetHttpAgents();
         }
       });
@@ -1427,7 +1427,7 @@ export class GoogleApiClient {
     // Reset HTTP agents to prevent GOAWAY errors (fire-and-forget)
     void (async () => {
       const { env } = await import('../config/env.js');
-      if (env.ENABLE_AUTO_CONNECTION_RESET) {
+      if (env['ENABLE_AUTO_CONNECTION_RESET'] as boolean) {
         await this.resetHttpAgents();
       }
     })();

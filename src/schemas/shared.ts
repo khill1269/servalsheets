@@ -218,10 +218,7 @@ export const A1NotationSchema = z.preprocess(
 export const A1RangeSchema = z
   .string()
   .min(1)
-  .regex(
-    /^(\$?[A-Z]{1,3}\$?\d{1,7})(:\$?[A-Z]{1,3}\$?\d{1,7})?$/i,
-    'Invalid A1 range format'
-  );
+  .regex(/^(\$?[A-Z]{1,3}\$?\d{1,7})(:\$?[A-Z]{1,3}\$?\d{1,7})?$/i, 'Invalid A1 range format');
 
 /** Sheet name */
 export const SheetNameSchema = z

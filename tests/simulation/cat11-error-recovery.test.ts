@@ -17,10 +17,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  suggestFix,
-  type SuggestedFix,
-} from '../../src/services/error-fix-suggester.js';
+import { suggestFix, type SuggestedFix } from '../../src/services/error-fix-suggester.js';
 import { ErrorPatternLearner } from '../../src/services/error-pattern-learner.js';
 
 describe('Category 11: Error Recovery & Self-Correction', () => {
@@ -35,13 +32,10 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   // =========================================================================
   describe('11.1 INVALID_RANGE correction', () => {
     it('should suggest bounded range for unbounded column reference', () => {
-      const fix = suggestFix(
-        'INVALID_RANGE',
-        'Range A:Z is unbounded',
-        'sheets_data',
-        'read',
-        { range: 'A:Z', spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('INVALID_RANGE', 'Range A:Z is unbounded', 'sheets_data', 'read', {
+        range: 'A:Z',
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix).toBeDefined();
       expect(fix?.tool).toBe('sheets_data');
@@ -52,13 +46,10 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should preserve sheet prefix when bounding range', () => {
-      const fix = suggestFix(
-        'INVALID_RANGE',
-        'Range is unbounded',
-        'sheets_data',
-        'read',
-        { range: 'Sheet1!B:D', spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('INVALID_RANGE', 'Range is unbounded', 'sheets_data', 'read', {
+        range: 'Sheet1!B:D',
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.params.range).toBe('Sheet1!B1:D1000');
     });
@@ -81,13 +72,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   // =========================================================================
   describe('11.2 SHEET_NOT_FOUND with context detection', () => {
     it('should suggest list_sheets action', () => {
-      const fix = suggestFix(
-        'SHEET_NOT_FOUND',
-        "Sheet 'Sales' not found",
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('SHEET_NOT_FOUND', "Sheet 'Sales' not found", 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_core');
       expect(fix?.action).toBe('list_sheets');
@@ -109,13 +96,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should detect trailing whitespace in sheet name', () => {
-      const fix = suggestFix(
-        'SHEET_NOT_FOUND',
-        "Sheet 'Sales ' not found",
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('SHEET_NOT_FOUND', "Sheet 'Sales ' not found", 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.explanation).toContain('Sales ');
       expect(fix?.explanation).toContain('trailing whitespace');
@@ -123,26 +106,18 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should detect case sensitivity issue', () => {
-      const fix = suggestFix(
-        'SHEET_NOT_FOUND',
-        "Sheet 'sales' not found",
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('SHEET_NOT_FOUND', "Sheet 'sales' not found", 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.explanation).toContain('sales');
       expect(fix?.explanation).toContain('case-sensitive');
     });
 
     it('should handle NOT_FOUND error code variant', () => {
-      const fix = suggestFix(
-        'NOT_FOUND',
-        "Sheet 'Missing' not found",
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('NOT_FOUND', "Sheet 'Missing' not found", 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_core');
       expect(fix?.action).toBe('list_sheets');
@@ -174,13 +149,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   // =========================================================================
   describe('11.4 PERMISSION_DENIED', () => {
     it('should suggest re-login for PERMISSION_DENIED', () => {
-      const fix = suggestFix(
-        'PERMISSION_DENIED',
-        'Access denied',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('PERMISSION_DENIED', 'Access denied', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_auth');
       expect(fix?.action).toBe('login');
@@ -188,13 +159,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should suggest re-login for AUTH_ERROR', () => {
-      const fix = suggestFix(
-        'AUTH_ERROR',
-        'Authentication failed',
-        'sheets_data',
-        'read',
-        {}
-      );
+      const fix = suggestFix('AUTH_ERROR', 'Authentication failed', 'sheets_data', 'read', {});
 
       expect(fix?.tool).toBe('sheets_auth');
       expect(fix?.action).toBe('login');
@@ -236,25 +201,17 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should handle RESOURCE_EXHAUSTED variant', () => {
-      const fix = suggestFix(
-        'RESOURCE_EXHAUSTED',
-        'Resources exhausted',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('RESOURCE_EXHAUSTED', 'Resources exhausted', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.params.verbosity).toBe('minimal');
     });
 
     it('should handle RATE_LIMITED variant', () => {
-      const fix = suggestFix(
-        'RATE_LIMITED',
-        'Too many requests',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('RATE_LIMITED', 'Too many requests', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.params.verbosity).toBe('minimal');
     });
@@ -265,13 +222,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   // =========================================================================
   describe('11.6 VALIDATION_ERROR with required fields', () => {
     it('should suggest required parameter check when message contains "required"', () => {
-      const fix = suggestFix(
-        'VALIDATION_ERROR',
-        'spreadsheetId: required',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('VALIDATION_ERROR', 'spreadsheetId: required', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix).toBeDefined();
       expect(fix?.explanation).toContain('Missing required parameter');
@@ -323,13 +276,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   // =========================================================================
   describe('11.7 FORMULA_ERROR', () => {
     it('should suggest analyze_formulas', () => {
-      const fix = suggestFix(
-        'FORMULA_ERROR',
-        'Invalid formula syntax',
-        'sheets_data',
-        'write',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('FORMULA_ERROR', 'Invalid formula syntax', 'sheets_data', 'write', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_analyze');
       expect(fix?.action).toBe('analyze_formulas');
@@ -394,13 +343,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should handle CIRCULAR_DEPENDENCY variant', () => {
-      const fix = suggestFix(
-        'CIRCULAR_DEPENDENCY',
-        'Circular dependency',
-        'sheets_data',
-        'write',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('CIRCULAR_DEPENDENCY', 'Circular dependency', 'sheets_data', 'write', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_dependencies');
       expect(fix?.action).toBe('detect_cycles');
@@ -439,25 +384,17 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should handle CONFLICT variant', () => {
-      const fix = suggestFix(
-        'CONFLICT',
-        'Write conflict',
-        'sheets_data',
-        'write',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('CONFLICT', 'Write conflict', 'sheets_data', 'write', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_quality');
     });
 
     it('should handle CONCURRENT_MODIFICATION variant', () => {
-      const fix = suggestFix(
-        'CONCURRENT_MODIFICATION',
-        'Concurrent edit',
-        'sheets_data',
-        'write',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('CONCURRENT_MODIFICATION', 'Concurrent edit', 'sheets_data', 'write', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_quality');
     });
@@ -469,13 +406,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   describe('11.10 TIMEOUT', () => {
     it('should suggest retry with minimal verbosity', () => {
       const params = { spreadsheetId: 'abc123', range: 'A1:Z100000' };
-      const fix = suggestFix(
-        'TIMEOUT',
-        'Operation timed out',
-        'sheets_data',
-        'read',
-        params
-      );
+      const fix = suggestFix('TIMEOUT', 'Operation timed out', 'sheets_data', 'read', params);
 
       expect(fix?.tool).toBe('sheets_data');
       expect(fix?.action).toBe('read');
@@ -485,25 +416,17 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should handle DEADLINE_EXCEEDED variant', () => {
-      const fix = suggestFix(
-        'DEADLINE_EXCEEDED',
-        'Deadline exceeded',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('DEADLINE_EXCEEDED', 'Deadline exceeded', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.params.verbosity).toBe('minimal');
     });
 
     it('should handle "timeout" message', () => {
-      const fix = suggestFix(
-        'INTERNAL_ERROR',
-        'Request timeout after 30s',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('INTERNAL_ERROR', 'Request timeout after 30s', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.params.verbosity).toBe('minimal');
     });
@@ -514,13 +437,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
   // =========================================================================
   describe('11.11 PROTECTED_RANGE', () => {
     it('should suggest list_protected_ranges', () => {
-      const fix = suggestFix(
-        'PROTECTED_RANGE',
-        'Range is protected',
-        'sheets_data',
-        'write',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('PROTECTED_RANGE', 'Range is protected', 'sheets_data', 'write', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_advanced');
       expect(fix?.action).toBe('list_protected_ranges');
@@ -528,13 +447,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should handle "protected" message keyword with PROTECTED_RANGE code', () => {
-      const fix = suggestFix(
-        'PROTECTED_RANGE',
-        'This range is protected',
-        'sheets_data',
-        'write',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('PROTECTED_RANGE', 'This range is protected', 'sheets_data', 'write', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix?.tool).toBe('sheets_advanced');
     });
@@ -600,7 +515,7 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
       );
 
       expect(fix?.explanation).toContain('Formula injection blocked');
-      expect(fix?.explanation).toContain("single quote");
+      expect(fix?.explanation).toContain('single quote');
       expect(fix?.explanation).toContain("'=text");
     });
 
@@ -1062,19 +977,16 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         });
 
         // Each error code should have a corresponding fix (or return null)
-        const isValidFix = fix === null || (fix && typeof fix.tool === 'string' && typeof fix.action === 'string');
+        const isValidFix =
+          fix === null || (fix && typeof fix.tool === 'string' && typeof fix.action === 'string');
         expect(isValidFix).toBe(true);
       }
     });
 
     it('should verify fix suggestion has required fields', () => {
-      const fix = suggestFix(
-        'SHEET_NOT_FOUND',
-        "Sheet 'Sales' not found",
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      ) as SuggestedFix;
+      const fix = suggestFix('SHEET_NOT_FOUND', "Sheet 'Sales' not found", 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      }) as SuggestedFix;
 
       // Verify all required fields are present
       expect(fix).toBeDefined();
@@ -1101,13 +1013,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
     });
 
     it('should return null for unrecognized error codes', () => {
-      const fix = suggestFix(
-        'UNKNOWN_ERROR_CODE',
-        'Unknown error',
-        'sheets_data',
-        'read',
-        { spreadsheetId: 'abc123' }
-      );
+      const fix = suggestFix('UNKNOWN_ERROR_CODE', 'Unknown error', 'sheets_data', 'read', {
+        spreadsheetId: 'abc123',
+      });
 
       expect(fix).toBeNull();
     });

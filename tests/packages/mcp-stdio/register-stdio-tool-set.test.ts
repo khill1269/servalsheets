@@ -17,7 +17,11 @@ describe('@serval/mcp-stdio registerStdioToolSet', () => {
         },
       ],
       {
-        createTaskHandler: vi.fn(() => ({ createTask: vi.fn(), getTask: vi.fn(), getTaskResult: vi.fn() })),
+        createTaskHandler: vi.fn(() => ({
+          createTask: vi.fn(),
+          getTask: vi.fn(),
+          getTaskResult: vi.fn(),
+        })),
         handleToolCall: vi.fn(),
         getToolIcons: vi.fn(() => undefined),
         getToolExecution: vi.fn(() => ({ taskSupport: 'required' })),

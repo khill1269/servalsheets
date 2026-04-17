@@ -14,6 +14,19 @@ import { createSnapshotIfNeeded } from '../../utils/safety-helpers.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
+// Google Sheets Tables API types (not yet in googleapis package typings)
+interface Schema$TableColumnProperties {
+  columnIndex?: number;
+  columnName?: string;
+  columnType?: string;
+}
+
+interface Schema$Table {
+  tableId?: string;
+  range?: sheets_v4.Schema$GridRange;
+  columnProperties?: Schema$TableColumnProperties[];
+}
+
 type CreateTableRequest = Extract<SheetsAdvancedInput['request'], { action: 'create_table' }>;
 type DeleteTableRequest = Extract<SheetsAdvancedInput['request'], { action: 'delete_table' }>;
 type ListTablesRequest = Extract<SheetsAdvancedInput['request'], { action: 'list_tables' }>;
@@ -100,8 +113,10 @@ async function validateCreateTablePreconditions(
       'sheets(properties(sheetId,title),basicFilter.range,bandedRanges(bandedRangeId,range),tables(tableId,range))',
   });
 
-  const targetSheet = (metadata.data.sheets ?? []).find(
-    (sheet) => sheet.properties?.sheetId === targetRange.sheetId
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const targetSheet = ((metadata.data as any)?.sheets ?? []).find(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sheet: any) => sheet.properties?.sheetId === targetRange.sheetId
   );
   const targetSheetName = targetSheet?.properties?.title ?? `Sheet ${targetRange.sheetId}`;
   const requestedRangeA1 = formatGridRange(targetRange, targetSheetName);
@@ -124,7 +139,8 @@ async function validateCreateTablePreconditions(
     });
   }
 
-  const overlappingBanding = (targetSheet?.bandedRanges ?? []).find((bandedRange) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const overlappingBanding = (targetSheet?.bandedRanges ?? []).find((bandedRange: any) =>
     rangesOverlap(targetRange, bandedRange.range)
   );
   if (overlappingBanding) {
@@ -148,8 +164,8 @@ async function validateCreateTablePreconditions(
     });
   }
 
-  const overlappingTable = (targetSheet?.tables ?? []).find((table) =>
-    rangesOverlap(targetRange, table.range)
+  const overlappingTable = ((targetSheet?.tables as Schema$Table[] | undefined) ?? []).find(
+    (table: Schema$Table) => rangesOverlap(targetRange, table.range)
   );
   if (overlappingTable) {
     return deps.error({
@@ -200,7 +216,7 @@ export async function handleCreateTableAction(
     return preconditionError;
   }
 
-  let columnProperties: sheets_v4.Schema$TableColumnProperties[] | undefined;
+  let columnProperties: Schema$TableColumnProperties[] | undefined;
   const hasHeaders = req.hasHeaders ?? true;
   const headerRowCount = req.headerRowCount ?? 1;
 
@@ -239,12 +255,15 @@ export async function handleCreateTableAction(
               columnProperties,
             },
           },
-        },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
       ],
     },
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
-  const table = response.data?.replies?.[0]?.addTable?.table;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const table = (response.data as any)?.replies?.[0]?.addTable?.table;
 
   return deps.success('create_table', {
     table: table
@@ -285,10 +304,12 @@ export async function handleDeleteTableAction(
           deleteTable: {
             tableId: req.tableId,
           },
-        },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
       ],
     },
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
   return deps.success('delete_table', {
     snapshotId: snapshot?.snapshotId,
@@ -306,8 +327,10 @@ export async function handleListTablesAction(
   });
 
   const allItems: NonNullable<AdvancedSuccess['tables']> = [];
-  for (const sheet of response.data.sheets ?? []) {
-    for (const table of sheet.tables ?? []) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const sheet of (response.data as any)?.sheets ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const table of (sheet as any).tables ?? []) {
       const range = table.range;
       const columnCount = table.columnProperties?.length ?? 0;
       const rowCount = range ? (range.endRowIndex ?? 0) - (range.startRowIndex ?? 0) : 0;
@@ -361,7 +384,8 @@ export async function handleUpdateTableAction(
         },
         fields: 'range',
       },
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
   }
 
   if (updates.length > 0) {
@@ -388,9 +412,11 @@ export async function handleRenameTableColumnAction(
     fields: 'sheets.tables',
   });
 
-  let targetTable: sheets_v4.Schema$Table | undefined;
-  for (const sheet of response.data.sheets ?? []) {
-    for (const table of sheet.tables ?? []) {
+  let targetTable: Schema$Table | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const sheet of (response.data as any)?.sheets ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const table of (sheet as any).tables ?? []) {
       if (table.tableId === req.tableId) {
         targetTable = table;
         break;
@@ -442,10 +468,12 @@ export async function handleRenameTableColumnAction(
             },
             fields: 'columnProperties',
           },
-        },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
       ],
     },
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
   return deps.success('rename_table_column', {});
 }
@@ -464,9 +492,11 @@ export async function handleSetTableColumnPropertiesAction(
     fields: 'sheets.tables',
   });
 
-  let targetTable: sheets_v4.Schema$Table | undefined;
-  for (const sheet of response.data.sheets ?? []) {
-    for (const table of sheet.tables ?? []) {
+  let targetTable: Schema$Table | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const sheet of (response.data as any)?.sheets ?? []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const table of (sheet as any).tables ?? []) {
       if (table.tableId === req.tableId) {
         targetTable = table;
         break;
@@ -508,7 +538,8 @@ export async function handleSetTableColumnPropertiesAction(
     };
   }
 
-  const requests: sheets_v4.Schema$Request[] = [
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const requests: any[] = [
     {
       updateTable: {
         table: {

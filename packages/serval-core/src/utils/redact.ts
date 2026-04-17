@@ -12,18 +12,48 @@
  */
 export const SENSITIVE_FIELD_NAMES = new Set([
   // OAuth & Authentication
-  'access_token', 'accesstoken', 'refresh_token', 'refreshtoken',
-  'id_token', 'idtoken', 'bearer', 'authorization', 'auth', 'token', 'jwt',
+  'access_token',
+  'accesstoken',
+  'refresh_token',
+  'refreshtoken',
+  'id_token',
+  'idtoken',
+  'bearer',
+  'authorization',
+  'auth',
+  'token',
+  'jwt',
   // API Keys & Secrets
-  'api_key', 'apikey', 'client_secret', 'clientsecret',
-  'client_id', 'clientid', 'secret', 'private_key', 'privatekey',
+  'api_key',
+  'apikey',
+  'client_secret',
+  'clientsecret',
+  'client_id',
+  'clientid',
+  'secret',
+  'private_key',
+  'privatekey',
   // Credentials
-  'password', 'passwd', 'pwd', 'credentials', 'creds',
+  'password',
+  'passwd',
+  'pwd',
+  'credentials',
+  'creds',
   // Session & Cookies
-  'session', 'sessionid', 'session_id', 'cookie', 'csrf', 'xsrf',
+  'session',
+  'sessionid',
+  'session_id',
+  'cookie',
+  'csrf',
+  'xsrf',
   // Other sensitive
-  'ssn', 'social_security', 'socialsecurity',
-  'credit_card', 'creditcard', 'cvv', 'pin',
+  'ssn',
+  'social_security',
+  'socialsecurity',
+  'credit_card',
+  'creditcard',
+  'cvv',
+  'pin',
 ]);
 
 /**
@@ -32,21 +62,49 @@ export const SENSITIVE_FIELD_NAMES = new Set([
  */
 export const SENSITIVE_STRING_PATTERNS = [
   // Google API Keys (AIza...)
-  { pattern: /AIza[A-Za-z0-9_-]{6,}/g, replacement: 'AIza[REDACTED]', description: 'Google API Key' },
+  {
+    pattern: /AIza[A-Za-z0-9_-]{6,}/g,
+    replacement: 'AIza[REDACTED]',
+    description: 'Google API Key',
+  },
   // Google OAuth access tokens (ya29.xxx)
-  { pattern: /ya29\.[A-Za-z0-9_-]+/g, replacement: '[REDACTED]', description: 'Google OAuth access token' },
+  {
+    pattern: /ya29\.[A-Za-z0-9_-]+/g,
+    replacement: '[REDACTED]',
+    description: 'Google OAuth access token',
+  },
   // Bearer tokens
-  { pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, replacement: 'Bearer [REDACTED]', description: 'OAuth Bearer token' },
+  {
+    pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
+    replacement: 'Bearer [REDACTED]',
+    description: 'OAuth Bearer token',
+  },
   // JWT tokens
-  { pattern: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, replacement: 'eyJ[REDACTED]', description: 'JWT token' },
+  {
+    pattern: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+    replacement: 'eyJ[REDACTED]',
+    description: 'JWT token',
+  },
   // AWS-style keys
   { pattern: /AKIA[A-Z0-9]{16}/g, replacement: 'AKIA[REDACTED]', description: 'AWS Access Key' },
   // URLs with tokens/keys in query params
-  { pattern: /([?&])(access_token|token|key|apikey|api_key|secret|password|pwd)=([^&\s]+)/gi, replacement: '$1$2=[REDACTED]', description: 'URL query parameter with sensitive data' },
+  {
+    pattern: /([?&])(access_token|token|key|apikey|api_key|secret|password|pwd)=([^&\s]+)/gi,
+    replacement: '$1$2=[REDACTED]',
+    description: 'URL query parameter with sensitive data',
+  },
   // Basic Auth
-  { pattern: /Basic\s+[A-Za-z0-9+/=]+/gi, replacement: 'Basic [REDACTED]', description: 'HTTP Basic Auth' },
+  {
+    pattern: /Basic\s+[A-Za-z0-9+/=]+/gi,
+    replacement: 'Basic [REDACTED]',
+    description: 'HTTP Basic Auth',
+  },
   // Generic long alphanumeric strings in sensitive contexts (LAST - most generic)
-  { pattern: /(token|secret|password|bearer|auth)["'\s:=]+(?!AIza)([A-Za-z0-9\-._~+/]{32,})/gi, replacement: '$1: [REDACTED]', description: 'Long alphanumeric string after sensitive keyword' },
+  {
+    pattern: /(token|secret|password|bearer|auth)["'\s:=]+(?!AIza)([A-Za-z0-9\-._~+/]{32,})/gi,
+    replacement: '$1: [REDACTED]',
+    description: 'Long alphanumeric string after sensitive keyword',
+  },
 ];
 
 /**
@@ -87,7 +145,11 @@ export function redactObject<T>(obj: T, seen = new WeakSet<object>(), depth = 0)
     redacted.stack = obj.stack;
     for (const [key, value] of Object.entries(obj)) {
       if (key !== 'message' && key !== 'stack' && key !== 'name') {
-        (redacted as unknown as Record<string, unknown>)[key] = redactObject(value, seen, depth + 1);
+        (redacted as unknown as Record<string, unknown>)[key] = redactObject(
+          value,
+          seen,
+          depth + 1
+        );
       }
     }
     return redacted as unknown as T;

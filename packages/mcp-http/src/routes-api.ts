@@ -48,7 +48,10 @@ const defaultLogger: HttpApiRoutesLogger = {
 };
 
 export function registerApiRoutes(
-  router: Pick<{ post(path: string, handler: (req: Request, res: Response) => unknown): void }, 'post'>,
+  router: Pick<
+    { post(path: string, handler: (req: Request, res: Response) => unknown): void },
+    'post'
+  >,
   deps: FormulaEvalDeps
 ): void {
   const log = deps.log ?? defaultLogger;

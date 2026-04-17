@@ -10,13 +10,9 @@ import { getRecommendedActions } from '../../src/services/action-recommender.js'
 
 describe('Phase 1B.1: Error Fix Suggester', () => {
   it('should suggest fixing unbounded range', () => {
-    const fix = suggestFix(
-      'INVALID_RANGE',
-      'Range is unbounded',
-      'sheets_data',
-      'read',
-      { range: 'Sheet1!A:Z' }
-    );
+    const fix = suggestFix('INVALID_RANGE', 'Range is unbounded', 'sheets_data', 'read', {
+      range: 'Sheet1!A:Z',
+    });
     expect(fix).not.toBeNull();
     expect(fix?.tool).toBe('sheets_data');
     expect(fix?.action).toBe('read');

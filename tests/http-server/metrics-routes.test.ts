@@ -29,29 +29,34 @@ describe('http metrics routes', () => {
       {
         adminMiddleware: adminMiddleware as never,
         metricsHandler: metricsHandler as never,
-        getCircuitBreakers: () => [
-          {
-            name: 'sheets',
-            description: 'Google Sheets API',
-            breaker: {
-              getStats: () => ({
-                state: 'open',
-                failureCount: 2,
-                successCount: 8,
-                totalRequests: 10,
-                lastFailure: '2026-03-24T00:00:00.000Z',
-                nextAttempt: '2026-03-24T00:01:00.000Z',
-                fallbackUsageCount: 1,
-                registeredFallbacks: 2,
-              }),
+        getCircuitBreakers: () =>
+          [
+            {
+              name: 'sheets',
+              description: 'Google Sheets API',
+              breaker: {
+                getStats: () => ({
+                  state: 'open',
+                  failureCount: 2,
+                  successCount: 8,
+                  totalRequests: 10,
+                  lastFailure: '2026-03-24T00:00:00.000Z',
+                  nextAttempt: '2026-03-24T00:01:00.000Z',
+                  fallbackUsageCount: 1,
+                  registeredFallbacks: 2,
+                }),
+              },
             },
-          },
-        ] as never,
+          ] as never,
       }
     );
 
     expect(get).toHaveBeenCalledWith('/metrics', adminMiddleware, metricsHandler);
-    expect(get).toHaveBeenCalledWith('/metrics/circuit-breakers', adminMiddleware, expect.any(Function));
+    expect(get).toHaveBeenCalledWith(
+      '/metrics/circuit-breakers',
+      adminMiddleware,
+      expect.any(Function)
+    );
 
     const handler = get.mock.calls.find(([path]) => path === '/metrics/circuit-breakers')?.[2];
     const res = createJsonResponseDouble();

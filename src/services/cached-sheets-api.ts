@@ -97,7 +97,7 @@ export class CachedSheetsApi {
     };
 
     // Check if conditional requests are enabled (Priority 9)
-    const conditionalRequestsEnabled = getEnv().ENABLE_CONDITIONAL_REQUESTS;
+    const conditionalRequestsEnabled = getEnv()['ENABLE_CONDITIONAL_REQUESTS'] as boolean;
 
     if (conditionalRequestsEnabled) {
       // Try conditional request with If-None-Match header
@@ -222,7 +222,7 @@ export class CachedSheetsApi {
     };
 
     // Check if conditional requests are enabled (Priority 9)
-    const conditionalRequestsEnabled = getEnv().ENABLE_CONDITIONAL_REQUESTS;
+    const conditionalRequestsEnabled = getEnv()['ENABLE_CONDITIONAL_REQUESTS'] as boolean;
 
     if (conditionalRequestsEnabled) {
       // Try conditional request with If-None-Match header

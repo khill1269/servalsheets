@@ -81,23 +81,20 @@ describe('executeToolCallRuntime', () => {
     const recordSuccessful = vi.fn().mockResolvedValue(undefined);
     const handler = vi.fn();
 
-    const result = await executeToolCallRuntime(
-      createInput(),
-      {
-        resolvePreflight: vi.fn().mockResolvedValue({
-          kind: 'handler',
-          handler,
-        }),
-        startKeepalive: vi.fn().mockReturnValue(keepalive),
-        executeToolCall: vi.fn().mockResolvedValue({
-          response: {
-            success: true,
-            values: [[1]],
-          },
-        }),
-        recordSuccessful,
-      }
-    );
+    const result = await executeToolCallRuntime(createInput(), {
+      resolvePreflight: vi.fn().mockResolvedValue({
+        kind: 'handler',
+        handler,
+      }),
+      startKeepalive: vi.fn().mockReturnValue(keepalive),
+      executeToolCall: vi.fn().mockResolvedValue({
+        response: {
+          success: true,
+          values: [[1]],
+        },
+      }),
+      recordSuccessful,
+    });
 
     expect(recordSuccessful).toHaveBeenCalledWith(
       expect.objectContaining({

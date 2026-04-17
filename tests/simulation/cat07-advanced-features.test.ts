@@ -16,7 +16,15 @@ const createMockSheetsApi = () => ({
       data: {
         spreadsheetId: 'test-sheet-id',
         properties: { title: 'Test Sheet' },
-        sheets: [{ properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: 100, columnCount: 26 } } }],
+        sheets: [
+          {
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 100, columnCount: 26 },
+            },
+          },
+        ],
         namedRanges: [{ namedRangeId: 'nr-1', name: 'SalesRange' }],
         protectedRanges: [],
         banding: [],
@@ -162,7 +170,11 @@ describe('Category 7: Advanced Features', () => {
 
   it('7.9 get_metadata dispatches', async () => {
     const result = await handler.handle({
-      request: { action: 'get_metadata', spreadsheetId: 'test-sheet-id', metadataKey: 'dataSource' },
+      request: {
+        action: 'get_metadata',
+        spreadsheetId: 'test-sheet-id',
+        metadataKey: 'dataSource',
+      },
     });
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();

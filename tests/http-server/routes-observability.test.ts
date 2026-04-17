@@ -4,7 +4,7 @@ import { registerHttpObservabilityRoutes } from '../../src/http-server/routes-ob
 describe('http observability routes wrapper', () => {
   it('delegates to the extracted route registrars with shared session and limiter hooks', () => {
     const app = {} as never;
-    const getUserRateLimiter = vi.fn(() => ({ kind: 'limiter' } as never));
+    const getUserRateLimiter = vi.fn(() => ({ kind: 'limiter' }) as never);
     const registerHttpObservabilityCoreRoutes = vi.fn();
     const registerHttpOpenApiDocsRoutes = vi.fn();
     const registerHttpMetricsRoutes = vi.fn();

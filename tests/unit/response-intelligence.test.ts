@@ -236,7 +236,10 @@ describe('applyResponseIntelligence', () => {
     const responseRecord: Record<string, unknown> = {
       success: false,
       action: 'read',
-      values: [['Name', 'Revenue'], ['Alice', 1000]],
+      values: [
+        ['Name', 'Revenue'],
+        ['Alice', 1000],
+      ],
       error: { code: 'PERMISSION_DENIED', message: 'Access denied' },
     };
 

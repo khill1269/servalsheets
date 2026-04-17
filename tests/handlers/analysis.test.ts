@@ -109,9 +109,7 @@ describe('AnalyzeHandler', () => {
   });
 
   it('returns error when API throws on analyze_quality', async () => {
-    mockSheetsApi.spreadsheets.values.get.mockRejectedValue(
-      new Error('API unavailable')
-    );
+    mockSheetsApi.spreadsheets.values.get.mockRejectedValue(new Error('API unavailable'));
 
     const result = await handler.handle({
       action: 'analyze_quality',
@@ -126,9 +124,7 @@ describe('AnalyzeHandler', () => {
   });
 
   it('returns error when API throws on analyze_data', async () => {
-    mockSheetsApi.spreadsheets.get.mockRejectedValue(
-      new Error('Spreadsheet not found')
-    );
+    mockSheetsApi.spreadsheets.get.mockRejectedValue(new Error('Spreadsheet not found'));
 
     const result = await handler.handle({
       action: 'analyze_data',

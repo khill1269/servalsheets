@@ -63,7 +63,7 @@ async function ensureCheckpointDir(): Promise<void> {
 }
 
 export function isCheckpointsEnabled(): boolean {
-  return getEnv().ENABLE_CHECKPOINTS;
+  return getEnv()['ENABLE_CHECKPOINTS'] as boolean;
 }
 
 // ============================================================================

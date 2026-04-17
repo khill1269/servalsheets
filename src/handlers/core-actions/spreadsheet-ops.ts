@@ -417,7 +417,7 @@ export async function handleCopyAction(
     const env = getEnv();
     const response = await withTimeout(
       () => deps.driveApi!.files.copy(copyParams),
-      env.COMPOSITE_TIMEOUT_MS,
+      Number(env['COMPOSITE_TIMEOUT_MS']),
       'copy_spreadsheet'
     );
 

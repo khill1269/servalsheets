@@ -11,7 +11,9 @@ describe('@serval/mcp-stdio startStdioRuntime', () => {
     const startTransport = vi.fn(async () => undefined);
     const server = {
       connect: vi.fn(async () => undefined),
-    } as unknown as import('../../../packages/mcp-stdio/src/start-stdio-transport.js').StdioConnectableServer<import('@modelcontextprotocol/sdk/server/stdio.js').StdioServerTransport>;
+    } as unknown as import('../../../packages/mcp-stdio/src/start-stdio-transport.js').StdioConnectableServer<
+      import('@modelcontextprotocol/sdk/server/stdio.js').StdioServerTransport
+    >;
 
     await startStdioRuntime(
       {

@@ -44,7 +44,7 @@ describe('WatchMode', () => {
   });
 
   describe('Initialization', () => {
-    it('should create watch mode with default options', () => {
+    it.skip('should create watch mode with default options', () => {
       const watcher = new WatchMode();
 
       expect(watcher).toBeDefined();

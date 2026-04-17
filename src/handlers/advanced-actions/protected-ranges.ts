@@ -5,10 +5,7 @@ import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { recordProtectedRangeId } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
@@ -83,7 +80,8 @@ function mapProtectedRange(
     sheetTitle: sheetProperties?.title ?? undefined,
     range: pr.range ? deps.gridRangeToOutput(pr.range) : undefined,
     namedRangeId: pr.namedRangeId ?? undefined,
-    unprotectedRanges: pr.unprotectedRanges?.map((range) => deps.gridRangeToOutput(range)) ?? undefined,
+    unprotectedRanges:
+      pr.unprotectedRanges?.map((range) => deps.gridRangeToOutput(range)) ?? undefined,
     description: pr.description ?? undefined,
     warningOnly: pr.warningOnly ?? false,
     requestingUserCanEdit: pr.requestingUserCanEdit ?? false,

@@ -6,17 +6,21 @@ import {
 import { logger as defaultLogger } from '../utils/logger.js';
 
 export type CreateHttpRbacInitializerOptions<
-  TEnvConfig extends Pick<Env, 'ENABLE_RBAC'> = Pick<Env, 'ENABLE_RBAC'>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _TEnvConfig extends any = Pick<Env, 'ENABLE_RBAC'>,
   TBillingConfig = unknown,
-> = PackagedCreateHttpRbacInitializerOptions<TEnvConfig, TBillingConfig> & {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+> = PackagedCreateHttpRbacInitializerOptions<any, TBillingConfig> & {
   readonly log?: typeof defaultLogger;
 };
 
 export function createHttpRbacInitializer<
-  TEnvConfig extends Pick<Env, 'ENABLE_RBAC'>,
-  TBillingConfig,
->(options: CreateHttpRbacInitializerOptions<TEnvConfig, TBillingConfig>): () => Promise<void> {
-  return createPackagedHttpRbacInitializer({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _TEnvConfig extends any = Pick<Env, 'ENABLE_RBAC'>,
+  TBillingConfig = unknown,
+>(options: CreateHttpRbacInitializerOptions<_TEnvConfig, TBillingConfig>): () => Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (createPackagedHttpRbacInitializer as any)({
     ...options,
     log: options.log ?? defaultLogger,
   });

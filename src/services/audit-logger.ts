@@ -777,10 +777,10 @@ export function getAuditLogger(): AuditLogger {
     }
 
     auditLogger = new AuditLogger({
-      logDir: env.AUDIT_LOG_DIR,
-      hmacSecret: env.AUDIT_HMAC_SECRET,
-      encryptionKey: env.AUDIT_LOG_ENCRYPTION_KEY,
-      retentionDays: env.AUDIT_LOG_RETENTION_DAYS,
+      logDir: env['AUDIT_LOG_DIR'] as string | undefined,
+      hmacSecret: env['AUDIT_HMAC_SECRET'] as string | undefined,
+      encryptionKey: env['AUDIT_LOG_ENCRYPTION_KEY'] as string | undefined,
+      retentionDays: env['AUDIT_LOG_RETENTION_DAYS'] as number | undefined,
       siemConfigs: siemConfigs.length > 0 ? siemConfigs : undefined,
     });
   }

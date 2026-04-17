@@ -184,7 +184,14 @@ describe.skipIf(!canListenLocalhost)('startApiKeyServer', () => {
     const body = 'apiKey=tp-first';
     const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
-    await request({ hostname: '127.0.0.1', port, path: '/setup-key', method: 'POST', body, headers });
+    await request({
+      hostname: '127.0.0.1',
+      port,
+      path: '/setup-key',
+      method: 'POST',
+      body,
+      headers,
+    });
     await expect(handle.keyPromise).resolves.toBe('tp-first');
 
     // Second POST — server already closed, expect connection refused or "already saved"

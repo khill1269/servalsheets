@@ -7,7 +7,11 @@
 import { ErrorCodes } from '../error-codes.js';
 import { extractRangeA1 } from '../../utils/range-helpers.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
-import { fetchRangeData, computeRegression, computeForecast } from '../../services/compute-engine.js';
+import {
+  fetchRangeData,
+  computeRegression,
+  computeForecast,
+} from '../../services/compute-engine.js';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/compute.js';
 import type { ComputeHandlerAccess } from './internal.js';
 import { resolveComputeInputData } from './header-resolution.js';
@@ -223,10 +227,15 @@ export async function handleRegression(
   req: SheetsComputeInput['request'] & { action: 'regression' }
 ): Promise<SheetsComputeOutput> {
   const startMs = Date.now();
-  const resolvedData = await resolveComputeInputData(access.sheetsApi, req.spreadsheetId, req.range, {
-    hasHeaders: req.hasHeaders,
-    headerRow: req.headerRow,
-  });
+  const resolvedData = await resolveComputeInputData(
+    access.sheetsApi,
+    req.spreadsheetId,
+    req.range,
+    {
+      hasHeaders: req.hasHeaders,
+      headerRow: req.headerRow,
+    }
+  );
   if (!resolvedData.ok) {
     return {
       response: {
@@ -238,12 +247,31 @@ export async function handleRegression(
   const data = resolvedData.data;
 
   const result = computeRegression(data, {
-    xColumn: req.xColumn,
-    yColumn: req.yColumn,
-    type: req.type,
-    degree: req.degree,
-    predict: req.predict,
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    xColumn: req.xColumn as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    yColumn: req.yColumn as any,
+    type: req.type as 'linear' | 'polynomial' | 'exponential' | 'logarithmic' | 'power',
+    degree: Number(req.degree),
+    predict: req.predict ? (Array.isArray(req.predict) ? req.predict : []) : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
+
+  // Compute residuals statistics from array
+  const residualsArray = Array.isArray(result.residuals) ? result.residuals : [];
+  const residualsMean =
+    residualsArray.length > 0
+      ? residualsArray.reduce((a, b) => a + b, 0) / residualsArray.length
+      : 0;
+  const residualsStddev =
+    residualsArray.length > 1
+      ? Math.sqrt(
+          residualsArray.reduce((sum, r) => sum + (r - residualsMean) ** 2, 0) /
+            (residualsArray.length - 1)
+        )
+      : 0;
+  const residualsMax =
+    residualsArray.length > 0 ? Math.max(...residualsArray.map((r) => Math.abs(r))) : 0;
 
   return {
     response: {
@@ -253,7 +281,7 @@ export async function handleRegression(
       rSquared: result.rSquared,
       equation: result.equation,
       predictions: result.predictions,
-      residuals: result.residuals,
+      residuals: { mean: residualsMean, stddev: residualsStddev, max: residualsMax },
       computationTimeMs: Date.now() - startMs,
     },
   };
@@ -328,12 +356,16 @@ export async function handleForecast(
   }
 
   const result = computeForecast(data, {
-    dateColumn: resolvedReq.dateColumn,
-    valueColumn: resolvedReq.valueColumn,
-    periods: resolvedReq.periods ?? 3,
-    method: resolvedReq.method,
-    seasonality: resolvedReq.seasonality,
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dateColumn: resolvedReq.dateColumn as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    valueColumn: resolvedReq.valueColumn as any,
+    periods: Number(resolvedReq.periods ?? 3),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    method: (resolvedReq.method as any) ?? 'auto',
+    seasonality: resolvedReq.seasonality ? Number(resolvedReq.seasonality) : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
   // Generate AI insight explaining forecast confidence and factors
   let aiInsight: string | undefined;
@@ -352,8 +384,21 @@ export async function handleForecast(
     response: {
       success: true,
       action: 'forecast',
-      forecast: result.forecast,
-      trend: result.trend,
+      forecast: Array.isArray(result.forecast)
+        ? result.forecast.map((f, i) => ({
+            period: String(i + 1),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            value: typeof f === 'number' ? f : ((f as any).value ?? 0),
+          }))
+        : [],
+      trend: {
+        direction: (result.trend?.direction ?? 'stable') as 'increasing' | 'decreasing' | 'stable',
+        strength: result.trend?.strength ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        seasonalityDetected: (result as any).seasonalityDetected ?? false,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        seasonalPeriod: (result as any).seasonalPeriod,
+      },
       methodUsed: result.methodUsed,
       computationTimeMs: Date.now() - startMs,
       ...(aiInsight !== undefined ? { aiInsight } : {}),

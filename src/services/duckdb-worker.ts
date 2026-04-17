@@ -55,6 +55,7 @@ function validateTableName(name: string): void {
 
 async function runQuery(): Promise<void> {
   try {
+    // @ts-expect-error @duckdb/node-api is an optional dependency
     const { DuckDBInstance } = await import('@duckdb/node-api');
     const instance = await DuckDBInstance.create();
     const conn = await instance.connect();

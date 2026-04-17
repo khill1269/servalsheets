@@ -15,7 +15,9 @@ import { handleDiagnoseErrorsAction } from '../../src/handlers/analyze-actions/d
 import { handleGenerateActionsAction } from '../../src/handlers/analyze-actions/plan-execute.js';
 import type { DiagnoseErrorsDeps } from '../../src/handlers/analyze-actions/diagnose-errors.js';
 
-type ValueRangeResponse = { data: { valueRanges?: Array<{ range?: string; values?: unknown[][] }> } };
+type ValueRangeResponse = {
+  data: { valueRanges?: Array<{ range?: string; values?: unknown[][] }> };
+};
 
 // Helper to build a batchGet response for one or more ranges
 function batchGetResponse(
@@ -29,11 +31,15 @@ function batchGetResponse(
 }
 
 // Helper to create a mock Sheets API backed by batchGet
-function createMockSheetsApi(overrides: {
-  batchGetValues?: (params: Record<string, unknown>) => ValueRangeResponse;
-  batchGetFormulas?: (params: Record<string, unknown>) => ValueRangeResponse;
-  getSpreadsheet?: (params: Record<string, unknown>) => { data: { sheets?: Array<{ properties?: { title?: string } }> } };
-} = {}): DiagnoseErrorsDeps['sheetsApi'] {
+function createMockSheetsApi(
+  overrides: {
+    batchGetValues?: (params: Record<string, unknown>) => ValueRangeResponse;
+    batchGetFormulas?: (params: Record<string, unknown>) => ValueRangeResponse;
+    getSpreadsheet?: (params: Record<string, unknown>) => {
+      data: { sheets?: Array<{ properties?: { title?: string } }> };
+    };
+  } = {}
+): DiagnoseErrorsDeps['sheetsApi'] {
   const mockApi = {
     spreadsheets: {
       get: vi.fn().mockImplementation((params: Record<string, unknown>) => {
@@ -78,7 +84,16 @@ describe('diagnose_errors action', () => {
   it('returns empty errors array when no errors found', async () => {
     deps.sheetsApi = createMockSheetsApi({
       batchGetValues: () =>
-        batchGetResponse([{ range: 'Sheet1!A1:C3', values: [['Name', 'Revenue', 'Cost'], ['Product A', '1000', '500'], ['Product B', '2000', '800']] }]),
+        batchGetResponse([
+          {
+            range: 'Sheet1!A1:C3',
+            values: [
+              ['Name', 'Revenue', 'Cost'],
+              ['Product A', '1000', '500'],
+              ['Product B', '2000', '800'],
+            ],
+          },
+        ]),
     });
 
     const result = await handleDiagnoseErrorsAction(
@@ -97,9 +112,25 @@ describe('diagnose_errors action', () => {
   it('detects #REF! errors with root cause', async () => {
     deps.sheetsApi = createMockSheetsApi({
       batchGetValues: () =>
-        batchGetResponse([{ range: 'Sheet1!A1:B2', values: [['Name', 'Total'], ['Item 1', '#REF!']] }]),
+        batchGetResponse([
+          {
+            range: 'Sheet1!A1:B2',
+            values: [
+              ['Name', 'Total'],
+              ['Item 1', '#REF!'],
+            ],
+          },
+        ]),
       batchGetFormulas: () =>
-        batchGetResponse([{ range: 'Sheet1!A1:B2', values: [['Name', 'Total'], ['Item 1', '=SUM(C2:C10)']] }]),
+        batchGetResponse([
+          {
+            range: 'Sheet1!A1:B2',
+            values: [
+              ['Name', 'Total'],
+              ['Item 1', '=SUM(C2:C10)'],
+            ],
+          },
+        ]),
     });
 
     const result = await handleDiagnoseErrorsAction(
@@ -109,7 +140,9 @@ describe('diagnose_errors action', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      const errors = (result as Record<string, unknown>)['errors'] as Array<Record<string, unknown>>;
+      const errors = (result as Record<string, unknown>)['errors'] as Array<
+        Record<string, unknown>
+      >;
       expect(errors).toHaveLength(1);
       expect(errors[0]?.['errorType']).toBe('#REF!');
       expect(errors[0]?.['cell']).toContain('B2');
@@ -121,23 +154,27 @@ describe('diagnose_errors action', () => {
   it('detects multiple error types in same range', async () => {
     deps.sheetsApi = createMockSheetsApi({
       batchGetValues: () =>
-        batchGetResponse([{
-          range: 'Sheet1!A1:D3',
-          values: [
-            ['Data', 'Formula1', 'Formula2', 'Formula3'],
-            ['10', '#DIV/0!', '#N/A', '#VALUE!'],
-            ['20', '30', '#NAME?', '40'],
-          ],
-        }]),
+        batchGetResponse([
+          {
+            range: 'Sheet1!A1:D3',
+            values: [
+              ['Data', 'Formula1', 'Formula2', 'Formula3'],
+              ['10', '#DIV/0!', '#N/A', '#VALUE!'],
+              ['20', '30', '#NAME?', '40'],
+            ],
+          },
+        ]),
       batchGetFormulas: () =>
-        batchGetResponse([{
-          range: 'Sheet1!A1:D3',
-          values: [
-            ['Data', 'Formula1', 'Formula2', 'Formula3'],
-            ['10', '=A2/0', '=VLOOKUP("x",E:E,1)', '=A2+"text"'],
-            ['20', '30', '=MYFUNC(A3)', '40'],
-          ],
-        }]),
+        batchGetResponse([
+          {
+            range: 'Sheet1!A1:D3',
+            values: [
+              ['Data', 'Formula1', 'Formula2', 'Formula3'],
+              ['10', '=A2/0', '=VLOOKUP("x",E:E,1)', '=A2+"text"'],
+              ['20', '30', '=MYFUNC(A3)', '40'],
+            ],
+          },
+        ]),
     });
 
     const result = await handleDiagnoseErrorsAction(
@@ -147,7 +184,9 @@ describe('diagnose_errors action', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      const errors = (result as Record<string, unknown>)['errors'] as Array<Record<string, unknown>>;
+      const errors = (result as Record<string, unknown>)['errors'] as Array<
+        Record<string, unknown>
+      >;
       expect(errors).toHaveLength(4);
 
       const errorTypes = errors.map((e) => e['errorType']);
@@ -156,7 +195,10 @@ describe('diagnose_errors action', () => {
       expect(errorTypes).toContain('#VALUE!');
       expect(errorTypes).toContain('#NAME?');
 
-      const errorsByType = (result as Record<string, unknown>)['errorsByType'] as Record<string, number>;
+      const errorsByType = (result as Record<string, unknown>)['errorsByType'] as Record<
+        string,
+        number
+      >;
       expect(errorsByType['#DIV/0!']).toBe(1);
       expect(errorsByType['#N/A']).toBe(1);
       expect(errorsByType['#VALUE!']).toBe(1);
@@ -168,10 +210,7 @@ describe('diagnose_errors action', () => {
     deps.sheetsApi = createMockSheetsApi({
       getSpreadsheet: () => ({
         data: {
-          sheets: [
-            { properties: { title: 'Revenue' } },
-            { properties: { title: 'Costs' } },
-          ],
+          sheets: [{ properties: { title: 'Revenue' } }, { properties: { title: 'Costs' } }],
         },
       }),
       batchGetValues: (params) => {
@@ -180,10 +219,7 @@ describe('diagnose_errors action', () => {
       },
     });
 
-    const result = await handleDiagnoseErrorsAction(
-      { spreadsheetId: 'test-id' },
-      deps
-    );
+    const result = await handleDiagnoseErrorsAction({ spreadsheetId: 'test-id' }, deps);
 
     expect(result.success).toBe(true);
     // Both sheets are fetched in a single batchGet call
@@ -210,7 +246,9 @@ describe('diagnose_errors action', () => {
     // Should still succeed with errors detected, just no formula info
     expect(result.success).toBe(true);
     if (result.success) {
-      const errors = (result as Record<string, unknown>)['errors'] as Array<Record<string, unknown>>;
+      const errors = (result as Record<string, unknown>)['errors'] as Array<
+        Record<string, unknown>
+      >;
       expect(errors).toHaveLength(1);
       expect(errors[0]?.['errorType']).toBe('#REF!');
       // Formula should be undefined since fetch failed
@@ -250,7 +288,9 @@ describe('diagnose_errors action', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      const errors = (result as Record<string, unknown>)['errors'] as Array<Record<string, unknown>>;
+      const errors = (result as Record<string, unknown>)['errors'] as Array<
+        Record<string, unknown>
+      >;
       expect(errors).toHaveLength(1);
       expect(errors[0]?.['suggestedFix']).toContain('IF');
       expect(errors[0]?.['rootCause']).toContain('divides by zero');
@@ -328,7 +368,9 @@ describe('diagnose_errors action', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      const errors = (result as Record<string, unknown>)['errors'] as Array<Record<string, unknown>>;
+      const errors = (result as Record<string, unknown>)['errors'] as Array<
+        Record<string, unknown>
+      >;
       expect(errors[0]?.['rootCause']).toContain('descriptive text');
       expect(errors[0]?.['suggestedFix']).toContain('leading "="');
     }

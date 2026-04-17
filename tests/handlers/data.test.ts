@@ -216,6 +216,11 @@ const createMockContext = (): HandlerContext =>
         },
       }),
     } as any,
+    featureFlags: {
+      enableDataFilterBatch: true,
+      enableTableAppends: true,
+      enablePayloadValidation: true,
+    },
     batchCompiler: {
       compile: vi.fn(),
       execute: vi.fn().mockResolvedValue({
@@ -253,7 +258,7 @@ describe('SheetsDataHandler', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('initialization', () => {
@@ -525,13 +530,14 @@ describe('SheetsDataHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
+        // Handler resolves tableId to sheetId before making the API call
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
           expect.objectContaining({
             requestBody: expect.objectContaining({
               requests: [
                 expect.objectContaining({
                   appendCells: expect.objectContaining({
-                    tableId: 'table-123',
+                    sheetId: expect.any(Number),
                   }),
                 }),
               ],

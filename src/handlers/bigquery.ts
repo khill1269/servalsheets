@@ -96,7 +96,7 @@ import {
 } from './bigquery-actions/scheduled-queries.js';
 
 /** Maximum BigQuery result rows (ISSUE-188: configurable via env var) */
-const MAX_BIGQUERY_RESULT_ROWS = getEnv().MAX_BIGQUERY_RESULT_ROWS;
+const MAX_BIGQUERY_RESULT_ROWS = Number(getEnv()['MAX_BIGQUERY_RESULT_ROWS']);
 
 export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, SheetsBigQueryOutput> {
   private sheetsApi: sheets_v4.Sheets;

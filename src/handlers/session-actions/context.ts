@@ -5,10 +5,7 @@
 
 import { extractRangeA1Optional } from '../../utils/range-helpers.js';
 import type { SheetsSessionOutput } from '../../schemas/session.js';
-import type {
-  SessionContextManager,
-  SpreadsheetContext,
-} from '../../services/session-context.js';
+import type { SessionContextManager, SpreadsheetContext } from '../../services/session-context.js';
 import { getHistoryService } from '../../services/history-service.js';
 import { getPrefetchingSystem } from '../../services/prefetching-system.js';
 import { ValidationError } from '../../core/errors.js';
@@ -107,9 +104,7 @@ export function handleGetContext(session: SessionContextManager): SheetsSessionO
   // Provides structured next-call guidance so the LLM (or user via elicitation)
   // can decide which connectors to set up.
   const hasUnconfigured =
-    zeroAuthConnectors.length > 0 ||
-    apiKeyConnectors.length > 0 ||
-    oauthReadyConnectors.length > 0;
+    zeroAuthConnectors.length > 0 || apiKeyConnectors.length > 0 || oauthReadyConnectors.length > 0;
   const connectorOnboarding = hasUnconfigured
     ? {
         message:
@@ -174,7 +169,16 @@ export function handleRecordOperation(
     cellsAffected?: number;
   }
 ): SheetsSessionOutput {
-  const { tool, toolAction, spreadsheetId, range, description, undoable, snapshotId, cellsAffected } = req;
+  const {
+    tool,
+    toolAction,
+    spreadsheetId,
+    range,
+    description,
+    undoable,
+    snapshotId,
+    cellsAffected,
+  } = req;
 
   // Type assertion: refine() validates required fields are defined for record_operation action
   const operationId = session.recordOperation({

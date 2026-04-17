@@ -9,10 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsAppsScriptHandler } from '../../src/handlers/appsscript.js';
 import { SheetsAppsScriptOutputSchema } from '../../src/schemas/appsscript.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Mock Google Client with OAuth2
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type

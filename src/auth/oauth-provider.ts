@@ -15,7 +15,7 @@ import { ConfigError, ServiceError } from '../core/errors.js';
 import jwt from 'jsonwebtoken';
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'crypto';
 import { rateLimit } from 'express-rate-limit';
-import { SessionStore, createSessionStore } from '../storage/session-store.js';
+import { SessionStore, SessionData, createSessionStore } from '../storage/session-store.js';
 import { getSessionStoreConfig, getApiSpecificCircuitBreakerConfig, env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
@@ -142,14 +142,14 @@ export class OAuthProvider {
     };
 
     // ✅ SECURITY: Enforce max OAuth token TTL (default 30 minutes)
-    const maxTokenTtl = env.OAUTH_MAX_TOKEN_TTL;
+    const maxTokenTtl = Number(env['OAUTH_MAX_TOKEN_TTL']) as number;
     if (this.config.accessTokenTtl > maxTokenTtl) {
       logger.warn('OAuth access token TTL exceeds max allowed, capping to max', {
         requested: this.config.accessTokenTtl,
         maxAllowed: maxTokenTtl,
         capped: maxTokenTtl,
       });
-      this.config.accessTokenTtl = maxTokenTtl;
+      this.config.accessTokenTtl = maxTokenTtl as number;
     }
 
     // Initialize JWT secrets array (primary + previous for rotation)
@@ -334,7 +334,7 @@ export class OAuthProvider {
    */
   private async lookupDcrClient(clientId: string): Promise<DcrClientData | null> {
     const data = await this.sessionStore.get(`dcr:${clientId}`);
-    return data ? (data as DcrClientData) : null;
+    return data ? (data as unknown as DcrClientData) : null;
   }
 
   /**
@@ -367,7 +367,11 @@ export class OAuthProvider {
       grantedAt: Date.now(),
       redirectUris,
     };
-    await this.sessionStore.set(this.consentKey(clientId), record, 365 * 24 * 60 * 60);
+    await this.sessionStore.set(
+      this.consentKey(clientId),
+      record as unknown as SessionData,
+      { ttlMs: 365 * 24 * 60 * 60 * 1000 }
+    );
     logger.info('DCR client consent granted', { clientId, clientName });
   }
 
@@ -428,7 +432,10 @@ export class OAuthProvider {
         return next();
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Token validation error';
-        res.setHeader('WWW-Authenticate', `Bearer error="invalid_token", error_description="${msg}"`);
+        res.setHeader(
+          'WWW-Authenticate',
+          `Bearer error="invalid_token", error_description="${msg}"`
+        );
         return res.status(401).json({
           error: 'invalid_token',
           error_description: msg,
@@ -446,7 +453,7 @@ export class OAuthProvider {
     try {
       const refreshTokenData = (await this.sessionStore.get(
         `refresh:${refreshToken}`
-      )) as RefreshTokenData | null;
+      )) as unknown as RefreshTokenData | null;
 
       if (!refreshTokenData) {
         res.status(400).json({
@@ -771,7 +778,7 @@ export class OAuthProvider {
       };
 
       // Store authorization code with 10-minute TTL
-      await this.sessionStore.set(`auth:${authCode}`, stateData, 600);
+      await this.sessionStore.set(`auth:${authCode}`, stateData as unknown as SessionData, { ttlMs: 600 * 1000 });
 
       // Generate Google OAuth state to track the round-trip
       // State format: {authCode}:{clientId}:{nonce}
@@ -832,7 +839,7 @@ export class OAuthProvider {
         }
 
         // Retrieve authorization state
-        const stateData = (await this.sessionStore.get(`auth:${authCode}`)) as StateData | null;
+        const stateData = (await this.sessionStore.get(`auth:${authCode}`)) as unknown as StateData | null;
 
         if (!stateData) {
           res.status(400).json({
@@ -891,7 +898,11 @@ export class OAuthProvider {
         };
 
         // Store authorization code with 10-minute TTL
-        await this.sessionStore.set(`code:${authCode}`, authCodeData, 600);
+        await this.sessionStore.set(
+          `code:${authCode}`,
+          authCodeData as unknown as SessionData,
+          { ttlMs: 600 * 1000 }
+        );
 
         // Redirect back to client with authorization code
         const redirectUrl = new URL(stateData.redirectUri);
@@ -929,11 +940,7 @@ export class OAuthProvider {
 
         // Verify client authentication first (RFC 6749 §3.2.1) — prevents
         // leaking code validity to unauthenticated clients
-        const preAuthClientId = await this.authenticateClient(
-          '',
-          client_id,
-          client_secret
-        );
+        const preAuthClientId = await this.authenticateClient('', client_id, client_secret);
         if (!preAuthClientId) {
           res.status(401).json({
             error: 'invalid_client',
@@ -962,7 +969,7 @@ export class OAuthProvider {
           // Retrieve authorization code
           const authCodeData = (await this.sessionStore.get(
             `code:${code}`
-          )) as AuthorizationCode | null;
+          )) as unknown as AuthorizationCode | null;
 
           if (!authCodeData) {
             res.status(400).json({
@@ -1027,8 +1034,8 @@ export class OAuthProvider {
           // Store refresh token with TTL
           await this.sessionStore.set(
             `refresh:${refreshTokenId}`,
-            refreshTokenData,
-            this.config.refreshTokenTtl
+            refreshTokenData as unknown as SessionData,
+            { ttlMs: (this.config.refreshTokenTtl ?? 2592000) * 1000 }
           );
 
           // Store Google tokens server-side (never in JWT)
@@ -1039,7 +1046,7 @@ export class OAuthProvider {
                 googleAccessToken: authCodeData.googleAccessToken,
                 googleRefreshToken: authCodeData.googleRefreshToken,
               },
-              this.config.refreshTokenTtl
+              { ttlMs: (this.config.refreshTokenTtl ?? 2592000) * 1000 }
             );
           }
 
@@ -1275,7 +1282,7 @@ export class OAuthProvider {
         await this.sessionStore.set(
           `dcr:${clientId}`,
           clientData,
-          365 * 24 * 60 * 60 // 1 year (seconds)
+          { ttlMs: 365 * 24 * 60 * 60 * 1000 } // 1 year (ms)
         );
 
         // ✅ CONFUSED DEPUTY PROTECTION: grant per-client consent at registration time.

@@ -1004,9 +1004,7 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
           source: 'remote',
           value: 42,
         });
-        expect(httpTransportHybridMocks.getRemoteToolClient).toHaveBeenCalledWith(
-          'sheets_compute'
-        );
+        expect(httpTransportHybridMocks.getRemoteToolClient).toHaveBeenCalledWith('sheets_compute');
         expect(httpTransportHybridMocks.remoteToolCall).toHaveBeenCalledWith('sheets_compute', {
           request: expect.objectContaining({
             action: 'evaluate',
@@ -1160,11 +1158,14 @@ describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () =>
         }
 
         let taskStatus: string | undefined;
-        await vi.waitFor(async () => {
-          const task = await sdkClient.client.experimental.tasks.getTask(taskId!);
-          taskStatus = task.status;
-          expect(['cancelled', 'completed']).toContain(task.status);
-        }, { timeout: 5000 });
+        await vi.waitFor(
+          async () => {
+            const task = await sdkClient.client.experimental.tasks.getTask(taskId!);
+            taskStatus = task.status;
+            expect(['cancelled', 'completed']).toContain(task.status);
+          },
+          { timeout: 5000 }
+        );
 
         const taskResult = await sdkClient.client.experimental.tasks.getTaskResult(
           taskId!,

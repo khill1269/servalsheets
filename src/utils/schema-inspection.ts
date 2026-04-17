@@ -75,7 +75,12 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
 
     // Unwrap effects (transform/preprocess in Zod v3)
     // ZodEffects wraps: z.string().transform(...), z.preprocess(...), z.string().refine(...)
-    if (current instanceof z.ZodEffects) {
+    // Guard: z.ZodEffects is undefined in Zod v4 (replaced by ZodPipe/ZodTransform)
+    if (
+      (z as Record<string, unknown>)['ZodEffects'] &&
+      current instanceof
+        ((z as Record<string, unknown>)['ZodEffects'] as new (...a: unknown[]) => unknown)
+    ) {
       const innerType = (
         (current as unknown as DefCarrier)._def as { schema?: ZodTypeAny } | undefined
       )?.schema;
@@ -85,9 +90,13 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
     }
 
     // Unwrap pipes (Zod v4 only — guard so this never throws on v3)
-    if ((z as Record<string, unknown>)['ZodPipe'] && current instanceof ((z as Record<string, unknown>)['ZodPipe'] as new (...a: unknown[]) => unknown)) {
-      const pipeIn = (current as Record<string, unknown>)['in'] as ZodTypeAny;
-      const pipeOut = (current as Record<string, unknown>)['out'] as ZodTypeAny;
+    if (
+      (z as Record<string, unknown>)['ZodPipe'] &&
+      current instanceof
+        ((z as Record<string, unknown>)['ZodPipe'] as new (...a: unknown[]) => unknown)
+    ) {
+      const pipeIn = (current as unknown as Record<string, unknown>)['in'] as ZodTypeAny;
+      const pipeOut = (current as unknown as Record<string, unknown>)['out'] as ZodTypeAny;
       const inIsTransform = (pipeIn as unknown as DefCarrier)._def?.['type'] === 'transform';
       current = inIsTransform ? pipeOut : pipeIn;
       continue;
@@ -153,7 +162,13 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
  */
 export function isEnumLike(schema: ZodTypeAny): boolean {
   const unwrapped = unwrapSchema(schema);
-  return unwrapped instanceof z.ZodEnum || unwrapped instanceof z.ZodNativeEnum;
+  // z.ZodNativeEnum was removed in Zod v4; z.ZodEnum covers both cases
+  const ZodNativeEnum = (z as Record<string, unknown>)['ZodNativeEnum'];
+  return (
+    unwrapped instanceof z.ZodEnum ||
+    (ZodNativeEnum != null &&
+      unwrapped instanceof (ZodNativeEnum as new (...a: unknown[]) => unknown))
+  );
 }
 
 /**

@@ -127,6 +127,7 @@ export interface BatchingStats {
 
 interface PendingOp {
   op: BatchOperation;
+  promise: Promise<unknown>;
   resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
 }
@@ -181,17 +182,23 @@ export class BatchingSystem {
       return Promise.reject(new Error('BatchingSystem has been destroyed'));
     }
 
-    return new Promise((resolve, reject) => {
-      this.pending.push({ op, resolve, reject });
-
-      if (!this.timer) {
-        const delay = this.useAdaptive ? this.currentWindowMs : this.fixedWindowMs;
-        this.timer = setTimeout(() => {
-          this.timer = null;
-          void this.flushNow();
-        }, delay);
-      }
+    let resolveFn!: (value: unknown) => void;
+    let rejectFn!: (reason?: unknown) => void;
+    const promise = new Promise<unknown>((resolve, reject) => {
+      resolveFn = resolve;
+      rejectFn = reject;
     });
+    this.pending.push({ op, promise, resolve: resolveFn, reject: rejectFn });
+
+    if (!this.timer) {
+      const delay = this.useAdaptive ? this.currentWindowMs : this.fixedWindowMs;
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        void this.flushNow();
+      }, delay);
+    }
+
+    return promise;
   }
 
   /**
@@ -235,6 +242,7 @@ export class BatchingSystem {
     }
 
     if (this.verboseLogging) {
+      // eslint-disable-next-line no-console
       console.debug(`[BatchingSystem] Flushing ${batchSize} operations`);
     }
 
@@ -292,8 +300,8 @@ export class BatchingSystem {
           requestBody: {
             valueInputOption: 'USER_ENTERED',
             data: chunk.map((item) => ({
-              range: (item.op.params as Record<string, unknown>).range as string,
-              values: (item.op.params as Record<string, unknown>).values as unknown[][],
+              range: (item.op.params as Record<string, unknown>)['range'] as string,
+              values: (item.op.params as Record<string, unknown>)['values'] as unknown[][],
             })),
           },
         });
@@ -304,7 +312,7 @@ export class BatchingSystem {
           spreadsheetId,
           requestBody: {
             ranges: clears.map(
-              (item) => (item.op.params as Record<string, unknown>).range as string
+              (item) => (item.op.params as Record<string, unknown>)['range'] as string
             ),
           },
         });
@@ -334,9 +342,7 @@ export class BatchingSystem {
       stats.currentWindowMs = this.currentWindowMs;
       const avg =
         this.windowHistory.length > 0
-          ? Math.round(
-              this.windowHistory.reduce((a, b) => a + b, 0) / this.windowHistory.length
-            )
+          ? Math.round(this.windowHistory.reduce((a, b) => a + b, 0) / this.windowHistory.length)
           : this.currentWindowMs;
       stats.avgWindowMs = avg;
     }
@@ -365,8 +371,13 @@ export class BatchingSystem {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    const destroyError = new Error('BatchingSystem destroyed');
     for (const item of this.pending) {
-      item.reject(new Error('BatchingSystem destroyed'));
+      // Attach a no-op catch before rejecting so callers who do not await the
+      // queued promise do not trigger an UnhandledPromiseRejection.
+      // Callers that DO await still receive the rejection normally.
+      item.promise.catch(() => { /* suppress teardown rejection */ });
+      item.reject(destroyError);
     }
     this.pending = [];
   }
@@ -390,10 +401,7 @@ export class BatchingSystem {
     return { totalOperations: operations.length, chunks: results.length };
   }
 
-  private async executeBatchChunk(
-    _spreadsheetId: string,
-    operations: unknown[]
-  ): Promise<unknown> {
+  private async executeBatchChunk(_spreadsheetId: string, operations: unknown[]): Promise<unknown> {
     return { operationCount: operations.length };
   }
 }

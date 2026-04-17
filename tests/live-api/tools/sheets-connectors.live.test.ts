@@ -63,7 +63,15 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
         const resp = result.response as { connectors: { id: string }[] };
         const connectorIds = resp.connectors.map((c) => c.id);
         // At least one of these built-in connectors should be present
-        const knownBuiltins = ['finnhub', 'polygon', 'fred', 'alpha_vantage', 'fmp', 'generic_rest', 'mcp_bridge'];
+        const knownBuiltins = [
+          'finnhub',
+          'polygon',
+          'fred',
+          'alpha_vantage',
+          'fmp',
+          'generic_rest',
+          'mcp_bridge',
+        ];
         const found = connectorIds.some((id) => knownBuiltins.includes(id));
         expect(found).toBe(true);
       }

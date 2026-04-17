@@ -45,7 +45,8 @@ export class BillingIntegration extends EventEmitter {
     if (!customerId) return null;
 
     try {
-      const customer = await this.stripe.customers.retrieve(customerId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const customer = (await this.stripe.customers.retrieve(customerId)) as any;
       const result: BillingCustomer = {
         tenantId,
         customerId: customer.id,
@@ -86,10 +87,11 @@ export class BillingIntegration extends EventEmitter {
   }
 
   async createSubscription(customerId: string, planId: string): Promise<Subscription> {
-    const subscription = await this.stripe.subscriptions.create({
+    const subscription = (await this.stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: planId }],
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) as any;
 
     return {
       id: subscription.id,
@@ -111,10 +113,10 @@ export class BillingIntegration extends EventEmitter {
 
   private getPlanFromCustomer(customer: Stripe.Customer): string {
     // Extract plan from customer metadata or subscriptions
-    return customer.metadata?.plan || 'free';
+    return (customer.metadata?.['plan'] as string) || 'free';
   }
 
-  private getMonthlySpend(customer: Stripe.Customer): number {
+  private getMonthlySpend(_customer: Stripe.Customer): number {
     // Calculate from invoices or subscription price
     return 0; // Placeholder
   }

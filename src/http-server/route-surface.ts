@@ -60,11 +60,17 @@ export function registerHttpSurfaceRoutes(options: RegisterHttpSurfaceRoutesOpti
   registerPackagedHttpSurfaceRoutes({
     ...rest,
     log,
-    registerWellKnownHandlers: registerWellKnownHandlersImpl,
-    registerHttpObservabilityRoutes: registerHttpObservabilityRoutesImpl,
-    registerHttpWebhookRoutes: registerHttpWebhookRoutesImpl,
-    registerApiRoutes: registerApiRoutesImpl,
-    registerHttpErrorHandler: registerHttpErrorHandlerImpl,
-    registerHttpGraphQlAndAdmin: registerHttpGraphQlAndAdminImpl,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerWellKnownHandlers: registerWellKnownHandlersImpl as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerHttpObservabilityRoutes: registerHttpObservabilityRoutesImpl as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerHttpWebhookRoutes: registerHttpWebhookRoutesImpl as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerApiRoutes: registerApiRoutesImpl as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerHttpErrorHandler: registerHttpErrorHandlerImpl as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    registerHttpGraphQlAndAdmin: registerHttpGraphQlAndAdminImpl as any,
   });
 }

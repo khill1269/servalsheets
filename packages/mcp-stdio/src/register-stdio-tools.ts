@@ -1,6 +1,4 @@
-export interface RegisterStdioToolsDependencies<
-  TTool extends { name: string } = { name: string },
-> {
+export interface RegisterStdioToolsDependencies<TTool extends { name: string } = { name: string }> {
   readonly initializeStageManager: (registerNewTools: (tools: readonly TTool[]) => void) => void;
   readonly getInitialTools: () => readonly TTool[];
   readonly registerToolSet: (tools: readonly TTool[]) => void;

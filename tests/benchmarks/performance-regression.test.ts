@@ -303,13 +303,13 @@ describe('Performance Regression Tests', () => {
           .map((_, i) => Array(26).fill(`value-${i}`));
 
         const input = {
-        request: {
-          action: 'write' as const,
-          spreadsheetId: 'test-spreadsheet-id-12345',
-          range: { a1: 'Sheet1!A1:Z1000' },
-          values: largeValues,
-        },
-      };
+          request: {
+            action: 'write' as const,
+            spreadsheetId: 'test-spreadsheet-id-12345',
+            range: { a1: 'Sheet1!A1:Z1000' },
+            values: largeValues,
+          },
+        };
 
         const { usedBytes } = measureMemory(() => {
           for (let i = 0; i < 10; i++) {

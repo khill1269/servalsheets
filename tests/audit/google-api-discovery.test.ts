@@ -17,7 +17,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { FULL_ACCESS_SCOPES, STANDARD_SCOPES, MINIMAL_SCOPES } from '../../src/config/oauth-scopes.js';
+import {
+  FULL_ACCESS_SCOPES,
+  STANDARD_SCOPES,
+  MINIMAL_SCOPES,
+} from '../../src/config/oauth-scopes.js';
 import { FIELD_MASKS } from '../../src/constants/field-masks.js';
 import { ACTION_FIELD_MASKS } from '../../src/config/action-field-masks.js';
 
@@ -34,7 +38,10 @@ interface DiscoverySnapshot {
   batchPath: string | null;
   authScopes: string[];
   methodCount: number;
-  methods: Record<string, { scopes: string[]; requiredParams: string[]; deprecated: boolean; httpMethod: string }>;
+  methods: Record<
+    string,
+    { scopes: string[]; requiredParams: string[]; deprecated: boolean; httpMethod: string }
+  >;
   topLevelSchemas: string[];
 }
 
@@ -99,7 +106,9 @@ describe('Suite 1: OAuth Scopes vs Discovery', () => {
 
     for (const scope of FULL_ACCESS_SCOPES) {
       if (scopeExemptions.has(scope)) continue;
-      expect(discoveryScopes.has(scope), `Scope not found in any discovery doc: ${scope}`).toBe(true);
+      expect(discoveryScopes.has(scope), `Scope not found in any discovery doc: ${scope}`).toBe(
+        true
+      );
     }
   });
 
@@ -107,13 +116,13 @@ describe('Suite 1: OAuth Scopes vs Discovery', () => {
     if (!allSnapshotsAvailable) return;
     const discoveryScopes = getAllDiscoveryScopes();
 
-    const scopeExemptions = new Set([
-      'https://www.googleapis.com/auth/drive.labels.readonly',
-    ]);
+    const scopeExemptions = new Set(['https://www.googleapis.com/auth/drive.labels.readonly']);
 
     for (const scope of STANDARD_SCOPES) {
       if (scopeExemptions.has(scope)) continue;
-      expect(discoveryScopes.has(scope), `STANDARD scope not found in discovery: ${scope}`).toBe(true);
+      expect(discoveryScopes.has(scope), `STANDARD scope not found in discovery: ${scope}`).toBe(
+        true
+      );
     }
   });
 
@@ -133,7 +142,9 @@ describe('Suite 1: OAuth Scopes vs Discovery', () => {
 
     for (const scope of FULL_ACCESS_SCOPES) {
       if (!scope.includes('/script.')) continue;
-      expect(scriptScopes.has(scope), `Script scope not in Apps Script discovery: ${scope}`).toBe(true);
+      expect(scriptScopes.has(scope), `Script scope not in Apps Script discovery: ${scope}`).toBe(
+        true
+      );
     }
   });
 
@@ -165,15 +176,21 @@ describe('Suite 2: Method IDs vs Discovery', () => {
     if (!sheetsSnap) return;
     const methods = Object.keys(sheetsSnap.methods);
     expect(methods.some((m) => m.includes('spreadsheets.get'))).toBe(true);
-    expect(methods.some((m) => m.includes('spreadsheets.values.get') || m.includes('values.get'))).toBe(true);
-    expect(methods.some((m) => m.includes('spreadsheets.batchUpdate') || m.includes('batchUpdate'))).toBe(true);
+    expect(
+      methods.some((m) => m.includes('spreadsheets.values.get') || m.includes('values.get'))
+    ).toBe(true);
+    expect(
+      methods.some((m) => m.includes('spreadsheets.batchUpdate') || m.includes('batchUpdate'))
+    ).toBe(true);
   });
 
   it('Drive snapshot includes files and revisions methods', () => {
     if (!driveSnap) return;
     const methods = Object.keys(driveSnap.methods);
     expect(methods.some((m) => m.includes('files.list') || m.includes('.files.list'))).toBe(true);
-    expect(methods.some((m) => m.includes('revisions.list') || m.includes('.revisions.list'))).toBe(true);
+    expect(methods.some((m) => m.includes('revisions.list') || m.includes('.revisions.list'))).toBe(
+      true
+    );
   });
 
   it('no revisions.export call uses text/csv MIME type (Drive only supports XLSX/PDF)', () => {
@@ -216,7 +233,11 @@ describe('Suite 3: Field Mask Paths vs Discovery Schemas', () => {
     const segments = stripped.split(',').map((s) => s.trim().split('/')[0].split('.')[0]);
 
     const knownValidSegments = new Set([
-      'spreadsheetId', 'properties', 'spreadsheetUrl', 'sheets', 'namedRanges',
+      'spreadsheetId',
+      'properties',
+      'spreadsheetUrl',
+      'sheets',
+      'namedRanges',
       'developerMetadata',
     ]);
 
@@ -246,7 +267,11 @@ describe('Suite 3: Field Mask Paths vs Discovery Schemas', () => {
 
   it('ACTION_FIELD_MASKS spreadsheets.get entries have valid root field mask segments', () => {
     const knownValidSegments = new Set([
-      'spreadsheetId', 'properties', 'spreadsheetUrl', 'sheets', 'namedRanges',
+      'spreadsheetId',
+      'properties',
+      'spreadsheetUrl',
+      'sheets',
+      'namedRanges',
       'developerMetadata',
     ]);
 

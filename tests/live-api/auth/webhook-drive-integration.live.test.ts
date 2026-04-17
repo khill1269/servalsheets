@@ -88,59 +88,67 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     // No cleanup needed for mock
   }, 30000);
 
-  it.skipIf(!hasWebhookEndpoint)('should register webhook with Drive API watch()', async () => {
-    const webhookManager = getWebhookManager();
-    if (!webhookManager) {
-      throw new Error('WebhookManager not initialized');
-    }
+  it.skipIf(!hasWebhookEndpoint)(
+    'should register webhook with Drive API watch()',
+    async () => {
+      const webhookManager = getWebhookManager();
+      if (!webhookManager) {
+        throw new Error('WebhookManager not initialized');
+      }
 
-    // Register webhook (calls Drive API watch internally)
-    const registration = await webhookManager.register({
-      spreadsheetId: testSpreadsheetId!,
-      webhookUrl: 'https://api.example.com/sheets-webhook',
-      eventTypes: ['sheet.update'],
-      secret: 'test-secret-minimum16chars',
-      expirationMs: 24 * 60 * 60 * 1000, // 24 hours
-    });
+      // Register webhook (calls Drive API watch internally)
+      const registration = await webhookManager.register({
+        spreadsheetId: testSpreadsheetId!,
+        webhookUrl: 'https://api.example.com/sheets-webhook',
+        eventTypes: ['sheet.update'],
+        secret: 'test-secret-minimum16chars',
+        expirationMs: 24 * 60 * 60 * 1000, // 24 hours
+      });
 
-    expect(registration.webhookId).toBeDefined();
-    expect(registration.channelId).toBeDefined();
-    expect(registration.resourceId).toBeDefined();
-    expect(registration.expiresAt).toBeGreaterThan(Date.now());
+      expect(registration.webhookId).toBeDefined();
+      expect(registration.channelId).toBeDefined();
+      expect(registration.resourceId).toBeDefined();
+      expect(registration.expiresAt).toBeGreaterThan(Date.now());
 
-    // Clean up - unregister webhook (calls Drive API channels.stop)
-    await webhookManager.unregister(registration.webhookId);
-  }, 30000);
+      // Clean up - unregister webhook (calls Drive API channels.stop)
+      await webhookManager.unregister(registration.webhookId);
+    },
+    30000
+  );
 
-  it.skipIf(!hasWebhookEndpoint)('should handle channel expiration and renewal', async () => {
-    const webhookManager = getWebhookManager();
-    if (!webhookManager) {
-      throw new Error('WebhookManager not initialized');
-    }
+  it.skipIf(!hasWebhookEndpoint)(
+    'should handle channel expiration and renewal',
+    async () => {
+      const webhookManager = getWebhookManager();
+      if (!webhookManager) {
+        throw new Error('WebhookManager not initialized');
+      }
 
-    // Register webhook with short expiration (1 hour)
-    const registration = await webhookManager.register({
-      spreadsheetId: testSpreadsheetId!,
-      webhookUrl: 'https://api.example.com/sheets-webhook',
-      eventTypes: ['sheet.update'],
-      secret: 'test-secret-minimum16chars',
-      expirationMs: 60 * 60 * 1000, // 1 hour
-    });
+      // Register webhook with short expiration (1 hour)
+      const registration = await webhookManager.register({
+        spreadsheetId: testSpreadsheetId!,
+        webhookUrl: 'https://api.example.com/sheets-webhook',
+        eventTypes: ['sheet.update'],
+        secret: 'test-secret-minimum16chars',
+        expirationMs: 60 * 60 * 1000, // 1 hour
+      });
 
-    // Renew expiring channels (should detect and renew this one)
-    const renewalWindow = 2 * 60 * 60 * 1000; // 2 hours
-    const renewedCount = await webhookManager.renewExpiringChannels(renewalWindow);
+      // Renew expiring channels (should detect and renew this one)
+      const renewalWindow = 2 * 60 * 60 * 1000; // 2 hours
+      const renewedCount = await webhookManager.renewExpiringChannels(renewalWindow);
 
-    expect(renewedCount).toBe(1);
+      expect(renewedCount).toBe(1);
 
-    // Verify webhook still exists after renewal
-    const webhook = await webhookManager.get(registration.webhookId);
-    expect(webhook).toBeDefined();
-    expect(webhook?.webhookId).toBe(registration.webhookId);
+      // Verify webhook still exists after renewal
+      const webhook = await webhookManager.get(registration.webhookId);
+      expect(webhook).toBeDefined();
+      expect(webhook?.webhookId).toBe(registration.webhookId);
 
-    // Clean up
-    await webhookManager.unregister(registration.webhookId);
-  }, 30000);
+      // Clean up
+      await webhookManager.unregister(registration.webhookId);
+    },
+    30000
+  );
 
   it('should validate X-Goog headers from Drive notifications', () => {
     const driveHeaders = {
@@ -198,30 +206,34 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
     expect(deliveryId).toMatch(/^delivery_/);
   }, 10000);
 
-  it.skipIf(!hasWebhookEndpoint)('should stop channels when unregistering webhooks', async () => {
-    const webhookManager = getWebhookManager();
-    if (!webhookManager) {
-      throw new Error('WebhookManager not initialized');
-    }
+  it.skipIf(!hasWebhookEndpoint)(
+    'should stop channels when unregistering webhooks',
+    async () => {
+      const webhookManager = getWebhookManager();
+      if (!webhookManager) {
+        throw new Error('WebhookManager not initialized');
+      }
 
-    // Register then immediately unregister
-    const registration = await webhookManager.register({
-      spreadsheetId: testSpreadsheetId!,
-      webhookUrl: 'https://api.example.com/sheets-webhook',
-      eventTypes: ['sheet.update'],
-      secret: 'test-secret-minimum16chars',
-      expirationMs: 24 * 60 * 60 * 1000,
-    });
+      // Register then immediately unregister
+      const registration = await webhookManager.register({
+        spreadsheetId: testSpreadsheetId!,
+        webhookUrl: 'https://api.example.com/sheets-webhook',
+        eventTypes: ['sheet.update'],
+        secret: 'test-secret-minimum16chars',
+        expirationMs: 24 * 60 * 60 * 1000,
+      });
 
-    // Unregister (should call Drive API channels.stop)
-    await webhookManager.unregister(registration.webhookId);
+      // Unregister (should call Drive API channels.stop)
+      await webhookManager.unregister(registration.webhookId);
 
-    // Verify webhook is removed
-    try {
-      await webhookManager.get(registration.webhookId);
-      expect.fail('Should have thrown error for non-existent webhook');
-    } catch (error) {
-      expect(error).toBeDefined();
-    }
-  }, 30000);
+      // Verify webhook is removed
+      try {
+        await webhookManager.get(registration.webhookId);
+        expect.fail('Should have thrown error for non-existent webhook');
+      } catch (error) {
+        expect(error).toBeDefined();
+      }
+    },
+    30000
+  );
 });

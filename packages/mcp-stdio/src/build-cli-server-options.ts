@@ -31,8 +31,7 @@ export function buildCliServerOptions(
   cliOptions: CliTransportOptions,
   env: CliCredentialEnvironment
 ): BuiltCliServerOptions {
-  const serviceAccountPath =
-    cliOptions.serviceAccountKeyPath ?? env.GOOGLE_APPLICATION_CREDENTIALS;
+  const serviceAccountPath = cliOptions.serviceAccountKeyPath ?? env.GOOGLE_APPLICATION_CREDENTIALS;
   const accessToken = cliOptions.accessToken ?? env.GOOGLE_ACCESS_TOKEN;
   const clientId = env.GOOGLE_CLIENT_ID ?? env.OAUTH_CLIENT_ID;
   const clientSecret = env.GOOGLE_CLIENT_SECRET ?? env.OAUTH_CLIENT_SECRET;

@@ -21,7 +21,11 @@ export interface CircuitBreakerEntryLike {
   };
 }
 
-export interface RegisterHttpMetricsRoutesOptions<TApp, TAdminMiddleware = unknown, TMetricsHandler = unknown> {
+export interface RegisterHttpMetricsRoutesOptions<
+  TApp,
+  TAdminMiddleware = unknown,
+  TMetricsHandler = unknown,
+> {
   readonly app: TApp;
   readonly adminMiddleware: TAdminMiddleware;
   readonly metricsHandler: TMetricsHandler;
@@ -45,13 +49,7 @@ export function registerHttpMetricsRoutes<
   TAdminMiddleware,
   TMetricsHandler,
 >(options: RegisterHttpMetricsRoutesOptions<TApp, TAdminMiddleware, TMetricsHandler>): void {
-  const {
-    app,
-    adminMiddleware,
-    metricsHandler,
-    getCircuitBreakers,
-    log = defaultLogger,
-  } = options;
+  const { app, adminMiddleware, metricsHandler, getCircuitBreakers, log = defaultLogger } = options;
 
   app.get('/metrics', adminMiddleware, metricsHandler);
 

@@ -133,7 +133,7 @@ export function createToolTaskHandler(
       const abortController = new AbortController();
       abortControllers.set(task.taskId, abortController);
 
-      const taskWatchdogMs = getEnv().TASK_WATCHDOG_MS;
+      const taskWatchdogMs = Number(getEnv()['TASK_WATCHDOG_MS']);
       const watchdogTimer = setTimeout(() => {
         if (abortControllers.has(task.taskId)) {
           logger.warn('Task watchdog: aborting hung task', {

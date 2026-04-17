@@ -9,5 +9,6 @@ import {
 export { normalizeClientIp, type ClientIpLogger };
 
 export function extractTrustedClientIp(req: Request, fallback = '127.0.0.1'): string {
-  return extractTrustedClientIpImpl(req, fallback, logger as ClientIpLogger);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return extractTrustedClientIpImpl(req as any, fallback, logger as ClientIpLogger);
 }

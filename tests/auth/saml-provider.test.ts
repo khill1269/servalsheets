@@ -14,7 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
-import type { SAML, SamlProfile } from 'node-saml';
+import type { SAML, Profile as SamlProfile } from '@node-saml/node-saml';
 
 import {
   SamlProvider,
@@ -40,17 +40,21 @@ const BASE_CONFIG: SamlProviderConfig = {
  * Build a mock SAML instance (injected via DI into SamlProvider).
  * Avoids constructing a real SAML object (no node-saml module mock needed).
  */
-function makeMockSaml(overrides: Partial<{
-  getAuthorizeUrlAsync: ReturnType<typeof vi.fn>;
-  validatePostResponseAsync: ReturnType<typeof vi.fn>;
-  getLogoutUrlAsync: ReturnType<typeof vi.fn>;
-  generateServiceProviderMetadata: ReturnType<typeof vi.fn>;
-}> = {}): SAML {
+function makeMockSaml(
+  overrides: Partial<{
+    getAuthorizeUrlAsync: ReturnType<typeof vi.fn>;
+    validatePostResponseAsync: ReturnType<typeof vi.fn>;
+    getLogoutUrlAsync: ReturnType<typeof vi.fn>;
+    generateServiceProviderMetadata: ReturnType<typeof vi.fn>;
+  }> = {}
+): SAML {
   return {
     getAuthorizeUrlAsync: vi.fn().mockResolvedValue('https://idp.example.com/sso?SAMLRequest=xxx'),
     validatePostResponseAsync: vi.fn(),
     getLogoutUrlAsync: vi.fn().mockResolvedValue('https://idp.example.com/slo?SAMLRequest=xxx'),
-    generateServiceProviderMetadata: vi.fn().mockReturnValue('<EntityDescriptor>...</EntityDescriptor>'),
+    generateServiceProviderMetadata: vi
+      .fn()
+      .mockReturnValue('<EntityDescriptor>...</EntityDescriptor>'),
     ...overrides,
   } as unknown as SAML;
 }
@@ -81,11 +85,11 @@ function makeReqMock(overrides: Record<string, unknown> = {}) {
 
 // Helper to find and call a route handler from the router
 function getRouteHandler(router: import('express').Router, path: string, method: 'get' | 'post') {
-  const layer = (router.stack as Array<{
-    route?: { path: string; stack: Array<{ handle: Function; method: string }> };
-  }>).find(
-    (l) => l.route?.path === path && l.route.stack.some((s) => s.method === method)
-  );
+  const layer = (
+    router.stack as Array<{
+      route?: { path: string; stack: Array<{ handle: Function; method: string }> };
+    }>
+  ).find((l) => l.route?.path === path && l.route.stack.some((s) => s.method === method));
   if (!layer) throw new Error(`Route ${method.toUpperCase()} ${path} not found`);
   return layer.route!.stack.find((s) => s.method === method)!.handle;
 }
@@ -311,8 +315,10 @@ describe('SamlProvider.createRouter — callback route', () => {
   });
 
   it('returns 400 when assertion has no profile', async () => {
-    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>)
-      .mockResolvedValue({ profile: null, loggedOut: false });
+    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile: null,
+      loggedOut: false,
+    });
 
     const router = provider.createRouter();
     const handler = getRouteHandler(router, '/sso/callback', 'post');
@@ -325,9 +331,14 @@ describe('SamlProvider.createRouter — callback route', () => {
   });
 
   it('returns 400 when NameID is missing from profile', async () => {
-    const profile: Partial<SamlProfile> = { nameID: undefined, email: 'user@corp.com' } as Partial<SamlProfile>;
-    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>)
-      .mockResolvedValue({ profile, loggedOut: false });
+    const profile: Partial<SamlProfile> = {
+      nameID: undefined,
+      email: 'user@corp.com',
+    } as Partial<SamlProfile>;
+    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile,
+      loggedOut: false,
+    });
 
     const router = provider.createRouter();
     const handler = getRouteHandler(router, '/sso/callback', 'post');
@@ -340,8 +351,9 @@ describe('SamlProvider.createRouter — callback route', () => {
   });
 
   it('returns 401 when assertion validation throws', async () => {
-    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>)
-      .mockRejectedValue(new Error('Invalid signature'));
+    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Invalid signature')
+    );
 
     const router = provider.createRouter();
     const handler = getRouteHandler(router, '/sso/callback', 'post');
@@ -410,8 +422,10 @@ describe('SamlProvider.createRouter — callback route', () => {
   });
 
   it('handles loggedOut=true gracefully', async () => {
-    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>)
-      .mockResolvedValue({ profile: null, loggedOut: true });
+    (mockSaml.validatePostResponseAsync as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profile: null,
+      loggedOut: true,
+    });
 
     const router = provider.createRouter();
     const handler = getRouteHandler(router, '/sso/callback', 'post');

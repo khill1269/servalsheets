@@ -87,7 +87,9 @@ describe('http rate limit bootstrap', () => {
     expect(log.info).toHaveBeenCalledWith('Per-user rate limiter initialized with Redis', {
       redisUrl: 'redis://user:***@example.com:6379',
     });
-    expect(log.info).toHaveBeenCalledWith('Session store initialized with Redis backend (HTTP mode)');
+    expect(log.info).toHaveBeenCalledWith(
+      'Session store initialized with Redis backend (HTTP mode)'
+    );
   });
 
   it('degrades cleanly when Redis setup fails or is absent', async () => {

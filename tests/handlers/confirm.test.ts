@@ -10,10 +10,7 @@ import { SheetsConfirmOutputSchema } from '../../src/schemas/confirm.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import { resetConfirmationService } from '../../src/services/confirm-service.js';
 import { getCapabilityCacheService } from '../../src/services/capability-cache.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Mock MCP Server with elicitation capability
 const createMockServer = () => ({
@@ -743,8 +740,9 @@ describe('ConfirmHandler', () => {
       });
 
       expect(startResult.response.success).toBe(true);
-      const wizardId =
-        startResult.response.success ? startResult.response.wizard?.wizardId : undefined;
+      const wizardId = startResult.response.success
+        ? startResult.response.wizard?.wizardId
+        : undefined;
       expect(wizardId).toBeDefined();
 
       const completeResult = await handler.handle({

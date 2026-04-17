@@ -48,12 +48,7 @@ export function registerHttpWebhookDashboardRoutes<
   >,
   TAdminMiddleware,
 >(options: RegisterHttpWebhookDashboardRoutesOptions<TApp, TAdminMiddleware>): void {
-  const {
-    app,
-    adminMiddleware,
-    loadWebhookDashboardData,
-    log = defaultLogger,
-  } = options;
+  const { app, adminMiddleware, loadWebhookDashboardData, log = defaultLogger } = options;
 
   app.get('/webhooks/dashboard', adminMiddleware, async (req: Request, res: Response) => {
     try {

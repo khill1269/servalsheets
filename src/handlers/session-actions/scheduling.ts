@@ -17,8 +17,18 @@ export async function handleScheduleCreate(
     tool?: string;
     actionName?: string;
     params?: Record<string, unknown>;
-    operation?: { tool?: string; actionName?: string; action?: string; params?: Record<string, unknown> };
-    target?: { tool?: string; actionName?: string; action?: string; params?: Record<string, unknown> };
+    operation?: {
+      tool?: string;
+      actionName?: string;
+      action?: string;
+      params?: Record<string, unknown>;
+    };
+    target?: {
+      tool?: string;
+      actionName?: string;
+      action?: string;
+      params?: Record<string, unknown>;
+    };
   }
 ): Promise<SheetsSessionOutput> {
   const scheduler = getScheduler();

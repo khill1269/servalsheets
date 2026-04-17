@@ -12,10 +12,7 @@ import { ErrorCodes } from '../error-codes.js';
 import { getRequestLogger, sendProgress } from '../../utils/request-context.js';
 import { getEnv } from '../../config/env.js';
 import { withTimeout } from '../../utils/timeout.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import type {
   CompositeImportCsvInput,
   CompositeSmartAppendInput,
@@ -23,7 +20,12 @@ import type {
   CompositeDeduplicateInput,
   CompositeOutput,
 } from '../../schemas/composite.js';
-import type { CsvImportResult, SmartAppendResult, BulkUpdateResult, DeduplicateResult } from '../../services/composite-operations.js';
+import type {
+  CsvImportResult,
+  SmartAppendResult,
+  BulkUpdateResult,
+  DeduplicateResult,
+} from '../../services/composite-operations.js';
 import type { CompositeHandlerAccess } from './internal.js';
 
 /**
@@ -83,7 +85,7 @@ export async function handleImportCsvAction(
 
   // Send progress notification for long-running import
   const env = getEnv();
-  if (env.ENABLE_GRANULAR_PROGRESS) {
+  if (env['ENABLE_GRANULAR_PROGRESS']) {
     await sendProgress(0, 2, 'Starting CSV import...');
   }
 
@@ -105,13 +107,13 @@ export async function handleImportCsvAction(
         skipEmptyRows: resolvedInput.skipEmptyRows,
         trimValues: resolvedInput.trimValues,
       }),
-    env.COMPOSITE_TIMEOUT_MS,
+    Number(env['COMPOSITE_TIMEOUT_MS']),
     'import_csv'
   );
 
   const cellsAffected = result.rowsImported * result.columnsImported;
 
-  if (env.ENABLE_GRANULAR_PROGRESS) {
+  if (env['ENABLE_GRANULAR_PROGRESS']) {
     await sendProgress(2, 2, `Imported ${result.rowsImported} rows`);
   }
 
@@ -312,10 +314,7 @@ export async function handleDeduplicateAction(
   let resolvedInput = input;
 
   // Wizard: If range is provided but keyColumns is missing, elicit key column
-  if (
-    resolvedInput.sheet &&
-    (!resolvedInput.keyColumns || resolvedInput.keyColumns.length === 0)
-  ) {
+  if (resolvedInput.sheet && (!resolvedInput.keyColumns || resolvedInput.keyColumns.length === 0)) {
     if (access.context?.server?.elicitInput) {
       try {
         const wizard = await access.context.server.elicitInput({
@@ -333,9 +332,7 @@ export async function handleDeduplicateAction(
         });
         const wizardContent = wizard?.content as Record<string, unknown> | undefined;
         const keyColumn =
-          typeof wizardContent?.['keyColumn'] === 'string'
-            ? wizardContent['keyColumn']
-            : undefined;
+          typeof wizardContent?.['keyColumn'] === 'string' ? wizardContent['keyColumn'] : undefined;
         if (wizard?.action === 'accept' && keyColumn) {
           resolvedInput = {
             ...resolvedInput,
@@ -445,7 +442,7 @@ export async function handleDeduplicateAction(
 
   // Send progress notification for long-running dedupe
   const env = getEnv();
-  if (env.ENABLE_GRANULAR_PROGRESS) {
+  if (env['ENABLE_GRANULAR_PROGRESS']) {
     await sendProgress(0, 2, `Deduplicating ${previewResult.totalRows} rows...`);
   }
 
@@ -461,7 +458,7 @@ export async function handleDeduplicateAction(
     _preComputedUniqueRows: previewResult.uniqueRows,
   });
 
-  if (env.ENABLE_GRANULAR_PROGRESS) {
+  if (env['ENABLE_GRANULAR_PROGRESS']) {
     await sendProgress(2, 2, `Removed ${result.rowsDeleted} duplicate rows`);
   }
 

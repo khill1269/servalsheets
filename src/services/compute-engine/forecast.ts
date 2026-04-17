@@ -51,10 +51,7 @@ interface ForecastResult {
   confidence: number;
 }
 
-export function computeForecast(
-  data: unknown[][],
-  options: ForecastOptions
-): ForecastResult {
+export function computeForecast(data: unknown[][], options: ForecastOptions): ForecastResult {
   const valCol = options.valueColumn ?? 1;
 
   // Extract numeric values (skip header)
@@ -72,9 +69,16 @@ export function computeForecast(
   // Simple trend detection
   const firstHalf = values.slice(0, Math.floor(values.length / 2));
   const secondHalf = values.slice(Math.floor(values.length / 2));
-  const avgFirst = firstHalf.length > 0 ? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length : 0;
-  const avgSecond = secondHalf.length > 0 ? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length : 0;
-  const trendDirection = avgSecond > avgFirst * 1.02 ? 'increasing' : avgSecond < avgFirst * 0.98 ? 'decreasing' : 'stable';
+  const avgFirst =
+    firstHalf.length > 0 ? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length : 0;
+  const avgSecond =
+    secondHalf.length > 0 ? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length : 0;
+  const trendDirection =
+    avgSecond > avgFirst * 1.02
+      ? 'increasing'
+      : avgSecond < avgFirst * 0.98
+        ? 'decreasing'
+        : 'stable';
 
   const seasonalPeriod = options.seasonality ?? detectSeasonalPeriod(values);
 

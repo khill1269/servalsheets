@@ -323,9 +323,9 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
           fields: 'sheets.properties',
         });
 
-        expect(
-          metadata.data.sheets?.some((sheet) => sheet.properties?.title === newName)
-        ).toBe(true);
+        expect(metadata.data.sheets?.some((sheet) => sheet.properties?.title === newName)).toBe(
+          true
+        );
       });
 
       it('should detect cell.update events', async () => {

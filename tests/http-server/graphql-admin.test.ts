@@ -73,8 +73,7 @@ describe('http graphql/admin registration', () => {
     expect(graphqlAdminMocks.addGraphQLEndpoint).toHaveBeenCalledOnce();
     expect(graphqlAdminMocks.addAdminRoutes).toHaveBeenCalledOnce();
 
-    const getHandlerContextForGraphQL =
-      graphqlAdminMocks.addGraphQLEndpoint.mock.calls[0]?.[1];
+    const getHandlerContextForGraphQL = graphqlAdminMocks.addGraphQLEndpoint.mock.calls[0]?.[1];
     expect(getHandlerContextForGraphQL).toBeTypeOf('function');
 
     await expect(getHandlerContextForGraphQL()).rejects.toThrow(
@@ -101,15 +100,12 @@ describe('http graphql/admin registration', () => {
       spreadsheetId: 'sheet-1',
     });
 
-    expect(graphqlAdminMocks.logger.debug).toHaveBeenCalledWith(
-      'GraphQL operation progress',
-      {
-        phase: 'resolve',
-        progress: '1/2',
-        message: 'Working',
-        spreadsheetId: 'sheet-1',
-      }
-    );
+    expect(graphqlAdminMocks.logger.debug).toHaveBeenCalledWith('GraphQL operation progress', {
+      phase: 'resolve',
+      progress: '1/2',
+      message: 'Working',
+      spreadsheetId: 'sheet-1',
+    });
 
     const sessionManager = graphqlAdminMocks.addAdminRoutes.mock.calls[0]?.[1];
     expect(sessionManager.getSessionCount()).toBe(1);

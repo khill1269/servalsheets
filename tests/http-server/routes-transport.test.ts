@@ -4,7 +4,9 @@ const routesTransportMocks = vi.hoisted(() => ({
   sessionsTotal: { set: vi.fn() },
   extractIdempotencyKeyFromHeaders: vi.fn(),
   createResourceIndicatorValidator: vi.fn(() => ({ kind: 'validator' })),
-  optionalResourceIndicatorMiddleware: vi.fn(() => async (_req: unknown, _res: unknown, next: () => void) => next()),
+  optionalResourceIndicatorMiddleware: vi.fn(
+    () => async (_req: unknown, _res: unknown, next: () => void) => next()
+  ),
   removeSessionContext: vi.fn(),
   extractPrincipalIdFromHeaders: vi.fn(),
   createRequestContext: vi.fn(() => ({ kind: 'request-context' })),

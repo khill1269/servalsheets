@@ -9,12 +9,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  generateResponseHints,
-} from '../../src/services/response-hints-engine.js';
+import { generateResponseHints } from '../../src/services/response-hints-engine.js';
 import { scanResponseQuality } from '../../src/services/lightweight-quality-scanner.js';
 import { suggestFix } from '../../src/services/error-fix-suggester.js';
-import { FORMULA_PATTERN_LIBRARY, getRelevantPatterns } from '../../src/analysis/formula-helpers.js';
+import {
+  FORMULA_PATTERN_LIBRARY,
+  getRelevantPatterns,
+} from '../../src/analysis/formula-helpers.js';
 import { ErrorCodeSchema } from '../../src/schemas/shared.js';
 import { ErrorPatternLearner } from '../../src/services/error-pattern-learner.js';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
@@ -68,8 +69,8 @@ describe('Category 12: LLM Intelligence', () => {
       expect(hints).toBeDefined();
       expect(hints?.dataRelationships).toBeDefined();
       if (hints?.dataRelationships && hints.dataRelationships.length > 0) {
-        const hasMarginRelationship = hints.dataRelationships.some((r) =>
-          r.toLowerCase().includes('margin') || r.toLowerCase().includes('profit')
+        const hasMarginRelationship = hints.dataRelationships.some(
+          (r) => r.toLowerCase().includes('margin') || r.toLowerCase().includes('profit')
         );
         expect(hasMarginRelationship || hints.dataRelationships.length > 0).toBe(true);
       }
@@ -267,9 +268,7 @@ describe('Category 12: LLM Intelligence', () => {
       expect(formatHint!.actionParams['add_conditional_format_rule']?.optional).toEqual(
         expect.arrayContaining(['ruleType', 'condition', 'format', 'preset'])
       );
-      expect(connectorsHint!.actionParams['list_connectors']?.description).toContain(
-        'Start here'
-      );
+      expect(connectorsHint!.actionParams['list_connectors']?.description).toContain('Start here');
     });
 
     it('12.13 Completions action name coverage', () => {
@@ -324,7 +323,11 @@ describe('Category 12: LLM Intelligence', () => {
     });
 
     it('should handle all-null columns', () => {
-      const hints = generateResponseHints([['Col1', 'Col2'], [null, null], [null, null]]);
+      const hints = generateResponseHints([
+        ['Col1', 'Col2'],
+        [null, null],
+        [null, null],
+      ]);
       expect(hints).toBeDefined();
     });
 

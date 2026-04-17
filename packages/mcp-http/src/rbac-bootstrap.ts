@@ -26,9 +26,7 @@ const defaultLogger: HttpRbacBootstrapLogger = {
 export function createHttpRbacInitializer<
   TEnvConfig extends { ENABLE_RBAC: boolean },
   TBillingConfig,
->(
-  options: CreateHttpRbacInitializerOptions<TEnvConfig, TBillingConfig>
-): () => Promise<void> {
+>(options: CreateHttpRbacInitializerOptions<TEnvConfig, TBillingConfig>): () => Promise<void> {
   const {
     envConfig,
     initializeRbacManager,

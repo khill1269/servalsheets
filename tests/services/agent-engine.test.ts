@@ -40,10 +40,7 @@ import { resetEnvForTest } from '../../src/config/env.js';
 
 const SPREADSHEET_ID = 'test-spreadsheet-abc';
 
-function makeHandler(
-  result: unknown = { success: true },
-  shouldThrow?: Error
-): ExecuteHandlerFn {
+function makeHandler(result: unknown = { success: true }, shouldThrow?: Error): ExecuteHandlerFn {
   return async (_tool, _action, _params) => {
     if (shouldThrow) throw shouldThrow;
     return result;
@@ -52,7 +49,11 @@ function makeHandler(
 
 function makePlanExecutable(plan: PlanState): PlanState {
   for (const step of plan.steps) {
-    if (step.tool === 'sheets_data' && step.action === 'read' && step.params['range'] === undefined) {
+    if (
+      step.tool === 'sheets_data' &&
+      step.action === 'read' &&
+      step.params['range'] === undefined
+    ) {
       step.params['range'] = 'Sheet1!A1:B5';
     }
     if (
@@ -478,10 +479,12 @@ describe('rollbackToPlan', () => {
     expect(reverted.status).toBe('paused');
     expect(reverted.currentStepIndex).toBe(cp.stepIndex);
     // Results after checkpoint stepIndex are removed
-    expect(reverted.results.filter((r) => {
-      const idx = plan.steps.findIndex((s) => s.stepId === r.stepId);
-      return idx >= cp.stepIndex;
-    }).length).toBe(0);
+    expect(
+      reverted.results.filter((r) => {
+        const idx = plan.steps.findIndex((s) => s.stepId === r.stepId);
+        return idx >= cp.stepIndex;
+      }).length
+    ).toBe(0);
   });
 
   it('throws for unknown checkpointId', () => {
@@ -639,7 +642,8 @@ describe('plan-crypto encryptPlan/decryptPlan', () => {
 // persistPlan encryption integration: written files respect PLAN_ENCRYPTION_KEY
 // ---------------------------------------------------------------------------
 
-const PLAN_STORAGE_DIR = process.env['AGENT_PLAN_DIR'] || path.join(process.cwd(), '.serval', 'plans');
+const PLAN_STORAGE_DIR =
+  process.env['AGENT_PLAN_DIR'] || path.join(process.cwd(), '.serval', 'plans');
 
 describe('persistPlan respects PLAN_ENCRYPTION_KEY', () => {
   afterEach(async () => {

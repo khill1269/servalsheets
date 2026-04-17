@@ -118,7 +118,10 @@ export async function handleStats(_req: StatsReq): Promise<HistoryResponse> {
   };
 }
 
-export async function handleClear(req: ClearReq, server?: ElicitationServer): Promise<HistoryResponse> {
+export async function handleClear(
+  req: ClearReq,
+  server?: ElicitationServer
+): Promise<HistoryResponse> {
   const historyService = getHistoryService();
 
   const clearScope = req.spreadsheetId

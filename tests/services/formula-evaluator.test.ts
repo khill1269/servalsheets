@@ -34,9 +34,7 @@ function createMockGoogleClient(overrides?: {
 
   const get = overrides?.getError
     ? vi.fn().mockRejectedValue(overrides.getError)
-    : vi.fn().mockResolvedValue(
-        overrides?.getResult ?? { data: { values: [['42']] } }
-      );
+    : vi.fn().mockResolvedValue(overrides?.getResult ?? { data: { values: [['42']] } });
 
   const clear = overrides?.clearError
     ? vi.fn().mockRejectedValue(overrides.clearError)
@@ -61,45 +59,37 @@ function createMockGoogleClient(overrides?: {
 
 describe('AppsScriptEvaluator.requiresApiEval', () => {
   it('returns true for QUERY formulas', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=QUERY(A1:D100,"SELECT A,B WHERE C>0")')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=QUERY(A1:D100,"SELECT A,B WHERE C>0")')).toBe(
+      true
+    );
   });
 
   it('returns true for IMPORTRANGE', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=IMPORTRANGE("abc123","Sheet1!A1:B10")')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=IMPORTRANGE("abc123","Sheet1!A1:B10")')).toBe(
+      true
+    );
   });
 
   it('returns true for GOOGLEFINANCE', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=GOOGLEFINANCE("GOOG","price")')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=GOOGLEFINANCE("GOOG","price")')).toBe(true);
   });
 
   it('returns true for IMPORTDATA', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=IMPORTDATA("https://example.com/data.csv")')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=IMPORTDATA("https://example.com/data.csv")')).toBe(
+      true
+    );
   });
 
   it('returns true for SPARKLINE', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=SPARKLINE(A1:A10)')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=SPARKLINE(A1:A10)')).toBe(true);
   });
 
   it('returns true for GOOGLETRANSLATE', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=GOOGLETRANSLATE(A1,"en","fr")')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=GOOGLETRANSLATE(A1,"en","fr")')).toBe(true);
   });
 
   it('returns true for ARRAYFORMULA', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=ARRAYFORMULA(A1:A10*2)')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=ARRAYFORMULA(A1:A10*2)')).toBe(true);
   });
 
   it('returns false for SUM', () => {
@@ -107,34 +97,24 @@ describe('AppsScriptEvaluator.requiresApiEval', () => {
   });
 
   it('returns false for XLOOKUP', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=XLOOKUP(A1,B1:B100,C1:C100)')
-    ).toBe(false);
+    expect(AppsScriptEvaluator.requiresApiEval('=XLOOKUP(A1,B1:B100,C1:C100)')).toBe(false);
   });
 
   it('returns false for VLOOKUP', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=VLOOKUP(A1,B1:C100,2,FALSE)')
-    ).toBe(false);
+    expect(AppsScriptEvaluator.requiresApiEval('=VLOOKUP(A1,B1:C100,2,FALSE)')).toBe(false);
   });
 
   it('returns false for IF with nested SUM', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=IF(SUM(A1:A10)>0,"yes","no")')
-    ).toBe(false);
+    expect(AppsScriptEvaluator.requiresApiEval('=IF(SUM(A1:A10)>0,"yes","no")')).toBe(false);
   });
 
   it('is case-insensitive — lowercase query( returns true', () => {
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=query(A1:B10,"SELECT A")')
-    ).toBe(true);
+    expect(AppsScriptEvaluator.requiresApiEval('=query(A1:B10,"SELECT A")')).toBe(true);
   });
 
   it('does not false-positive on partial name match (e.g. IMPORTANTTHING)', () => {
     // "IMPORTANTTHING(" does not contain IMPORTRANGE( or IMPORTDATA(
-    expect(
-      AppsScriptEvaluator.requiresApiEval('=IMPORTANTTHING(A1)')
-    ).toBe(false);
+    expect(AppsScriptEvaluator.requiresApiEval('=IMPORTANTTHING(A1)')).toBe(false);
   });
 });
 

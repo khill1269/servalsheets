@@ -150,12 +150,10 @@ export async function handleLoadCheckpoint(
   };
 }
 
-export async function handleListCheckpoints(
-  req: {
-    action: 'list_checkpoints';
-    sessionId?: string;
-  }
-): Promise<SheetsSessionOutput> {
+export async function handleListCheckpoints(req: {
+  action: 'list_checkpoints';
+  sessionId?: string;
+}): Promise<SheetsSessionOutput> {
   if (!isCheckpointsEnabled()) {
     return {
       response: {
@@ -181,13 +179,11 @@ export async function handleListCheckpoints(
   };
 }
 
-export async function handleDeleteCheckpoint(
-  req: {
-    action: 'delete_checkpoint';
-    sessionId?: string;
-    timestamp?: number;
-  }
-): Promise<SheetsSessionOutput> {
+export async function handleDeleteCheckpoint(req: {
+  action: 'delete_checkpoint';
+  sessionId?: string;
+  timestamp?: number;
+}): Promise<SheetsSessionOutput> {
   if (!isCheckpointsEnabled()) {
     return {
       response: {

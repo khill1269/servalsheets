@@ -80,7 +80,9 @@ describe('E2E.1: Financial Analyst — Budget Variance', () => {
   it('E2E.1.5: Apply conditional formatting to variance', () => {
     // Step 5: Red for negative variance, green for positive
     const conditionalRule = {
-      ranges: [{ sheetId: 0, startRowIndex: 1, endRowIndex: 5, startColumnIndex: 3, endColumnIndex: 4 }],
+      ranges: [
+        { sheetId: 0, startRowIndex: 1, endRowIndex: 5, startColumnIndex: 3, endColumnIndex: 4 },
+      ],
       booleanRule: {
         condition: {
           type: 'CUSTOM_FORMULA',
@@ -400,9 +402,9 @@ describe('E2E.5: HR — Scenario Modeling (Headcount Projection)', () => {
   it('E2E.5.2: Build dependency graph (headcount → cost)', () => {
     // Step 2: Trace dependencies
     const dependencies = {
-      'B2': ['C2', 'C2*D2'], // Current HC → Base Cost, Total Cost
-      'C2': ['E2'], // Base Cost → Total Comp Cost
-      'D2': ['E2'], // Benefits % → Total Comp Cost
+      B2: ['C2', 'C2*D2'], // Current HC → Base Cost, Total Cost
+      C2: ['E2'], // Base Cost → Total Comp Cost
+      D2: ['E2'], // Benefits % → Total Comp Cost
     };
 
     expect(dependencies['B2']).toContain('C2');
@@ -434,7 +436,7 @@ describe('E2E.5: HR — Scenario Modeling (Headcount Projection)', () => {
     };
 
     // Total cost increase
-    const totalIncrease = (550000 - 500000) + (165000 - 150000); // 65,000
+    const totalIncrease = 550000 - 500000 + (165000 - 150000); // 65,000
     expect(totalIncrease).toBe(65000);
   });
 
@@ -515,11 +517,17 @@ describe('Cross-Flow Integration Checks', () => {
 
   it('Error recovery pattern consistent across workflows', () => {
     const errorPatterns = {
-      budget_variance: { fixableVia: 'sheets_core.create', suggestion: 'Create missing spreadsheet' },
+      budget_variance: {
+        fixableVia: 'sheets_core.create',
+        suggestion: 'Create missing spreadsheet',
+      },
       quality_pipeline: { fixableVia: 'sheets_composite.import_csv', suggestion: 'Re-import data' },
       invoice: { fixableVia: 'sheets_templates.apply', suggestion: 'Reapply template' },
       dashboard: { fixableVia: 'sheets_data.read', suggestion: 'Refresh data read' },
-      scenario: { fixableVia: 'sheets_dependencies.model_scenario', suggestion: 'Rebuild dependency graph' },
+      scenario: {
+        fixableVia: 'sheets_dependencies.model_scenario',
+        suggestion: 'Rebuild dependency graph',
+      },
     };
 
     Object.values(errorPatterns).forEach((error) => {

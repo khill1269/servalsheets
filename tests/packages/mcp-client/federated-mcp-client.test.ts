@@ -1,13 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FederatedMcpClient } from '../../../packages/mcp-client/src/federated-mcp-client.js';
 
-const {
-  connectMock,
-  callToolMock,
-  listToolsMock,
-  closeMock,
-  transportCtor,
-} = vi.hoisted(() => ({
+const { connectMock, callToolMock, listToolsMock, closeMock, transportCtor } = vi.hoisted(() => ({
   connectMock: vi.fn(),
   callToolMock: vi.fn(),
   listToolsMock: vi.fn(),

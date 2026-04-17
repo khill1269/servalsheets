@@ -169,7 +169,8 @@ export async function handleDelete(
 
   // Trigger background quality analysis after destructive operation
   const analysisConfig = getBackgroundAnalysisConfig();
-  if (analysisConfig.enabled && count >= analysisConfig.minCells) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (analysisConfig.enabled && count >= (analysisConfig as any).minCells) {
     const analyzer = getBackgroundAnalyzer();
     // Estimate affected cells (conservative: rows * 26 columns OR columns * 1000 rows)
     const estimatedCells = isRows ? count * 26 : count * 1000;
@@ -180,8 +181,10 @@ export async function handleDelete(
       ha.sheetsApi,
       {
         qualityThreshold: 70,
-        minCellsChanged: analysisConfig.minCells,
-        debounceMs: analysisConfig.debounceMs,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        minCellsChanged: (analysisConfig as any).minCells,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        debounceMs: (analysisConfig as any).debounceMs,
       }
     );
   }
@@ -459,8 +462,5 @@ export async function handleAppend(
     },
   });
 
-  return ha.success(
-    'append',
-    isRows ? { rowsAffected: count } : { columnsAffected: count }
-  );
+  return ha.success('append', isRows ? { rowsAffected: count } : { columnsAffected: count });
 }

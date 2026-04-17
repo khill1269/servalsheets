@@ -51,13 +51,11 @@ interface FormulaCallbackModule {
   validateRequestTimestamp(timestamp: number): boolean;
   checkAndRecordReplay(spreadsheetId: string, signature: string): boolean;
   checkRateLimit(spreadsheetId: string): boolean;
-  processBatchFormula(
-    request: {
-      requests: unknown[];
-      spreadsheetId: string;
-      timestamp: number;
-    }
-  ): Promise<unknown>;
+  processBatchFormula(request: {
+    requests: unknown[];
+    spreadsheetId: string;
+    timestamp: number;
+  }): Promise<unknown>;
 }
 
 export interface HttpWebhookRoutesLogger {
@@ -127,7 +125,10 @@ export function categorizeChanges(diff: DiffResultLike): WebhookEventType[] {
 }
 
 export function registerHttpWebhookRoutes(
-  app: Pick<{ post(path: string, handler: (req: Request, res: Response) => unknown): void }, 'post'>,
+  app: Pick<
+    { post(path: string, handler: (req: Request, res: Response) => unknown): void },
+    'post'
+  >,
   options: RegisterHttpWebhookRoutesOptions
 ): void {
   const {

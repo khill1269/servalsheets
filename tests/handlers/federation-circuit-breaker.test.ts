@@ -79,9 +79,11 @@ describe('CircuitBreaker — State Machine', () => {
   it('should open after reaching the failure threshold', async () => {
     // Act — trigger failureThreshold failures
     for (let i = 0; i < 3; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('service down');
-      })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('service down');
+        })
+      ).rejects.toThrow();
     }
 
     // Assert — circuit is now open
@@ -92,9 +94,11 @@ describe('CircuitBreaker — State Machine', () => {
   it('should reject immediately when circuit is open', async () => {
     // Arrange — open the circuit
     for (let i = 0; i < 3; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('service down');
-      })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('service down');
+        })
+      ).rejects.toThrow();
     }
     expect(breaker.getState()).toBe('open');
 
@@ -108,9 +112,11 @@ describe('CircuitBreaker — State Machine', () => {
     try {
       // Arrange — open the circuit
       for (let i = 0; i < 3; i++) {
-        await expect(breaker.execute(async () => {
-          throw new Error('service down');
-        })).rejects.toThrow();
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('service down');
+          })
+        ).rejects.toThrow();
       }
       expect(breaker.getState()).toBe('open');
 
@@ -134,9 +140,11 @@ describe('CircuitBreaker — State Machine', () => {
 
     // Arrange — open the circuit
     for (let i = 0; i < 3; i++) {
-      await expect(fastBreaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow();
+      await expect(
+        fastBreaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow();
     }
     expect(fastBreaker.getState()).toBe('open');
 
@@ -157,9 +165,11 @@ describe('CircuitBreaker — State Machine', () => {
   it('should reset to closed state when reset() is called', async () => {
     // Arrange — open the circuit
     for (let i = 0; i < 3; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow();
     }
     expect(breaker.getState()).toBe('open');
 
@@ -178,9 +188,11 @@ describe('CircuitBreaker — State Machine', () => {
   it('should execute fallback when circuit is open and fallback is provided', async () => {
     // Arrange — open the circuit
     for (let i = 0; i < 3; i++) {
-      await expect(breaker.execute(async () => {
-        throw new Error('fail');
-      })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow();
     }
 
     // Act — provide a fallback
@@ -196,7 +208,9 @@ describe('CircuitBreaker — State Machine', () => {
   it('should count non-consecutive failures correctly across successes', async () => {
     // Arrange — 2 failures, 1 success, 2 more failures (total 4 failures)
     // failureThreshold=3, so should open after 3rd failure
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
     const succeed = async () => 'ok';
 
     await expect(breaker.execute(fail)).rejects.toThrow(); // fail 1
@@ -230,8 +244,16 @@ describe('FederatedMcpClient — Circuit Breaker Isolation', () => {
     // FederatedMcpClient currently uses ONE shared breaker — the inverse of this.
 
     // Arrange — two independent circuit breakers (correct architecture)
-    const breakerA = new CircuitBreaker({ failureThreshold: 3, successThreshold: 2, timeout: 30000 });
-    const breakerB = new CircuitBreaker({ failureThreshold: 3, successThreshold: 2, timeout: 30000 });
+    const breakerA = new CircuitBreaker({
+      failureThreshold: 3,
+      successThreshold: 2,
+      timeout: 30000,
+    });
+    const breakerB = new CircuitBreaker({
+      failureThreshold: 3,
+      successThreshold: 2,
+      timeout: 30000,
+    });
 
     // Act — open breaker A by simulating 3 failures
     // (synchronous state check via internal mechanisms isn't available; we verify state directly)
@@ -262,7 +284,9 @@ describe('FederatedMcpClient — Circuit Breaker Isolation', () => {
     });
 
     // Simulate "server A" failing 3 times through the shared breaker
-    const serverAFail = async () => { throw new Error('Server A is down'); };
+    const serverAFail = async () => {
+      throw new Error('Server A is down');
+    };
     for (let i = 0; i < 3; i++) {
       await expect(sharedBreaker.execute(serverAFail)).rejects.toThrow();
     }
@@ -287,8 +311,14 @@ describe('FederatedMcpClient — Circuit Breaker Isolation', () => {
 
     // Arrange — per-server circuit breakers (the correct architecture)
     const perServerBreakers = new Map<string, CircuitBreaker>();
-    perServerBreakers.set('server-a', new CircuitBreaker({ failureThreshold: 3, successThreshold: 2, timeout: 30000 }));
-    perServerBreakers.set('server-b', new CircuitBreaker({ failureThreshold: 3, successThreshold: 2, timeout: 30000 }));
+    perServerBreakers.set(
+      'server-a',
+      new CircuitBreaker({ failureThreshold: 3, successThreshold: 2, timeout: 30000 })
+    );
+    perServerBreakers.set(
+      'server-b',
+      new CircuitBreaker({ failureThreshold: 3, successThreshold: 2, timeout: 30000 })
+    );
 
     const executeForServer = async (serverName: string, operation: () => Promise<unknown>) => {
       const breaker = perServerBreakers.get(serverName)!;
@@ -296,7 +326,9 @@ describe('FederatedMcpClient — Circuit Breaker Isolation', () => {
     };
 
     // Act — server A fails 3 times (opens its breaker)
-    const serverAFail = async () => { throw new Error('Server A is down'); };
+    const serverAFail = async () => {
+      throw new Error('Server A is down');
+    };
     for (let i = 0; i < 3; i++) {
       await expect(executeForServer('server-a', serverAFail)).rejects.toThrow();
     }

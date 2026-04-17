@@ -71,12 +71,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     this.featureFlags = {
       enableDataFilterBatch:
         (contextFlags?.['enableDataFilterBatch'] as boolean | undefined) ??
-        env.ENABLE_DATAFILTER_BATCH,
+        (Boolean(env['ENABLE_DATAFILTER_BATCH']) as boolean),
       enableTableAppends:
-        (contextFlags?.['enableTableAppends'] as boolean | undefined) ?? env.ENABLE_TABLE_APPENDS,
+        (contextFlags?.['enableTableAppends'] as boolean | undefined) ??
+        (Boolean(env['ENABLE_TABLE_APPENDS']) as boolean),
       enablePayloadValidation:
         (contextFlags?.['enablePayloadValidation'] as boolean | undefined) ??
-        env.ENABLE_PAYLOAD_VALIDATION,
+        (Boolean(env['ENABLE_PAYLOAD_VALIDATION']) as boolean),
     };
   }
 

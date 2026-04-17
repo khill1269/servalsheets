@@ -393,8 +393,8 @@ export class UserRateLimiter {
 export function createUserRateLimiterFromEnv(redis: RedisClient | null): UserRateLimiter {
   const env = getEnv();
   return new UserRateLimiter(redis, {
-    requestsPerMinute: env.RATE_LIMIT_PER_MINUTE,
-    requestsPerHour: env.RATE_LIMIT_PER_HOUR,
-    burstAllowance: env.RATE_LIMIT_BURST,
+    requestsPerMinute: env['RATE_LIMIT_PER_MINUTE'] as number,
+    requestsPerHour: env['RATE_LIMIT_PER_HOUR'] as number,
+    burstAllowance: env['RATE_LIMIT_BURST'] as number,
   });
 }

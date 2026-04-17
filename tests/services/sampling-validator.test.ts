@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { validateSamplingOutput, SamplingOutputSchemas } from '../../src/services/sampling-validator.js';
+import {
+  validateSamplingOutput,
+  SamplingOutputSchemas,
+} from '../../src/services/sampling-validator.js';
 
 vi.mock('../../src/utils/logger.js', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() },

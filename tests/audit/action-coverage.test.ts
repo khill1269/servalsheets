@@ -105,10 +105,7 @@ describe('Action Coverage - Inventory', () => {
   it('every tool in TOOL_ACTIONS has entries in ACTION_COUNTS', () => {
     const toolNames = getFixtureToolNames();
     for (const tool of toolNames) {
-      expect(
-        ACTION_COUNTS[tool],
-        `Missing ACTION_COUNTS entry for tool: ${tool}`
-      ).toBeDefined();
+      expect(ACTION_COUNTS[tool], `Missing ACTION_COUNTS entry for tool: ${tool}`).toBeDefined();
     }
   });
 
@@ -117,7 +114,9 @@ describe('Action Coverage - Inventory', () => {
     for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
       const expected = ACTION_COUNTS[tool];
       if (expected !== undefined && actions.length !== expected) {
-        mismatches.push(`${tool}: TOOL_ACTIONS has ${actions.length}, ACTION_COUNTS has ${expected}`);
+        mismatches.push(
+          `${tool}: TOOL_ACTIONS has ${actions.length}, ACTION_COUNTS has ${expected}`
+        );
       }
     }
     expect(mismatches, `Action count mismatches:\n${mismatches.join('\n')}`).toEqual([]);

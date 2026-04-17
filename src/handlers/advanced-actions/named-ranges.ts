@@ -5,10 +5,7 @@ import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.
 import type { ErrorDetail, MutationSummary, RangeInput } from '../../schemas/shared.js';
 import type { GridRangeInput } from '../../utils/google-sheets-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { recordNamedRange } from '../../mcp/completions.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
@@ -69,9 +66,7 @@ export async function handleAddNamedRangeAction(
       spreadsheetId: req.spreadsheetId!,
       fields: 'namedRanges',
     });
-    const duplicate = (existing.data.namedRanges ?? []).find(
-      (n) => n.name === req.name
-    );
+    const duplicate = (existing.data.namedRanges ?? []).find((n) => n.name === req.name);
     if (duplicate) {
       return deps.success('add_named_range', {
         namedRange: mapNamedRange(duplicate, deps),

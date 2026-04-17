@@ -54,7 +54,7 @@ export function createHttpProtocolVersionMiddleware(
 
     const clientVersion = req.headers['mcp-protocol-version'] as string | undefined;
 
-    if (strictProtocolVersion && !clientVersion && !isInitializeRequest(req)) {
+    if (strictProtocolVersion && !clientVersion && !isInitializeRequest(req) && req.method !== 'DELETE') {
       res.status(400).json({
         error: {
           code: 'INVALID_REQUEST',

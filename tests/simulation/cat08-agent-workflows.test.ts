@@ -502,9 +502,7 @@ describe('Category 8: Agent Workflows & Orchestration', () => {
 
     it('should append recovery step to plan', () => {
       const plan = makePlanState({
-        steps: [
-          makeStep({ stepId: 'step-001', description: 'Add data' }),
-        ],
+        steps: [makeStep({ stepId: 'step-001', description: 'Add data' })],
         results: [{ stepId: 'step-001', success: false, error: 'Sheet not found' }],
       });
 
@@ -626,9 +624,7 @@ Bob,25,bob@test.com`;
     });
 
     it('should apply formatting after cleaning', () => {
-      const data = [
-        { Name: 'Alice', Age: '30', Email: 'alice@test.com' },
-      ];
+      const data = [{ Name: 'Alice', Age: '30', Email: 'alice@test.com' }];
 
       const formatted = {
         Name: { format: 'text' },
@@ -874,9 +870,7 @@ Bob,25,bob@test.com`;
     it('should not apply changes until commit', () => {
       const txn = makeTransaction({
         status: 'pending',
-        operations: [
-          { tool: 'sheets_data', action: 'write', params: { values: [[1, 2, 3]] } },
-        ],
+        operations: [{ tool: 'sheets_data', action: 'write', params: { values: [[1, 2, 3]] } }],
       });
 
       // Changes should not be visible yet

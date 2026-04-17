@@ -109,7 +109,9 @@ describe('query_natural_language action', () => {
     );
     expect(createMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        systemPrompt: expect.stringContaining('Likely useful operations: aggregate, pivot_compute.'),
+        systemPrompt: expect.stringContaining(
+          'Likely useful operations: aggregate, pivot_compute.'
+        ),
       })
     );
     if (result.success) {

@@ -199,16 +199,8 @@ const FreezeDimensionActionSchema = CommonFieldsSchema.extend({
     .min(0)
     .optional()
     .describe('DEPRECATED: Use "count" instead. Auto-converted to count for compatibility.'),
-}).transform((val) => {
-  // Fix 2.2: Auto-fix common parameter name mistake
-  if (val.position !== undefined && val.count === undefined) {
-    val.count = val.position;
-  }
-  // Remove the deprecated field from the output
-
-  const { position: _position, ...rest } = val;
-  return rest;
 });
+// Note: position→count auto-conversion enforced in handler (Zod 3.25 ZodEffects/transform cannot be in discriminatedUnion)
 
 const GroupDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('group').describe('Group rows or columns for collapsing'),

@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 
-function parseResponse(result: { content: unknown; structuredContent?: unknown }): Record<string, unknown> {
+function parseResponse(result: {
+  content: unknown;
+  structuredContent?: unknown;
+}): Record<string, unknown> {
   if (
     result.structuredContent &&
     typeof result.structuredContent === 'object' &&
@@ -25,10 +28,7 @@ function parseResponse(result: { content: unknown; structuredContent?: unknown }
  *   - response.success === false AND the error is NOT an "Unknown action" routing error
  *     (meaning the action was dispatched correctly but failed at the API/auth level)
  */
-function assertRoutedCorrectly(
-  response: Record<string, unknown>,
-  expectedAction: string
-): void {
+function assertRoutedCorrectly(response: Record<string, unknown>, expectedAction: string): void {
   if (response.action === expectedAction) {
     return; // success path — action dispatched and returned correctly
   }
@@ -39,7 +39,10 @@ function assertRoutedCorrectly(
     const isRoutingError =
       errorMessage.toLowerCase().includes('unknown action') ||
       errorMessage.toLowerCase().includes('invalid action');
-    expect(isRoutingError, `Expected routing to '${expectedAction}' but got routing error: ${errorMessage}`).toBe(false);
+    expect(
+      isRoutingError,
+      `Expected routing to '${expectedAction}' but got routing error: ${errorMessage}`
+    ).toBe(false);
     return; // API/auth failure, routing was correct
   }
   // success:true but wrong action field

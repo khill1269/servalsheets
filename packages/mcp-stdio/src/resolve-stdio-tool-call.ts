@@ -1,5 +1,8 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { StdioQueuedToolExecutionResult, StdioToolCallExtra } from './execute-stdio-tool-call.js';
+import type {
+  StdioQueuedToolExecutionResult,
+  StdioToolCallExtra,
+} from './execute-stdio-tool-call.js';
 
 export interface ResolveStdioToolCallInput<
   TAuthHandler = unknown,
@@ -100,9 +103,8 @@ export async function resolveStdioToolCall<
   }
 
   const rawArgs = input.args as Record<string, unknown>;
-  const rawAction = ((rawArgs['request'] as Record<string, unknown> | undefined)?.[
-    'action'
-  ] ?? rawArgs['action']) as string | undefined;
+  const rawAction = ((rawArgs['request'] as Record<string, unknown> | undefined)?.['action'] ??
+    rawArgs['action']) as string | undefined;
   const isExempt = dependencies.isToolCallAuthExempt(input.toolName, rawAction);
 
   if (!isExempt) {
@@ -119,7 +121,10 @@ export async function resolveStdioToolCall<
 
   if (!input.handlers) {
     if (isExempt) {
-      const preInitResult = await dependencies.handlePreInitExemptToolCall(input.toolName, input.args);
+      const preInitResult = await dependencies.handlePreInitExemptToolCall(
+        input.toolName,
+        input.args
+      );
       if (preInitResult) {
         return {
           kind: 'response',

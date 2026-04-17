@@ -95,9 +95,8 @@ function createManagerAtStage1(): ToolStageManager {
 
 describe('ToolStageManager — staged registration & list_changed notifications', async () => {
   const { resourceNotifications } = await import('../../src/resources/notifications.js');
-  const { clearDiscoveryHintCache } = await import(
-    '../../src/mcp/registration/tool-discovery-hints.js'
-  );
+  const { clearDiscoveryHintCache } =
+    await import('../../src/mcp/registration/tool-discovery-hints.js');
 
   const syncToolList = resourceNotifications.syncToolList as ReturnType<typeof vi.fn>;
   const clearCache = clearDiscoveryHintCache as ReturnType<typeof vi.fn>;

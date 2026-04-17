@@ -57,7 +57,7 @@ const REDIS_KEY_PREFIX = 'servalsheets:etag:';
 const REDIS_TTL_SECONDS = 600; // 10 minutes (longer than L1)
 
 function getDefaultMaxEntries(): number {
-  return getEnv().ETAG_CACHE_MAX_ENTRIES;
+  return (getEnv()['ETAG_CACHE_MAX_ENTRIES'] as number) ?? 1000;
 }
 
 /**

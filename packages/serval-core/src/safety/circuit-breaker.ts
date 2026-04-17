@@ -140,29 +140,38 @@ export class CircuitBreaker {
     for (const strategy of this.fallbackStrategies) {
       if (!strategy.shouldUse(error)) {
         this.logger.debug('Skipping fallback strategy (shouldUse=false)', {
-          circuit: this.name, strategy: strategy.name, error: error.message,
+          circuit: this.name,
+          strategy: strategy.name,
+          error: error.message,
         });
         continue;
       }
 
       try {
         this.logger.info('Attempting fallback strategy', {
-          circuit: this.name, strategy: strategy.name, priority: strategy.priority ?? 0,
+          circuit: this.name,
+          strategy: strategy.name,
+          priority: strategy.priority ?? 0,
         });
         const result = await strategy.execute();
         this.fallbackUsageCount++;
-        this.logger.info('Fallback strategy succeeded', { circuit: this.name, strategy: strategy.name });
+        this.logger.info('Fallback strategy succeeded', {
+          circuit: this.name,
+          strategy: strategy.name,
+        });
         return result;
       } catch (fallbackError) {
         this.logger.warn('Fallback strategy failed', {
-          circuit: this.name, strategy: strategy.name,
+          circuit: this.name,
+          strategy: strategy.name,
           error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
         });
       }
     }
 
     this.logger.error('All fallback strategies exhausted', {
-      circuit: this.name, strategiesTried: this.fallbackStrategies.length,
+      circuit: this.name,
+      strategiesTried: this.fallbackStrategies.length,
     });
     throw error;
   }
@@ -172,7 +181,9 @@ export class CircuitBreaker {
     if (this.state === 'half_open') {
       this.successCount++;
       this.logger.debug('Circuit breaker success in half-open', {
-        circuit: this.name, successCount: this.successCount, threshold: this.config.successThreshold,
+        circuit: this.name,
+        successCount: this.successCount,
+        threshold: this.config.successThreshold,
       });
       if (this.successCount >= this.config.successThreshold) {
         this.transitionTo('closed');
@@ -186,7 +197,8 @@ export class CircuitBreaker {
     this.lastFailureTime = Date.now();
 
     this.logger.warn('Circuit breaker failure', {
-      circuit: this.name, failureCount: this.failureCount,
+      circuit: this.name,
+      failureCount: this.failureCount,
       threshold: this.config.failureThreshold,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -218,7 +230,9 @@ export class CircuitBreaker {
     }
 
     this.logger.info('Circuit breaker state transition', {
-      circuit: this.name, from: oldState, to: newState,
+      circuit: this.name,
+      from: oldState,
+      to: newState,
       nextAttempt: newState === 'open' ? new Date(this.nextAttemptTime).toISOString() : undefined,
     });
   }
@@ -243,8 +257,12 @@ export class CircuitBreaker {
     this.logger.info('Circuit breaker manually reset', { circuit: this.name });
   }
 
-  getState(): CircuitState { return this.state; }
-  isOpen(): boolean { return this.state === 'open' && Date.now() < this.nextAttemptTime; }
+  getState(): CircuitState {
+    return this.state;
+  }
+  isOpen(): boolean {
+    return this.state === 'open' && Date.now() < this.nextAttemptTime;
+  }
 }
 
 /**
@@ -261,7 +279,11 @@ export const FallbackStrategies = {
     },
     shouldUse: (error) => {
       const errorMsg = error.message.toLowerCase();
-      return !errorMsg.includes('auth') && !errorMsg.includes('permission') && !errorMsg.includes('forbidden');
+      return (
+        !errorMsg.includes('auth') &&
+        !errorMsg.includes('permission') &&
+        !errorMsg.includes('forbidden')
+      );
     },
   }),
 
@@ -279,7 +301,12 @@ export const FallbackStrategies = {
     shouldUse: () => true,
   }),
 
-  retryWithBackoff: <T>(operation: () => Promise<T>, maxRetries = 3, baseDelayMs = 1000, priority = 80): FallbackStrategy<T> => ({
+  retryWithBackoff: <T>(
+    operation: () => Promise<T>,
+    maxRetries = 3,
+    baseDelayMs = 1000,
+    priority = 80
+  ): FallbackStrategy<T> => ({
     name: 'retry-with-backoff',
     priority,
     execute: async () => {
@@ -299,12 +326,20 @@ export const FallbackStrategies = {
     },
     shouldUse: (error) => {
       const errorMsg = error.message.toLowerCase();
-      return errorMsg.includes('timeout') || errorMsg.includes('network') ||
-        errorMsg.includes('temporary') || error.message.includes('503') || error.message.includes('429');
+      return (
+        errorMsg.includes('timeout') ||
+        errorMsg.includes('network') ||
+        errorMsg.includes('temporary') ||
+        error.message.includes('503') ||
+        error.message.includes('429')
+      );
     },
   }),
 
-  alternateSource: <T>(alternateOperation: () => Promise<T>, priority = 90): FallbackStrategy<T> => ({
+  alternateSource: <T>(
+    alternateOperation: () => Promise<T>,
+    priority = 90
+  ): FallbackStrategy<T> => ({
     name: 'alternate-source',
     priority,
     execute: async () => await alternateOperation(),

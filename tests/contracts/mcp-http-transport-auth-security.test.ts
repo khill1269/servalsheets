@@ -130,23 +130,23 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
     it(
       'accepts initialize requests missing MCP-Protocol-Version header',
       async () => {
-      const response = await httpRequest(app, {
-        method: 'POST',
-        path: '/mcp',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-        },
-        body: {
-          ...INITIALIZE_REQUEST,
-          id: 101,
-        },
-      });
+        const response = await httpRequest(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+          },
+          body: {
+            ...INITIALIZE_REQUEST,
+            id: 101,
+          },
+        });
 
-      expect([200, 406, 426]).toContain(response.status);
-      if (response.status === 200) {
-        expect(extractSessionId(response.headers)).toBeTruthy();
-      }
+        expect([200, 406, 426]).toContain(response.status);
+        if (response.status === 200) {
+          expect(extractSessionId(response.headers)).toBeTruthy();
+        }
       },
       CONTRACT_TEST_TIMEOUT_MS
     );
@@ -154,28 +154,28 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
     it(
       'rejects unsupported MCP-Protocol-Version values',
       async () => {
-      const response = await httpRequest(app, {
-        method: 'POST',
-        path: '/mcp',
-        headers: {
-          'Content-Type': 'application/json',
-          'MCP-Protocol-Version': '2025-11-05',
-        },
-        body: {
-          ...INITIALIZE_REQUEST,
-          id: 102,
-        },
-      });
-
-      expect(response.status).toBe(400);
-      const error = (response.body as { error: string | Record<string, unknown> }).error;
-      if (typeof error === 'string') {
-        expect(error).toBe('UNSUPPORTED_PROTOCOL_VERSION');
-      } else {
-        expect(error).toMatchObject({
-          code: 'INVALID_REQUEST',
+        const response = await httpRequest(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            'MCP-Protocol-Version': '2025-11-05',
+          },
+          body: {
+            ...INITIALIZE_REQUEST,
+            id: 102,
+          },
         });
-      }
+
+        expect(response.status).toBe(400);
+        const error = (response.body as { error: string | Record<string, unknown> }).error;
+        if (typeof error === 'string') {
+          expect(error).toBe('UNSUPPORTED_PROTOCOL_VERSION');
+        } else {
+          expect(error).toMatchObject({
+            code: 'INVALID_REQUEST',
+          });
+        }
       },
       CONTRACT_TEST_TIMEOUT_MS
     );
@@ -183,24 +183,24 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
     it(
       'accepts initialize requests with MCP-Protocol-Version 2025-11-25',
       async () => {
-      const response = await httpRequest(app, {
-        method: 'POST',
-        path: '/mcp',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-          'MCP-Protocol-Version': '2025-11-25',
-        },
-        body: {
-          ...INITIALIZE_REQUEST,
-          id: 103,
-        },
-      });
+        const response = await httpRequest(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+            'MCP-Protocol-Version': '2025-11-25',
+          },
+          body: {
+            ...INITIALIZE_REQUEST,
+            id: 103,
+          },
+        });
 
-      expect([200, 406, 426]).toContain(response.status);
-      if (response.status === 200) {
-        expect(extractSessionId(response.headers)).toBeTruthy();
-      }
+        expect([200, 406, 426]).toContain(response.status);
+        if (response.status === 200) {
+          expect(extractSessionId(response.headers)).toBeTruthy();
+        }
       },
       CONTRACT_TEST_TIMEOUT_MS
     );
@@ -208,47 +208,47 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
     it(
       'rejects subsequent MCP requests missing MCP-Protocol-Version header',
       async () => {
-      const initializeResponse = await httpRequest(app, {
-        method: 'POST',
-        path: '/mcp',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-        },
-        body: {
-          ...INITIALIZE_REQUEST,
-          id: 104,
-        },
-      });
-
-      expect(initializeResponse.status).toBe(200);
-      const sessionId = extractSessionId(initializeResponse.headers);
-
-      const response = await httpRequest(app, {
-        method: 'POST',
-        path: '/mcp',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-          'Mcp-Session-Id': sessionId,
-        },
-        body: {
-          jsonrpc: '2.0',
-          id: 105,
-          method: 'tools/list',
-          params: {},
-        },
-      });
-
-      expect(response.status).toBe(400);
-      const error = (response.body as { error: string | Record<string, unknown> }).error;
-      if (typeof error === 'string') {
-        expect(error).toBe('INVALID_REQUEST');
-      } else {
-        expect(error).toMatchObject({
-          code: 'INVALID_REQUEST',
+        const initializeResponse = await httpRequest(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+          },
+          body: {
+            ...INITIALIZE_REQUEST,
+            id: 104,
+          },
         });
-      }
+
+        expect(initializeResponse.status).toBe(200);
+        const sessionId = extractSessionId(initializeResponse.headers);
+
+        const response = await httpRequest(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json, text/event-stream',
+            'Mcp-Session-Id': sessionId,
+          },
+          body: {
+            jsonrpc: '2.0',
+            id: 105,
+            method: 'tools/list',
+            params: {},
+          },
+        });
+
+        expect(response.status).toBe(400);
+        const error = (response.body as { error: string | Record<string, unknown> }).error;
+        if (typeof error === 'string') {
+          expect(error).toBe('INVALID_REQUEST');
+        } else {
+          expect(error).toMatchObject({
+            code: 'INVALID_REQUEST',
+          });
+        }
       },
       CONTRACT_TEST_TIMEOUT_MS
     );
@@ -295,131 +295,147 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       restoreEnv();
     });
 
-    it('requires Mcp-Session-Id on DELETE /mcp', async () => {
-      const response = await httpRequest(app, {
-        method: 'DELETE',
-        path: '/mcp',
-      });
-      expect(response.status).toBe(400);
-      expect((response.body as { error: Record<string, unknown> }).error).toMatchObject({
-        code: 'INVALID_REQUEST',
-      });
-    }, CONTRACT_TEST_TIMEOUT_MS);
+    it(
+      'requires Mcp-Session-Id on DELETE /mcp',
+      async () => {
+        const response = await httpRequest(app, {
+          method: 'DELETE',
+          path: '/mcp',
+        });
+        expect(response.status).toBe(400);
+        expect((response.body as { error: Record<string, unknown> }).error).toMatchObject({
+          code: 'INVALID_REQUEST',
+        });
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
 
-    it('rejects reconnect attempts when session security context changes', async () => {
-      const ownerUserAgent = 'contract-owner-agent';
-      const sessionId = await initializeSession(ownerUserAgent, 201);
+    it(
+      'rejects reconnect attempts when session security context changes',
+      async () => {
+        const ownerUserAgent = 'contract-owner-agent';
+        const sessionId = await initializeSession(ownerUserAgent, 201);
 
-      const response = await httpRequest(app, {
-        method: 'GET',
-        path: '/mcp',
-        headers: {
-          'Mcp-Session-Id': sessionId,
-          'MCP-Protocol-Version': '2025-11-25',
-          'User-Agent': 'contract-attacker-agent',
-        },
-      });
+        const response = await httpRequest(app, {
+          method: 'GET',
+          path: '/mcp',
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            'MCP-Protocol-Version': '2025-11-25',
+            'User-Agent': 'contract-attacker-agent',
+          },
+        });
 
-      expect(response.status).toBe(403);
-      expect((response.body as { error: Record<string, unknown> }).error).toMatchObject({
-        code: 'SESSION_SECURITY_VIOLATION',
-      });
+        expect(response.status).toBe(403);
+        expect((response.body as { error: Record<string, unknown> }).error).toMatchObject({
+          code: 'SESSION_SECURITY_VIOLATION',
+        });
 
-      const cleanupResponse = await httpRequest(app, {
-        method: 'DELETE',
-        path: '/mcp',
-        headers: {
-          'Mcp-Session-Id': sessionId,
-          'User-Agent': ownerUserAgent,
-        },
-      });
-      expect(cleanupResponse.status).toBe(200);
-    }, CONTRACT_TEST_TIMEOUT_MS);
+        const cleanupResponse = await httpRequest(app, {
+          method: 'DELETE',
+          path: '/mcp',
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            'User-Agent': ownerUserAgent,
+          },
+        });
+        expect(cleanupResponse.status).toBe(200);
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
 
-    it('enforces session ownership checks for DELETE /mcp', async () => {
-      const ownerUserAgent = 'delete-owner-agent';
-      const sessionId = await initializeSession(ownerUserAgent, 202);
+    it(
+      'enforces session ownership checks for DELETE /mcp',
+      async () => {
+        const ownerUserAgent = 'delete-owner-agent';
+        const sessionId = await initializeSession(ownerUserAgent, 202);
 
-      const forbidden = await httpRequest(app, {
-        method: 'DELETE',
-        path: '/mcp',
-        headers: {
-          'Mcp-Session-Id': sessionId,
-          'User-Agent': 'delete-attacker-agent',
-        },
-      });
+        const forbidden = await httpRequest(app, {
+          method: 'DELETE',
+          path: '/mcp',
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            'User-Agent': 'delete-attacker-agent',
+          },
+        });
 
-      expect(forbidden.status).toBe(403);
-      // HTTP transport uses SESSION_SECURITY_VIOLATION (not the generic FORBIDDEN code)
-      // for session ownership violations — more specific than FORBIDDEN and used consistently
-      // at both SSE reconnection (routes-transport.ts:201) and DELETE /mcp (:625) paths.
-      expect((forbidden.body as { error: Record<string, unknown> }).error).toMatchObject({
-        code: 'SESSION_SECURITY_VIOLATION',
-      });
+        expect(forbidden.status).toBe(403);
+        // HTTP transport uses SESSION_SECURITY_VIOLATION (not the generic FORBIDDEN code)
+        // for session ownership violations — more specific than FORBIDDEN and used consistently
+        // at both SSE reconnection (routes-transport.ts:201) and DELETE /mcp (:625) paths.
+        expect((forbidden.body as { error: Record<string, unknown> }).error).toMatchObject({
+          code: 'SESSION_SECURITY_VIOLATION',
+        });
 
-      // The Streamable HTTP transport (app.all('/mcp')) handles DELETE before the
-      // explicit app.delete('/mcp') handler. The transport returns 200 with empty body
-      // on successful session termination (MCP 2025-11-25 spec behavior).
-      const deleteResponse = await httpRequest(app, {
-        method: 'DELETE',
-        path: '/mcp',
-        headers: {
-          'Mcp-Session-Id': sessionId,
-          'User-Agent': ownerUserAgent,
-        },
-      });
-      expect(deleteResponse.status).toBe(200);
-    }, CONTRACT_TEST_TIMEOUT_MS);
+        // The Streamable HTTP transport (app.all('/mcp')) handles DELETE before the
+        // explicit app.delete('/mcp') handler. The transport returns 200 with empty body
+        // on successful session termination (MCP 2025-11-25 spec behavior).
+        const deleteResponse = await httpRequest(app, {
+          method: 'DELETE',
+          path: '/mcp',
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            'User-Agent': ownerUserAgent,
+          },
+        });
+        expect(deleteResponse.status).toBe(200);
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
 
-    it('returns 404 for follow-up requests after session termination', async () => {
-      const ownerUserAgent = 'terminated-owner-agent';
-      const sessionId = await initializeSession(ownerUserAgent, 203);
+    it(
+      'returns 404 for follow-up requests after session termination',
+      async () => {
+        const ownerUserAgent = 'terminated-owner-agent';
+        const sessionId = await initializeSession(ownerUserAgent, 203);
 
-      const deleteResponse = await httpRequest(app, {
-        method: 'DELETE',
-        path: '/mcp',
-        headers: {
-          'Mcp-Session-Id': sessionId,
-          'User-Agent': ownerUserAgent,
-        },
-      });
-      expect(deleteResponse.status).toBe(200);
+        const deleteResponse = await httpRequest(app, {
+          method: 'DELETE',
+          path: '/mcp',
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            'User-Agent': ownerUserAgent,
+          },
+        });
+        expect(deleteResponse.status).toBe(200);
 
-      const getResponse = await httpRequest(app, {
-        method: 'GET',
-        path: '/mcp',
-        headers: {
-          'Mcp-Session-Id': sessionId,
-          'MCP-Protocol-Version': '2025-11-25',
-          'User-Agent': ownerUserAgent,
-        },
-      });
-      expect(getResponse.status).toBe(404);
-      expect((getResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
-        code: 'SESSION_NOT_FOUND',
-      });
+        const getResponse = await httpRequest(app, {
+          method: 'GET',
+          path: '/mcp',
+          headers: {
+            'Mcp-Session-Id': sessionId,
+            'MCP-Protocol-Version': '2025-11-25',
+            'User-Agent': ownerUserAgent,
+          },
+        });
+        expect(getResponse.status).toBe(404);
+        expect((getResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
+          code: 'SESSION_NOT_FOUND',
+        });
 
-      const postResponse = await httpRequest(app, {
-        method: 'POST',
-        path: '/mcp',
-        headers: {
-          'Content-Type': 'application/json',
-          'Mcp-Session-Id': sessionId,
-          'MCP-Protocol-Version': '2025-11-25',
-          'User-Agent': ownerUserAgent,
-        },
-        body: {
-          jsonrpc: '2.0',
-          id: 204,
-          method: 'tools/list',
-          params: {},
-        },
-      });
-      expect(postResponse.status).toBe(404);
-      expect((postResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
-        code: 'SESSION_NOT_FOUND',
-      });
-    }, CONTRACT_TEST_TIMEOUT_MS);
+        const postResponse = await httpRequest(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            'Mcp-Session-Id': sessionId,
+            'MCP-Protocol-Version': '2025-11-25',
+            'User-Agent': ownerUserAgent,
+          },
+          body: {
+            jsonrpc: '2.0',
+            id: 204,
+            method: 'tools/list',
+            params: {},
+          },
+        });
+        expect(postResponse.status).toBe(404);
+        expect((postResponse.body as { error: Record<string, unknown> }).error).toMatchObject({
+          code: 'SESSION_NOT_FOUND',
+        });
+      },
+      CONTRACT_TEST_TIMEOUT_MS
+    );
   });
 
   describe('Well-known auth/security discovery contract', () => {
@@ -726,7 +742,8 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
         headers: {
           'Content-Type': 'application/json',
           'MCP-Protocol-Version': '2025-11-25',
-          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL290aGVyLXNlcnZlci5jb20iLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJleHAiOjk5OTk5OTk5OTl9.fake-signature',
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL290aGVyLXNlcnZlci5jb20iLCJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJleHAiOjk5OTk5OTk5OTl9.fake-signature',
         },
         body: INITIALIZE_REQUEST,
       });
@@ -742,11 +759,15 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       // MCP spec §2.8: Server MUST NOT pass through client tokens to downstream services
       // Verify no handler forwards req.headers.authorization to Google API calls
       const { spawnSync } = require('child_process');
-      const result = spawnSync('grep', [
-        '-rnE',
-        'req\\.headers\\.authorization.*google|passthrough.*token|forward.*bearer',
-        'src/handlers/',
-      ], { cwd: process.cwd(), encoding: 'utf-8' });
+      const result = spawnSync(
+        'grep',
+        [
+          '-rnE',
+          'req\\.headers\\.authorization.*google|passthrough.*token|forward.*bearer',
+          'src/handlers/',
+        ],
+        { cwd: process.cwd(), encoding: 'utf-8' }
+      );
 
       expect(result.stdout.trim()).toBe('');
     });

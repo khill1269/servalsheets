@@ -4,7 +4,13 @@
  * Handles the original `fix` action: issue detection and resolution operations.
  */
 
-import type { FixRequest, FixOperation, IssueToFix, FixResult, SheetsFixOutput } from '../../schemas/fix.js';
+import type {
+  FixRequest,
+  FixOperation,
+  IssueToFix,
+  FixResult,
+  SheetsFixOutput,
+} from '../../schemas/fix.js';
 import type { FixHandlerAccess } from './internal.js';
 import { ValidationError } from '../../core/errors.js';
 import { ErrorCodes } from '../error-codes.js';
@@ -83,7 +89,9 @@ export async function handleFixAction(
   }
 
   const snapshot =
-    req.safety?.createSnapshot !== false ? await handler._createSnapshot(req.spreadsheetId) : undefined;
+    req.safety?.createSnapshot !== false
+      ? await handler._createSnapshot(req.spreadsheetId)
+      : undefined;
 
   const results = await applyFixOperations(handler, req.spreadsheetId, operations);
 

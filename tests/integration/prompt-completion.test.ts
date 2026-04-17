@@ -1,8 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../helpers/mcp-test-harness.js';
+import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 
 describe('prompt ref completion', () => {
   let harness: McpTestHarness;

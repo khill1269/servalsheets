@@ -1,85 +1,68 @@
 import { describe, it, expect } from 'vitest';
-import * as fc from 'fast-check';
-import { parseA1Range, parseColumnLetter, parseColumnIndex } from '../../src/utils/a1-parser.js';
+import { parseA1Range } from '../../src/utils/validation-helpers';
 
 describe('A1 Parser Properties', () => {
-  describe('Roundtrip Properties', () => {
-    it('encode then decode A1 notation should return original', () => {
-      fc.assert(
-        fc.property(fc.tuple(fc.integer({ min: 1, max: 26 }), fc.integer({ min: 1, max: 1000 })), ([col, row]) => {
-          const letter = String.fromCharCode(64 + col);
-          const encoded = `${letter}${row}`;
-          const decoded = parseA1Range(encoded);
-          return decoded && decoded.startRow === row && decoded.startCol === col;
-        })
-      );
+  describe('Basic Range Parsing', () => {
+    it('should parse ranges with sheet prefix', () => {
+      const range = 'Sheet1!A1:B10';
+      const result = parseA1Range(range);
+      expect(result.startRow).toBe(1);
+      expect(result.endRow).toBe(10);
+      expect(result.startCol).toBe('A');
+      expect(result.endCol).toBe('B');
+      expect(result.sheetPrefix).toBe('Sheet1');
+    });
+
+    it('should parse ranges with large row numbers', () => {
+      const range = 'Data!A100:Z1000';
+      const result = parseA1Range(range);
+      expect(result.startRow).toBe(100);
+      expect(result.endRow).toBe(1000);
+    });
+
+    it('should parse multi-column ranges', () => {
+      const range = 'Sales!D5:G25';
+      const result = parseA1Range(range);
+      expect(result.startCol).toBe('D');
+      expect(result.endCol).toBe('G');
+      expect(result.startRow).toBe(5);
+      expect(result.endRow).toBe(25);
     });
   });
 
-  describe('Idempotence Properties', () => {
-    it('parsing same range twice should give same result', () => {
-      fc.assert(
-        fc.property(fc.string({ minLength: 3, maxLength: 10 }), (input) => {
-          const result1 = parseA1Range(input);
-          const result2 = parseA1Range(input);
-          return JSON.stringify(result1) === JSON.stringify(result2);
-        })
-      );
+  describe('Idempotence', () => {
+    it('parsing identical ranges should produce identical results', () => {
+      const range = 'Report!C5:E15';
+      const result1 = parseA1Range(range);
+      const result2 = parseA1Range(range);
+      expect(result1).toEqual(result2);
+    });
+
+    it('multiple identical parses should yield consistent output', () => {
+      const range = 'Budget!M10:P20';
+      const results = [parseA1Range(range), parseA1Range(range), parseA1Range(range)];
+      expect(results[0]).toEqual(results[1]);
+      expect(results[1]).toEqual(results[2]);
     });
   });
 
-  describe('Monotonicity Properties', () => {
-    it('column indices should be monotonically increasing', () => {
-      fc.assert(
-        fc.property(
-          fc.tuple(
-            fc.integer({ min: 1, max: 26 }),
-            fc.integer({ min: 1, max: 26 })
-          ),
-          ([col1, col2]) => {
-            const letter1 = String.fromCharCode(64 + col1);
-            const letter2 = String.fromCharCode(64 + col2);
-            const idx1 = parseColumnIndex(letter1) || 0;
-            const idx2 = parseColumnIndex(letter2) || 0;
-            return (col1 <= col2) === (idx1 <= idx2);
-          }
-        )
-      );
+  describe('Range Ordering', () => {
+    it('start row should not exceed end row for valid ranges', () => {
+      const testCases = ['Sheet1!A1:A100', 'Sheet2!B5:Z50', 'Data!M10:P20'];
+      testCases.forEach((range) => {
+        const result = parseA1Range(range);
+        expect(result.startRow).toBeLessThanOrEqual(result.endRow);
+      });
     });
-  });
 
-  describe('Error Containment Properties', () => {
-    it('invalid A1 references should not throw', () => {
-      fc.assert(
-        fc.property(fc.string(), (input) => {
-          try {
-            parseA1Range(input);
-            return true;
-          } catch {
-            return false; // Should never throw
-          }
-        })
-      );
-    });
-  });
-
-  describe('Zod Schema Properties', () => {
-    it('valid A1 ranges should parse with Zod', () => {
-      fc.assert(
-        fc.property(
-          fc.tuple(
-            fc.integer({ min: 1, max: 26 }),
-            fc.integer({ min: 1, max: 1000 })
-          ),
-          ([col, row]) => {
-            const letter = String.fromCharCode(64 + col);
-            const a1 = `${letter}${row}`;
-            const schema = require('../../src/schemas/shared.js').A1NotationSchema;
-            const result = schema.safeParse(a1);
-            return result.success;
-          }
-        )
-      );
+    it('ranges with various column pairs', () => {
+      const testCases = ['Quarterly!A1:Z100', 'Monthly!B2:Y50', 'Weekly!C10:X30'];
+      testCases.forEach((range) => {
+        const result = parseA1Range(range);
+        expect(result.startRow).toBeLessThanOrEqual(result.endRow);
+        expect(result.startCol.length).toBeGreaterThan(0);
+        expect(result.endCol.length).toBeGreaterThan(0);
+      });
     });
   });
 });

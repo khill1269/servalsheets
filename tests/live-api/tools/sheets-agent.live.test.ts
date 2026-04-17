@@ -91,12 +91,7 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
   describe('execute (with pre-compiled plan)', () => {
     it('should execute a plan compiled without LLM', async () => {
       // Use compilePlan (non-AI) to create a test plan
-      const plan = compilePlan(
-        'Read data from Sheet1!A1:B5',
-        1,
-        undefined,
-        undefined
-      );
+      const plan = compilePlan('Read data from Sheet1!A1:B5', 1, undefined, undefined);
 
       expect(plan.planId).toBeDefined();
       expect(plan.steps.length).toBeGreaterThanOrEqual(0);

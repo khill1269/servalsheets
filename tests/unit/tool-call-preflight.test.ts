@@ -5,9 +5,7 @@ import {
   type ToolCallPreflightInput,
 } from '../../src/mcp/registration/tool-call-preflight.js';
 
-function createInput(
-  overrides: Partial<ToolCallPreflightInput> = {}
-): ToolCallPreflightInput {
+function createInput(overrides: Partial<ToolCallPreflightInput> = {}): ToolCallPreflightInput {
   return {
     tool: { name: 'sheets_core' },
     args: { request: { action: 'get', spreadsheetId: 'spreadsheet-123' } },
@@ -31,9 +29,12 @@ describe('resolveToolCallPreflight', () => {
 
   it('returns the resolved handler when auth passes', async () => {
     const handler = vi.fn();
-    const result = await resolveToolCallPreflight(createInput({ handlerMap: { sheets_core: handler } }), {
-      authCheck: vi.fn().mockResolvedValue({ authenticated: true }),
-    });
+    const result = await resolveToolCallPreflight(
+      createInput({ handlerMap: { sheets_core: handler } }),
+      {
+        authCheck: vi.fn().mockResolvedValue({ authenticated: true }),
+      }
+    );
 
     expect(result).toEqual({
       kind: 'handler',

@@ -92,7 +92,8 @@ export async function resolveComputeInputData(
         code: ErrorCodes.INVALID_PARAMS,
         message: `No header row data was found at ${headerRange}.`,
         retryable: false,
-        suggestedFix: 'Provide a headerRow that contains the column labels for the requested range.',
+        suggestedFix:
+          'Provide a headerRow that contains the column labels for the requested range.',
       },
     };
   }

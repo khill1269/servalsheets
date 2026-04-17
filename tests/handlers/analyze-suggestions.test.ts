@@ -211,7 +211,7 @@ describe('F4: Smart Suggestions', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('suggest_next_actions', () => {
@@ -437,9 +437,7 @@ describe('F4: Smart Suggestions', () => {
 
       expect(result.response.success).toBe(true);
       for (const enhancement of result.response.enhancements) {
-        expect(['formatting', 'structure']).toContain(
-          enhancement.suggestion.category
-        );
+        expect(['formatting', 'structure']).toContain(enhancement.suggestion.category);
       }
     });
 

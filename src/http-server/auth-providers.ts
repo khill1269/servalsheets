@@ -51,14 +51,18 @@ export function registerHttpAuthProviders<TOAuthProvider extends OAuthProviderLi
       : (config: HttpOAuthServerConfig): OAuthProvider | TOAuthProvider =>
           new OAuthProvider(config);
 
-  return registerHttpAuthProvidersImpl<OAuthProvider | TOAuthProvider>({
-    app: options.app,
+  return registerHttpAuthProvidersImpl({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    app: options.app as any,
     enableOAuth: options.enableOAuth,
     oauthConfig: options.oauthConfig,
     isProduction: options.isProduction,
     samlAcknowledgedCve: options.samlAcknowledgedCve,
-    loadSamlProvider: options.loadSamlProvider ?? (() => createSamlProviderFromEnv()),
-    createOAuthProvider,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    loadSamlProvider: (options.loadSamlProvider ?? (() => createSamlProviderFromEnv())) as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createOAuthProvider: createOAuthProvider as any,
     log: (options.log ?? defaultLogger) as HttpAuthProvidersLogger,
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any) as unknown as { oauth: OAuthProvider | TOAuthProvider | null };
 }

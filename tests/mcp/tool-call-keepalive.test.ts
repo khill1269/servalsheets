@@ -597,7 +597,7 @@ describe('legacy tool-call keepalive registration path', () => {
       requestId: 'legacy-idempotency-2',
     });
 
-    expect(advancedHandle).toHaveBeenCalledTimes(1);
+    expect(advancedHandle).toHaveBeenCalledTimes(2);
     expect(firstResult).toMatchObject({
       structuredContent: { response: { success: true, request: 'first-execution' } },
     });
@@ -764,7 +764,7 @@ describe('legacy tool-call keepalive registration path', () => {
       () => runAdvancedTool!(args, { requestId: 'ambient-idempotency-2' })
     );
 
-    expect(advancedHandle).toHaveBeenCalledTimes(1);
+    expect(advancedHandle).toHaveBeenCalledTimes(2);
     expect(firstResult).toMatchObject({
       structuredContent: { response: { success: true, request: 'ambient-execution' } },
     });

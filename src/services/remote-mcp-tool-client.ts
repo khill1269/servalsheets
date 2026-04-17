@@ -43,11 +43,14 @@ export function isRemoteMcpExecutorToolEnabled(
   toolName: string,
   config = getRemoteMcpExecutorConfig()
 ): boolean {
-  return config.enabled && config.allowedTools.includes(toolName);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cfg = config as any;
+  return cfg.enabled && cfg.allowedTools.includes(toolName);
 }
 
 export async function getRemoteToolClient(toolName?: string): Promise<RemoteToolClient | null> {
-  const config = getRemoteMcpExecutorConfig();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const config = getRemoteMcpExecutorConfig() as any;
   if (!config.enabled || !config.url) {
     return null;
   }

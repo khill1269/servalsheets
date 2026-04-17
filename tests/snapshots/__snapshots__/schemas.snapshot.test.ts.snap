@@ -18154,7 +18154,191 @@ exports[`Schema Snapshots > Input Schemas > SheetsAppsScriptInputSchema should m
           ],
           "type": "object"
         },
-        {},
+        {
+          "additionalProperties": false,
+          "properties": {
+            "_hasFiles": {
+              "type": "boolean"
+            },
+            "action": {
+              "const": "run",
+              "description": "Execute a function in an Apps Script project",
+              "type": "string"
+            },
+            "deploymentId": {
+              "description": "Deployment ID from Deploy > Manage Deployments (e.g. AKfycbxxxx). Required for normal run calls. This is NOT the script project ID. Supported workflow: create -> update_content -> create_version -> deploy -> run with deploymentId.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "devMode": {
+              "default": false,
+              "description": "Run most recently saved version (owner only) vs deployed version",
+              "type": "boolean"
+            },
+            "functionName": {
+              "description": "Name of function to execute",
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z_$][a-zA-Z0-9_$]*$",
+              "type": "string"
+            },
+            "parameters": {
+              "description": "Function parameters (basic types only: strings, numbers, arrays, objects, booleans, null)",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "items": {},
+                    "type": "array"
+                  },
+                  {
+                    "additionalProperties": {},
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "safety": {
+              "additionalProperties": false,
+              "description": "Safety options — use dryRun:true to validate without executing; requireConfirmation:true to require explicit user approval before running",
+              "properties": {
+                "autoSnapshot": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "dryRun": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "effectScope": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxCellsAffected": {
+                      "default": 50000,
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxColumnsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxRowsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "requireExplicitRange": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "maxCellsAffected",
+                    "requireExplicitRange"
+                  ],
+                  "type": "object"
+                },
+                "expectedState": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checksum": {
+                      "description": "MD5 hash of range values to verify",
+                      "type": "string"
+                    },
+                    "checksumRange": {
+                      "description": "A1 range for checksum calculation (default: A1:J10)",
+                      "type": "string"
+                    },
+                    "columnCount": {
+                      "description": "Expected total column count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "firstRowValues": {
+                      "description": "Expected header values in first row",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "rowCount": {
+                      "description": "Expected total row count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "sheetTitle": {
+                      "description": "Sheet title that must exist",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Specific version to validate",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sanitizeFormulas": {
+                  "default": true,
+                  "description": "When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.",
+                  "type": "boolean"
+                },
+                "transactionId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "dryRun",
+                "autoSnapshot",
+                "sanitizeFormulas"
+              ],
+              "type": "object"
+            },
+            "scriptId": {
+              "description": "Apps Script project ID. Required for devMode runs and as the project identifier for deploy/list actions.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "verbosity": {
+              "default": "standard",
+              "description": "Response detail level: minimal (essential info only), standard (balanced), detailed (full metadata)",
+              "enum": [
+                "minimal",
+                "standard",
+                "detailed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "scriptId",
+            "functionName",
+            "devMode",
+            "verbosity"
+          ],
+          "type": "object"
+        },
         {
           "additionalProperties": false,
           "properties": {
@@ -44219,7 +44403,172 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
           ],
           "type": "object"
         },
-        {},
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "freeze",
+              "description": "Freeze rows or columns. Examples: freeze header row → {dimension:\\"ROWS\\",count:1}; freeze first column → {dimension:\\"COLUMNS\\",count:1}; unfreeze → {dimension:\\"ROWS\\",count:0}. To freeze both rows and columns, make two calls. Do NOT use {rows:N,columns:N} — use separate dimension+count params.",
+              "type": "string"
+            },
+            "count": {
+              "description": "Number to freeze (0 = unfreeze all)",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dimension": {
+              "description": "ROWS or COLUMNS",
+              "enum": [
+                "ROWS",
+                "COLUMNS"
+              ],
+              "type": "string"
+            },
+            "position": {
+              "description": "DEPRECATED: Use \\"count\\" instead. Auto-converted to count for compatibility.",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "safety": {
+              "additionalProperties": false,
+              "description": "Safety options for destructive operations",
+              "properties": {
+                "autoSnapshot": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "dryRun": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "effectScope": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxCellsAffected": {
+                      "default": 50000,
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxColumnsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxRowsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "requireExplicitRange": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "maxCellsAffected",
+                    "requireExplicitRange"
+                  ],
+                  "type": "object"
+                },
+                "expectedState": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checksum": {
+                      "description": "MD5 hash of range values to verify",
+                      "type": "string"
+                    },
+                    "checksumRange": {
+                      "description": "A1 range for checksum calculation (default: A1:J10)",
+                      "type": "string"
+                    },
+                    "columnCount": {
+                      "description": "Expected total column count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "firstRowValues": {
+                      "description": "Expected header values in first row",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "rowCount": {
+                      "description": "Expected total row count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "sheetTitle": {
+                      "description": "Sheet title that must exist",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Specific version to validate",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sanitizeFormulas": {
+                  "default": true,
+                  "description": "When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.",
+                  "type": "boolean"
+                },
+                "transactionId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "dryRun",
+                "autoSnapshot",
+                "sanitizeFormulas"
+              ],
+              "type": "object"
+            },
+            "sheetId": {
+              "description": "Numeric sheet ID (provide sheetId OR sheetName, not both). Found in the gid= URL parameter.",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sheetName": {
+              "description": "Sheet tab name (provide sheetName OR sheetId, not both). The visible tab label at the bottom of the spreadsheet.",
+              "type": "string"
+            },
+            "spreadsheetId": {
+              "description": "Spreadsheet ID from URL",
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9-_]+$",
+              "type": "string"
+            },
+            "verbosity": {
+              "default": "standard",
+              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "enum": [
+                "minimal",
+                "standard",
+                "detailed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "spreadsheetId",
+            "verbosity",
+            "action",
+            "dimension",
+            "count"
+          ],
+          "type": "object"
+        },
         {
           "additionalProperties": false,
           "properties": {
@@ -55615,7 +55964,905 @@ exports[`Schema Snapshots > Input Schemas > SheetsFormatInputSchema should match
           ],
           "type": "object"
         },
-        {},
+        {
+          "additionalProperties": false,
+          "properties": {
+            "_multiRange": {
+              "type": "boolean"
+            },
+            "action": {
+              "const": "rule_add_conditional_format",
+              "description": "Add a conditional formatting rule to a sheet.\\n\\n⚠️ COMPLEX SCHEMA: This action has strict schema requirements. For simpler usage, consider add_conditional_format_rule with presets instead.\\n\\n⚠️ CRITICAL: The \\"rule\\" parameter MUST have type:\\"boolean\\" OR type:\\"gradient\\" — no other types allowed!",
+              "type": "string"
+            },
+            "index": {
+              "description": "Position to insert rule (0 = first, omit = append to end)",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "range": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "a1": {
+                      "description": "A1 notation range: \\"A1\\" (single cell), \\"A1:C10\\" (range), \\"Sheet1!A1:C10\\" (with sheet name). Full column refs (A:Z) are rejected — always include row numbers.",
+                      "maxLength": 500,
+                      "minLength": 1,
+                      "pattern": "^[^[\\\\]]+$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "a1"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "namedRange": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "namedRange"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "semantic": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "column": {
+                          "type": "string"
+                        },
+                        "includeHeader": {
+                          "default": false,
+                          "type": "boolean"
+                        },
+                        "rowEnd": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "rowStart": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "sheet": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "sheet",
+                        "column",
+                        "includeHeader"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "semantic"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "grid": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "endColumnIndex": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "endRowIndex": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "sheetId": {
+                          "description": "Numeric sheet/tab ID (e.g., 0 for first sheet, found in URL #gid=123456789). Use sheets_core get to retrieve sheet IDs.",
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "startColumnIndex": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "startRowIndex": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "sheetId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "grid"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "description": "Range for the conditional format rule"
+            },
+            "rule": {
+              "description": "Conditional format rule object. MUST specify type first!\\n\\n✅ TYPE 1: BOOLEAN RULE (condition-based)\\n{\\n  type: \\"boolean\\",  ← REQUIRED\\n  condition: {\\n    type: \\"TEXT_CONTAINS\\",  ← Condition type\\n    values: [{ userEnteredValue: \\"error\\" }]  ← Values as objects\\n  },\\n  format: {\\n    backgroundColor: { red: 1, green: 0.5, blue: 0.5 },\\n    textFormat: { bold: true }\\n  }\\n}\\n\\nOther condition types: NUMBER_GREATER, NUMBER_LESS, NUMBER_BETWEEN, TEXT_IS_EMAIL, TEXT_IS_URL, DATE_BEFORE, BLANK, NOT_BLANK, CUSTOM_FORMULA\\n\\n✅ TYPE 2: GRADIENT RULE (color scale/heat map)\\n{\\n  type: \\"gradient\\",  ← REQUIRED\\n  minpoint: { type: \\"MIN\\", color: { red: 0, green: 1, blue: 0 } },\\n  midpoint: { type: \\"PERCENT\\", value: \\"50\\", color: { red: 1, green: 1, blue: 0 } },  ← Optional\\n  maxpoint: { type: \\"MAX\\", color: { red: 1, green: 0, blue: 0 } }\\n}\\n\\nMinpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE\\n\\n❌ COMMON MISTAKE: Omitting type field or using wrong type value causes \\"invalid_union\\" error\\n✅ SIMPLER ALTERNATIVE: Use add_conditional_format_rule with rulePreset for common cases (highlight_duplicates, color_scale_green_red, etc.)",
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "condition": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "description": "Conditional format condition type (e.g., NUMBER_GREATER, TEXT_CONTAINS, DATE_BEFORE, CUSTOM_FORMULA, BLANK).",
+                          "enum": [
+                            "NUMBER_GREATER",
+                            "NUMBER_GREATER_THAN_EQ",
+                            "NUMBER_LESS",
+                            "NUMBER_LESS_THAN_EQ",
+                            "NUMBER_EQ",
+                            "NUMBER_NOT_EQ",
+                            "NUMBER_BETWEEN",
+                            "NUMBER_NOT_BETWEEN",
+                            "TEXT_CONTAINS",
+                            "TEXT_NOT_CONTAINS",
+                            "TEXT_STARTS_WITH",
+                            "TEXT_ENDS_WITH",
+                            "TEXT_EQ",
+                            "TEXT_IS_EMAIL",
+                            "TEXT_IS_URL",
+                            "DATE_EQ",
+                            "DATE_BEFORE",
+                            "DATE_AFTER",
+                            "DATE_ON_OR_BEFORE",
+                            "DATE_ON_OR_AFTER",
+                            "DATE_BETWEEN",
+                            "DATE_NOT_BETWEEN",
+                            "DATE_IS_VALID",
+                            "BLANK",
+                            "NOT_BLANK",
+                            "CUSTOM_FORMULA",
+                            "ONE_OF_LIST",
+                            "ONE_OF_RANGE",
+                            "BOOLEAN",
+                            "TEXT_NOT_EQ",
+                            "DATE_NOT_EQ",
+                            "FILTER_EXPRESSION"
+                          ],
+                          "type": "string"
+                        },
+                        "values": {
+                          "description": "Condition values (single value or array, automatically converted to strings)",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object"
+                    },
+                    "format": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "backgroundColor": {
+                          "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                        },
+                        "backgroundColorStyle": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "description": "Explicit RGB color",
+                              "properties": {
+                                "rgbColor": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                }
+                              },
+                              "required": [
+                                "rgbColor"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "description": "Theme color (auto-updates with spreadsheet theme)",
+                              "properties": {
+                                "themeColor": {
+                                  "description": "Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK",
+                                  "enum": [
+                                    "TEXT",
+                                    "BACKGROUND",
+                                    "ACCENT1",
+                                    "ACCENT2",
+                                    "ACCENT3",
+                                    "ACCENT4",
+                                    "ACCENT5",
+                                    "ACCENT6",
+                                    "LINK"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "themeColor"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "Background color as ColorStyle (preferred over backgroundColor; supports theme colors)"
+                        },
+                        "borders": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bottom": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "color": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                },
+                                "style": {
+                                  "description": "Cell border style (e.g., SOLID, DASHED, DOTTED, DOUBLE, NONE).",
+                                  "enum": [
+                                    "NONE",
+                                    "DOTTED",
+                                    "DASHED",
+                                    "SOLID",
+                                    "SOLID_MEDIUM",
+                                    "SOLID_THICK",
+                                    "DOUBLE"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "style"
+                              ],
+                              "type": "object"
+                            },
+                            "left": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "color": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                },
+                                "style": {
+                                  "description": "Cell border style (e.g., SOLID, DASHED, DOTTED, DOUBLE, NONE).",
+                                  "enum": [
+                                    "NONE",
+                                    "DOTTED",
+                                    "DASHED",
+                                    "SOLID",
+                                    "SOLID_MEDIUM",
+                                    "SOLID_THICK",
+                                    "DOUBLE"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "style"
+                              ],
+                              "type": "object"
+                            },
+                            "right": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "color": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                },
+                                "style": {
+                                  "description": "Cell border style (e.g., SOLID, DASHED, DOTTED, DOUBLE, NONE).",
+                                  "enum": [
+                                    "NONE",
+                                    "DOTTED",
+                                    "DASHED",
+                                    "SOLID",
+                                    "SOLID_MEDIUM",
+                                    "SOLID_THICK",
+                                    "DOUBLE"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "style"
+                              ],
+                              "type": "object"
+                            },
+                            "top": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "color": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                },
+                                "style": {
+                                  "description": "Cell border style (e.g., SOLID, DASHED, DOTTED, DOUBLE, NONE).",
+                                  "enum": [
+                                    "NONE",
+                                    "DOTTED",
+                                    "DASHED",
+                                    "SOLID",
+                                    "SOLID_MEDIUM",
+                                    "SOLID_THICK",
+                                    "DOUBLE"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "style"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "horizontalAlignment": {
+                          "description": "Horizontal text alignment within cell",
+                          "enum": [
+                            "LEFT",
+                            "CENTER",
+                            "RIGHT"
+                          ],
+                          "type": "string"
+                        },
+                        "numberFormat": {
+                          "additionalProperties": false,
+                          "description": "Number format: string pattern like \\"MMM d, yyyy\\" or \\"0.0%\\" (auto-infers type), or object {type, pattern}",
+                          "properties": {
+                            "pattern": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "TEXT",
+                                "NUMBER",
+                                "PERCENT",
+                                "CURRENCY",
+                                "DATE",
+                                "TIME",
+                                "DATE_TIME",
+                                "SCIENTIFIC"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "padding": {
+                          "additionalProperties": false,
+                          "description": "Cell padding in pixels (top, right, bottom, left)",
+                          "properties": {
+                            "bottom": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "left": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "right": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "top": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "textFormat": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bold": {
+                              "type": "boolean"
+                            },
+                            "fontFamily": {
+                              "type": "string"
+                            },
+                            "fontSize": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            "foregroundColor": {
+                              "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                            },
+                            "foregroundColorStyle": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "description": "Explicit RGB color",
+                                  "properties": {
+                                    "rgbColor": {
+                                      "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                    }
+                                  },
+                                  "required": [
+                                    "rgbColor"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "description": "Theme color (auto-updates with spreadsheet theme)",
+                                  "properties": {
+                                    "themeColor": {
+                                      "description": "Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK",
+                                      "enum": [
+                                        "TEXT",
+                                        "BACKGROUND",
+                                        "ACCENT1",
+                                        "ACCENT2",
+                                        "ACCENT3",
+                                        "ACCENT4",
+                                        "ACCENT5",
+                                        "ACCENT6",
+                                        "LINK"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "themeColor"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "description": "Text color as ColorStyle (preferred over foregroundColor; supports theme colors)"
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "strikethrough": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "textRotation": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "angle": {
+                                  "maximum": 90,
+                                  "minimum": -90,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "angle"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "vertical": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "vertical"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "Text rotation: { angle: -90..90 } or { vertical: true }"
+                        },
+                        "verticalAlignment": {
+                          "description": "Vertical text alignment within cell",
+                          "enum": [
+                            "TOP",
+                            "MIDDLE",
+                            "BOTTOM"
+                          ],
+                          "type": "string"
+                        },
+                        "wrapStrategy": {
+                          "description": "Text wrapping: WRAP (wraps to fit column width), CLIP (truncates at cell edge), OVERFLOW_CELL (extends into adjacent empty cells)",
+                          "enum": [
+                            "OVERFLOW_CELL",
+                            "LEGACY_WRAP",
+                            "CLIP",
+                            "WRAP"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": {
+                      "const": "boolean",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "condition",
+                    "format"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxpoint": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "color": {
+                          "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                        },
+                        "colorStyle": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "description": "Explicit RGB color",
+                              "properties": {
+                                "rgbColor": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                }
+                              },
+                              "required": [
+                                "rgbColor"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "description": "Theme color (auto-updates with spreadsheet theme)",
+                              "properties": {
+                                "themeColor": {
+                                  "description": "Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK",
+                                  "enum": [
+                                    "TEXT",
+                                    "BACKGROUND",
+                                    "ACCENT1",
+                                    "ACCENT2",
+                                    "ACCENT3",
+                                    "ACCENT4",
+                                    "ACCENT5",
+                                    "ACCENT6",
+                                    "LINK"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "themeColor"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "Color as explicit RGB { rgbColor: {red,green,blue} } or theme reference { themeColor: \\"ACCENT1\\" }"
+                        },
+                        "type": {
+                          "enum": [
+                            "MIN",
+                            "MAX",
+                            "NUMBER",
+                            "PERCENT",
+                            "PERCENTILE"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object"
+                    },
+                    "midpoint": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "color": {
+                          "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                        },
+                        "colorStyle": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "description": "Explicit RGB color",
+                              "properties": {
+                                "rgbColor": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                }
+                              },
+                              "required": [
+                                "rgbColor"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "description": "Theme color (auto-updates with spreadsheet theme)",
+                              "properties": {
+                                "themeColor": {
+                                  "description": "Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK",
+                                  "enum": [
+                                    "TEXT",
+                                    "BACKGROUND",
+                                    "ACCENT1",
+                                    "ACCENT2",
+                                    "ACCENT3",
+                                    "ACCENT4",
+                                    "ACCENT5",
+                                    "ACCENT6",
+                                    "LINK"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "themeColor"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "Color as explicit RGB { rgbColor: {red,green,blue} } or theme reference { themeColor: \\"ACCENT1\\" }"
+                        },
+                        "type": {
+                          "enum": [
+                            "NUMBER",
+                            "PERCENT",
+                            "PERCENTILE"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    "minpoint": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "color": {
+                          "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                        },
+                        "colorStyle": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "description": "Explicit RGB color",
+                              "properties": {
+                                "rgbColor": {
+                                  "description": "Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, \\"#FF0000\\", \\"red\\""
+                                }
+                              },
+                              "required": [
+                                "rgbColor"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "description": "Theme color (auto-updates with spreadsheet theme)",
+                              "properties": {
+                                "themeColor": {
+                                  "description": "Theme color that updates with the spreadsheet theme. Values: TEXT, BACKGROUND, ACCENT1-6, LINK",
+                                  "enum": [
+                                    "TEXT",
+                                    "BACKGROUND",
+                                    "ACCENT1",
+                                    "ACCENT2",
+                                    "ACCENT3",
+                                    "ACCENT4",
+                                    "ACCENT5",
+                                    "ACCENT6",
+                                    "LINK"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "themeColor"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "Color as explicit RGB { rgbColor: {red,green,blue} } or theme reference { themeColor: \\"ACCENT1\\" }"
+                        },
+                        "type": {
+                          "enum": [
+                            "MIN",
+                            "MAX",
+                            "NUMBER",
+                            "PERCENT",
+                            "PERCENTILE"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object"
+                    },
+                    "type": {
+                      "const": "gradient",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "minpoint",
+                    "maxpoint"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "safety": {
+              "additionalProperties": false,
+              "description": "Safety options (dryRun, createSnapshot, etc.)",
+              "properties": {
+                "autoSnapshot": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "dryRun": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "effectScope": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxCellsAffected": {
+                      "default": 50000,
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxColumnsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxRowsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "requireExplicitRange": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "maxCellsAffected",
+                    "requireExplicitRange"
+                  ],
+                  "type": "object"
+                },
+                "expectedState": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checksum": {
+                      "description": "MD5 hash of range values to verify",
+                      "type": "string"
+                    },
+                    "checksumRange": {
+                      "description": "A1 range for checksum calculation (default: A1:J10)",
+                      "type": "string"
+                    },
+                    "columnCount": {
+                      "description": "Expected total column count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "firstRowValues": {
+                      "description": "Expected header values in first row",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "rowCount": {
+                      "description": "Expected total row count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "sheetTitle": {
+                      "description": "Sheet title that must exist",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Specific version to validate",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sanitizeFormulas": {
+                  "default": true,
+                  "description": "When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.",
+                  "type": "boolean"
+                },
+                "transactionId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "dryRun",
+                "autoSnapshot",
+                "sanitizeFormulas"
+              ],
+              "type": "object"
+            },
+            "sheetId": {
+              "description": "Numeric sheet ID where rule will be applied",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "spreadsheetId": {
+              "description": "Spreadsheet ID from URL",
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9-_]+$",
+              "type": "string"
+            },
+            "verbosity": {
+              "default": "standard",
+              "description": "Response detail level: minimal (essential info only, ~50% less tokens), standard (balanced), detailed (full metadata)",
+              "enum": [
+                "minimal",
+                "standard",
+                "detailed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "spreadsheetId",
+            "verbosity",
+            "action",
+            "sheetId",
+            "range",
+            "rule"
+          ],
+          "type": "object"
+        },
         {
           "additionalProperties": false,
           "properties": {
@@ -73006,7 +74253,7 @@ exports[`Schema Snapshots > Output Schemas > CompositeOutputSchema should match 
   "additionalProperties": false,
   "properties": {
     "response": {
-      "oneOf": [
+      "anyOf": [
         {
           "additionalProperties": false,
           "properties": {

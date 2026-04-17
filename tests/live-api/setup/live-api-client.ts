@@ -394,7 +394,9 @@ export class LiveApiClient {
   /**
    * Create a new spreadsheet and return its ID.
    */
-  async createSpreadsheet(title: string): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
+  async createSpreadsheet(
+    title: string
+  ): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
     const response = await this.executeWrite('createSpreadsheet', () =>
       this.sheetsApi.spreadsheets.create({
         requestBody: { properties: { title } },
@@ -533,11 +535,7 @@ export class LiveApiClient {
   /**
    * Append rows to a range.
    */
-  async appendData(
-    spreadsheetId: string,
-    range: string,
-    values: unknown[][]
-  ): Promise<void> {
+  async appendData(spreadsheetId: string, range: string, values: unknown[][]): Promise<void> {
     await this.executeWrite('appendData', () =>
       this.sheetsApi.spreadsheets.values.append({
         spreadsheetId,

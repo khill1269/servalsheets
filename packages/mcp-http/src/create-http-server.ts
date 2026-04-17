@@ -100,11 +100,14 @@ export interface CreateHttpServerDependencies<
     log: TLog;
   }) => () => Promise<void>;
   readonly registerHttpRequestContextMiddleware: (app: TApp) => void;
-  readonly registerHttpEnterpriseMiddleware: (app: TApp, params: {
-    enableTenantIsolation: boolean;
-    enableRbac: boolean;
-    log: TLog;
-  }) => void;
+  readonly registerHttpEnterpriseMiddleware: (
+    app: TApp,
+    params: {
+      enableTenantIsolation: boolean;
+      enableRbac: boolean;
+      log: TLog;
+    }
+  ) => void;
   readonly bootstrapHttpTransportSessions: (params: {
     app: TApp;
     enableOAuth: boolean;

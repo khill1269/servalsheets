@@ -465,9 +465,7 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'fix',
         spreadsheetId: 'test-id',
-        issues: [
-          { type: 'MULTIPLE_TODAY', severity: 'medium', description: 'Multiple TODAY()' },
-        ],
+        issues: [{ type: 'MULTIPLE_TODAY', severity: 'medium', description: 'Multiple TODAY()' }],
         mode: 'preview',
       });
 

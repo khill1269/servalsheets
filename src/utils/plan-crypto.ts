@@ -17,13 +17,13 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 
 function getKey(): Buffer | null {
-  const keyHex = getEnv().PLAN_ENCRYPTION_KEY;
+  const keyHex = getEnv()['PLAN_ENCRYPTION_KEY'] as string | undefined;
   if (!keyHex) return null;
   if (keyHex.length !== 64) {
     logger.warn('PLAN_ENCRYPTION_KEY must be 64 hex chars (32 bytes); encryption skipped');
     return null;
   }
-  return Buffer.from(keyHex, 'hex');
+  return Buffer.from(keyHex as string, 'hex');
 }
 
 /**

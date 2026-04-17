@@ -2,13 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RemoteToolClient } from '../../../packages/mcp-client/src/remote-tool-client.js';
 
-const {
-  connectMock,
-  callToolMock,
-  listToolsMock,
-  closeMock,
-  transportCtor,
-} = vi.hoisted(() => ({
+const { connectMock, callToolMock, listToolsMock, closeMock, transportCtor } = vi.hoisted(() => ({
   connectMock: vi.fn(),
   callToolMock: vi.fn(),
   listToolsMock: vi.fn(),
@@ -90,7 +84,9 @@ describe('@serval/mcp-client RemoteToolClient', () => {
   it('validates the hosted executor URL and forwards auth and trace headers', async () => {
     const client = createClient();
 
-    const result = await client.callRemoteTool('sheets_compute', { request: { action: 'evaluate' } });
+    const result = await client.callRemoteTool('sheets_compute', {
+      request: { action: 'evaluate' },
+    });
 
     expect(validateServerUrl).toHaveBeenCalledWith('https://example.com/mcp');
     expect(connectMock).toHaveBeenCalledTimes(1);
@@ -127,7 +123,9 @@ describe('@serval/mcp-client RemoteToolClient', () => {
     const client = createClient();
 
     const promise = client.callRemoteTool('sheets_compute', { request: { action: 'evaluate' } });
-    const expectation = expect(promise).rejects.toThrow('Remote MCP tool call timed out after 30000ms');
+    const expectation = expect(promise).rejects.toThrow(
+      'Remote MCP tool call timed out after 30000ms'
+    );
     await vi.advanceTimersByTimeAsync(30000);
 
     await expectation;

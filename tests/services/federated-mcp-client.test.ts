@@ -1,17 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FederatedMcpClient } from '../../src/services/federated-mcp-client.js';
 
-const {
-  validateFederationServerUrl,
-  connectMock,
-  callToolMock,
-  transportCtor,
-} = vi.hoisted(() => ({
-  validateFederationServerUrl: vi.fn(),
-  connectMock: vi.fn(),
-  callToolMock: vi.fn(),
-  transportCtor: vi.fn(),
-}));
+const { validateFederationServerUrl, connectMock, callToolMock, transportCtor } = vi.hoisted(
+  () => ({
+    validateFederationServerUrl: vi.fn(),
+    connectMock: vi.fn(),
+    callToolMock: vi.fn(),
+    transportCtor: vi.fn(),
+  })
+);
 
 vi.mock('../../src/services/webhook-url-validation.js', () => ({
   validateFederationServerUrl,

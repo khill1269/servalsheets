@@ -186,65 +186,60 @@ const CreateProjectActionSchema = z.object({
   verbosity: VerbositySchema,
 });
 
-const GetProjectActionSchema = z
-  .object({
-    action: z.literal('get').describe('Get Apps Script project metadata'),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID (from script URL or API). If omitted, provide spreadsheetId to auto-resolve.'
+const GetProjectActionSchema = z.object({
+  action: z.literal('get').describe('Get Apps Script project metadata'),
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID (from script URL or API). If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    verbosity: VerbositySchema,
-  });
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
-const GetContentActionSchema = z
-  .object({
-    action: z.literal('get_content').describe('Get script project files and source code'),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+const GetContentActionSchema = z.object({
+  action: z.literal('get_content').describe('Get script project files and source code'),
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    versionNumber: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe('Specific version to retrieve (omit for HEAD)'),
-    verbosity: VerbositySchema,
-  });
+  versionNumber: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Specific version to retrieve (omit for HEAD)'),
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
-const UpdateContentActionSchema = z
-  .object({
-    action: z
-      .literal('update_content')
-      .describe('Update script project files (replaces all files)'),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+const UpdateContentActionSchema = z.object({
+  action: z.literal('update_content').describe('Update script project files (replaces all files)'),
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    files: z
-      .array(ScriptFileSchema)
-      .min(1)
-      .max(50)
-      .describe('Complete set of files for the project (max 50)'),
-    verbosity: VerbositySchema,
-  });
+  files: z
+    .array(ScriptFileSchema)
+    .min(1)
+    .max(50)
+    .describe('Complete set of files for the project (max 50)'),
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // ============================================================================
@@ -348,54 +343,53 @@ const UndeployActionSchema = z.object({
 // Execution Action Schemas (3 actions)
 // ============================================================================
 
-const RunActionSchema = z
-  .object({
-    action: z.literal('run').describe('Execute a function in an Apps Script project'),
-    scriptId: ScriptIdSchema.describe(
-      'Apps Script project ID. Required for devMode runs and as the project identifier for deploy/list actions.'
+const RunActionSchema = z.object({
+  action: z.literal('run').describe('Execute a function in an Apps Script project'),
+  scriptId: ScriptIdSchema.describe(
+    'Apps Script project ID. Required for devMode runs and as the project identifier for deploy/list actions.'
+  ),
+  deploymentId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Deployment ID from Deploy > Manage Deployments (e.g. AKfycbxxxx). ' +
+        'Required for normal run calls. This is NOT the script project ID. ' +
+        'Supported workflow: create -> update_content -> create_version -> deploy -> run with deploymentId.'
     ),
-    deploymentId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe(
-        'Deployment ID from Deploy > Manage Deployments (e.g. AKfycbxxxx). ' +
-          'Required for normal run calls. This is NOT the script project ID. ' +
-          'Supported workflow: create -> update_content -> create_version -> deploy -> run with deploymentId.'
-      ),
-    functionName: z
-      .string()
-      .min(1)
-      .max(100)
-      .regex(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, 'Must be a valid JavaScript identifier')
-      .describe('Name of function to execute'),
-    parameters: z
-      .array(
-        z.union([
-          z.string(),
-          z.number(),
-          z.boolean(),
-          z.null(),
-          z.array(z.any()),
-          z.record(z.string(), z.any()),
-        ])
-      )
-      .optional()
-      .describe(
-        'Function parameters (basic types only: strings, numbers, arrays, objects, booleans, null)'
-      ),
-    devMode: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Run most recently saved version (owner only) vs deployed version'),
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options — use dryRun:true to validate without executing; requireConfirmation:true to require explicit user approval before running'
+  functionName: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, 'Must be a valid JavaScript identifier')
+    .describe('Name of function to execute'),
+  parameters: z
+    .array(
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .optional()
+    .describe(
+      'Function parameters (basic types only: strings, numbers, arrays, objects, booleans, null)'
     ),
-    verbosity: VerbositySchema,
-    // Internal sentinel set by normalizer when files field is included
-    _hasFiles: z.boolean().optional(),
-  });
+  devMode: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Run most recently saved version (owner only) vs deployed version'),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options — use dryRun:true to validate without executing; requireConfirmation:true to require explicit user approval before running'
+  ),
+  verbosity: VerbositySchema,
+  // Internal sentinel set by normalizer when files field is included
+  _hasFiles: z.boolean().optional(),
+});
 // Note: files-field rejection, deploymentId requirement enforced in handler; _hasFiles stripped in handler (Zod 3.25 ZodEffects/transform cannot be in discriminatedUnion)
 
 const ListProcessesActionSchema = z.object({
@@ -457,130 +451,126 @@ const GetMetricsActionSchema = z.object({
 // Trigger Management Schemas (4 new actions)
 // ============================================================================
 
-const CreateTriggerActionSchema = z
-  .object({
-    action: z
-      .literal('create_trigger')
-      .describe(
-        'Compatibility-only trigger creation surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot manage triggers; use update_content to add ScriptApp trigger code, then deploy.'
-      ),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+const CreateTriggerActionSchema = z.object({
+  action: z
+    .literal('create_trigger')
+    .describe(
+      'Compatibility-only trigger creation surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot manage triggers; use update_content to add ScriptApp trigger code, then deploy.'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    functionName: z
-      .string()
-      .min(1)
-      .describe('Function to trigger (must exist in the script project)'),
-    triggerType: z
-      .enum(['CLOCK', 'ON_OPEN', 'ON_EDIT', 'ON_FORM_SUBMIT', 'ON_CHANGE'])
-      .describe(
-        'Trigger type: CLOCK (time-based), ON_OPEN, ON_EDIT, ON_FORM_SUBMIT, ON_CHANGE (event-based)'
-      ),
-    everyMinutes: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(1440)
-      .optional()
-      .describe('For CLOCK triggers: interval in minutes (1, 5, 10, 15, 30, 60, 360, 720, 1440)'),
-    atHour: z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(23)
-      .optional()
-      .describe('For daily CLOCK triggers: hour to run (0-23, UTC)'),
-    weekDay: z
-      .enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
-      .optional()
-      .describe('For weekly CLOCK triggers: day of the week'),
-    verbosity: VerbositySchema,
-  });
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
+  functionName: z
+    .string()
+    .min(1)
+    .describe('Function to trigger (must exist in the script project)'),
+  triggerType: z
+    .enum(['CLOCK', 'ON_OPEN', 'ON_EDIT', 'ON_FORM_SUBMIT', 'ON_CHANGE'])
+    .describe(
+      'Trigger type: CLOCK (time-based), ON_OPEN, ON_EDIT, ON_FORM_SUBMIT, ON_CHANGE (event-based)'
+    ),
+  everyMinutes: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1440)
+    .optional()
+    .describe('For CLOCK triggers: interval in minutes (1, 5, 10, 15, 30, 60, 360, 720, 1440)'),
+  atHour: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .optional()
+    .describe('For daily CLOCK triggers: hour to run (0-23, UTC)'),
+  weekDay: z
+    .enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
+    .optional()
+    .describe('For weekly CLOCK triggers: day of the week'),
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
-const ListTriggersActionSchema = z
-  .object({
-    action: z
-      .literal('list_triggers')
-      .describe(
-        'Compatibility-only trigger listing surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot enumerate triggers; use get_content to inspect ScriptApp trigger code.'
-      ),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+const ListTriggersActionSchema = z.object({
+  action: z
+    .literal('list_triggers')
+    .describe(
+      'Compatibility-only trigger listing surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot enumerate triggers; use get_content to inspect ScriptApp trigger code.'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    pageSize: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Max triggers to return'),
-    pageToken: z.string().optional().describe('Page token for pagination'),
-    verbosity: VerbositySchema,
-  });
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .default(50)
+    .describe('Max triggers to return'),
+  pageToken: z.string().optional().describe('Page token for pagination'),
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
-const DeleteTriggerActionSchema = z
-  .object({
-    action: z
-      .literal('delete_trigger')
-      .describe(
-        'Compatibility-only trigger deletion surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot delete triggers; use update_content to remove ScriptApp trigger code.'
-      ),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+const DeleteTriggerActionSchema = z.object({
+  action: z
+    .literal('delete_trigger')
+    .describe(
+      'Compatibility-only trigger deletion surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot delete triggers; use update_content to remove ScriptApp trigger code.'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    triggerId: z.string().min(1).describe('Trigger ID to delete (from list_triggers)'),
-    verbosity: VerbositySchema,
-  });
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
+  triggerId: z.string().min(1).describe('Trigger ID to delete (from list_triggers)'),
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
-const UpdateTriggerActionSchema = z
-  .object({
-    action: z
-      .literal('update_trigger')
-      .describe(
-        'Compatibility-only trigger update surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot update triggers; use update_content plus deploy instead.'
-      ),
-    scriptId: ScriptIdSchema.optional().describe(
-      'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+const UpdateTriggerActionSchema = z.object({
+  action: z
+    .literal('update_trigger')
+    .describe(
+      'Compatibility-only trigger update surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot update triggers; use update_content plus deploy instead.'
     ),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe(
-        'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
-      ),
-    triggerId: z.string().min(1).describe('Existing trigger ID to replace'),
-    functionName: z.string().min(1).optional().describe('New function name (if changing)'),
-    everyMinutes: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(1440)
-      .optional()
-      .describe('New interval for CLOCK triggers'),
-    verbosity: VerbositySchema,
-  });
+  scriptId: ScriptIdSchema.optional().describe(
+    'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
+  ),
+  spreadsheetId: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet ID — auto-resolves its bound Apps Script project when scriptId is omitted'
+    ),
+  triggerId: z.string().min(1).describe('Existing trigger ID to replace'),
+  functionName: z.string().min(1).optional().describe('New function name (if changing)'),
+  everyMinutes: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1440)
+    .optional()
+    .describe('New interval for CLOCK triggers'),
+  verbosity: VerbositySchema,
+});
 // Note: scriptId/spreadsheetId requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // SERVAL() formula installer schema

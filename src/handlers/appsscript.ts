@@ -182,7 +182,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     );
 
     // Initialize max concurrent runs for execution operations
-    setMaxConcurrentRuns(getEnv().APPSSCRIPT_MAX_CONCURRENT_RUNS);
+    setMaxConcurrentRuns(Number(getEnv()['APPSSCRIPT_MAX_CONCURRENT_RUNS']));
 
     // Build handler access object for submodules
     this.handlerAccess = {

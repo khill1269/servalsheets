@@ -30,7 +30,7 @@ export function registerHttpWebhookRoutes(
   options: RegisterHttpWebhookRoutesOptions = {}
 ): void {
   registerPackagedHttpWebhookRoutes(app, {
-    webhookMaxAttempts: options.webhookMaxAttempts ?? env?.WEBHOOK_MAX_ATTEMPTS ?? 3,
+    webhookMaxAttempts: options.webhookMaxAttempts ?? Number(env['WEBHOOK_MAX_ATTEMPTS'] || 3),
     getWebhookManager: options.getWebhookManager ?? getWebhookManager,
     getWebhookQueue: options.getWebhookQueue ?? getWebhookQueue,
     loadFormulaCallbackModule:

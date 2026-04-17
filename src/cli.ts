@@ -60,7 +60,7 @@ const dispatchedCommand = await recordStartupPhase('cli_parse_dispatch', async (
       await runAuthSetup();
     },
     loadPackageVersion: async () => {
-      const pkg = await import('../package.json', { assert: { type: 'json' } });
+      const pkg = await import('../package.json', { with: { type: 'json' } });
       return pkg.default.version;
     },
     versionFallback: VERSION,

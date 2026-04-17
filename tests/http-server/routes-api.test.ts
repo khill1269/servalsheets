@@ -64,7 +64,10 @@ describe('http api routes', () => {
     const handler = post.mock.calls[0]?.[1];
     const res = createResponseDouble();
 
-    await handler({ body: { prompt: 'sum column A', spreadsheetId: 'sheet-1' } } as never, res as never);
+    await handler(
+      { body: { prompt: 'sum column A', spreadsheetId: 'sheet-1' } } as never,
+      res as never
+    );
 
     expect(samplingServer.createMessage).toHaveBeenCalledOnce();
     expect(res.json).toHaveBeenCalledWith({

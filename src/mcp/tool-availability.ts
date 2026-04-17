@@ -45,7 +45,7 @@ export const APPSSCRIPT_STANDARD_ACTIONS = [
 
 export function isAppsScriptTriggerCompatibilityEnabled(): boolean {
   try {
-    return getEnv()?.ENABLE_APPSSCRIPT_TRIGGER_COMPAT ?? false;
+    return (getEnv()['ENABLE_APPSSCRIPT_TRIGGER_COMPAT'] as boolean) ?? false;
   } catch {
     return false;
   }
@@ -71,7 +71,7 @@ export function isToolFullyUnavailable(toolName: string): boolean {
     if (toolName === 'sheets_federation') {
       const env = getEnv() ?? {};
       // Federation requires at least one remote server configured
-      return !env.MCP_FEDERATION_SERVERS;
+      return !env['MCP_FEDERATION_SERVERS'];
     }
   } catch {
     // Graceful fallback when env is unavailable (e.g. test contexts)

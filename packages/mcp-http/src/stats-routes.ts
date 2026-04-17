@@ -110,8 +110,10 @@ export function registerHttpStatsRoutes<
     const memUsage = getMemoryUsage();
     const uptimeSeconds = getUptimeSeconds();
 
-    let userQuota: { enabled: boolean; error?: string } | (UserQuotaStatsLike & { enabled: true }) | null =
-      null;
+    let userQuota:
+      | { enabled: boolean; error?: string }
+      | (UserQuotaStatsLike & { enabled: true })
+      | null = null;
     const userRateLimiter = getUserRateLimiter();
     if (userRateLimiter) {
       try {

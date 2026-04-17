@@ -66,7 +66,13 @@ describe('MCP pipeline fuzz — normalizeToolArgs never throws', () => {
     // Arrays
     ['empty array', []],
     ['string array', ['read', 'write']],
-    ['nested array', [['a', 'b'], ['c', 'd']]],
+    [
+      'nested array',
+      [
+        ['a', 'b'],
+        ['c', 'd'],
+      ],
+    ],
     // Empty / minimal objects
     ['empty object', {}],
     ['object with null action', { action: null }],
@@ -91,13 +97,22 @@ describe('MCP pipeline fuzz — normalizeToolArgs never throws', () => {
     ['toString override', { toString: () => 'evil', action: 'read' }],
     // Deep nesting
     ['deeply nested request', { request: { request: { request: { action: 'read' } } } }],
-    ['100-level deep object', (() => {
-      let o: Record<string, unknown> = { action: 'read' };
-      for (let i = 0; i < 100; i++) o = { nested: o };
-      return o;
-    })()],
+    [
+      '100-level deep object',
+      (() => {
+        let o: Record<string, unknown> = { action: 'read' };
+        for (let i = 0; i < 100; i++) o = { nested: o };
+        return o;
+      })(),
+    ],
     // Large payloads
-    ['1000 extra keys', Object.fromEntries([['action', 'read'], ...Array.from({ length: 1000 }, (_, i) => [`key${i}`, `value${i}`])])],
+    [
+      '1000 extra keys',
+      Object.fromEntries([
+        ['action', 'read'],
+        ...Array.from({ length: 1000 }, (_, i) => [`key${i}`, `value${i}`]),
+      ]),
+    ],
   ];
 
   for (const [label, input] of adversarialInputs) {
@@ -167,13 +182,45 @@ describe('MCP pipeline fuzz — buildToolResponse never throws', () => {
     ['response with string success', { response: { success: 'yes', action: 'read' } }],
     ['response with very long action', { response: { success: true, action: 'a'.repeat(10000) } }],
     ['injection in action field', { response: { success: true, action: '=IMPORTDATA("evil")' } }],
-    ['XSS in message', { response: { success: false, error: { code: 'ERR', message: '<img onerror=alert(1) src=x>' } } }],
-    ['null byte in code', { response: { success: false, error: { code: 'ERR\x00CODE', message: 'msg' } } }],
-    ['unicode in values', { response: { success: true, action: 'read', values: [['日本語', '中文', '한국어']] } }],
-    ['emoji in values', { response: { success: true, action: 'read', values: [['😀🎉🚀', '🌍', '🔥']] } }],
-    ['rtl override', { response: { success: true, action: 'read', values: [['\u202Evalues\u202C']] } }],
-    ['proto pollution in response', { response: { success: true, action: 'read', __proto__: { polluted: true } } }],
-    ['deeply nested', { response: { success: true, action: 'read', data: { a: { b: { c: { d: { e: 'deep' } } } } } } }],
+    [
+      'XSS in message',
+      {
+        response: {
+          success: false,
+          error: { code: 'ERR', message: '<img onerror=alert(1) src=x>' },
+        },
+      },
+    ],
+    [
+      'null byte in code',
+      { response: { success: false, error: { code: 'ERR\x00CODE', message: 'msg' } } },
+    ],
+    [
+      'unicode in values',
+      { response: { success: true, action: 'read', values: [['日本語', '中文', '한국어']] } },
+    ],
+    [
+      'emoji in values',
+      { response: { success: true, action: 'read', values: [['😀🎉🚀', '🌍', '🔥']] } },
+    ],
+    [
+      'rtl override',
+      { response: { success: true, action: 'read', values: [['\u202Evalues\u202C']] } },
+    ],
+    [
+      'proto pollution in response',
+      { response: { success: true, action: 'read', __proto__: { polluted: true } } },
+    ],
+    [
+      'deeply nested',
+      {
+        response: {
+          success: true,
+          action: 'read',
+          data: { a: { b: { c: { d: { e: 'deep' } } } } },
+        },
+      },
+    ],
   ];
 
   for (const [label, input] of adversarialResponses) {
@@ -305,10 +352,7 @@ describe('MCP pipeline fuzz — envelope variant normalization', () => {
       'request wrapper',
       { request: { action: ACTION, spreadsheetId: SPREADSHEET_ID, range: RANGE } },
     ],
-    [
-      'params wrapper',
-      { params: { spreadsheetId: SPREADSHEET_ID, range: RANGE }, action: ACTION },
-    ],
+    ['params wrapper', { params: { spreadsheetId: SPREADSHEET_ID, range: RANGE }, action: ACTION }],
   ];
 
   for (const [label, input] of variants) {
@@ -335,15 +379,24 @@ describe('MCP pipeline fuzz — 50 random structure rounds', () => {
     const choice = seed % 8;
     const str = `value-${seed}`;
     switch (choice) {
-      case 0: return { action: str };
-      case 1: return { request: { action: str } };
-      case 2: return { params: { action: str }, action: str };
-      case 3: return { action: str, spreadsheetId: `id-${seed}`, range: `Sheet${seed}!A1` };
-      case 4: return { request: { action: str, spreadsheetId: `id-${seed}` } };
-      case 5: return { [str]: { nested: { action: str } } };
-      case 6: return { action: `=FORMULA_${seed}("payload")` };
-      case 7: return {};
-      default: return {};
+      case 0:
+        return { action: str };
+      case 1:
+        return { request: { action: str } };
+      case 2:
+        return { params: { action: str }, action: str };
+      case 3:
+        return { action: str, spreadsheetId: `id-${seed}`, range: `Sheet${seed}!A1` };
+      case 4:
+        return { request: { action: str, spreadsheetId: `id-${seed}` } };
+      case 5:
+        return { [str]: { nested: { action: str } } };
+      case 6:
+        return { action: `=FORMULA_${seed}("payload")` };
+      case 7:
+        return {};
+      default:
+        return {};
     }
   }
 

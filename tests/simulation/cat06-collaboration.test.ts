@@ -67,7 +67,11 @@ describe('Category 6: Collaboration Operations', () => {
     mockSheetsApi = createMockSheetsApi();
     mockDriveApi = createMockDriveApi();
     mockContext = createMockContext();
-    handler = new CollaborateHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets, mockDriveApi as unknown as drive_v3.Drive);
+    handler = new CollaborateHandler(
+      mockContext,
+      mockSheetsApi as unknown as sheets_v4.Sheets,
+      mockDriveApi as unknown as drive_v3.Drive
+    );
   });
 
   afterEach(() => {
@@ -200,7 +204,11 @@ describe('Category 6: Collaboration Operations', () => {
 
   it('6.14 version_create_snapshot dispatches', async () => {
     const result = await handler.handle({
-      request: { action: 'version_create_snapshot', spreadsheetId: 'test-sheet-id', name: 'Backup' },
+      request: {
+        action: 'version_create_snapshot',
+        spreadsheetId: 'test-sheet-id',
+        name: 'Backup',
+      },
     });
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();

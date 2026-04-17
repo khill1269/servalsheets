@@ -43,10 +43,7 @@ interface RegressionResult {
   residuals?: number[];
 }
 
-export function computeRegression(
-  data: unknown[][],
-  options: RegressionOptions
-): RegressionResult {
+export function computeRegression(data: unknown[][], options: RegressionOptions): RegressionResult {
   const xCol = options.xColumn ?? 0;
   const yCol = options.yColumn ?? 1;
 

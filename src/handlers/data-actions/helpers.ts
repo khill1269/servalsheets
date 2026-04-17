@@ -662,10 +662,7 @@ export async function requestDestructiveConfirmation(
   });
 
   if (!confirmation.confirmed) {
-    if (
-      confirmation.outcome === 'not_required' &&
-      estimatedCells <= threshold
-    ) {
+    if (confirmation.outcome === 'not_required' && estimatedCells <= threshold) {
       return { proceed: true };
     }
     return {

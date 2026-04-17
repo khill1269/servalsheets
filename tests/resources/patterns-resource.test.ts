@@ -9,9 +9,7 @@ describe('servalsheets://patterns resources', () => {
     expect(payload.protocol.A).toContain('scout');
     expect(payload.guidelines.complex_workflows).toContain('starting with scout');
     expect(payload.guidelines.tiered_retrieval).toContain('Start with sheets_analyze scout');
-    expect(payload.guidelines.tiered_retrieval).not.toContain(
-      'Use sheets_analyze comprehensive'
-    );
+    expect(payload.guidelines.tiered_retrieval).not.toContain('Use sheets_analyze comprehensive');
   });
 
   it('teaches large-dataset workflows to scout before comprehensive', async () => {
@@ -37,8 +35,8 @@ describe('servalsheets://patterns resources', () => {
     ).tools;
 
     expect(assessTools.some((tool: { action: string }) => tool.action === 'scout')).toBe(true);
-    expect(importCsv.uasev_phases.find((phase: { phase: string }) => phase.phase === 'A').notes).toContain(
-      'Escalate to comprehensive only'
-    );
+    expect(
+      importCsv.uasev_phases.find((phase: { phase: string }) => phase.phase === 'A').notes
+    ).toContain('Escalate to comprehensive only');
   });
 });

@@ -173,9 +173,7 @@ afterAll(async () => {
     try {
       const poolStats = spreadsheetPool.getStats();
       const result = await spreadsheetPool.cleanup();
-      console.log(
-        `🏊 Pool cleanup: ${result.deleted}/${poolStats.total} spreadsheets deleted\n`
-      );
+      console.log(`🏊 Pool cleanup: ${result.deleted}/${poolStats.total} spreadsheets deleted\n`);
     } catch {
       // Ignore pool cleanup errors
     }

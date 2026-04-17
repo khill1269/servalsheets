@@ -51,7 +51,9 @@ describe('@serval/core — CircuitBreaker', () => {
   });
 
   it('opens after failureThreshold consecutive failures', async () => {
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
 
     for (let i = 0; i < 3; i++) {
       await cb.execute(fail).catch(() => {});
@@ -62,7 +64,9 @@ describe('@serval/core — CircuitBreaker', () => {
   });
 
   it('throws CircuitBreakerError when open', async () => {
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
     for (let i = 0; i < 3; i++) {
       await cb.execute(fail).catch(() => {});
     }
@@ -71,7 +75,9 @@ describe('@serval/core — CircuitBreaker', () => {
   });
 
   it('transitions to half_open after timeout (lazy — triggered by execute)', async () => {
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
     for (let i = 0; i < 3; i++) {
       await cb.execute(fail).catch(() => {});
     }
@@ -89,7 +95,9 @@ describe('@serval/core — CircuitBreaker', () => {
   });
 
   it('recovers to closed after successThreshold successes in half_open', async () => {
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
     for (let i = 0; i < 3; i++) {
       await cb.execute(fail).catch(() => {});
     }
@@ -105,7 +113,9 @@ describe('@serval/core — CircuitBreaker', () => {
   });
 
   it('returns to open after failureThreshold failures in half_open', async () => {
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
     // Open the circuit
     for (let i = 0; i < 3; i++) {
       await cb.execute(fail).catch(() => {});
@@ -124,7 +134,11 @@ describe('@serval/core — CircuitBreaker', () => {
   it('tracks totalRequests correctly', async () => {
     await cb.execute(async () => 'a');
     await cb.execute(async () => 'b');
-    await cb.execute(async () => { throw new Error('fail'); }).catch(() => {});
+    await cb
+      .execute(async () => {
+        throw new Error('fail');
+      })
+      .catch(() => {});
 
     expect(cb.getStats().totalRequests).toBe(3);
   });
@@ -136,7 +150,9 @@ describe('@serval/core — CircuitBreaker', () => {
       shouldUse: () => true,
     });
 
-    const fail = async () => { throw new Error('fail'); };
+    const fail = async () => {
+      throw new Error('fail');
+    };
     for (let i = 0; i < 3; i++) {
       await cb.execute(fail).catch(() => {});
     }

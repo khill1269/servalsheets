@@ -21,10 +21,7 @@ import type { RangeResolver } from '../../src/core/range-resolver.js';
 import type { ErrorDetail, ResponseMeta } from '../../src/schemas/shared.js';
 import type { sheets_v4 } from 'googleapis';
 import { getTracer, initTracer } from '../../src/utils/tracing.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Test implementation of BaseHandler
 class TestHandler extends BaseHandler<any, any> {
@@ -1044,15 +1041,11 @@ describe('BaseHandler', () => {
     });
 
     it('should block confirmation-required operations when elicitation is unavailable', async () => {
-      const confirmed = await handler.testConfirmOperation(
-        'Delete rows',
-        'Delete 11 rows',
-        {
-          operationType: 'delete',
-          isDestructive: true,
-          affectedRows: 11,
-        }
-      );
+      const confirmed = await handler.testConfirmOperation('Delete rows', 'Delete 11 rows', {
+        operationType: 'delete',
+        isDestructive: true,
+        affectedRows: 11,
+      });
 
       expect(confirmed).toBe(false);
     });

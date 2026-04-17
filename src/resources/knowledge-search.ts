@@ -15,7 +15,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { listKnowledgeResources } from './knowledge.js';
+import { listKnowledgeResources } from './register-stubs.js';
 
 /**
  * Search result with relevance scoring
@@ -489,6 +489,18 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
   const resources = await listKnowledgeResources();
   const results: SearchResult[] = [];
 
+  // Extract name from URI for display
+  const extractMetadata = (
+    uri: string,
+  ): { name: string; description: string; category: string } => {
+    const pathPart = uri.split('://').pop() || uri;
+    const name = pathPart
+      .replace(/[^a-z0-9]+/gi, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+    return { name, description: pathPart, category: pathPart.split('-')[0] || '' };
+  };
+
   // Fix 8: Check intent patterns first for instant routing
   const normalizedQuery = normalize(query);
   const intentMatches = new Set<string>();
@@ -501,12 +513,13 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
   }
 
   for (const resource of resources) {
+    const metadata = extractMetadata(resource.uri);
     let maxScore = 0;
     let matchType: SearchResult['matchType'] = 'name';
 
     // Fix 8: Check if this resource matches an intent pattern
     if (intentMatches.size > 0) {
-      const resourceName = normalize(resource.name);
+      const resourceName = normalize(metadata.name);
       for (const intentFile of intentMatches) {
         if (resourceName.includes(intentFile)) {
           maxScore = 95; // High score but below exact match (100)
@@ -517,21 +530,21 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
     }
 
     // Score by name (highest weight)
-    const nameScore = calculateScore(query, resource.name, 1.0);
+    const nameScore = calculateScore(query, metadata.name, 1.0);
     if (nameScore > maxScore) {
       maxScore = nameScore;
       matchType = 'name';
     }
 
     // Score by category
-    const categoryScore = calculateScore(query, resource.category, 0.8);
+    const categoryScore = calculateScore(query, metadata.category, 0.8);
     if (categoryScore > maxScore) {
       maxScore = categoryScore;
       matchType = 'category';
     }
 
     // Score by description
-    const descScore = calculateScore(query, resource.description, 0.6);
+    const descScore = calculateScore(query, metadata.description, 0.6);
     if (descScore > maxScore) {
       maxScore = descScore;
       matchType = 'description';
@@ -539,9 +552,9 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
 
     // Check keyword expansion (Fix 3: now works with multi-word queries)
     if (maxScore < 30) {
-      const nameKeyword = checkKeywordMatch(query, resource.name);
-      const descKeyword = checkKeywordMatch(query, resource.description);
-      const catKeyword = checkKeywordMatch(query, resource.category);
+      const nameKeyword = checkKeywordMatch(query, metadata.name);
+      const descKeyword = checkKeywordMatch(query, metadata.description);
+      const catKeyword = checkKeywordMatch(query, metadata.category);
 
       if (nameKeyword || descKeyword || catKeyword) {
         maxScore = 25;
@@ -554,9 +567,9 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
       const fuzzy = findFuzzyMatch(query);
       if (fuzzy) {
         // Re-score using the corrected term
-        const correctedNameScore = calculateScore(fuzzy.term, resource.name, 0.7);
-        const correctedDescScore = calculateScore(fuzzy.term, resource.description, 0.4);
-        const correctedCatScore = calculateScore(fuzzy.term, resource.category, 0.5);
+        const correctedNameScore = calculateScore(fuzzy.term, metadata.name, 0.7);
+        const correctedDescScore = calculateScore(fuzzy.term, metadata.description, 0.4);
+        const correctedCatScore = calculateScore(fuzzy.term, metadata.category, 0.5);
         const correctedMax = Math.max(correctedNameScore, correctedDescScore, correctedCatScore);
 
         if (correctedMax > maxScore) {
@@ -569,9 +582,9 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
     if (maxScore > 0) {
       results.push({
         uri: resource.uri,
-        name: resource.name,
-        description: resource.description,
-        category: resource.category,
+        name: metadata.name,
+        description: metadata.description,
+        category: metadata.category,
         score: Math.round(maxScore * 10) / 10,
         matchType,
       });

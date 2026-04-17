@@ -59,7 +59,7 @@ export async function assertSamplingConsent(): Promise<void> {
     return;
   }
 
-  const ttlMs = getEnv().SAMPLING_CONSENT_CACHE_TTL_MS;
+  const ttlMs = Number(getEnv()['SAMPLING_CONSENT_CACHE_TTL_MS'] as number | undefined) || 300000;
   if (ttlMs <= 0) {
     await _consentChecker();
     return;
@@ -95,7 +95,7 @@ export type SamplingOperation<T> = Promise<T> | (() => Promise<T>);
 
 function getEffectiveSamplingTimeout(deadline: number | undefined): number {
   // Lazy read — avoids module-level getEnv() call that fails in test environments
-  const timeoutMs = getEnv().SAMPLING_TIMEOUT_MS;
+  const timeoutMs = Number(getEnv()['SAMPLING_TIMEOUT_MS'] as number | undefined) || 30000;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return 30000;
   }

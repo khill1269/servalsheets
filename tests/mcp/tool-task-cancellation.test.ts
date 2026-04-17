@@ -37,17 +37,19 @@ describe('legacy tool task handler cancellation control plane', () => {
     });
 
     try {
-      const { task } = await handler.createTask(
-        {},
-        { taskStore, taskRequestedTtl: 60000 } as Parameters<typeof handler.createTask>[1]
-      );
+      const { task } = await handler.createTask({}, {
+        taskStore,
+        taskRequestedTtl: 60000,
+      } as Parameters<typeof handler.createTask>[1]);
 
       await started;
 
       expect(seenAbortSignal).toBeDefined();
       expect(
         (
-          taskStore.getUnderlyingStore() as { onTaskCancelled?: (taskId: string, reason: string) => void }
+          taskStore.getUnderlyingStore() as {
+            onTaskCancelled?: (taskId: string, reason: string) => void;
+          }
         ).onTaskCancelled
       ).toBeTypeOf('function');
 

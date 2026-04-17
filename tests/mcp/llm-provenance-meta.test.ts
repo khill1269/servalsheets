@@ -29,30 +29,33 @@ describe('LLM provenance response metadata', () => {
   });
 
   it('surfaces MCP sampling provenance in tool-response _meta', async () => {
-    const result = await runWithRequestContext(createRequestContext({ requestId: 'sampling-req' }), async () => {
-      const llmResponse = await createMessageWithFallback(
-        {
-          getClientCapabilities: () => ({ sampling: {} }),
-          createMessage: vi.fn().mockResolvedValue({
-            content: [{ type: 'text', text: 'sampled-response' }],
-            model: 'claude-sonnet-4',
-          }),
-        },
-        {
-          messages: [{ role: 'user', content: 'hello' }],
-        }
-      );
+    const result = await runWithRequestContext(
+      createRequestContext({ requestId: 'sampling-req' }),
+      async () => {
+        const llmResponse = await createMessageWithFallback(
+          {
+            getClientCapabilities: () => ({ sampling: {} }),
+            createMessage: vi.fn().mockResolvedValue({
+              content: [{ type: 'text', text: 'sampled-response' }],
+              model: 'claude-sonnet-4',
+            }),
+          },
+          {
+            messages: [{ role: 'user', content: 'hello' }],
+          }
+        );
 
-      expect(llmResponse.mode).toBe('sampling');
-      expect(llmResponse.provider).toBe('mcp');
+        expect(llmResponse.mode).toBe('sampling');
+        expect(llmResponse.provider).toBe('mcp');
 
-      return buildToolResponse({
-        response: {
-          success: true,
-          action: 'suggest_chart',
-        },
-      });
-    });
+        return buildToolResponse({
+          response: {
+            success: true,
+            action: 'suggest_chart',
+          },
+        });
+      }
+    );
 
     expect((result.structuredContent as any)._meta.aiMode).toBe('sampling');
     expect((result.structuredContent as any)._meta.aiProvider).toBe('mcp');
@@ -79,24 +82,24 @@ describe('LLM provenance response metadata', () => {
       })
     );
 
-    const result = await runWithRequestContext(createRequestContext({ requestId: 'fallback-req' }), async () => {
-      const llmResponse = await createMessageWithFallback(
-        null,
-        {
+    const result = await runWithRequestContext(
+      createRequestContext({ requestId: 'fallback-req' }),
+      async () => {
+        const llmResponse = await createMessageWithFallback(null, {
           messages: [{ role: 'user', content: 'hello' }],
-        }
-      );
+        });
 
-      expect(llmResponse.mode).toBe('fallback');
-      expect(llmResponse.provider).toBe('anthropic');
+        expect(llmResponse.mode).toBe('fallback');
+        expect(llmResponse.provider).toBe('anthropic');
 
-      return buildToolResponse({
-        response: {
-          success: true,
-          action: 'suggest_pivot',
-        },
-      });
-    });
+        return buildToolResponse({
+          response: {
+            success: true,
+            action: 'suggest_pivot',
+          },
+        });
+      }
+    );
 
     expect((result.structuredContent as any)._meta.aiMode).toBe('fallback');
     expect((result.structuredContent as any)._meta.aiProvider).toBe('anthropic');

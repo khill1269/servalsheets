@@ -52,10 +52,10 @@ const GoogleCloudSchema = z.object({
  * Validate Google credentials are present in at least one form
  */
 export function hasGoogleCredentials(env: Partial<Record<string, string>>): boolean {
-  const hasServiceAccount = !!env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  const hasADC = !!env.GOOGLE_APPLICATION_CREDENTIALS;
+  const hasServiceAccount = !!env['GOOGLE_SERVICE_ACCOUNT_KEY'];
+  const hasADC = !!env['GOOGLE_APPLICATION_CREDENTIALS'];
   const hasOAuth =
-    !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET && !!env.GOOGLE_REDIRECT_URI;
+    !!env['GOOGLE_CLIENT_ID'] && !!env['GOOGLE_CLIENT_SECRET'] && !!env['GOOGLE_REDIRECT_URI'];
 
   return hasServiceAccount || hasADC || hasOAuth;
 }
@@ -63,11 +63,10 @@ export function hasGoogleCredentials(env: Partial<Record<string, string>>): bool
 // Circuit Breaker Configurations
 
 const CircuitBreakerSchema: z.ZodType<CircuitBreakerConfig> = z.object({
-  enabled: z.boolean().default(true),
   failureThreshold: z.number().int().min(1).default(5),
-  resetTimeout: z.number().int().min(1000).default(30000),
-  halfOpenRequests: z.number().int().min(1).default(3),
-  readOnlyMode: z.boolean().default(false),
+  successThreshold: z.number().int().min(1).default(2),
+  timeout: z.number().int().min(1000).default(30000),
+  name: z.string().optional(),
 });
 
 // Redis Configuration
@@ -133,8 +132,7 @@ export const EnvSchema = z
     // Google Cloud
     ...GoogleCloudSchema.shape,
 
-    // Sessions
-    ...SessionStoreTypeSchema.optional().transform(() => ({})).shape,
+    // Sessions & Redis
     ...RedisSchema.shape,
 
     // OTEL
@@ -171,12 +169,38 @@ export const EnvSchema = z
     BILLING_ENABLED: StrictBooleanSchema.default(false),
     STRIPE_SECRET_KEY: z.string().optional(),
 
+    // HTTP Transport
+    CORS_ORIGINS: z.string().default(''),
+    RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(1000),
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
+    ENABLE_LEGACY_SSE: StrictBooleanSchema.default(false),
+    STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().int().min(1000).default(300000),
+    STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().min(1).default(1000),
+
     // Production Safety
     TENANT_ISOLATION_REQUIRED: StrictBooleanSchema.default(false),
-    DATA_DIR: z.string().default('/tmp/serval'),
+    DATA_DIR: z.string().default('/tmp/servalsheets'),
+    PROFILE_STORAGE_DIR: z.string().optional(),
     CHECKPOINT_DIR: z.string().optional(),
+    ENABLE_CHECKPOINTS: StrictBooleanSchema.default(false),
     PERSIST_CHECKPOINTS: StrictBooleanSchema.default(false),
     ENABLE_SAMPLING: StrictBooleanSchema.default(true),
+
+    // Plan Encryption
+    PLAN_ENCRYPTION_KEY: z
+      .string()
+      .regex(/^[0-9a-fA-F]{64}$/, 'Must be exactly 64 hexadecimal characters (32 bytes)')
+      .optional(),
+
+    // Discovery API Configuration
+    DISCOVERY_API_ENABLED: StrictBooleanSchema.default(false),
+    DISCOVERY_CACHE_TTL: z.coerce.number().int().min(1).default(2592000), // 30 days in seconds
+
+    // Remote MCP Executor Configuration
+    MCP_REMOTE_EXECUTOR_URL: z.string().optional(),
+    MCP_REMOTE_EXECUTOR_TOOLS: z.string().optional(),
+    MCP_REMOTE_EXECUTOR_AUTH_TYPE: z.string().optional(),
+    MCP_REMOTE_EXECUTOR_AUTH_TOKEN: z.string().optional(),
   })
   .passthrough();
 
@@ -184,16 +208,18 @@ export type Env = z.infer<typeof EnvSchema>;
 
 // Validation & Export
 
-export function validateEnv(): Env {
+export function validateEnv(throwOnError: boolean = false): Env {
   const result = EnvSchema.safeParse(process.env);
 
   if (!result.success) {
-    // Compatible with both Zod v3 (.errors) and Zod v4 (.issues)
-    const errorList = result.error.errors ?? result.error.issues ?? [];
+    // Zod v4 uses .issues instead of .errors
+    const errorList = result.error.issues ?? [];
     const errors = Array.isArray(errorList)
       ? errorList.map((e) => `${(e.path ?? []).join('.')}: ${e.message}`).join('\n  ')
       : String(result.error);
-    logger.error(`Environment validation failed:\n  ${errors}`);
+    const message = `Environment validation failed:\n  ${errors}`;
+    logger.error(message);
+    if (throwOnError) throw new Error(message);
     process.exit(1);
   }
 
@@ -201,45 +227,56 @@ export function validateEnv(): Env {
 
   // Production Validation
 
-  if (env.NODE_ENV === 'production') {
+  if (env['NODE_ENV'] === 'production') {
+    // Data directory must be persistent (not /tmp) — check FIRST so tests can focus on this
+    if (env['DATA_DIR']?.startsWith('/tmp')) {
+      const message = 'DATA_DIR must point to persistent storage in production (not /tmp)';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
+      process.exit(1);
+    }
+
+    // Profile storage directory must be persistent if set
+    if (env['PROFILE_STORAGE_DIR']?.startsWith('/tmp')) {
+      const message = 'PROFILE_STORAGE_DIR must point to persistent storage in production (not /tmp)';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
+      process.exit(1);
+    }
+
+    // If checkpoints are enabled, directory must be persistent
+    if (env['ENABLE_CHECKPOINTS'] && env['CHECKPOINT_DIR']?.startsWith('/tmp')) {
+      const message = 'CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production (not /tmp)';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
+      process.exit(1);
+    }
+
     // Google credentials must be present
-    if (!hasGoogleCredentials(env)) {
-      logger.error(
-        'Production requires Google credentials (GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, or OAuth config)'
-      );
+    if (!hasGoogleCredentials(env as Partial<Record<string, string>>)) {
+      const message = 'Production requires Google credentials (GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, or OAuth config)';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
       process.exit(1);
     }
 
     // OTEL must be configured for distributed tracing
-    if (!env.OTEL_ENABLED) {
+    if (!env['OTEL_ENABLED']) {
       logger.warn(
         'Production deployment should enable OTEL for distributed tracing (OTEL_ENABLED=true)'
       );
     }
 
     // Redis is required if tenant isolation is enabled
-    if (env.TENANT_ISOLATION_REQUIRED && env.SESSION_STORE_TYPE === 'memory') {
-      logger.error('Tenant isolation requires Redis (SESSION_STORE_TYPE=redis with REDIS_URL)');
-      process.exit(1);
-    }
-
-    // Data directory must be persistent (not /tmp)
-    if (env.DATA_DIR === '/tmp/serval') {
-      logger.warn(
-        'Data directory is /tmp/serval which will be lost on restart. Set DATA_DIR to a persistent volume.'
-      );
-    }
-
-    // If checkpoints are enabled, directory must be persistent
-    if (env.PERSIST_CHECKPOINTS && env.CHECKPOINT_DIR === '/tmp') {
-      logger.error(
-        'Persistent checkpoints require CHECKPOINT_DIR on a persistent volume (not /tmp)'
-      );
+    if (env['TENANT_ISOLATION_REQUIRED'] && env['SESSION_STORE_TYPE'] === 'memory') {
+      const message = 'Tenant isolation requires Redis (SESSION_STORE_TYPE=redis with REDIS_URL)';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
       process.exit(1);
     }
 
     // Sampling consent must be handled for multi-tenant deployments
-    if (env.TENANT_ISOLATION_REQUIRED && !env.ENABLE_SAMPLING) {
+    if (env['TENANT_ISOLATION_REQUIRED'] && !env['ENABLE_SAMPLING']) {
       logger.warn(
         'Multi-tenant deployment should consider sampling constraints (ENABLE_SAMPLING=true with consent)'
       );
@@ -248,39 +285,51 @@ export function validateEnv(): Env {
 
   // Redis Validation
 
-  if (env.SESSION_STORE_TYPE === 'redis' && !env.REDIS_URL) {
-    logger.error('SESSION_STORE_TYPE=redis requires REDIS_URL to be set');
+  if (env['SESSION_STORE_TYPE'] === 'redis' && !env['REDIS_URL']) {
+    const message = 'SESSION_STORE_TYPE=redis requires REDIS_URL to be set';
+    logger.error(message);
+    if (throwOnError) throw new Error(message);
     process.exit(1);
   }
 
   // OTEL Validation
 
-  if (env.OTEL_ENABLED) {
-    if (!env.OTEL_EXPORTER_TYPE) {
-      logger.error('OTEL_ENABLED requires OTEL_EXPORTER_TYPE (jaeger|zipkin|honeycomb)');
+  if (env['OTEL_ENABLED']) {
+    if (!env['OTEL_EXPORTER_TYPE']) {
+      const message = 'OTEL_ENABLED requires OTEL_EXPORTER_TYPE (jaeger|zipkin|honeycomb)';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
       process.exit(1);
     }
 
-    if (env.OTEL_EXPORTER_TYPE === 'jaeger' && !env.OTEL_JAEGER_ENDPOINT) {
-      logger.error('OTEL_EXPORTER_TYPE=jaeger requires OTEL_JAEGER_ENDPOINT');
+    if (env['OTEL_EXPORTER_TYPE'] === 'jaeger' && !env['OTEL_JAEGER_ENDPOINT']) {
+      const message = 'OTEL_EXPORTER_TYPE=jaeger requires OTEL_JAEGER_ENDPOINT';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
       process.exit(1);
     }
 
-    if (env.OTEL_EXPORTER_TYPE === 'zipkin' && !env.OTEL_ZIPKIN_ENDPOINT) {
-      logger.error('OTEL_EXPORTER_TYPE=zipkin requires OTEL_ZIPKIN_ENDPOINT');
+    if (env['OTEL_EXPORTER_TYPE'] === 'zipkin' && !env['OTEL_ZIPKIN_ENDPOINT']) {
+      const message = 'OTEL_EXPORTER_TYPE=zipkin requires OTEL_ZIPKIN_ENDPOINT';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
       process.exit(1);
     }
 
-    if (env.OTEL_EXPORTER_TYPE === 'honeycomb' && !env.OTEL_HONEYCOMB_API_KEY) {
-      logger.error('OTEL_EXPORTER_TYPE=honeycomb requires OTEL_HONEYCOMB_API_KEY');
+    if (env['OTEL_EXPORTER_TYPE'] === 'honeycomb' && !env['OTEL_HONEYCOMB_API_KEY']) {
+      const message = 'OTEL_EXPORTER_TYPE=honeycomb requires OTEL_HONEYCOMB_API_KEY';
+      logger.error(message);
+      if (throwOnError) throw new Error(message);
       process.exit(1);
     }
   }
 
   // Billing Validation
 
-  if (env.BILLING_ENABLED && !env.STRIPE_SECRET_KEY) {
-    logger.error('BILLING_ENABLED requires STRIPE_SECRET_KEY');
+  if (env['BILLING_ENABLED'] && !env['STRIPE_SECRET_KEY']) {
+    const message = 'BILLING_ENABLED requires STRIPE_SECRET_KEY';
+    logger.error(message);
+    if (throwOnError) throw new Error(message);
     process.exit(1);
   }
 
@@ -338,22 +387,22 @@ export function getOtlpExportConfig(): {
 } {
   const e = env;
   const endpoint =
-    (e as Record<string, unknown>)['OTEL_JAEGER_ENDPOINT'] as string ??
-    (e as Record<string, unknown>)['OTEL_ZIPKIN_ENDPOINT'] as string ??
+    ((e as Record<string, unknown>)['OTEL_JAEGER_ENDPOINT'] as string) ??
+    ((e as Record<string, unknown>)['OTEL_ZIPKIN_ENDPOINT'] as string) ??
     'http://localhost:4318/v1/traces';
   return {
-    enabled: (e as Record<string, unknown>)['OTEL_ENABLED'] as boolean ?? false,
+    enabled: ((e as Record<string, unknown>)['OTEL_ENABLED'] as boolean) ?? false,
     endpoint,
-    serviceName: (e as Record<string, unknown>)['OTEL_SERVICE_NAME'] as string ?? 'servalsheets',
+    serviceName: ((e as Record<string, unknown>)['OTEL_SERVICE_NAME'] as string) ?? 'servalsheets',
     batchSize: 100,
     exportIntervalMs: 5000,
-    exporterType: (e as Record<string, unknown>)['OTEL_EXPORTER_TYPE'] as string ?? 'otlp',
+    exporterType: ((e as Record<string, unknown>)['OTEL_EXPORTER_TYPE'] as string) ?? 'otlp',
     honeycombApiKey: (e as Record<string, unknown>)['OTEL_HONEYCOMB_API_KEY'] as string | undefined,
   };
 }
 
 export function getCircuitBreakerConfig(): CircuitBreakerConfig {
-  return { enabled: true, failureThreshold: 5, resetTimeoutMs: 30000 };
+  return { failureThreshold: 5, successThreshold: 2, timeout: 30000 };
 }
 
 export function getApiSpecificCircuitBreakerConfig(api: string): CircuitBreakerConfig {
@@ -373,19 +422,89 @@ export function getFederationConfig(): { enabled: boolean } {
   return { enabled: true };
 }
 
-export function getRemoteMcpExecutorConfig(): { maxConcurrent: number; timeoutMs: number } {
-  return { maxConcurrent: 5, timeoutMs: 30000 };
+export function getRemoteMcpExecutorConfig(): {
+  enabled: boolean;
+  url?: string;
+  allowedTools: string[];
+  auth?: { type: string; token: string };
+  maxConcurrent: number;
+  timeoutMs: number;
+} {
+  const e = getEnv();
+  const url = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_URL'] as string | undefined;
+  const toolsStr = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_TOOLS'] as string | undefined;
+  const authType = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_AUTH_TYPE'] as string | undefined;
+  const authToken = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_AUTH_TOKEN'] as string | undefined;
+
+  // Parse and clean tool list
+  const allowedTools = (toolsStr || '')
+    .split(',')
+    .map((tool) => tool.trim())
+    .filter((tool) => tool.length > 0);
+
+  // Enabled only if URL exists and tools are explicitly declared
+  const enabled = !!url && allowedTools.length > 0;
+
+  const config: {
+    enabled: boolean;
+    url?: string;
+    allowedTools: string[];
+    auth?: { type: string; token: string };
+    maxConcurrent: number;
+    timeoutMs: number;
+  } = {
+    enabled,
+    allowedTools,
+    maxConcurrent: 5,
+    timeoutMs: 30000,
+  };
+
+  // Always include URL if it was set, regardless of enabled status
+  if (url) {
+    config.url = url;
+  }
+
+  // Only include auth if it's fully specified
+  if (enabled && authType && authToken) {
+    config.auth = { type: authType, token: authToken };
+  }
+
+  return config;
 }
 
-export function getSessionStoreConfig(): { redisUrl: string | undefined } {
-  return { redisUrl: (env as Record<string, unknown>)['REDIS_URL'] as string | undefined };
+export function getSessionStoreConfig(): { type: string; redisUrl?: string } {
+  const e = getEnv();
+  const storeType = (e as Record<string, unknown>)['SESSION_STORE_TYPE'] as string;
+  const redisUrl = (e as Record<string, unknown>)['REDIS_URL'] as string | undefined;
+
+  if (storeType === 'redis') {
+    if (!redisUrl || !redisUrl.match(/^rediss?:\/\//)) {
+      const message = 'REDIS_URL is required when SESSION_STORE_TYPE=redis and must start with redis:// or rediss://';
+      logger.error(message);
+      throw new Error(message);
+    }
+    return { type: 'redis', redisUrl };
+  }
+
+  return { type: storeType || 'memory' };
 }
 
 /**
  * Lazy accessor for validated environment (used by modules that may load before env is ready)
  */
 export function getEnv(): Env {
+  if (!env) {
+    env = validateEnv();
+  }
   return env;
+}
+
+/**
+ * Reset the env cache. FOR TEST USE ONLY.
+ * Call before setting process.env vars that need to be re-parsed.
+ */
+export function resetEnvForTest(): void {
+  env = undefined as unknown as Env;
 }
 
 // Module Initialization (MUST be last — triggers env validation on import)
@@ -393,4 +512,4 @@ export function getEnv(): Env {
 /**
  * Get validated environment on module load
  */
-export const env = validateEnv();
+export let env: Env = validateEnv();

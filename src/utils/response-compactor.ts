@@ -13,8 +13,6 @@
  * @module utils/response-compactor
  */
 
-import { getEnv } from '../config/env.js';
-
 export type SamplingStrategy = 'first-last' | 'evenly-spaced' | 'first-only';
 
 export interface TruncationMetadata {

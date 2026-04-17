@@ -11,10 +11,7 @@ import { AnalyzeHandler } from '../../src/handlers/analyze.js';
 import { SheetsAnalyzeOutputSchema } from '../../src/schemas/analyze.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import { resetCapabilityCacheService } from '../../src/services/capability-cache.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Mock capability cache at module level
 vi.mock('../../src/services/capability-cache.js', async () => {
@@ -105,7 +102,7 @@ describe('AnalyzeHandler', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('analyze action', () => {

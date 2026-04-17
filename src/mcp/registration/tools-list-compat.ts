@@ -472,7 +472,7 @@ async function buildRequestAwareAccessFilter(
   }
 
   const principalId = resolvePrincipalId(extra);
-  if (principalId && getEnv().ENABLE_RBAC) {
+  if (principalId && Boolean(getEnv()['ENABLE_RBAC'])) {
     const rbacManager = getRbacManager();
 
     for (const toolName of toolNames) {

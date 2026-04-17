@@ -68,8 +68,7 @@ describe('http protocol version middleware', () => {
     expect(res.json).toHaveBeenCalledWith({
       error: {
         code: 'INVALID_REQUEST',
-        message:
-          'Missing MCP-Protocol-Version header. Expected MCP-Protocol-Version: 2025-11-25',
+        message: 'Missing MCP-Protocol-Version header. Expected MCP-Protocol-Version: 2025-11-25',
       },
     });
     expect(next).not.toHaveBeenCalled();

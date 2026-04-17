@@ -25,7 +25,9 @@ describe('sheets fields-mask guard', () => {
 
   it('accepts snippets with fields masks or allowlist marker', () => {
     expect(
-      hasFieldsMaskOrAllowlist(`await api.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' });`)
+      hasFieldsMaskOrAllowlist(
+        `await api.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' });`
+      )
     ).toBe(true);
     expect(
       hasFieldsMaskOrAllowlist(

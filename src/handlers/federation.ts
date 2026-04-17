@@ -129,7 +129,8 @@ export class FederationHandler {
     }
 
     // Parse server configurations
-    const servers = parseFederationServers(config.serversJson);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const servers = parseFederationServers((config as any).serversJson);
     if (servers.length === 0 && action !== 'list_servers') {
       const federationError = buildFederationError(
         new ValidationError(

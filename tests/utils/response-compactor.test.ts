@@ -209,9 +209,7 @@ describe('Truncation hints (_truncated key on response object)', () => {
     // Create a large 2D array (>500 cells) to trigger truncation
     const bigGrid: (string | number)[][] = [
       Array.from({ length: 30 }, (_, i) => `Col${i}`),
-      ...Array.from({ length: 20 }, (_, r) =>
-        Array.from({ length: 30 }, (_, c) => r * 30 + c)
-      ),
+      ...Array.from({ length: 20 }, (_, r) => Array.from({ length: 30 }, (_, c) => r * 30 + c)),
     ];
 
     const response = {

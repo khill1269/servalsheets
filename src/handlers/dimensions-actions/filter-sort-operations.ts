@@ -19,10 +19,7 @@ import type {
   DimensionsResponse,
 } from '../../schemas/index.js';
 import type { RangeInput } from '../../schemas/shared.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import { mapDimensionsCriteria } from '../dimensions-filter-helpers.js';
 import type { DimensionsHandlerAccess } from './internal.js';
@@ -79,7 +76,13 @@ async function normalizeSortRangeInput(
     };
   }
 
-  if (typeof range === 'object' && range !== null && 'a1' in range && typeof range.a1 === 'string' && !range.a1.includes('!')) {
+  if (
+    typeof range === 'object' &&
+    range !== null &&
+    'a1' in range &&
+    typeof range.a1 === 'string' &&
+    !range.a1.includes('!')
+  ) {
     const sheetTitle = await resolveSheetTitleForSortRange(ha, input);
     if (!sheetTitle) {
       return input;
@@ -94,7 +97,13 @@ async function normalizeSortRangeInput(
     };
   }
 
-  if (typeof range === 'object' && range !== null && 'grid' in range && range.grid && range.grid.sheetId === undefined) {
+  if (
+    typeof range === 'object' &&
+    range !== null &&
+    'grid' in range &&
+    range.grid &&
+    range.grid.sheetId === undefined
+  ) {
     const resolvedSheetId =
       input.sheetId ??
       (input.sheetName

@@ -133,7 +133,7 @@ export async function handleImportXlsxAction(
         fields: 'id,name',
         supportsAllDrives: true,
       }),
-    env.COMPOSITE_TIMEOUT_MS,
+    Number(env['COMPOSITE_TIMEOUT_MS']),
     'import_xlsx'
   );
 

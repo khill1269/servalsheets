@@ -12,7 +12,10 @@ export interface HttpApplicationLike {
   listen(port: number, host: string): HttpListeningServer;
 }
 
-export interface CreateHttpServerLifecycleOptions<TMetricsExporter = unknown, TMetricsServer = unknown> {
+export interface CreateHttpServerLifecycleOptions<
+  TMetricsExporter = unknown,
+  TMetricsServer = unknown,
+> {
   readonly app: HttpApplicationLike;
   readonly host: string;
   readonly port: number;
@@ -135,7 +138,11 @@ export function createHttpServerLifecycle<TMetricsExporter = unknown, TMetricsSe
         httpServer = options.app.listen(options.port, options.host);
 
         httpServer.once('error', (error) => {
-          log.error('HTTP server failed to bind', { error, host: options.host, port: options.port });
+          log.error('HTTP server failed to bind', {
+            error,
+            host: options.host,
+            port: options.port,
+          });
           reject(error);
         });
 

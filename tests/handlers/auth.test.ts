@@ -159,10 +159,11 @@ describe('AuthHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Reset environment variables
+    // Reset environment variables (also clears any host-env leaks)
     delete process.env['OAUTH_CLIENT_ID'];
     delete process.env['OAUTH_CLIENT_SECRET'];
     delete process.env['OAUTH_USE_CALLBACK_SERVER'];
+    delete process.env['ENCRYPTION_KEY'];
     process.env['OAUTH_AUTO_OPEN_BROWSER'] = 'false';
     oauthClientMocks.lastGeneratedState = undefined;
     mockSessionContext.exportState.mockReturnValue('mock-session-state');

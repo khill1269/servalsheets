@@ -65,7 +65,10 @@ export function toLangChainTools(tools: ToolSchemaInput[]): LangChainToolDef[] {
  *
  * Produces code that can be used with LangChain's DynamicStructuredTool
  */
-export function generateLangChainCode(tools: ToolSchemaInput[], callbackFn: string = 'executeServalTool'): string {
+export function generateLangChainCode(
+  tools: ToolSchemaInput[],
+  callbackFn: string = 'executeServalTool'
+): string {
   const imports = `import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';`;
 

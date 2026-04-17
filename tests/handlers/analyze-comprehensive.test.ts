@@ -132,13 +132,11 @@ describe('handleComprehensiveAction', () => {
   });
 
   it('degrades to scout when comprehensive analysis hits memory pressure mid-run', async () => {
-    MockComprehensiveAnalyzer.mockImplementation(
-      function MockAnalyzer() {
-        return {
-          analyze: vi.fn().mockRejectedValue(new Error('JavaScript heap out of memory')),
-        };
-      } as any
-    );
+    MockComprehensiveAnalyzer.mockImplementation(function MockAnalyzer() {
+      return {
+        analyze: vi.fn().mockRejectedValue(new Error('JavaScript heap out of memory')),
+      };
+    } as any);
 
     const result = await handleComprehensiveAction(
       {

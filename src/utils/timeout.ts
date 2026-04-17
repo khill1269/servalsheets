@@ -42,7 +42,7 @@ export class TimeoutError extends Error {
  */
 export async function withTimeout<T>(
   operation: () => Promise<T>,
-  timeoutMs: number = getEnv().REQUEST_TIMEOUT_MS,
+  timeoutMs: number = getEnv()['REQUEST_TIMEOUT_MS'] as number,
   operationName: string = 'operation'
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;

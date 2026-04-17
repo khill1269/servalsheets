@@ -75,7 +75,10 @@ export function createStdioTaskHandler(
     if (typeof dependencies.taskStoreForCancellation.getCancellationReason !== 'function') {
       return 'Task was cancelled';
     }
-    return (await dependencies.taskStoreForCancellation.getCancellationReason(taskId)) || 'Task was cancelled';
+    return (
+      (await dependencies.taskStoreForCancellation.getCancellationReason(taskId)) ||
+      'Task was cancelled'
+    );
   };
 
   const storeCancelledTaskResult = async (
@@ -83,7 +86,11 @@ export function createStdioTaskHandler(
     taskId: string,
     message: string
   ): Promise<void> => {
-    await taskStore.storeTaskResult(taskId, 'failed', dependencies.buildCancelledTaskResult(message));
+    await taskStore.storeTaskResult(
+      taskId,
+      'failed',
+      dependencies.buildCancelledTaskResult(message)
+    );
   };
 
   return {
@@ -119,7 +126,11 @@ export function createStdioTaskHandler(
       void (async () => {
         try {
           if (await isTaskStoreCancelled(task.taskId)) {
-            await storeCancelledTaskResult(taskStore, task.taskId, await getCancellationReason(task.taskId));
+            await storeCancelledTaskResult(
+              taskStore,
+              task.taskId,
+              await getCancellationReason(task.taskId)
+            );
             return;
           }
 
@@ -134,7 +145,11 @@ export function createStdioTaskHandler(
           });
 
           if (await isTaskStoreCancelled(task.taskId)) {
-            await storeCancelledTaskResult(taskStore, task.taskId, await getCancellationReason(task.taskId));
+            await storeCancelledTaskResult(
+              taskStore,
+              task.taskId,
+              await getCancellationReason(task.taskId)
+            );
             return;
           }
 
@@ -144,7 +159,10 @@ export function createStdioTaskHandler(
             try {
               await storeCancelledTaskResult(taskStore, task.taskId, error.message);
             } catch (storeError) {
-              dependencies.log.error('Failed to store cancelled task result', { toolName, storeError });
+              dependencies.log.error('Failed to store cancelled task result', {
+                toolName,
+                storeError,
+              });
             }
             return;
           }
@@ -157,7 +175,10 @@ export function createStdioTaskHandler(
                 await getCancellationReason(task.taskId)
               );
             } catch (storeError) {
-              dependencies.log.error('Failed to store cancelled task result', { toolName, storeError });
+              dependencies.log.error('Failed to store cancelled task result', {
+                toolName,
+                storeError,
+              });
             }
             return;
           }

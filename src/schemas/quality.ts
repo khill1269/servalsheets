@@ -112,19 +112,16 @@ const CustomPatternRuleSchema = z.object({
   message: z.string().optional().describe('Optional custom failure message'),
 });
 
-const CustomLengthRuleSchema = z
-  .object({
-    type: z.literal('length'),
-    id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
-    name: z.string().min(1).optional().describe('Optional rule name'),
-    min: z.number().optional().describe('Minimum string/array length'),
-    max: z.number().optional().describe('Maximum string/array length'),
-    severity: ValidationSeveritySchema.optional().default('error'),
-    message: z.string().optional().describe('Optional custom failure message'),
-  })
-  .refine((rule) => rule.min !== undefined || rule.max !== undefined, {
-    message: 'At least one of min or max must be provided',
-  });
+const CustomLengthRuleSchema = z.object({
+  type: z.literal('length'),
+  id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
+  name: z.string().min(1).optional().describe('Optional rule name'),
+  min: z.number().optional().describe('Minimum string/array length'),
+  max: z.number().optional().describe('Maximum string/array length'),
+  severity: ValidationSeveritySchema.optional().default('error'),
+  message: z.string().optional().describe('Optional custom failure message'),
+});
+// Note: min/max requirement enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 const CustomOneOfRuleSchema = z.object({
   type: z.literal('one_of'),

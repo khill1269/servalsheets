@@ -39,9 +39,9 @@ export interface AdminSessionManager {
  */
 export function requireAdminAuth(req: Request, res: Response, next: () => void): void {
   const env = getEnv();
-  const legacySecret = env.ADMIN_SECRET;
-  const adminKey = env.ADMIN_API_KEY ?? legacySecret;
-  const viewerKey = env.ADMIN_VIEWER_KEY ?? adminKey;
+  const legacySecret = env['ADMIN_SECRET'] as string | undefined;
+  const adminKey = (env['ADMIN_API_KEY'] as string | undefined) ?? legacySecret;
+  const viewerKey = (env['ADMIN_VIEWER_KEY'] as string | undefined) ?? adminKey;
   const needsAdminKey = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
   const allowedSecrets = needsAdminKey
     ? [adminKey].filter((value): value is string => Boolean(value))

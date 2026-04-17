@@ -135,15 +135,17 @@ function defaultCreateUserRateLimiter(_redis: RedisClientLike): never {
   );
 }
 
-export function prepareHttpRateLimiter<TRateLimiter extends UserRateLimiterLike>(params: {
-  redisUrl?: string;
-  sessionStoreType?: string;
-  createRedisClient?: (redisUrl: string) => Promise<RedisClientLike>;
-  createUserRateLimiter?: (redis: RedisClientLike) => TRateLimiter;
-  initializeSessionRedis?: (redis: RedisClientLike) => Promise<void>;
-  log?: HttpRateLimiterLogger;
-  now?: () => number;
-} = {}): HttpRateLimiterBootstrap<TRateLimiter> {
+export function prepareHttpRateLimiter<TRateLimiter extends UserRateLimiterLike>(
+  params: {
+    redisUrl?: string;
+    sessionStoreType?: string;
+    createRedisClient?: (redisUrl: string) => Promise<RedisClientLike>;
+    createUserRateLimiter?: (redis: RedisClientLike) => TRateLimiter;
+    initializeSessionRedis?: (redis: RedisClientLike) => Promise<void>;
+    log?: HttpRateLimiterLogger;
+    now?: () => number;
+  } = {}
+): HttpRateLimiterBootstrap<TRateLimiter> {
   const {
     redisUrl = process.env['REDIS_URL'],
     sessionStoreType = process.env['SESSION_STORE_TYPE'],

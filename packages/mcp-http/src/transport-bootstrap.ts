@@ -16,12 +16,7 @@ export interface CreateHttpMcpServerInstanceOptions<TSubscriber> {
   readonly installLoggingBridge: () => void;
 }
 
-export interface RegisterHttpTransportRoutesParams<
-  TApp,
-  TOAuth,
-  TSession,
-  TMcpServerInstance,
-> {
+export interface RegisterHttpTransportRoutesParams<TApp, TOAuth, TSession, TMcpServerInstance> {
   readonly app: TApp;
   readonly enableOAuth: boolean;
   readonly oauth: TOAuth | null;

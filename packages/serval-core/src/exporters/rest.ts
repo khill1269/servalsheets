@@ -53,7 +53,10 @@ export interface ToolSchemaInput {
 /**
  * Convert a single tool to REST endpoint definition
  */
-export function toRESTEndpoint(tool: ToolSchemaInput, basePath: string = '/api/v1'): RESTEndpointDef {
+export function toRESTEndpoint(
+  tool: ToolSchemaInput,
+  basePath: string = '/api/v1'
+): RESTEndpointDef {
   const path = `${basePath}/tools/${tool.name}`;
 
   return {

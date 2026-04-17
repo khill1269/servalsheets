@@ -59,9 +59,7 @@ describe('Container', () => {
     });
 
     it('should throw if service not registered', async () => {
-      await expect(container.resolve('unknown')).rejects.toThrow(
-        'service not found: unknown'
-      );
+      await expect(container.resolve('unknown')).rejects.toThrow('service not found: unknown');
     });
 
     it('should resolve dependencies', async () => {

@@ -9,10 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CompositeHandler } from '../../src/handlers/composite.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 const mockDispatchCompositeOperation = vi.hoisted(() => vi.fn());
 const mockGenerateDefinition = vi.hoisted(() => vi.fn());
@@ -1476,8 +1473,23 @@ describe('Composite Handler', () => {
         },
       });
       (mockSheetsApi.spreadsheets.values.get as any)
-        .mockResolvedValueOnce({ data: { values: [['A', 'B'], [1, 2], [3, 4]] } })
-        .mockResolvedValueOnce({ data: { values: [['C', 'D'], [5, 6]] } });
+        .mockResolvedValueOnce({
+          data: {
+            values: [
+              ['A', 'B'],
+              [1, 2],
+              [3, 4],
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          data: {
+            values: [
+              ['C', 'D'],
+              [5, 6],
+            ],
+          },
+        });
 
       const result = await runWithRequestContext(requestContext, () =>
         handler.handle({

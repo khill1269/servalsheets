@@ -50,14 +50,16 @@ describe('API Contracts - Required Fields', () => {
       });
       expect(result.success).toBe(false);
 
+      // Note: range/dataFilter mutual-exclusion is enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
+      // Both range and dataFilter are optional in schema; handler requires at least one.
       const result2 = SheetsDataInputSchema.safeParse({
         request: {
           action: 'read',
           spreadsheetId: 'test123',
-          // Missing range
+          // Missing range — valid schema parse (dataFilter may be used instead); handler enforces the constraint
         },
       });
-      expect(result2.success).toBe(false);
+      expect(result2.success).toBe(true);
     });
 
     it('write action requires spreadsheetId, range, and values', () => {
@@ -85,14 +87,16 @@ describe('API Contracts - Required Fields', () => {
     });
 
     it('batch_read requires spreadsheetId and ranges array', () => {
+      // Note: ranges/dataFilters mutual-exclusion is enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
+      // Both ranges and dataFilters are optional in schema; handler requires at least one.
       const result = SheetsDataInputSchema.safeParse({
         request: {
           action: 'batch_read',
           spreadsheetId: 'test123',
-          // Missing ranges
+          // Missing ranges — valid schema parse (dataFilters may be used instead)
         },
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
     });
   });
 

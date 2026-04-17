@@ -99,9 +99,8 @@ describe('sheets_analyze.semantic_search', () => {
       delete process.env['VOYAGE_API_KEY'];
 
       // Import fresh to avoid cached module state affecting env check
-      const { handleSemanticSearchAction } = await import(
-        '../../src/handlers/analyze-actions/semantic-search.js'
-      );
+      const { handleSemanticSearchAction } =
+        await import('../../src/handlers/analyze-actions/semantic-search.js');
 
       const result = await handleSemanticSearchAction(
         { spreadsheetId: 'ss-1', query: 'revenue data', topK: 3 },
@@ -121,9 +120,8 @@ describe('sheets_analyze.semantic_search', () => {
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
       // Clear cached index so we get a fresh index call
-      const { clearSemanticIndex, semanticSearch } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, semanticSearch } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-success-1');
 
       const rows = [
@@ -164,9 +162,8 @@ describe('sheets_analyze.semantic_search', () => {
       process.env['VOYAGE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
-      const { clearSemanticIndex, semanticSearch } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, semanticSearch } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-topk-1');
 
       const rows = [
@@ -192,9 +189,8 @@ describe('sheets_analyze.semantic_search', () => {
       const fetchMock = makeFetchMock();
       globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
-      const { clearSemanticIndex, indexSpreadsheet } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, indexSpreadsheet } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-cache-1');
 
       const rows = [makeRow(['Name', 'Value']), makeRow(['Alpha', 100]), makeRow(['Beta', 200])];
@@ -217,9 +213,8 @@ describe('sheets_analyze.semantic_search', () => {
       process.env['VOYAGE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
-      const { clearSemanticIndex, indexSpreadsheet } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, indexSpreadsheet } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-force-1');
 
       const rows = [makeRow(['X', 'Y']), makeRow([1, 2])];
@@ -242,9 +237,8 @@ describe('sheets_analyze.semantic_search', () => {
       process.env['VOYAGE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
-      const { clearSemanticIndex, semanticSearch } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, semanticSearch } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-empty-1');
 
       const sheetsApi = makeSheetsApi([]); // no rows
@@ -270,17 +264,16 @@ describe('sheets_analyze.semantic_search', () => {
         text: async () => 'Unauthorized',
       }) as unknown as typeof globalThis.fetch;
 
-      const { clearSemanticIndex, indexSpreadsheet } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, indexSpreadsheet } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-err-1');
 
       const rows = [makeRow(['A', 'B']), makeRow([1, 2])];
       const sheetsApi = makeSheetsApi(rows);
 
-      await expect(
-        indexSpreadsheet('ss-err-1', sheetsApi, 'bad-key', true)
-      ).rejects.toThrow('Embedding API error 401');
+      await expect(indexSpreadsheet('ss-err-1', sheetsApi, 'bad-key', true)).rejects.toThrow(
+        'Embedding API error 401'
+      );
     });
   });
 
@@ -289,9 +282,8 @@ describe('sheets_analyze.semantic_search', () => {
       process.env['VOYAGE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
-      const { clearSemanticIndex, indexSpreadsheet, getSemanticIndexStats } = await import(
-        '../../src/services/semantic-search.js'
-      );
+      const { clearSemanticIndex, indexSpreadsheet, getSemanticIndexStats } =
+        await import('../../src/services/semantic-search.js');
       clearSemanticIndex('ss-stats-1');
       clearSemanticIndex('ss-stats-2');
 

@@ -8,10 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsBigQueryHandler } from '../../src/handlers/bigquery.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 describe('SheetsBigQueryHandler', () => {
   let handler: SheetsBigQueryHandler;

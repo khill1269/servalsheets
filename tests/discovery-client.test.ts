@@ -5,6 +5,7 @@ import {
   resetDiscoveryApiClient,
   type DiscoverySchema,
 } from '../src/services/discovery-client.js';
+import { resetEnvForTest } from '../src/config/env.js';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -552,6 +553,7 @@ describe('DiscoveryApiClient', () => {
     it('should create global instance with environment config', () => {
       process.env.DISCOVERY_API_ENABLED = 'true';
       process.env.DISCOVERY_CACHE_TTL = '3600';
+      resetEnvForTest(); // Reset cached env so it re-parses process.env
 
       const globalClient = getDiscoveryApiClient();
 

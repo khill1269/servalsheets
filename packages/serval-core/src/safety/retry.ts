@@ -83,10 +83,17 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   defaultTimeoutMs: 60000,
   retryableStatuses: new Set([429, 500, 502, 503, 504]),
   retryableCodes: new Set([
-    'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN',
-    'ENOTFOUND', 'ENETUNREACH', 'ECONNABORTED',
-    'ERR_HTTP2_GOAWAY_SESSION', 'ERR_HTTP2_SESSION_ERROR',
-    'ERR_HTTP2_STREAM_CANCEL', 'ERR_HTTP2_STREAM_ERROR',
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'EAI_AGAIN',
+    'ENOTFOUND',
+    'ENETUNREACH',
+    'ECONNABORTED',
+    'ERR_HTTP2_GOAWAY_SESSION',
+    'ERR_HTTP2_SESSION_ERROR',
+    'ERR_HTTP2_STREAM_CANCEL',
+    'ERR_HTTP2_STREAM_ERROR',
   ]),
   apiName: 'api',
 };
@@ -126,8 +133,10 @@ export async function executeWithRetry<T>(
       lastError = error;
 
       // Track HTTP/2 errors
-      const errCode = typeof (error as { code?: unknown })?.code === 'string'
-        ? (error as { code: string }).code : '';
+      const errCode =
+        typeof (error as { code?: unknown })?.code === 'string'
+          ? (error as { code: string }).code
+          : '';
       if (config.retryableCodes.has(errCode) && errCode.startsWith('ERR_HTTP2_')) {
         recordHttp2Error(errCode, 'connection');
       }
@@ -159,11 +168,17 @@ export async function executeWithRetry<T>(
       if (isRateLimited) {
         recordRateLimitHit(config.apiName, 'default');
         logger.warn('Rate limit hit, backing off', {
-          attempt, maxRetries, delayMs: delay, retryAfterMs,
+          attempt,
+          maxRetries,
+          delayMs: delay,
+          retryAfterMs,
         });
       } else {
         logger.warn('Retrying API call', {
-          attempt, maxRetries, delayMs: delay, errorStatus: status,
+          attempt,
+          maxRetries,
+          delayMs: delay,
+          errorStatus: status,
         });
       }
 
@@ -195,11 +210,16 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-export function isRetryableError(error: unknown, config: RetryConfig = DEFAULT_RETRY_CONFIG): boolean {
+export function isRetryableError(
+  error: unknown,
+  config: RetryConfig = DEFAULT_RETRY_CONFIG
+): boolean {
   if (!error || typeof error !== 'object') return false;
 
   const errAny = error as {
-    code?: unknown; message?: unknown; name?: unknown;
+    code?: unknown;
+    message?: unknown;
+    name?: unknown;
     response?: { status?: number; data?: unknown };
   };
 
@@ -207,7 +227,11 @@ export function isRetryableError(error: unknown, config: RetryConfig = DEFAULT_R
   if (typeof status === 'number' && config.retryableStatuses.has(status)) {
     if (status === 403) {
       const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
-      return message.includes('userratelimitexceeded') || message.includes('rate limit') || message.includes('quota exceeded');
+      return (
+        message.includes('userratelimitexceeded') ||
+        message.includes('rate limit') ||
+        message.includes('quota exceeded')
+      );
     }
     // 401 Unauthorized is not retryable — indicates invalid/expired credentials,
     // not a transient server error. Token refresh must happen at a higher layer.
@@ -222,11 +246,17 @@ export function isRetryableError(error: unknown, config: RetryConfig = DEFAULT_R
 
   if (typeof errAny.message === 'string') {
     const message = errAny.message.toLowerCase();
-    return message.includes('rate limit') || message.includes('quota exceeded') ||
-      message.includes('timeout') || message.includes('timed out') ||
-      message.includes('temporarily unavailable') || message.includes('backend error') ||
-      message.includes('goaway') || message.includes('socket hang up') ||
-      (message.includes('connection') && message.includes('closed'));
+    return (
+      message.includes('rate limit') ||
+      message.includes('quota exceeded') ||
+      message.includes('timeout') ||
+      message.includes('timed out') ||
+      message.includes('temporarily unavailable') ||
+      message.includes('backend error') ||
+      message.includes('goaway') ||
+      message.includes('socket hang up') ||
+      (message.includes('connection') && message.includes('closed'))
+    );
   }
 
   return false;
@@ -234,7 +264,8 @@ export function isRetryableError(error: unknown, config: RetryConfig = DEFAULT_R
 
 function parseRetryAfter(error: unknown): number | undefined {
   if (!error || typeof error !== 'object') return undefined;
-  const headers = (error as { response?: { headers?: Record<string, string | string[]> } }).response?.headers;
+  const headers = (error as { response?: { headers?: Record<string, string | string[]> } }).response
+    ?.headers;
   if (!headers) return undefined;
 
   const headerValue = headers['retry-after'] ?? headers['Retry-After'];

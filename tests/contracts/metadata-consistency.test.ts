@@ -74,7 +74,10 @@ describe('Metadata Consistency Contract', () => {
   it('manifest.json has correct counts', () => {
     const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
 
-    const expectedPattern = new RegExp(`${TOOL_COUNT}\\s+tools\\s+and\\s+${ACTION_COUNT}\\s+actions`, 'i');
+    const expectedPattern = new RegExp(
+      `${TOOL_COUNT}\\s+tools\\s+and\\s+${ACTION_COUNT}\\s+actions`,
+      'i'
+    );
 
     expect(manifest.description).toMatch(expectedPattern);
     expect(manifest.long_description).toMatch(expectedPattern);

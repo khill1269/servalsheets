@@ -105,7 +105,8 @@ const createMockDriveApi = () => ({
         ],
       },
     }),
-    get: vi.fn()
+    get: vi
+      .fn()
       .mockResolvedValueOnce({
         data: {
           id: '2',
@@ -181,7 +182,7 @@ describe('CollaborateHandler — Version Actions', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // =========================================================================
@@ -311,9 +312,8 @@ describe('CollaborateHandler — Version Actions', () => {
 
     it('should call createSnapshotIfNeeded after confirmation when deletion proceeds', async () => {
       // Arrange
-      const { createSnapshotIfNeeded, requestSafetyConfirmation } = await import(
-        '../../src/utils/safety-helpers.js'
-      );
+      const { createSnapshotIfNeeded, requestSafetyConfirmation } =
+        await import('../../src/utils/safety-helpers.js');
 
       // Act
       await handler.handle({

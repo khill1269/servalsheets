@@ -61,31 +61,37 @@ export const requestApp = async (
     // fake socket can surface ERR_SOCKET_CLOSED from deferred uncork/writev
     // tasks. Stub writes and ignore post-settlement socket noise so contract
     // tests stay deterministic.
-    (socket as Socket & {
-      _write: (
-        chunk: Buffer,
-        encoding: BufferEncoding,
-        callback: (error?: Error | null) => void
-      ) => void;
-      _writev?: (
-        chunks: Array<{ chunk: Buffer; encoding: BufferEncoding }>,
-        callback: (error?: Error | null) => void
-      ) => void;
-    })._write = (_chunk, _encoding, callback) => {
+    (
+      socket as Socket & {
+        _write: (
+          chunk: Buffer,
+          encoding: BufferEncoding,
+          callback: (error?: Error | null) => void
+        ) => void;
+        _writev?: (
+          chunks: Array<{ chunk: Buffer; encoding: BufferEncoding }>,
+          callback: (error?: Error | null) => void
+        ) => void;
+      }
+    )._write = (_chunk, _encoding, callback) => {
       callback();
     };
-    (socket as Socket & {
-      _writev?: (
-        chunks: Array<{ chunk: Buffer; encoding: BufferEncoding }>,
-        callback: (error?: Error | null) => void
-      ) => void;
-    })._writev = (_chunks, callback) => {
+    (
+      socket as Socket & {
+        _writev?: (
+          chunks: Array<{ chunk: Buffer; encoding: BufferEncoding }>,
+          callback: (error?: Error | null) => void
+        ) => void;
+      }
+    )._writev = (_chunks, callback) => {
       callback();
     };
     socket.on('error', (error: NodeJS.ErrnoException) => {
       if (
         settled &&
-        (error.code === 'ERR_SOCKET_CLOSED' || error.code === 'EPIPE' || error.code === 'ECONNRESET')
+        (error.code === 'ERR_SOCKET_CLOSED' ||
+          error.code === 'EPIPE' ||
+          error.code === 'ECONNRESET')
       ) {
         return;
       }

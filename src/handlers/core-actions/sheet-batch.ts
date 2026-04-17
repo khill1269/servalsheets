@@ -9,10 +9,7 @@ import type {
   CoreResponse,
 } from '../../schemas/index.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../../utils/error-factory.js';
 import { createMetadataCache } from '../../services/metadata-cache.js';
 import type { SheetResolutionResult } from '../../services/sheet-resolver.js';
@@ -363,7 +360,8 @@ export async function handleClearSheetAction(
   const clearFormats = resetSheet ? true : input.clearFormats === true;
   const clearNotes = resetSheet ? true : input.clearNotes === true;
 
-  const requests: sheets_v4.Schema$Request[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const requests: any[] = [];
   const clearedArtifacts = {
     resetSheet,
     banding: 0,
@@ -373,7 +371,8 @@ export async function handleClearSheetAction(
   };
 
   if (resetSheet) {
-    const targetTables = targetSheet.tables ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const targetTables = (targetSheet as any).tables ?? [];
     for (const table of targetTables) {
       if (table.tableId) {
         requests.push({
@@ -385,7 +384,8 @@ export async function handleClearSheetAction(
       }
     }
 
-    const targetFilterViews = targetSheet.filterViews ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const targetFilterViews = (targetSheet as any).filterViews ?? [];
     for (const filterView of targetFilterViews) {
       if (filterView.filterViewId !== undefined && filterView.filterViewId !== null) {
         requests.push({

@@ -210,19 +210,19 @@ describe('buildSandboxCode', () => {
   it('blocks open() via replacement function', () => {
     const code = buildSandboxCode('x = 1');
     expect(code).toContain('_blocked_open');
-    expect(code).toContain("open() is not permitted in this sandbox");
+    expect(code).toContain('open() is not permitted in this sandbox');
   });
 
   it('blocks exec() via replacement function', () => {
     const code = buildSandboxCode('x = 1');
     expect(code).toContain('_blocked_exec');
-    expect(code).toContain("exec() is not permitted in this sandbox");
+    expect(code).toContain('exec() is not permitted in this sandbox');
   });
 
   it('blocks compile() via replacement function', () => {
     const code = buildSandboxCode('x = 1');
     expect(code).toContain('_blocked_compile');
-    expect(code).toContain("compile() is not permitted in this sandbox");
+    expect(code).toContain('compile() is not permitted in this sandbox');
   });
 
   it('removes open from builtins before re-assigning blocked stub', () => {

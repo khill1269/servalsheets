@@ -6,7 +6,10 @@ import { randomBytes } from 'crypto';
 import { logger } from '../../utils/logger.js';
 import { ErrorCodes } from '../error-codes.js';
 import type { AppsScriptHandlerAccess } from './internal.js';
-import type { AppsScriptInstallServalFunctionInput, AppsScriptResponse } from '../../schemas/index.js';
+import type {
+  AppsScriptInstallServalFunctionInput,
+  AppsScriptResponse,
+} from '../../schemas/index.js';
 
 interface CreateProjectResponse {
   scriptId: string;

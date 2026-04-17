@@ -334,7 +334,8 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
   },
   sheets_agent: {
     mode: 'probe_only',
-    reason: 'Agent workflows are covered by targeted workflow suites; the matrix uses lightweight probes.',
+    reason:
+      'Agent workflows are covered by targeted workflow suites; the matrix uses lightweight probes.',
   },
   sheets_analyze: {
     mode: 'probe_only',
@@ -342,7 +343,8 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
   },
   sheets_appsscript: {
     mode: 'skip_external',
-    reason: 'Apps Script actions require external script projects and OAuth-backed execution context.',
+    reason:
+      'Apps Script actions require external script projects and OAuth-backed execution context.',
   },
   sheets_auth: {
     mode: 'mcp_execute',
@@ -354,7 +356,8 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
   },
   sheets_collaborate: {
     mode: 'probe_only',
-    reason: 'Collaboration actions depend on external users, comments, approvals, or revision state.',
+    reason:
+      'Collaboration actions depend on external users, comments, approvals, or revision state.',
   },
   sheets_composite: {
     mode: 'probe_only',
@@ -402,7 +405,8 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
   },
   sheets_history: {
     mode: 'probe_only',
-    reason: 'History actions depend on pre-existing revision state; the matrix uses probes by default.',
+    reason:
+      'History actions depend on pre-existing revision state; the matrix uses probes by default.',
   },
   sheets_quality: {
     mode: 'mcp_execute',
@@ -414,7 +418,8 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
   },
   sheets_templates: {
     mode: 'probe_only',
-    reason: 'Template lifecycle actions depend on pre-existing template state; the matrix probes by default.',
+    reason:
+      'Template lifecycle actions depend on pre-existing template state; the matrix probes by default.',
   },
   sheets_transaction: {
     mode: 'mcp_execute',
@@ -696,7 +701,8 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
 
   if (mode === 'mcp_execute' && hasExistingResourceReference(request)) {
     mode = 'probe_only';
-    reason = 'Action requires pre-existing resource IDs or multi-step setup; the matrix uses a lightweight probe.';
+    reason =
+      'Action requires pre-existing resource IDs or multi-step setup; the matrix uses a lightweight probe.';
   }
 
   const mutates = isMutatingAction(fixture.action);
@@ -710,11 +716,7 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
     mode,
     reason,
     assertionSource:
-      mode === 'mcp_execute'
-        ? 'mcp_tool'
-        : mode === 'probe_only'
-          ? 'google_probe'
-          : 'skip_policy',
+      mode === 'mcp_execute' ? 'mcp_tool' : mode === 'probe_only' ? 'google_probe' : 'skip_policy',
     mutates,
     sharedExecution,
     requiresSecondarySpreadsheet: requiresSecondarySpreadsheet(request),

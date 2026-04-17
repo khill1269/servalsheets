@@ -250,10 +250,20 @@ describe('Category 3: Formatting & Visual Presentation', () => {
               data: [
                 {
                   rowData: [
-                    { values: [{ formattedValue: 'Revenue', effectiveValue: { stringValue: 'Revenue' } }] },
-                    { values: [{ formattedValue: '50000', effectiveValue: { numberValue: 50000 } }] },
-                    { values: [{ formattedValue: '55000', effectiveValue: { numberValue: 55000 } }] },
-                    { values: [{ formattedValue: '60000', effectiveValue: { numberValue: 60000 } }] },
+                    {
+                      values: [
+                        { formattedValue: 'Revenue', effectiveValue: { stringValue: 'Revenue' } },
+                      ],
+                    },
+                    {
+                      values: [{ formattedValue: '50000', effectiveValue: { numberValue: 50000 } }],
+                    },
+                    {
+                      values: [{ formattedValue: '55000', effectiveValue: { numberValue: 55000 } }],
+                    },
+                    {
+                      values: [{ formattedValue: '60000', effectiveValue: { numberValue: 60000 } }],
+                    },
                   ],
                 },
               ],
@@ -500,7 +510,9 @@ describe('Category 3: Formatting & Visual Presentation', () => {
   // 3.11: Filter views + slicers
   describe('3.11 Filter views + slicers', () => {
     it('should create basic filter view', async () => {
-      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{ addFilterView: { filter: { filterViewId: 123 } } }] } });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{ addFilterView: { filter: { filterViewId: 123 } } }] },
+      });
 
       const result = await dimensionsHandler.handle({
         action: 'create_filter_view',
@@ -514,7 +526,9 @@ describe('Category 3: Formatting & Visual Presentation', () => {
     });
 
     it('should create slicer for pivot interaction', async () => {
-      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{ addSlicer: { slicer: { slicerId: 456 } } }] } });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{ addSlicer: { slicer: { slicerId: 456 } } }] },
+      });
 
       const result = await dimensionsHandler.handle({
         action: 'create_slicer',
@@ -551,7 +565,9 @@ describe('Category 3: Formatting & Visual Presentation', () => {
   // 3.12: Delete duplicates → confirmation + snapshot
   describe('3.12 Delete duplicates → confirmation + snapshot', () => {
     it('should detect and remove duplicate rows', async () => {
-      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{ deleteDuplicates: { duplicatesRemovedCount: 3 } }] } });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+        data: { replies: [{ deleteDuplicates: { duplicatesRemovedCount: 3 } }] },
+      });
 
       const result = await dimensionsHandler.handle({
         action: 'delete_duplicates',

@@ -17,10 +17,7 @@ import {
   toGridRange as toApiGridRange,
   type GridRangeInput,
 } from '../../utils/google-sheets-helpers.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 
 interface PivotsDeps {
   sheetsApi: sheets_v4.Sheets;
@@ -65,7 +62,8 @@ export async function handlePivotCreateAction(
                     const existing_source = value.pivotTable.source;
                     const sameSheetId = existing_source.sheetId === sourceGridRange.sheetId;
                     const sameRows =
-                      (existing_source.startRowIndex ?? 0) === (sourceGridRange.startRowIndex ?? 0) &&
+                      (existing_source.startRowIndex ?? 0) ===
+                        (sourceGridRange.startRowIndex ?? 0) &&
                       (existing_source.endRowIndex ?? 0) === (sourceGridRange.endRowIndex ?? 0);
                     const sameCols =
                       (existing_source.startColumnIndex ?? 0) ===
@@ -87,7 +85,8 @@ export async function handlePivotCreateAction(
                           values: value.pivotTable.values?.length ?? 0,
                         },
                         _idempotent: true,
-                        _hint: 'A pivot table with the same source range already exists. Returning existing pivot instead of creating a duplicate.',
+                        _hint:
+                          'A pivot table with the same source range already exists. Returning existing pivot instead of creating a duplicate.',
                       });
                     }
                   }

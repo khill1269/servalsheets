@@ -14,7 +14,11 @@ import { zodSchemaToJsonSchema } from '../../src/utils/schema-compat.js';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
 
 function toPreparedJsonSchema(prepared: unknown): Record<string, unknown> {
-  if (prepared && typeof prepared === 'object' && !('_def' in (prepared as Record<string, unknown>))) {
+  if (
+    prepared &&
+    typeof prepared === 'object' &&
+    !('_def' in (prepared as Record<string, unknown>))
+  ) {
     return prepared as Record<string, unknown>;
   }
 

@@ -1,5 +1,3 @@
-import type { JSONRPCMessage } from '@anthropic-ai/sdk/resources/messages';
-import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -10,9 +8,12 @@ import { logger } from '../../utils/logger.js';
  * 2. Flat tool calls (Claude Desktop): { tool: 'read', input: {...} } with tool name resolution
  */
 
-export function createFlatToolCallInterceptor(toolHandlers: Map<string, any>) {
-  return async (request: JSONRPCMessage) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function createFlatToolCallInterceptor(_toolHandlers: Map<string, any>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return async (request: any) => {
     if (request.method === 'tools/call') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { params } = request as any;
       const { tool: requestedTool, input } = params;
 
@@ -39,12 +40,13 @@ export function createFlatToolCallInterceptor(toolHandlers: Map<string, any>) {
  * Resolve flat tool name to compound handler
  * Logic: scan registered handlers to find matching action
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function resolveFlattTool(flatName: string, input: Record<string, any>): string | null {
   // If input has 'action' field, use that to resolve
-  if (input?.action) {
+  if (input?.['action']) {
     // Map: sheets_auth_status, sheets_session_get_context, etc.
     // Input has action='status' -> resolve to 'sheets_auth_status'
-    return `sheets_auth_${input.action}`;
+    return `sheets_auth_${input['action']}`;
   }
 
   // Fallback: try common mappings
@@ -62,7 +64,9 @@ function resolveFlattTool(flatName: string, input: Record<string, any>): string 
  * Register the flat tool call interceptor on an MCP server instance.
  * Wraps the server's tools/call handler to resolve flat tool names.
  */
-export function registerFlatToolCallInterceptor(server: { setRequestHandler?: (...args: unknown[]) => void }): void {
+export function registerFlatToolCallInterceptor(_server: {
+  setRequestHandler?: (...args: unknown[]) => void;
+}): void {
   // The interceptor is a middleware pattern — for now this is a no-op registration
   // point since the actual interception is wired in the STDIO transport's
   // request handler. This function exists so tool-handlers.ts can call it

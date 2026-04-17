@@ -409,7 +409,10 @@ function applyActionOverrides(
     };
   }
 
-  if (toolName === 'sheets_analyze' && (action === 'get_intelligence_report' || action === 'cancel_intelligence')) {
+  if (
+    toolName === 'sheets_analyze' &&
+    (action === 'get_intelligence_report' || action === 'cancel_intelligence')
+  ) {
     // These actions require a valid UUID for scheduleId
     return {
       ...request,

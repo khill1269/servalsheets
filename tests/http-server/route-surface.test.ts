@@ -5,7 +5,7 @@ describe('http route surface helper', () => {
   it('registers support routes with the expected dependencies', () => {
     const app = {} as never;
     const sessions = new Map<string, unknown>([['session-1', { active: true }]]);
-    const getUserRateLimiter = vi.fn(() => ({ kind: 'limiter' } as never));
+    const getUserRateLimiter = vi.fn(() => ({ kind: 'limiter' }) as never);
     const registerWellKnownHandlers = vi.fn();
     const registerHttpObservabilityRoutes = vi.fn();
     const registerHttpWebhookRoutes = vi.fn();
@@ -75,7 +75,9 @@ describe('http route surface helper', () => {
     expect(observabilityArgs.getUserRateLimiter()).toEqual({ kind: 'limiter' });
     expect(registerHttpWebhookRoutes).toHaveBeenCalledWith(app);
     expect(registerApiRoutes).toHaveBeenCalledWith(app, { samplingServer: null });
-    expect(log.info).toHaveBeenCalledWith('HTTP Server: =SERVAL() API enabled (POST /api/formula-eval)');
+    expect(log.info).toHaveBeenCalledWith(
+      'HTTP Server: =SERVAL() API enabled (POST /api/formula-eval)'
+    );
     expect(registerHttpErrorHandler).toHaveBeenCalledWith(app, { log });
     expect(registerHttpGraphQlAndAdmin).toHaveBeenCalledWith({
       app,

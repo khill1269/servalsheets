@@ -3,7 +3,12 @@
  */
 
 import { spearman } from '../helpers.js';
-import type { ColumnStats, TrendResult, AnomalyResult, CorrelationResult } from '../comprehensive.js';
+import type {
+  ColumnStats,
+  TrendResult,
+  AnomalyResult,
+  CorrelationResult,
+} from '../comprehensive.js';
 
 /**
  * Detect linear trends in numeric columns using linear regression + R²

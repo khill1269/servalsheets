@@ -43,20 +43,14 @@ describe('logging-bridge-utils', () => {
   it('rate limits notifications within a rolling window', () => {
     const state = createMcpLogRateLimitState();
 
-    expect(consumeMcpLogRateLimit(state, { now: 1000, maxMessages: 2, windowMs: 1000 })).toBe(
-      true
-    );
-    expect(consumeMcpLogRateLimit(state, { now: 1100, maxMessages: 2, windowMs: 1000 })).toBe(
-      true
-    );
+    expect(consumeMcpLogRateLimit(state, { now: 1000, maxMessages: 2, windowMs: 1000 })).toBe(true);
+    expect(consumeMcpLogRateLimit(state, { now: 1100, maxMessages: 2, windowMs: 1000 })).toBe(true);
     expect(consumeMcpLogRateLimit(state, { now: 1200, maxMessages: 2, windowMs: 1000 })).toBe(
       false
     );
     expect(state.droppedInWindow).toBe(1);
 
-    expect(consumeMcpLogRateLimit(state, { now: 2501, maxMessages: 2, windowMs: 1000 })).toBe(
-      true
-    );
+    expect(consumeMcpLogRateLimit(state, { now: 2501, maxMessages: 2, windowMs: 1000 })).toBe(true);
     expect(state.messagesInWindow).toBe(1);
   });
 });

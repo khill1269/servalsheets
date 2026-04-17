@@ -387,10 +387,7 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     });
 
     it('should apply compact response_format limit to query matches', async () => {
-      const manyRows = [
-        ['Name'],
-        ...Array.from({ length: 300 }, (_, i) => [`Alice_${i}`]),
-      ];
+      const manyRows = [['Name'], ...Array.from({ length: 300 }, (_, i) => [`Alice_${i}`])];
       const getValues = vi.fn().mockResolvedValue({ data: { values: manyRows } });
       mockSheetsApi = createMockSheetsApi({ getValues });
       handler = new SheetsDataHandler(mockContext, mockSheetsApi);
@@ -608,7 +605,10 @@ describe('F2: Cross-Spreadsheet Federation', () => {
     it('should apply preview response_format to large diff payloads', async () => {
       const sourceHeader = ['id', 'value'];
       const src1 = [sourceHeader, ...Array.from({ length: 40 }, (_, i) => [`id-${i + 1}`, i])];
-      const src2 = [sourceHeader, ...Array.from({ length: 40 }, (_, i) => [`id-${i + 1}`, i + 1000])];
+      const src2 = [
+        sourceHeader,
+        ...Array.from({ length: 40 }, (_, i) => [`id-${i + 1}`, i + 1000]),
+      ];
 
       let callCount = 0;
       const getValues = vi.fn().mockImplementation(() => {

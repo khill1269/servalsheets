@@ -11,10 +11,7 @@ import { FixHandler } from '../../src/handlers/fix.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
 import { BUILT_IN_RULES } from '../../src/services/cleaning-engine-rules.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories (no vi.mock calls - created per test)

@@ -34,8 +34,7 @@ function validateDuckDbSql(sql: string): void {
   if (!/^select\b/.test(normalized)) {
     throw new Error('Only SELECT statements are allowed in DuckDB queries');
   }
-  const blocked =
-    /\b(create|drop|insert|update|delete|alter|truncate|attach|copy|load|install)\b/;
+  const blocked = /\b(create|drop|insert|update|delete|alter|truncate|attach|copy|load|install)\b/;
   if (blocked.test(normalized)) {
     throw new Error('DDL/DML statements are not allowed in DuckDB queries');
   }
@@ -125,9 +124,7 @@ describe('validateDuckDbSql', () => {
   });
 
   it('strips block comments before validation', () => {
-    expect(() =>
-      validateDuckDbSql('SELECT /* inline drop comment */ 1 FROM t')
-    ).not.toThrow();
+    expect(() => validateDuckDbSql('SELECT /* inline drop comment */ 1 FROM t')).not.toThrow();
   });
 
   it('throws for INSERT statement', () => {
@@ -143,9 +140,7 @@ describe('validateDuckDbSql', () => {
   });
 
   it('throws for DELETE statement', () => {
-    expect(() => validateDuckDbSql('DELETE FROM t WHERE id = 1')).toThrow(
-      /Only SELECT statements/
-    );
+    expect(() => validateDuckDbSql('DELETE FROM t WHERE id = 1')).toThrow(/Only SELECT statements/);
   });
 
   it('throws for DROP TABLE', () => {
@@ -178,9 +173,9 @@ describe('validateDuckDbSql', () => {
   });
 
   it('throws for read_parquet file system access', () => {
-    expect(() =>
-      validateDuckDbSql("SELECT * FROM read_parquet('/data/secrets.parquet')")
-    ).toThrow(/File system access/);
+    expect(() => validateDuckDbSql("SELECT * FROM read_parquet('/data/secrets.parquet')")).toThrow(
+      /File system access/
+    );
   });
 
   it('throws for glob() file system access', () => {
@@ -200,7 +195,7 @@ describe('validateDuckDbSql', () => {
   });
 
   it('throws for INSTALL extension (DuckDB extension load)', () => {
-    expect(() => validateDuckDbSql("SELECT 1; INSTALL httpfs")).toThrow(/DDL\/DML statements/);
+    expect(() => validateDuckDbSql('SELECT 1; INSTALL httpfs')).toThrow(/DDL\/DML statements/);
   });
 });
 
@@ -242,9 +237,7 @@ describe('DuckDB engine safety-rejection classification', () => {
 
   it('classifies invalid table name as QUERY_REJECTED', () => {
     expect(
-      classifyDuckDbError(
-        'Invalid table name "bad-name!": must start with a letter or underscore'
-      )
+      classifyDuckDbError('Invalid table name "bad-name!": must start with a letter or underscore')
     ).toBe('QUERY_REJECTED');
   });
 

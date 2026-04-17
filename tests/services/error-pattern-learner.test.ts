@@ -45,7 +45,12 @@ describe('ErrorPatternLearner', () => {
       learner.recordError('RATE_LIMITED', 'Rate limit exceeded', { tool: 'sheets_data' });
       learner.recordError('RATE_LIMITED', 'Rate limit exceeded', { tool: 'sheets_data' });
       learner.recordError('RATE_LIMITED', 'Rate limit exceeded', { tool: 'sheets_data' });
-      learner.recordResolution('RATE_LIMITED', { tool: 'sheets_data' }, 'Wait 60 seconds and retry', 5000);
+      learner.recordResolution(
+        'RATE_LIMITED',
+        { tool: 'sheets_data' },
+        'Wait 60 seconds and retry',
+        5000
+      );
 
       const result = learner.getPatterns('RATE_LIMITED', { tool: 'sheets_data' });
       expect(result).not.toBeNull();
@@ -79,11 +84,20 @@ describe('ErrorPatternLearner', () => {
       learner.recordError('INVALID_RANGE', 'Bad range', { tool: 'sheets_data', action: 'read' });
 
       // Only 2 errors for tool B (different context key)
-      learner.recordError('INVALID_RANGE', 'Bad range', { tool: 'sheets_format', action: 'set_format' });
-      learner.recordError('INVALID_RANGE', 'Bad range', { tool: 'sheets_format', action: 'set_format' });
+      learner.recordError('INVALID_RANGE', 'Bad range', {
+        tool: 'sheets_format',
+        action: 'set_format',
+      });
+      learner.recordError('INVALID_RANGE', 'Bad range', {
+        tool: 'sheets_format',
+        action: 'set_format',
+      });
 
       const resultA = learner.getPatterns('INVALID_RANGE', { tool: 'sheets_data', action: 'read' });
-      const resultB = learner.getPatterns('INVALID_RANGE', { tool: 'sheets_format', action: 'set_format' });
+      const resultB = learner.getPatterns('INVALID_RANGE', {
+        tool: 'sheets_format',
+        action: 'set_format',
+      });
 
       expect(resultA).not.toBeNull();
       expect(resultB).toBeNull(); // only 2 occurrences

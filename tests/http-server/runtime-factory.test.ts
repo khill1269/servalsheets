@@ -327,7 +327,9 @@ describe('http runtime factory', () => {
       installLoggingBridge: vi.fn(),
     });
 
-    expect(runtimeFactoryMocks.createTokenBackedInitializedGoogleHandlerBundle).not.toHaveBeenCalled();
+    expect(
+      runtimeFactoryMocks.createTokenBackedInitializedGoogleHandlerBundle
+    ).not.toHaveBeenCalled();
     expect(runtimeFactoryMocks.getOrCreateSessionContextAsync).not.toHaveBeenCalled();
     expect(runtimeFactoryMocks.createHandlerRuntimeBridge).not.toHaveBeenCalled();
     expect(runtimeFactoryMocks.registerServalSheetsTools).toHaveBeenCalledWith(mcpServer, null, {

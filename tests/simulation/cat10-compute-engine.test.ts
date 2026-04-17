@@ -223,13 +223,7 @@ describe('Cat10: Compute & Formula Engine', () => {
     });
 
     it('should compute SUM over revenue column', async () => {
-      const result = await aggregate([
-        ['Revenue'],
-        [50000],
-        [75000],
-        [100000],
-        [120000],
-      ]);
+      const result = await aggregate([['Revenue'], [50000], [75000], [100000], [120000]]);
 
       // Mock should resolve
       expect(result).toBeDefined();
@@ -237,37 +231,19 @@ describe('Cat10: Compute & Formula Engine', () => {
     });
 
     it('should compute AVERAGE correctly', async () => {
-      const result = await aggregate([
-        ['Revenue'],
-        [50000],
-        [75000],
-        [100000],
-        [120000],
-      ]);
+      const result = await aggregate([['Revenue'], [50000], [75000], [100000], [120000]]);
 
       expect(result.results.average).toBe(86250);
     });
 
     it('should compute COUNT for non-empty cells', async () => {
-      const result = await aggregate([
-        ['Revenue'],
-        [50000],
-        [75000],
-        [100000],
-        [120000],
-      ]);
+      const result = await aggregate([['Revenue'], [50000], [75000], [100000], [120000]]);
 
       expect(result.results.count).toBe(4);
     });
 
     it('should compute MIN and MAX', async () => {
-      const result = await aggregate([
-        ['Revenue'],
-        [50000],
-        [75000],
-        [100000],
-        [120000],
-      ]);
+      const result = await aggregate([['Revenue'], [50000], [75000], [100000], [120000]]);
 
       expect(result.results.min).toBe(50000);
       expect(result.results.max).toBe(120000);
@@ -650,10 +626,9 @@ describe('Cat10: Compute & Formula Engine', () => {
         ],
       });
 
-      const result = await duckdbEngine.query(
-        'SELECT * FROM data WHERE "Q1 Revenue" > 80000',
-        { data: REVENUE_COST_DATA }
-      );
+      const result = await duckdbEngine.query('SELECT * FROM data WHERE "Q1 Revenue" > 80000', {
+        data: REVENUE_COST_DATA,
+      });
 
       expect(result.rows.length).toBeLessThanOrEqual(4);
     });
@@ -665,10 +640,9 @@ describe('Cat10: Compute & Formula Engine', () => {
         rows: [[86250]],
       });
 
-      const result = await duckdbEngine.query(
-        'SELECT AVG("Q1 Revenue") as avg_revenue FROM data',
-        { data: REVENUE_COST_DATA }
-      );
+      const result = await duckdbEngine.query('SELECT AVG("Q1 Revenue") as avg_revenue FROM data', {
+        data: REVENUE_COST_DATA,
+      });
 
       expect(result.rows[0][0]).toBe(86250);
     });
@@ -678,10 +652,7 @@ describe('Cat10: Compute & Formula Engine', () => {
       duckdbEngine.query.mockRejectedValue(new Error('Blocked injection attempt'));
 
       await expect(
-        duckdbEngine.query(
-          "SELECT * FROM data; DROP TABLE data; --",
-          { data: REVENUE_COST_DATA }
-        )
+        duckdbEngine.query('SELECT * FROM data; DROP TABLE data; --', { data: REVENUE_COST_DATA })
       ).rejects.toThrow();
     });
   });

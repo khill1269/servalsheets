@@ -115,9 +115,7 @@ describe('validateWebhookUrl', () => {
       getEnvMock.mockReturnValue({ WEBHOOK_DNS_STRICT: false });
       lookup.mockResolvedValue([{ address: '192.168.1.100', family: 4 }]);
 
-      await expect(validateWebhookUrl('https://evil.com/webhook')).rejects.toThrow(
-        'DNS rebinding'
-      );
+      await expect(validateWebhookUrl('https://evil.com/webhook')).rejects.toThrow('DNS rebinding');
     });
   });
 

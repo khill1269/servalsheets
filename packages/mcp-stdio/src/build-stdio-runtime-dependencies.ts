@@ -1,6 +1,4 @@
-import {
-  createStdioRuntimeDependencies,
-} from './create-stdio-runtime-dependencies.js';
+import { createStdioRuntimeDependencies } from './create-stdio-runtime-dependencies.js';
 import type { InitializeStdioRuntimeDependencies } from './initialize-stdio-runtime.js';
 
 interface StdioRuntimeDependenciesLogger {
@@ -57,10 +55,7 @@ export interface BuildStdioRuntimeDependenciesInput<
   readonly markResourcesRegistered: () => void;
   readonly registerTools: () => void;
   readonly registerResources: () => Promise<void>;
-  readonly handleToolCall: (
-    toolName: string,
-    args: Record<string, unknown>
-  ) => Promise<unknown>;
+  readonly handleToolCall: (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
   readonly prepareRuntimePreflight: () => {
     envConfig: TEnvConfig;
     costTrackingEnabled: boolean;

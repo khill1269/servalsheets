@@ -21,8 +21,7 @@ function collectInvalidActionReferences(filePath: string): string[] {
     }
   }
 
-  const jsonPlanPattern =
-    /"tool"\s*:\s*"(sheets_[a-z_]+)"\s*,\s*"action"\s*:\s*"([a-z_]+)"/g;
+  const jsonPlanPattern = /"tool"\s*:\s*"(sheets_[a-z_]+)"\s*,\s*"action"\s*:\s*"([a-z_]+)"/g;
   for (const match of text.matchAll(jsonPlanPattern)) {
     const toolName = match[1]!;
     const actionName = match[2]!;

@@ -43,10 +43,7 @@ export interface RegisterHttpSurfaceRoutesOptions<
   }) => void;
   readonly registerHttpWebhookRoutes: (app: TApp) => void;
   readonly registerApiRoutes: (app: TApp, params: { samplingServer: null }) => void;
-  readonly registerHttpErrorHandler: (
-    app: TApp,
-    params: { log: HttpSurfaceLogger }
-  ) => void;
+  readonly registerHttpErrorHandler: (app: TApp, params: { log: HttpSurfaceLogger }) => void;
   readonly registerHttpGraphQlAndAdmin: (params: {
     app: TApp;
     sessions: Map<string, unknown>;

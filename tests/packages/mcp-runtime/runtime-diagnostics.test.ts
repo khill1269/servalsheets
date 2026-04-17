@@ -37,9 +37,12 @@ describe('@serval/mcp-runtime runtime diagnostics', () => {
   });
 
   it('allows degraded startup when known credential/network patterns match', () => {
-    const allowed = shouldAllowDegradedStartup(new Error('Could not load the default credentials'), {
-      transport: 'stdio',
-    });
+    const allowed = shouldAllowDegradedStartup(
+      new Error('Could not load the default credentials'),
+      {
+        transport: 'stdio',
+      }
+    );
 
     expect(allowed).toBe(true);
   });

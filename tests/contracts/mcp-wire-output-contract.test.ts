@@ -63,17 +63,11 @@ describe('MCP wire output contracts', () => {
     }
 
     expect(staticResourceCalls).toContainEqual(
-      expect.arrayContaining([
-        'server_health',
-        'metrics://servalsheets/health',
-      ])
+      expect.arrayContaining(['server_health', 'metrics://servalsheets/health'])
     );
 
     expect(staticResourceCalls).toContainEqual(
-      expect.arrayContaining([
-        'guide_tool_selection',
-        'guide://tool-selection',
-      ])
+      expect.arrayContaining(['guide_tool_selection', 'guide://tool-selection'])
     );
   });
 

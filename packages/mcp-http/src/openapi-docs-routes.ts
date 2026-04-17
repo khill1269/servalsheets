@@ -43,9 +43,7 @@ export function registerHttpOpenApiDocsRoutes<
   >,
   TSwaggerServe,
   TSwaggerSetup,
->(
-  options: RegisterHttpOpenApiDocsRoutesOptions<TApp, TSwaggerServe, TSwaggerSetup>
-): void {
+>(options: RegisterHttpOpenApiDocsRoutesOptions<TApp, TSwaggerServe, TSwaggerSetup>): void {
   const {
     app,
     openapiJsonPath,

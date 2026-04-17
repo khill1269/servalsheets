@@ -52,7 +52,9 @@ export function registerHttpObservabilityCoreRoutes<
     checkReadiness(): Promise<{ status: string } & Record<string, unknown>>;
   },
   TObservabilityOptions,
->(options: RegisterHttpObservabilityCoreRoutesOptions<TApp, THealthService, TObservabilityOptions>): void {
+>(
+  options: RegisterHttpObservabilityCoreRoutesOptions<TApp, THealthService, TObservabilityOptions>
+): void {
   const {
     app,
     healthService,
@@ -87,8 +89,8 @@ export function registerHttpObservabilityCoreRoutes<
         enabled: true,
         configured: Boolean(
           observabilityOptions.oauthConfig.clientId &&
-            observabilityOptions.oauthConfig.clientSecret &&
-            !observabilityOptions.oauthConfig.clientSecret.includes('REPLACE_WITH')
+          observabilityOptions.oauthConfig.clientSecret &&
+          !observabilityOptions.oauthConfig.clientSecret.includes('REPLACE_WITH')
         ),
       };
     }

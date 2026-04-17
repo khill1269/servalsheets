@@ -416,11 +416,11 @@ async function appendActionLogSheetRowIfEnabled(input: {
   duration: number;
   success: boolean;
 }): Promise<void> {
-  if (!input.envConfig.ENABLE_ACTION_LOG_SHEET) {
+  if (!input.envConfig['ENABLE_ACTION_LOG_SHEET']) {
     return;
   }
 
-  if (!input.envConfig.ACTION_LOG_SPREADSHEET_ID || !input.googleClient?.sheets) {
+  if (!input.envConfig['ACTION_LOG_SPREADSHEET_ID'] || !input.googleClient?.sheets) {
     return;
   }
 
@@ -436,8 +436,8 @@ async function appendActionLogSheetRowIfEnabled(input: {
   try {
     await appendAuditLogRow(
       input.googleClient.sheets,
-      input.envConfig.ACTION_LOG_SPREADSHEET_ID,
-      input.envConfig.ACTION_LOG_SHEET_NAME,
+      String(input.envConfig['ACTION_LOG_SPREADSHEET_ID']),
+      String(input.envConfig['ACTION_LOG_SHEET_NAME']),
       {
         timestamp: new Date().toISOString(),
         tool: input.toolName,
@@ -835,7 +835,7 @@ export function createToolHandlerMap(
   }
 
   // Build final map (with optional idempotency wrapping)
-  const finalMap = getEnv().ENABLE_IDEMPOTENCY ? wrapToolMapWithIdempotency(map) : map;
+  const finalMap = getEnv()['ENABLE_IDEMPOTENCY'] ? wrapToolMapWithIdempotency(map) : map;
 
   // Register pipeline dispatcher so SessionHandler.execute_pipeline can call other tools.
   // Using a registry module avoids circular imports between tool-handlers ↔ session.
@@ -918,7 +918,7 @@ function createToolCallHandler(
       parentSpanId?: string;
       requestHeaders?: Record<string, string | string[] | undefined>;
     }
-  ) => {
+  ): Promise<CallToolResult> => {
     const parentRequestContext = getRequestContext();
     const requestId =
       extra?.requestId !== undefined ? String(extra.requestId) : parentRequestContext?.requestId;
@@ -1339,7 +1339,10 @@ function createToolCallHandler(
 
           // Track cost per tenant (opt-in via ENABLE_COST_TRACKING)
           const envConfig = getEnv();
-          if (envConfig.ENABLE_COST_TRACKING || envConfig.ENABLE_BILLING_INTEGRATION) {
+          if (
+            Boolean(envConfig['ENABLE_COST_TRACKING']) ||
+            Boolean(envConfig['ENABLE_BILLING_INTEGRATION'])
+          ) {
             try {
               // COST-01: Disaggregate API type by tool (bigquery/drive/sheets)
               const apiType =
@@ -1380,7 +1383,7 @@ function createToolCallHandler(
           }
 
           // Audit logging for compliance (opt-in via ENABLE_AUDIT_LOGGING)
-          if (envConfig.ENABLE_AUDIT_LOGGING) {
+          if (envConfig['ENABLE_AUDIT_LOGGING']) {
             try {
               void getAuditLogger().logToolCall({
                 tool: tool.name,
@@ -1537,8 +1540,8 @@ function createToolCallHandler(
         } finally {
           keepalive.stop();
         }
-      });
-    });
+      }) as Promise<CallToolResult>;
+    }) as Promise<CallToolResult>;
   };
 }
 
@@ -1586,7 +1589,7 @@ export function createToolTaskHandler(
       const abortController = new AbortController();
       abortControllers.set(task.taskId, abortController);
 
-      const TASK_WATCHDOG_MS = getEnv().TASK_WATCHDOG_MS;
+      const TASK_WATCHDOG_MS = Number(getEnv()['TASK_WATCHDOG_MS']);
       const watchdogTimer = setTimeout(() => {
         if (abortControllers.has(task.taskId)) {
           logger.warn('Task watchdog: aborting hung task', {
@@ -1758,7 +1761,7 @@ export async function registerServalSheetsTools(
   options?: { googleClient?: GoogleApiClient | null }
 ): Promise<LegacyToolRegistration> {
   const requestQueue = new PQueue({
-    concurrency: getEnv().MAX_CONCURRENT_REQUESTS,
+    concurrency: Number(getEnv()['MAX_CONCURRENT_REQUESTS']),
   });
   const registrationState: LegacyToolRegistrationState = {
     disposed: false,
@@ -1959,8 +1962,9 @@ export async function registerServalSheetsTools(
   // In flat mode, intercept tools/call to rewrite flat tool names → compound names.
   // Must come after registerToolsListCompatibilityHandler (tools/list) and after
   // all compound tools are registered with the MCP server.
-  registerFlatToolCallInterceptor(server);
-  if (getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerFlatToolCallInterceptor(server as any);
+  if (getEnv()['ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS']) {
     resourceNotifications.syncToolList(
       ACTIVE_TOOL_DEFINITIONS.map((tool) => tool.name),
       {

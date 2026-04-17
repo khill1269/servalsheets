@@ -201,8 +201,8 @@ class TracerImpl {
   constructor(options: TracerOptions = {}) {
     const env = getEnv();
     this.serviceName = options.serviceName || 'servalsheets';
-    this.enabled = options.enabled ?? env.OTEL_ENABLED;
-    this.logSpans = options.logSpans ?? env.OTEL_LOG_SPANS;
+    this.enabled = options.enabled ?? (env['OTEL_ENABLED'] as boolean);
+    this.logSpans = options.logSpans ?? (env['OTEL_LOG_SPANS'] as boolean);
 
     if (this.enabled) {
       logger.info('OpenTelemetry tracing enabled', {

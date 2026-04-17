@@ -19,8 +19,14 @@ const createMockSheetsApi = () => ({
         properties: { title: 'Test Sheet' },
         sheets: [
           {
-            properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: 100, columnCount: 26 } },
-            charts: [{ chartId: 123, spec: { title: 'Sales Chart', basicChart: { chartType: 'LINE' } } }],
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 100, columnCount: 26 },
+            },
+            charts: [
+              { chartId: 123, spec: { title: 'Sales Chart', basicChart: { chartType: 'LINE' } } },
+            ],
           },
         ],
       },
@@ -28,7 +34,13 @@ const createMockSheetsApi = () => ({
     batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [{}] } }),
     values: {
       get: vi.fn().mockResolvedValue({
-        data: { values: [['Month', 'Sales'], ['Jan', 1000], ['Feb', 1200]] },
+        data: {
+          values: [
+            ['Month', 'Sales'],
+            ['Jan', 1000],
+            ['Feb', 1200],
+          ],
+        },
       }),
     },
   },
@@ -100,7 +112,9 @@ describe('Category 5: Visualization Operations', () => {
   });
 
   it('5.4 chart_delete dispatches correctly', async () => {
-    mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{ deleteChart: {} }] } });
+    mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
+      data: { replies: [{ deleteChart: {} }] },
+    });
     const result = await handler.handle({
       request: { action: 'chart_delete', spreadsheetId: 'test-sheet-id', chartId: 123 },
     });
@@ -187,7 +201,11 @@ describe('Category 5: Visualization Operations', () => {
 
   it('5.10 suggest_chart dispatches', async () => {
     const result = await handler.handle({
-      request: { action: 'suggest_chart', spreadsheetId: 'test-sheet-id', range: { a1: 'Sheet1!A1:C4' } },
+      request: {
+        action: 'suggest_chart',
+        spreadsheetId: 'test-sheet-id',
+        range: { a1: 'Sheet1!A1:C4' },
+      },
     });
     expect(result).toBeDefined();
     expect(result.response).toBeDefined();

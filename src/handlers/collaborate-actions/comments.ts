@@ -16,10 +16,7 @@ import type {
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 

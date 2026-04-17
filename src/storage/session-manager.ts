@@ -83,7 +83,8 @@ export class SessionManager {
     }
 
     // Store the new session
-    await this.store.set(this.getSessionKey(sessionId), sessionInfo, ttl);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await this.store.set(this.getSessionKey(sessionId), sessionInfo as any, { ttlMs: ttl * 1000 });
 
     // Add to user's session index
     await this.addToUserIndex(userId, sessionId, ttl);
@@ -106,7 +107,7 @@ export class SessionManager {
       return null;
     }
 
-    return data as SessionInfo;
+    return data as unknown as SessionInfo;
   }
 
   /**
@@ -183,7 +184,8 @@ export class SessionManager {
     session.expires = now + ttl * 1000;
 
     // Re-store with new TTL
-    await this.store.set(this.getSessionKey(sessionId), session, ttl);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await this.store.set(this.getSessionKey(sessionId), session as any, { ttlMs: ttl * 1000 });
 
     // Refresh user index TTL
     await this.addToUserIndex(session.userId, sessionId, ttl);
@@ -199,13 +201,13 @@ export class SessionManager {
     totalSessions: number;
     storeStats?: { totalKeys: number; memoryUsage?: number };
   }> {
-    const keys = this.store.keys ? await this.store.keys('session:*') : [];
+    const keys = this.store.keys ? await this.store.keys() : [];
 
-    const storeStats = this.store.stats ? await this.store.stats() : undefined;
+    const stats = this.store.stats ? await this.store.stats() : undefined;
 
     return {
       totalSessions: keys.length,
-      storeStats,
+      storeStats: stats ? { totalKeys: stats.itemCount, memoryUsage: undefined } : undefined,
     };
   }
 
@@ -249,7 +251,8 @@ export class SessionManager {
     }
 
     // Store updated index with same TTL as session
-    await this.store.set(this.getUserIndexKey(userId), sessionIds, ttlSeconds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await this.store.set(this.getUserIndexKey(userId), { ids: sessionIds } as any, { ttlMs: ttlSeconds * 1000 });
   }
 
   private async removeFromUserIndex(userId: string, sessionId: string): Promise<void> {
@@ -258,7 +261,12 @@ export class SessionManager {
 
     if (filtered.length > 0) {
       // Re-store with original TTL (we don't know it, so use default)
-      await this.store.set(this.getUserIndexKey(userId), filtered, this.defaultTtlSeconds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await this.store.set(
+        this.getUserIndexKey(userId),
+        { ids: filtered } as any,
+        { ttlMs: this.defaultTtlSeconds * 1000 }
+      );
     } else {
       // No more sessions, delete the index
       await this.store.delete(this.getUserIndexKey(userId));

@@ -8,7 +8,11 @@ import { CleaningEngine, parseRangeOffset } from '../../services/cleaning-engine
 import { generateAIInsight } from '../../mcp/sampling.js';
 import { recordCleaningOp } from '../../observability/metrics.js';
 import { extractRangeA1 } from '../../utils/range-helpers.js';
-import type { DetectAnomaliesInput, SuggestCleaningInput, SheetsFixOutput } from '../../schemas/fix.js';
+import type {
+  DetectAnomaliesInput,
+  SuggestCleaningInput,
+  SheetsFixOutput,
+} from '../../schemas/fix.js';
 import type { FixHandlerAccess } from './internal.js';
 
 // ISSUE-047: CleaningEngine is stateless — use module-level singleton to avoid
@@ -93,7 +97,9 @@ export async function handleSuggestCleaningAction(
   // Wire AI insight: recommend cleaning strategy
   let aiInsight: string | undefined;
   if (result.recommendations.length > 0) {
-    const columnsWithNulls = result.dataProfile.columnProfiles.filter((c) => c.nullCount > 0).length;
+    const columnsWithNulls = result.dataProfile.columnProfiles.filter(
+      (c) => c.nullCount > 0
+    ).length;
     const profileSummary = `${result.dataProfile.totalRows} rows, ${result.dataProfile.totalColumns} columns, null rate ${result.dataProfile.nullRate}. Columns with missing values: ${columnsWithNulls}.`;
     aiInsight = await generateAIInsight(
       handler.context.samplingServer,

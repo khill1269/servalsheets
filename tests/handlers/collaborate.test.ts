@@ -10,10 +10,7 @@ import { CollaborateHandler } from '../../src/handlers/collaborate.js';
 import { SheetsCollaborateOutputSchema } from '../../src/schemas/collaborate.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -159,46 +156,47 @@ const createMockDriveApi = () => ({
 });
 
 // Create mock context
-const createMockContext = (): HandlerContext => ({
-  googleClient: {} as any,
-  batchCompiler: {
-    compile: vi.fn(),
-    execute: vi.fn(),
-    executeAll: vi.fn(),
-  } as any,
-  rangeResolver: {
-    resolve: vi.fn().mockResolvedValue({
-      a1Notation: 'Sheet1!A1:B10',
-      sheetId: 0,
-      sheetName: 'Sheet1',
-    }),
-  } as any,
-  sheetsApi: createMockSheetsApi() as unknown as sheets_v4.Sheets,
-  driveApi: createMockDriveApi() as unknown as drive_v3.Drive,
-  sessionId: 'test-session',
-  requestId: 'test-request',
-  auth: {
-    hasElevatedAccess: true,
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/drive.file',
-    ],
-  },
-  elicitationServer: {
-    request: vi.fn().mockResolvedValue({
-      confirmed: true,
-      reason: '',
-    }),
-    elicitInput: vi.fn().mockResolvedValue({
-      action: 'accept',
-      content: { confirm: true },
-    }),
-    getClientCapabilities: vi.fn().mockReturnValue({
-      elicitation: { form: true },
-    }),
-  } as any,
-} as unknown as HandlerContext);
+const createMockContext = (): HandlerContext =>
+  ({
+    googleClient: {} as any,
+    batchCompiler: {
+      compile: vi.fn(),
+      execute: vi.fn(),
+      executeAll: vi.fn(),
+    } as any,
+    rangeResolver: {
+      resolve: vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:B10',
+        sheetId: 0,
+        sheetName: 'Sheet1',
+      }),
+    } as any,
+    sheetsApi: createMockSheetsApi() as unknown as sheets_v4.Sheets,
+    driveApi: createMockDriveApi() as unknown as drive_v3.Drive,
+    sessionId: 'test-session',
+    requestId: 'test-request',
+    auth: {
+      hasElevatedAccess: true,
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/drive.file',
+      ],
+    },
+    elicitationServer: {
+      request: vi.fn().mockResolvedValue({
+        confirmed: true,
+        reason: '',
+      }),
+      elicitInput: vi.fn().mockResolvedValue({
+        action: 'accept',
+        content: { confirm: true },
+      }),
+      getClientCapabilities: vi.fn().mockReturnValue({
+        elicitation: { form: true },
+      }),
+    } as any,
+  }) as unknown as HandlerContext;
 
 describe('CollaborateHandler', () => {
   let handler: CollaborateHandler;
@@ -620,11 +618,7 @@ describe('CollaborateHandler', () => {
 
       mockDriveApi.revisions.list.mockResolvedValue({
         data: {
-          revisions: [
-            { id: 'rev-1' },
-            { id: 'rev-2' },
-            { id: 'rev-3' },
-          ],
+          revisions: [{ id: 'rev-1' }, { id: 'rev-2' }, { id: 'rev-3' }],
         },
       });
       mockDriveApi.revisions.get

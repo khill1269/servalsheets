@@ -45,7 +45,17 @@ describe('Pre-Flight Validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
+    // Clear vars that drive configuration validation so host environment does
+    // not leak into tests (e.g. OAUTH_CLIENT_SECRET set in dev shell).
     delete process.env['SKIP_PREFLIGHT'];
+    delete process.env['ENCRYPTION_KEY'];
+    delete process.env['GOOGLE_CLIENT_ID'];
+    delete process.env['GOOGLE_CLIENT_SECRET'];
+    delete process.env['OAUTH_CLIENT_ID'];
+    delete process.env['OAUTH_CLIENT_SECRET'];
+    delete process.env['JWT_SECRET'];
+    delete process.env['STATE_SECRET'];
+    delete process.env['REDIS_URL'];
     vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ engines: { node: '>=20.0.0' } }));
   });
 

@@ -15,7 +15,7 @@ describe('env DATA_DIR durability policy', () => {
       NODE_ENV: 'development',
     };
 
-    const env = validateEnv();
+    const env = validateEnv(true);
     expect(env.DATA_DIR).toBe('/tmp/servalsheets');
   });
 
@@ -24,9 +24,10 @@ describe('env DATA_DIR durability policy', () => {
       ...originalEnv,
       NODE_ENV: 'production',
       DATA_DIR: '/tmp/servalsheets',
+      GOOGLE_SERVICE_ACCOUNT_KEY: '{"type":"service_account"}',
     };
 
-    expect(() => validateEnv()).toThrow(/DATA_DIR must point to persistent storage in production/i);
+    expect(() => validateEnv(true)).toThrow(/DATA_DIR must point to persistent storage in production/i);
   });
 
   it('rejects temporary profile storage in production', () => {
@@ -34,9 +35,11 @@ describe('env DATA_DIR durability policy', () => {
       ...originalEnv,
       NODE_ENV: 'production',
       DATA_DIR: '/var/lib/servalsheets',
+      PROFILE_STORAGE_DIR: '/tmp/servalsheets-profiles',
+      GOOGLE_SERVICE_ACCOUNT_KEY: '{"type":"service_account"}',
     };
 
-    expect(() => validateEnv()).toThrow(
+    expect(() => validateEnv(true)).toThrow(
       /PROFILE_STORAGE_DIR must point to persistent storage in production/i
     );
   });
@@ -49,9 +52,10 @@ describe('env DATA_DIR durability policy', () => {
       PROFILE_STORAGE_DIR: '/var/lib/servalsheets-profiles',
       ENABLE_CHECKPOINTS: 'true',
       CHECKPOINT_DIR: '/tmp/servalsheets-checkpoints',
+      GOOGLE_SERVICE_ACCOUNT_KEY: '{"type":"service_account"}',
     };
 
-    expect(() => validateEnv()).toThrow(
+    expect(() => validateEnv(true)).toThrow(
       /CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production/i
     );
   });
@@ -62,9 +66,10 @@ describe('env DATA_DIR durability policy', () => {
       NODE_ENV: 'production',
       DATA_DIR: '/var/lib/servalsheets',
       PROFILE_STORAGE_DIR: '/var/lib/servalsheets-profiles',
+      GOOGLE_SERVICE_ACCOUNT_KEY: '{"type":"service_account"}',
     };
 
-    expect(validateEnv().DATA_DIR).toBe('/var/lib/servalsheets');
+    expect(validateEnv(true).DATA_DIR).toBe('/var/lib/servalsheets');
   });
 
   it('accepts redis:// session store URLs', () => {
@@ -74,7 +79,7 @@ describe('env DATA_DIR durability policy', () => {
       REDIS_URL: 'redis://localhost:6379/0',
     };
 
-    validateEnv();
+    validateEnv(true);
 
     expect(getSessionStoreConfig()).toEqual({
       type: 'redis',
@@ -89,7 +94,7 @@ describe('env DATA_DIR durability policy', () => {
       REDIS_URL: 'rediss://cache.example.com:6379',
     };
 
-    validateEnv();
+    validateEnv(true);
 
     expect(getSessionStoreConfig()).toEqual({
       type: 'redis',
@@ -104,8 +109,8 @@ describe('env DATA_DIR durability policy', () => {
       REDIS_URL: 'https://cache.example.com:6379',
     };
 
-    validateEnv();
-
-    expect(() => getSessionStoreConfig()).toThrow(/REDIS_URL is required when SESSION_STORE_TYPE=redis/i);
+    expect(() => validateEnv(true)).toThrow(
+      /redis.*url|REDIS_URL/i
+    );
   });
 });

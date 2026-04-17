@@ -16,7 +16,9 @@ const defaultLogger: HttpTransportHelpersLogger = {
   },
 };
 
-export function createSessionSecurityContext<TRequest extends { headers?: Record<string, unknown> }>(
+export function createSessionSecurityContext<
+  TRequest extends { headers?: Record<string, unknown> },
+>(
   req: TRequest,
   token: string,
   options: {

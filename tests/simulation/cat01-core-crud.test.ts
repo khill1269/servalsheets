@@ -761,9 +761,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
     });
 
     it('should optionally include fixableVia with actionable suggestions', async () => {
-      (mockApi.spreadsheets!.get as any).mockRejectedValueOnce(
-        new Error('Spreadsheet not found')
-      );
+      (mockApi.spreadsheets!.get as any).mockRejectedValueOnce(new Error('Spreadsheet not found'));
 
       const result = await handler.handle({
         action: 'get',

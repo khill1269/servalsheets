@@ -39,6 +39,9 @@ export * from './core/index.js';
 // Use 'import type { ExecutionResult as AgenticExecutionResult } from services/agentic-planner' if needed.
 export * from './services/index.js';
 
+// Re-export core ExecutionResult to resolve ambiguity (core takes precedence)
+export type { ExecutionResult } from './core/index.js';
+
 // Handlers
 export * from './handlers/index.js';
 

@@ -32,7 +32,10 @@ export interface BuildServerStdioShutdownArgsInput<
     TContext,
     TGoogleClient
   >['cleanupAllResources'];
-  readonly getBatchingSystem: StdioShutdownDependencies<TContext, TGoogleClient>['getBatchingSystem'];
+  readonly getBatchingSystem: StdioShutdownDependencies<
+    TContext,
+    TGoogleClient
+  >['getBatchingSystem'];
   readonly getPrefetchingSystem: StdioShutdownDependencies<
     TContext,
     TGoogleClient
@@ -50,7 +53,9 @@ export interface BuildServerStdioShutdownArgsInput<
 export function buildServerStdioShutdownArgs<
   TContext extends StdioShutdownContextLike,
   TGoogleClient extends StdioShutdownGoogleClientLike,
->(input: BuildServerStdioShutdownArgsInput<TContext, TGoogleClient>): {
+>(
+  input: BuildServerStdioShutdownArgsInput<TContext, TGoogleClient>
+): {
   state: StdioShutdownState<TContext, TGoogleClient>;
   dependencies: StdioShutdownDependencies<TContext, TGoogleClient>;
 } {

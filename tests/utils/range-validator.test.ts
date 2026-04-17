@@ -119,7 +119,11 @@ describe('range-validator', () => {
       ],
     } as sheets_v4.Schema$Spreadsheet);
 
-    const result = await validateRangeWithinGrid(mockCachedApi, 'spreadsheetId', 'NonExistent!A1:B10');
+    const result = await validateRangeWithinGrid(
+      mockCachedApi,
+      'spreadsheetId',
+      'NonExistent!A1:B10'
+    );
 
     expect(result.valid).toBe(false);
     expect(result.error).toContain('Sheet "NonExistent" not found');

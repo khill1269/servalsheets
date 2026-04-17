@@ -59,7 +59,10 @@ const DIRTY_DATA = [
   ['Eve', 'eve@example.com', null],
 ];
 
-const MINIMAL_DATA = [['A', 'B'], ['1', '2']];
+const MINIMAL_DATA = [
+  ['A', 'B'],
+  ['1', '2'],
+];
 
 // ─── Flow A: Time-Series Detection ────────────────────────────────────────────
 
@@ -92,8 +95,8 @@ describe('Flow A: Data entry → read with _hints time-series detection', () => 
 
   it('A4: _hints.dataRelationships detects revenue+cost = profit opportunity', () => {
     const hints = generateResponseHints(SALES_DATA);
-    const hasProfit = hints?.dataRelationships?.some((r) =>
-      r.toLowerCase().includes('profit') || r.toLowerCase().includes('margin')
+    const hasProfit = hints?.dataRelationships?.some(
+      (r) => r.toLowerCase().includes('profit') || r.toLowerCase().includes('margin')
     );
     expect(hasProfit).toBe(true);
   });
@@ -338,7 +341,10 @@ describe('Flow F: high-null + duplicate data → riskLevel = medium or high', ()
   });
 
   it('F3: single data row produces hints without throwing', () => {
-    const oneRow = [['Header1', 'Header2'], ['value1', 'value2']];
+    const oneRow = [
+      ['Header1', 'Header2'],
+      ['value1', 'value2'],
+    ];
     expect(() => generateResponseHints(oneRow)).not.toThrow();
   });
 });

@@ -63,9 +63,11 @@ const createMockDataContext = (): HandlerContext =>
     backend: undefined,
     taskStore: undefined,
     rangeResolver: {
-      resolve: vi.fn().mockImplementation((_spreadsheetId: string, rangeInput: { a1: string }) =>
-        Promise.resolve({ a1Notation: rangeInput.a1 })
-      ),
+      resolve: vi
+        .fn()
+        .mockImplementation((_spreadsheetId: string, rangeInput: { a1: string }) =>
+          Promise.resolve({ a1Notation: rangeInput.a1 })
+        ),
     } as any,
   }) as any;
 

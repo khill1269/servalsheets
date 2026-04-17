@@ -17,7 +17,9 @@ import {
 
 describe('agent engine consent fallback', () => {
   beforeEach(() => {
-    registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));
+    registerToolInputSchemas(
+      new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const))
+    );
     registerPlannerToolCatalog(buildPlannerToolCatalog(TOOL_DEFINITIONS));
   });
 
@@ -84,9 +86,7 @@ describe('agent engine consent fallback', () => {
       })
     );
     expect(plan.steps[0]?.validation?.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ field: 'values' }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ field: 'values' })])
     );
   });
 

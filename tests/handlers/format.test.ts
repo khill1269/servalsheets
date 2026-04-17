@@ -734,7 +734,9 @@ describe('FormatHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success) {
-        expect(Array.isArray((result.response as { suggestions?: unknown }).suggestions)).toBe(true);
+        expect(Array.isArray((result.response as { suggestions?: unknown }).suggestions)).toBe(
+          true
+        );
       }
 
       const parseResult = SheetsFormatOutputSchema.safeParse(result);

@@ -10,10 +10,9 @@ import { SheetsQualityOutputSchema } from '../../src/schemas/quality.js';
 
 // Mock the service getters
 vi.mock('../../src/services/validation-engine.js', async () => {
-  const actual =
-    await vi.importActual<typeof import('../../src/services/validation-engine.js')>(
-      '../../src/services/validation-engine.js'
-    );
+  const actual = await vi.importActual<typeof import('../../src/services/validation-engine.js')>(
+    '../../src/services/validation-engine.js'
+  );
 
   return {
     ...actual,

@@ -13,7 +13,8 @@ export type { HttpRequestContextLogger, HttpRequestContextMiddlewareOptions };
 export function createHttpRequestIdMiddleware(
   options: Pick<HttpRequestContextMiddlewareOptions, 'createRequestId'> = {}
 ): RequestHandler {
-  return createHttpRequestIdMiddlewareImpl(options);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return createHttpRequestIdMiddlewareImpl(options) as any;
 }
 
 export function createHttpTraceContextMiddleware(
@@ -22,14 +23,16 @@ export function createHttpTraceContextMiddleware(
   return createHttpTraceContextMiddlewareImpl({
     ...options,
     log: (options.log ?? defaultLogger) as HttpRequestContextLogger,
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any;
 }
 
 export function registerHttpRequestContextMiddleware(
   app: Pick<Application, 'use'>,
   options: HttpRequestContextMiddlewareOptions = {}
 ): void {
-  registerHttpRequestContextMiddlewareImpl(app, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerHttpRequestContextMiddlewareImpl(app as any, {
     ...options,
     log: (options.log ?? defaultLogger) as HttpRequestContextLogger,
   });

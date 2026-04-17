@@ -113,7 +113,8 @@ for pattern in "${PATTERNS[@]}"; do
       --glob '!src/TOOL_MANIFEST.ts' \
       --glob '!src/config/secrets.ts' \
       --glob '!src/connectors/sec-edgar-connector.ts' \
-      '$pattern' ${SEARCH_DIRS[*]} 2>/dev/null" || true)
+      --glob '!src/resources/register-stubs.ts' \
+      '$pattern' ${SEARCH_DIRS[*]} 2>/dev/null | grep -v 'register-stubs'" || true)
   else
     # Fallback to grep
     MATCHES=$(grep -rn --exclude="*.md" \

@@ -45,7 +45,10 @@ describe('aiValidateStepResult', () => {
 
   it('returns validation issue when sampling reports failure', async () => {
     const createMessage = vi.fn().mockResolvedValue({
-      content: { type: 'text', text: '{"valid": false, "issue": "test issue", "suggestedFix": "retry"}' },
+      content: {
+        type: 'text',
+        text: '{"valid": false, "issue": "test issue", "suggestedFix": "retry"}',
+      },
     });
     const server: SamplingServer = {
       createMessage: createMessage as SamplingServer['createMessage'],

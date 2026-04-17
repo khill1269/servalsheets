@@ -159,11 +159,7 @@ export async function handleRun(
         SCRIPT_RUN_TIMEOUT_MS
       );
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message?.includes('Authentication') &&
-        googleClient
-      ) {
+      if (error instanceof Error && error.message?.includes('Authentication') && googleClient) {
         logger.warn('Auth error during script execution, refreshing token and retrying', {
           scriptId: req.scriptId,
           functionName: req.functionName,

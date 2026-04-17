@@ -99,12 +99,13 @@ export function buildServerStdioToolRuntime(
   >(
     {
       toolDefinitions: TOOL_DEFINITIONS,
-      requestQueue: input.requestQueue,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      requestQueue: input.requestQueue as any,
       connectionHealthCheck: input.connectionHealthCheck,
       taskStore: input.taskStore,
       taskAbortControllers: input.taskAbortControllers,
       taskWatchdogTimers: input.taskWatchdogTimers,
-      taskWatchdogMs: getEnv().TASK_WATCHDOG_MS,
+      taskWatchdogMs: (getEnv()['TASK_WATCHDOG_MS'] as unknown as number) ?? 30000,
       stagedRegistrationEnabled: STAGED_REGISTRATION,
       enableToolsListChangedNotifications: getEnv().ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS,
       getIsShutdown: input.getIsShutdown,
@@ -222,7 +223,8 @@ export function buildServerStdioToolRuntime(
         registerToolsListCompatibilityHandler(input.server);
       },
       registerFlatToolCallInterceptor: () => {
-        registerFlatToolCallInterceptor(input.server);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        registerFlatToolCallInterceptor(input.server as any);
       },
       syncToolList: (toolNames, options) => {
         resourceNotifications.syncToolList(toolNames, options);

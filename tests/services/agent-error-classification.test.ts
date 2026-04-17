@@ -22,11 +22,15 @@ function makePlan(description: string = 'read data from spreadsheet') {
   return makePlanExecutable(compilePlan(description, 10, 'abc123'));
 }
 
-function makePlanExecutable<T extends { steps: Array<{ tool: string; action: string; params: Record<string, unknown> }> }>(
-  plan: T
-): T {
+function makePlanExecutable<
+  T extends { steps: Array<{ tool: string; action: string; params: Record<string, unknown> }> },
+>(plan: T): T {
   for (const step of plan.steps) {
-    if (step.tool === 'sheets_data' && step.action === 'read' && step.params['range'] === undefined) {
+    if (
+      step.tool === 'sheets_data' &&
+      step.action === 'read' &&
+      step.params['range'] === undefined
+    ) {
       step.params['range'] = 'Sheet1!A1:B5';
     }
     if (

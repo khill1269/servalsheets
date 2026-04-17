@@ -34,7 +34,15 @@ describe('ConnectorsHandler', () => {
 
   it('routes list_connectors', async () => {
     const spy = vi.spyOn(connectorManager, 'listConnectors').mockReturnValue({
-      connectors: [{ id: 'finnhub', name: 'Finnhub', description: 'Market data', authType: 'api_key', configured: false }],
+      connectors: [
+        {
+          id: 'finnhub',
+          name: 'Finnhub',
+          description: 'Market data',
+          authType: 'api_key',
+          configured: false,
+        },
+      ],
     });
 
     const result = await handler.handle({ request: { action: 'list_connectors' } });
@@ -249,7 +257,17 @@ describe('ConnectorsHandler', () => {
     });
     const discoverSpy = vi
       .spyOn(connectorManager, 'discover')
-      .mockResolvedValue({ endpoints: [{ id: 'stock/quote', name: 'Stock Quote', description: 'Quote endpoint', category: 'stocks', params: [] }] });
+      .mockResolvedValue({
+        endpoints: [
+          {
+            id: 'stock/quote',
+            name: 'Stock Quote',
+            description: 'Quote endpoint',
+            category: 'stocks',
+            params: [],
+          },
+        ],
+      });
     const schemaSpy = vi.spyOn(connectorManager, 'getEndpointSchema').mockResolvedValue({
       endpoint: 'stock/quote',
       columns: [{ name: 'symbol', type: 'string' }],
@@ -274,7 +292,13 @@ describe('ConnectorsHandler', () => {
       request: { action: 'discover', connectorId: 'finnhub', endpoint: 'stock/quote' },
     });
 
-    expect(querySpy).toHaveBeenCalledWith('finnhub', 'stock/quote', { symbol: 'AAPL' }, { limit: 1 }, true);
+    expect(querySpy).toHaveBeenCalledWith(
+      'finnhub',
+      'stock/quote',
+      { symbol: 'AAPL' },
+      { limit: 1 },
+      true
+    );
     expect(statusSpy).toHaveBeenCalledWith('finnhub');
     expect(discoverSpy).toHaveBeenCalledTimes(2);
     expect(discoverSpy).toHaveBeenNthCalledWith(1, 'finnhub');

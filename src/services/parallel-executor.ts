@@ -157,7 +157,10 @@ export class ParallelExecutor {
             } catch (error) {
               lastError = error as Error;
               if (this.verboseLogging) {
-                console.debug(`[ParallelExecutor] Task ${task.id} attempt ${attempt + 1} failed: ${lastError.message}`);
+                // eslint-disable-next-line no-console
+                console.debug(
+                  `[ParallelExecutor] Task ${task.id} attempt ${attempt + 1} failed: ${lastError.message}`
+                );
               }
             }
           }
@@ -189,9 +192,10 @@ export class ParallelExecutor {
     this.stats.totalExecuted += total;
     this.stats.totalSucceeded += succeeded;
     this.stats.totalFailed += failed;
-    this.stats.successRate = this.stats.totalExecuted > 0
-      ? (this.stats.totalSucceeded / this.stats.totalExecuted) * 100
-      : 0;
+    this.stats.successRate =
+      this.stats.totalExecuted > 0
+        ? (this.stats.totalSucceeded / this.stats.totalExecuted) * 100
+        : 0;
     // Running average of duration
     this.stats.averageDuration = avgDuration;
 

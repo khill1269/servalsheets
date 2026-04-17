@@ -60,7 +60,9 @@ describe('http openapi docs routes', () => {
     const get = vi.fn();
     const use = vi.fn();
     const swaggerSetup = vi.fn(() => 'swagger-setup');
-    const readSpec = vi.fn(() => JSON.stringify({ openapi: '3.1.0', info: { title: 'ServalSheets' } }));
+    const readSpec = vi.fn(() =>
+      JSON.stringify({ openapi: '3.1.0', info: { title: 'ServalSheets' } })
+    );
 
     registerHttpOpenApiDocsRoutes({
       app: { get, use } as never,

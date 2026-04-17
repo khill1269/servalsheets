@@ -101,15 +101,12 @@ describe('AnalyzeHandler follow-up wiring', () => {
       } as any,
     };
 
-    const handler = new AnalyzeHandler(
-      context,
-      {
-        spreadsheets: {
-          get: vi.fn(),
-          values: { get: vi.fn() },
-        },
-      } as any
-    );
+    const handler = new AnalyzeHandler(context, {
+      spreadsheets: {
+        get: vi.fn(),
+        values: { get: vi.fn() },
+      },
+    } as any);
 
     const result = await handler.handle({
       action: 'comprehensive',

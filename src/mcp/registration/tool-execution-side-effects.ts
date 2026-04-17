@@ -140,7 +140,8 @@ function createDefaultDeps(): ToolExecutionSideEffectDeps {
     traceAggregator: getTraceAggregator(),
     costTracker: getCostTracker(),
     auditLogger: getAuditLogger(),
-    envConfig: getEnv(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    envConfig: getEnv() as any,
     log: logger,
     recordToolCallMetric: recordToolCall,
     recordToolCallLatencyMetric: recordToolCallLatency,

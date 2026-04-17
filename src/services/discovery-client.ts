@@ -172,8 +172,8 @@ export class DiscoveryApiClient {
   constructor(config: DiscoveryClientConfig = {}) {
     // Phase 2.2: Enable Discovery API by default for schema validation
     // Users can disable by setting DISCOVERY_API_ENABLED=false
-    this.enabled = config.enabled ?? getEnv().DISCOVERY_API_ENABLED;
-    this.cacheTTL = config.cacheTTL ?? getEnv().DISCOVERY_CACHE_TTL;
+    this.enabled = config.enabled ?? (getEnv()['DISCOVERY_API_ENABLED'] as boolean);
+    this.cacheTTL = config.cacheTTL ?? (getEnv()['DISCOVERY_CACHE_TTL'] as number);
     this.timeout = config.timeout ?? 30000;
   }
 
@@ -608,8 +608,8 @@ export function getDiscoveryApiClient(): DiscoveryApiClient {
     const env = getEnv();
     globalDiscoveryClient = new DiscoveryApiClient({
       // Phase 2.2: Enabled by default, disable with DISCOVERY_API_ENABLED=false
-      enabled: env.DISCOVERY_API_ENABLED,
-      cacheTTL: env.DISCOVERY_CACHE_TTL,
+      enabled: env['DISCOVERY_API_ENABLED'] as boolean,
+      cacheTTL: env['DISCOVERY_CACHE_TTL'] as number,
     });
   }
   return globalDiscoveryClient;

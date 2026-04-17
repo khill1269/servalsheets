@@ -26,7 +26,9 @@ function expectToolOutputToValidate(toolName: string, sample: Record<string, unk
 
   expect(validate(sample)).toBe(true);
   if (validate.errors) {
-    throw new Error(`${toolName} sample failed emitted JSON schema: ${JSON.stringify(validate.errors)}`);
+    throw new Error(
+      `${toolName} sample failed emitted JSON schema: ${JSON.stringify(validate.errors)}`
+    );
   }
 
   const built = buildToolResponse(sample, toolName, tool.outputSchema);

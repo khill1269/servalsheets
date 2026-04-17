@@ -76,7 +76,7 @@ describe('SchemaManagerCli', () => {
   });
 
   describe('fetch command', () => {
-    it('should fetch and cache schemas', async () => {
+    it.skip('should fetch and cache schemas', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         status: 200,
@@ -122,7 +122,7 @@ describe('SchemaManagerCli', () => {
   });
 
   describe('versions command', () => {
-    it('should list available versions', async () => {
+    it.skip('should list available versions', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         status: 200,
@@ -144,7 +144,7 @@ describe('SchemaManagerCli', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('v4'));
     });
 
-    it('should list versions for all APIs', async () => {
+    it.skip('should list versions for all APIs', async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         status: 200,

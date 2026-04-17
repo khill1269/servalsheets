@@ -98,7 +98,9 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
 
       // Should return structured error, not throw
       expect(result.response.success).toBe(false);
-      expect(typeof (result.response as { error?: { message: string } }).error?.message).toBe('string');
+      expect(typeof (result.response as { error?: { message: string } }).error?.message).toBe(
+        'string'
+      );
     });
   });
 

@@ -168,7 +168,7 @@ describe('CompositeHandler — Progress Notifications', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // =========================================================================

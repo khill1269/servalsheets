@@ -54,9 +54,8 @@ describe('MCP tools/list runtime ownership', () => {
     replaceAvailableToolNames(['sheets_auth', 'sheets_core']);
     const mock = createMockServer();
 
-    const { registerToolsListCompatibilityHandler } = await import(
-      '../../src/mcp/registration/tools-list-compat.js'
-    );
+    const { registerToolsListCompatibilityHandler } =
+      await import('../../src/mcp/registration/tools-list-compat.js');
     registerToolsListCompatibilityHandler(mock.server);
     const response = await mock.getHandler()({ params: {} });
 
@@ -78,9 +77,8 @@ describe('MCP tools/list runtime ownership', () => {
     const { replaceAvailableToolNames } = await import('../../src/mcp/tool-registry-state.js');
     replaceAvailableToolNames(['sheets_auth', 'sheets_history', 'sheets_data']);
     const mock = createMockServer();
-    const { registerToolsListCompatibilityHandler } = await import(
-      '../../src/mcp/registration/tools-list-compat.js'
-    );
+    const { registerToolsListCompatibilityHandler } =
+      await import('../../src/mcp/registration/tools-list-compat.js');
 
     registerToolsListCompatibilityHandler(mock.server);
     const response = await mock.getHandler()({ params: {} }, { authenticated: false });

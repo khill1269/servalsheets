@@ -51,10 +51,7 @@ export async function handleHide(
     },
   });
 
-  const result = ha.success(
-    'hide',
-    isRows ? { rowsAffected: count } : { columnsAffected: count }
-  );
+  const result = ha.success('hide', isRows ? { rowsAffected: count } : { columnsAffected: count });
 
   // Wire session context: track hidden rows/cols
   try {

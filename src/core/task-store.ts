@@ -711,16 +711,16 @@ export class RedisTaskStore implements TaskStore {
     const client = await this.ensureConnected();
 
     let cleaned = 0;
-    let cursor = '0';
+    let cursor = 0;
 
     // Use SCAN to iterate over task keys
     do {
-      const result = await client.scan(cursor, {
+      const result = await client.scan(String(cursor), {
         MATCH: `${this.keyPrefix}*`,
         COUNT: 100,
       });
 
-      cursor = result.cursor;
+      cursor = Number(result.cursor) as number;
       const keys = result.keys;
 
       for (const key of keys) {
@@ -733,7 +733,7 @@ export class RedisTaskStore implements TaskStore {
           cleaned++;
         }
       }
-    } while (cursor !== '0');
+    } while (cursor !== 0);
 
     return cleaned;
   }
@@ -750,12 +750,14 @@ export class RedisTaskStore implements TaskStore {
 
     // Use SCAN to iterate over task keys
     do {
-      const result = await client.scan(cursor, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (client.scan as any)(cursor, {
         MATCH: `${this.keyPrefix}task_*`,
         COUNT: 100,
       });
 
-      cursor = result.cursor;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cursor = (result.cursor ?? '0') as any;
       const keys = result.keys;
 
       for (const key of keys) {

@@ -391,10 +391,7 @@ describe('GoogleSheetsBackend', () => {
 
   describe('executeBatchMutations', () => {
     it('passes mutations through to batchUpdate', async () => {
-      const mutations = [
-        { updateCells: { range: {}, fields: '*' } },
-        { addChart: { chart: {} } },
-      ];
+      const mutations = [{ updateCells: { range: {}, fields: '*' } }, { addChart: { chart: {} } }];
 
       mockSheets.spreadsheets.batchUpdate.mockResolvedValueOnce({
         data: { replies: [{}, {}] },

@@ -86,22 +86,20 @@ describe('BigQuery SQL Injection Prevention', () => {
   });
 
   it('allows SELECT with subquery', () => {
-    expect(
-      wouldBlockQuery('SELECT * FROM (SELECT id, name FROM users) WHERE id > 10')
-    ).toBe(false);
+    expect(wouldBlockQuery('SELECT * FROM (SELECT id, name FROM users) WHERE id > 10')).toBe(false);
   });
 
   it('allows SELECT with aggregation', () => {
-    expect(wouldBlockQuery('SELECT COUNT(*) as cnt, AVG(salary) FROM employees GROUP BY dept')).toBe(
-      false
-    );
+    expect(
+      wouldBlockQuery('SELECT COUNT(*) as cnt, AVG(salary) FROM employees GROUP BY dept')
+    ).toBe(false);
   });
 
   it('blocks SQL in line comments', () => {
     // "SELECT 1 -- DROP TABLE users" — after stripping comment, only "SELECT 1" remains
     expect(wouldBlockQuery('SELECT 1 -- DROP TABLE users')).toBe(false);
     // But standalone DROP TABLE is still caught
-    expect(wouldBlockQuery("SELECT 1\nDROP TABLE users")).toBe(true);
+    expect(wouldBlockQuery('SELECT 1\nDROP TABLE users')).toBe(true);
   });
 });
 
@@ -185,9 +183,7 @@ describe('Python Sandbox Escape Prevention', () => {
   });
 
   it('blocks __subclasses__ traversal (object.__subclasses__())', () => {
-    expect(
-      wouldBlockPython("().__class__.__bases__[0].__subclasses__()")
-    ).toBe(true);
+    expect(wouldBlockPython('().__class__.__bases__[0].__subclasses__()')).toBe(true);
   });
 
   it('blocks eval()', () => {
@@ -203,15 +199,15 @@ describe('Python Sandbox Escape Prevention', () => {
   });
 
   it('allows pandas operations', () => {
-    expect(
-      wouldBlockPython('import pandas as pd\ndf = pd.DataFrame({"a": [1, 2, 3]})')
-    ).toBe(false);
+    expect(wouldBlockPython('import pandas as pd\ndf = pd.DataFrame({"a": [1, 2, 3]})')).toBe(
+      false
+    );
   });
 
   it('allows statistics operations', () => {
-    expect(
-      wouldBlockPython('import statistics\nmean = statistics.mean([1, 2, 3, 4, 5])')
-    ).toBe(false);
+    expect(wouldBlockPython('import statistics\nmean = statistics.mean([1, 2, 3, 4, 5])')).toBe(
+      false
+    );
   });
 
   it('allows list comprehensions', () => {

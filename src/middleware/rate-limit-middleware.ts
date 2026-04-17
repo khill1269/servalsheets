@@ -28,8 +28,8 @@ export function checkRateLimit(principalId: string): {
   allowed: boolean;
   retryAfterMs?: number;
 } {
-  const windowMs = env.RATE_LIMIT_WINDOW_MS;
-  const maxTokens = env.RATE_LIMIT_MAX;
+  const windowMs = Number(env['RATE_LIMIT_WINDOW_MS']);
+  const maxTokens = Number(env['RATE_LIMIT_MAX']);
   const now = Date.now();
 
   let bucket = buckets.get(principalId);

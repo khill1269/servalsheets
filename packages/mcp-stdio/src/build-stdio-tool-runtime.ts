@@ -20,10 +20,7 @@ import {
   ensureStdioResourcesRegistered,
   registerStdioResources,
 } from './register-stdio-resources.js';
-import {
-  registerStdioToolSet,
-  type StdioToolDefinitionLike,
-} from './register-stdio-tool-set.js';
+import { registerStdioToolSet, type StdioToolDefinitionLike } from './register-stdio-tool-set.js';
 import { registerStdioTools } from './register-stdio-tools.js';
 
 type CachedHandlerMap = Record<string, (args: unknown, extra?: unknown) => Promise<unknown>>;
@@ -94,18 +91,14 @@ export interface BuildStdioToolRuntimeDependencies<
     'ensureResourcesRegistered' | 'executeWithinRequest'
   >;
   readonly resolveToolCall: Omit<
-    ResolveStdioToolCallDependencies<
-      TAuthHandler,
-      THandlers,
-      TContext,
-      TGoogleClient,
-      THandlerMap
-    >,
+    ResolveStdioToolCallDependencies<TAuthHandler, THandlers, TContext, TGoogleClient, THandlerMap>,
     'setAuthHandler' | 'setCachedHandlerMap'
   >;
   readonly createTaskStoreNotConfiguredError: (toolName: string) => StdioTaskError;
   readonly buildToolResponse: (payload: Record<string, unknown>) => CallToolResult;
-  readonly getToolIcons: (toolName: string) => import('@modelcontextprotocol/sdk/types.js').Icon[] | undefined;
+  readonly getToolIcons: (
+    toolName: string
+  ) => import('@modelcontextprotocol/sdk/types.js').Icon[] | undefined;
   readonly getToolExecution: (
     toolName: string
   ) => import('@modelcontextprotocol/sdk/types.js').ToolExecution | undefined;
@@ -255,7 +248,9 @@ export function buildStdioToolRuntime<
   const createToolTaskHandler = (toolName: string): ToolTaskHandler<AnySchema> =>
     createStdioTaskHandler(toolName, {
       createTaskStoreNotConfiguredError: dependencies.createTaskStoreNotConfiguredError,
-      taskStoreForCancellation: input.taskStore as Parameters<typeof createStdioTaskHandler>[1]['taskStoreForCancellation'],
+      taskStoreForCancellation: input.taskStore as Parameters<
+        typeof createStdioTaskHandler
+      >[1]['taskStoreForCancellation'],
       taskAbortControllers: input.taskAbortControllers,
       taskWatchdogTimers: input.taskWatchdogTimers,
       taskWatchdogMs: input.taskWatchdogMs,

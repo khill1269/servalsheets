@@ -351,18 +351,8 @@ const SetTableColumnPropertiesActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Allow custom values not in the dropdown list'),
   dropdownShowDropdown: z.boolean().optional().default(true).describe('Show dropdown UI in cells'),
-}).refine(
-  (data) => {
-    // If columnType is DROPDOWN, require either dropdownValues or dropdownRange
-    if (data.columnType === 'DROPDOWN') {
-      return data.dropdownValues !== undefined || data.dropdownRange !== undefined;
-    }
-    return true;
-  },
-  {
-    message: 'DROPDOWN column type requires either dropdownValues or dropdownRange',
-  }
-);
+});
+// Note: DROPDOWN requires dropdownValues or dropdownRange enforced in handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
 // ============================================================================
 // Smart Chips Action Schemas (4 actions) - NEW June 2025

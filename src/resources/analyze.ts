@@ -1,4 +1,4 @@
-import type { ResourceContents } from '@modelcontextprotocol/sdk/types';
+import type { TextResourceContents } from '@modelcontextprotocol/sdk/types';
 import { randomUUID } from 'crypto';
 
 // ============================================================================
@@ -9,7 +9,10 @@ import { randomUUID } from 'crypto';
 // memory usage.
 
 const MAX_RESULTS = 100;
-const analysisResults = new Map<string, { spreadsheetId: string; result: unknown; createdAt: Date }>();
+const analysisResults = new Map<
+  string,
+  { spreadsheetId: string; result: unknown; createdAt: Date }
+>();
 
 /**
  * Store an analysis result and return an ID for resource retrieval.
@@ -30,19 +33,20 @@ export function storeAnalysisResult(spreadsheetId: string, result: unknown): str
 /**
  * Retrieve a stored analysis result by ID.
  */
-export function getAnalysisResult(id: string): { spreadsheetId: string; result: unknown } | undefined {
+export function getAnalysisResult(
+  id: string
+): { spreadsheetId: string; result: unknown } | undefined {
   const entry = analysisResults.get(id);
   if (!entry) return undefined;
   return { spreadsheetId: entry.spreadsheetId, result: entry.result };
 }
 
-export function getAnalyzeResources(): { uri: string; contents: ResourceContents }[] {
+export function getAnalyzeResources(): TextResourceContents[] {
   return [
     {
       uri: 'analyze://stats',
-      contents: {
-        mimeType: 'text/plain',
-        text: `Analysis Statistics
+      mimeType: 'text/plain',
+      text: `Analysis Statistics
 
 The analyze tool provides comprehensive spreadsheet analysis including:
 
@@ -61,13 +65,11 @@ Key metrics tracked:
 - Memory usage for large datasets
 
 Note: Analyses are cached for 5 minutes per range.`,
-      },
     },
     {
       uri: 'analyze://help',
-      contents: {
-        mimeType: 'text/plain',
-        text: `Analysis Action Guide
+      mimeType: 'text/plain',
+      text: `Analysis Action Guide
 
 quick_insights
 - Fast preliminary scan (~200ms)
@@ -93,7 +95,6 @@ analyze_performance
 - Formula efficiency analysis
 - Slow formula detection
 - Optimization suggestions`,
-      },
     },
   ];
 }

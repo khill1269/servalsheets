@@ -8,10 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsTemplatesHandler } from '../../src/handlers/templates.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 describe('SheetsTemplatesHandler', () => {
   let handler: SheetsTemplatesHandler;

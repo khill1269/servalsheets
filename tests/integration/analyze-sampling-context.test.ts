@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CreateMessageRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../helpers/mcp-test-harness.js';
+import { createServalSheetsTestHarness, type McpTestHarness } from '../helpers/mcp-test-harness.js';
 
 const {
   mockSheetsValuesGet,
@@ -15,8 +12,7 @@ const {
 } = vi.hoisted(() => {
   const sheetStore = new Map<string, unknown[][]>();
   const normalizeRange = (range: string): string => range.replace(/'([^']+)'!/g, '$1!');
-  const cloneValues = (values: unknown[][]): unknown[][] =>
-    values.map((row) => [...row]);
+  const cloneValues = (values: unknown[][]): unknown[][] => values.map((row) => [...row]);
   const valuesGet = vi.fn(async (request: { range: string }) => {
     const normalizedRange = normalizeRange(request.range);
     const values = sheetStore.get(normalizedRange) ?? [];
@@ -129,9 +125,8 @@ vi.mock('../../src/services/google-api.js', async () => {
   };
 });
 vi.mock('../../src/startup/google-client-bootstrap.js', () => ({
-  createOptionalGoogleClient: vi.fn(
-    async (options: { googleApiOptions?: unknown }) =>
-      options.googleApiOptions ? await mockCreateGoogleApiClient(options.googleApiOptions) : null
+  createOptionalGoogleClient: vi.fn(async (options: { googleApiOptions?: unknown }) =>
+    options.googleApiOptions ? await mockCreateGoogleApiClient(options.googleApiOptions) : null
   ),
   createTokenBackedGoogleClient: vi.fn(
     async (options: unknown) => await mockCreateGoogleApiClient(options)
@@ -353,104 +348,100 @@ describe('MCP analyze sampling context integration', () => {
     });
   });
 
-  it(
-    'supports a chained write, formula generation, and compute evaluation workflow over MCP',
-    async () => {
-      const writeResult = await harness.client.callTool({
-        name: 'sheets_data',
-        arguments: {
-          request: {
-            action: 'write',
-            spreadsheetId: 'spreadsheet-123',
-            range: 'Sheet1!A1:C4',
-            values: [
-              ['Product', 'Region', 'Sales'],
-              ['Widget', 'East', '10'],
-              ['Widget', 'West', '20'],
-              ['Gadget', 'East', '30'],
-            ],
-          },
-        },
-      });
-
-      const writeResponse = writeResult.structuredContent as {
-        response?: {
-          success?: boolean;
-          action?: string;
-          updatedCells?: number;
-          updatedRange?: string;
-        };
-      };
-
-      expect(writeResponse.response).toMatchObject({
-        success: true,
-        action: 'write',
-        updatedCells: 12,
-        updatedRange: 'Sheet1!A1:C4',
-      });
-
-      const generated = await harness.client.callTool({
-        name: 'sheets_analyze',
-        arguments: {
-          request: {
-            action: 'generate_formula',
-            spreadsheetId: 'spreadsheet-123',
-            description: 'Calculate the total sales for the rows shown',
-            range: 'Sheet1!A1:C4',
-            targetCell: 'D2',
-          },
-        },
-      });
-
-      const generatedResponse = generated.structuredContent as {
-        response?: {
-          formula?: {
-            formula?: string;
-          };
-        };
-      };
-      const formula = generatedResponse.response?.formula?.formula;
-
-      expect(formula).toBe('=SUM(C2,C3,C4)');
-
-      const evaluated = await harness.client.callTool({
-        name: 'sheets_compute',
-        arguments: {
-          request: {
-            action: 'evaluate',
-            spreadsheetId: 'spreadsheet-123',
-            formula,
-            range: 'Sheet1!A1:C4',
-          },
-        },
-      });
-
-      const evaluatedResponse = evaluated.structuredContent as {
-        response?: {
-          success?: boolean;
-          action?: string;
-          result?: unknown;
-        };
-      };
-
-      expect(mockSheetsValuesUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
+  it('supports a chained write, formula generation, and compute evaluation workflow over MCP', async () => {
+    const writeResult = await harness.client.callTool({
+      name: 'sheets_data',
+      arguments: {
+        request: {
+          action: 'write',
           spreadsheetId: 'spreadsheet-123',
           range: 'Sheet1!A1:C4',
-        })
-      );
-      expect(mockSheetsValuesGet).toHaveBeenCalledWith(
-        expect.objectContaining({
+          values: [
+            ['Product', 'Region', 'Sales'],
+            ['Widget', 'East', '10'],
+            ['Widget', 'West', '20'],
+            ['Gadget', 'East', '30'],
+          ],
+        },
+      },
+    });
+
+    const writeResponse = writeResult.structuredContent as {
+      response?: {
+        success?: boolean;
+        action?: string;
+        updatedCells?: number;
+        updatedRange?: string;
+      };
+    };
+
+    expect(writeResponse.response).toMatchObject({
+      success: true,
+      action: 'write',
+      updatedCells: 12,
+      updatedRange: 'Sheet1!A1:C4',
+    });
+
+    const generated = await harness.client.callTool({
+      name: 'sheets_analyze',
+      arguments: {
+        request: {
+          action: 'generate_formula',
           spreadsheetId: 'spreadsheet-123',
+          description: 'Calculate the total sales for the rows shown',
           range: 'Sheet1!A1:C4',
-        })
-      );
-      expect(evaluatedResponse.response).toMatchObject({
-        success: true,
-        action: 'evaluate',
-        result: 60,
-      });
-    },
-    30_000
-  );
+          targetCell: 'D2',
+        },
+      },
+    });
+
+    const generatedResponse = generated.structuredContent as {
+      response?: {
+        formula?: {
+          formula?: string;
+        };
+      };
+    };
+    const formula = generatedResponse.response?.formula?.formula;
+
+    expect(formula).toBe('=SUM(C2,C3,C4)');
+
+    const evaluated = await harness.client.callTool({
+      name: 'sheets_compute',
+      arguments: {
+        request: {
+          action: 'evaluate',
+          spreadsheetId: 'spreadsheet-123',
+          formula,
+          range: 'Sheet1!A1:C4',
+        },
+      },
+    });
+
+    const evaluatedResponse = evaluated.structuredContent as {
+      response?: {
+        success?: boolean;
+        action?: string;
+        result?: unknown;
+      };
+    };
+
+    expect(mockSheetsValuesUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'spreadsheet-123',
+        range: 'Sheet1!A1:C4',
+      })
+    );
+    expect(mockSheetsValuesGet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'spreadsheet-123',
+        range: 'Sheet1!A1:C4',
+      })
+    );
+    expect(evaluatedResponse.response).toMatchObject({
+      success: true,
+      action: 'evaluate',
+      result: 60,
+    });
+  }, 30_000);
 });

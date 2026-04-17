@@ -252,9 +252,12 @@ export async function executeStdioToolCall<
           });
 
           if (dependencies.isGoogleAuthError(error)) {
-            requestContext.logger.info('Detected Google auth error, converting to auth flow guidance', {
-              tool: input.toolName,
-            });
+            requestContext.logger.info(
+              'Detected Google auth error, converting to auth flow guidance',
+              {
+                tool: input.toolName,
+              }
+            );
             return dependencies.buildToolResponse(dependencies.convertGoogleAuthError(error));
           }
 

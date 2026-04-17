@@ -10,10 +10,7 @@ import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { SheetsCoreOutputSchema } from '../../src/schemas/core.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4, drive_v3 } from 'googleapis';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -890,8 +887,12 @@ describe('SheetsCoreHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect((result.response as any).fingerprint).toEqual(expect.any(String));
-        expect((result.response as any).fingerprintInput).toContain('sheet:Sheet1|id:0|rows:1000|cols:26');
-        expect((result.response as any).fingerprintInput).toContain('sheet:Sheet2|id:1|rows:200|cols:8');
+        expect((result.response as any).fingerprintInput).toContain(
+          'sheet:Sheet1|id:0|rows:1000|cols:26'
+        );
+        expect((result.response as any).fingerprintInput).toContain(
+          'sheet:Sheet2|id:1|rows:200|cols:8'
+        );
         expect(mockApi.spreadsheets.values.batchGet).not.toHaveBeenCalled();
       });
     });
@@ -1094,10 +1095,7 @@ describe('SheetsCoreHandler', () => {
       it('should delete multiple sheets with confirmation', async () => {
         mockApi.spreadsheets.get.mockResolvedValueOnce({
           data: {
-            sheets: [
-              { properties: { sheetId: 123 } },
-              { properties: { sheetId: 456 } },
-            ],
+            sheets: [{ properties: { sheetId: 123 } }, { properties: { sheetId: 456 } }],
           },
         });
 
@@ -1128,10 +1126,7 @@ describe('SheetsCoreHandler', () => {
         );
         mockApi.spreadsheets.get.mockResolvedValueOnce({
           data: {
-            sheets: [
-              { properties: { sheetId: 123 } },
-              { properties: { sheetId: 456 } },
-            ],
+            sheets: [{ properties: { sheetId: 123 } }, { properties: { sheetId: 456 } }],
           },
         });
 
@@ -1308,8 +1303,8 @@ describe('SheetsCoreHandler', () => {
         } as any);
 
         expect(result.response.success).toBe(true);
-        const requests = mockApi.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0]?.requestBody
-          ?.requests;
+        const requests =
+          mockApi.spreadsheets.batchUpdate.mock.calls.at(-1)?.[0]?.requestBody?.requests;
         expect(requests).toEqual(
           expect.arrayContaining([
             expect.objectContaining({ deleteTable: { tableId: 'table-1' } }),

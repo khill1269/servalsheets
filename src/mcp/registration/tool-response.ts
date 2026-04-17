@@ -219,7 +219,7 @@ function validateOutputSchema(
   result: unknown,
   outputSchema: ZodTypeAny | undefined
 ): void {
-  if (!getEnv().VALIDATE_OUTPUT_SCHEMAS || !outputSchema) {
+  if (!getEnv()['VALIDATE_OUTPUT_SCHEMAS'] || !outputSchema) {
     return;
   }
 
@@ -521,7 +521,7 @@ export function buildToolResponse(
   const env = getEnv();
   const treatAsNonFatal =
     hasFailure &&
-    env.MCP_NON_FATAL_TOOL_ERRORS !== 'false' &&
+    String(env['MCP_NON_FATAL_TOOL_ERRORS']) !== 'false' &&
     typeof responseErrorCode === 'string' &&
     NON_FATAL_TOOL_ERROR_CODES.has(responseErrorCode);
   const isError = hasFailure && !treatAsNonFatal;

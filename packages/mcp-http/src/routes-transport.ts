@@ -74,24 +74,15 @@ export interface RegisterHttpTransportRoutesDependencies<
   TResourceIndicatorValidator,
 > {
   readonly sessionsTotal: HttpTransportSessionsMetric;
-  readonly extractIdempotencyKeyFromHeaders: (
-    headers: Request['headers']
-  ) => string | undefined;
-  readonly createResourceIndicatorValidator: (
-    serverUrl: string
-  ) => TResourceIndicatorValidator;
+  readonly extractIdempotencyKeyFromHeaders: (headers: Request['headers']) => string | undefined;
+  readonly createResourceIndicatorValidator: (serverUrl: string) => TResourceIndicatorValidator;
   readonly optionalResourceIndicatorMiddleware: (
     validator: TResourceIndicatorValidator
   ) => express.RequestHandler;
   readonly removeSessionContext: (sessionId: string) => void;
   readonly extractPrincipalIdFromHeaders: (headers: Request['headers']) => string | undefined;
-  readonly createRequestContext: (
-    options: HttpTransportRequestContextOptions
-  ) => TRequestContext;
-  readonly runWithRequestContext: <T>(
-    context: TRequestContext,
-    fn: () => Promise<T>
-  ) => Promise<T>;
+  readonly createRequestContext: (options: HttpTransportRequestContextOptions) => TRequestContext;
+  readonly runWithRequestContext: <T>(context: TRequestContext, fn: () => Promise<T>) => Promise<T>;
   readonly sessionLimiter: HttpTransportSessionLimiter;
   readonly log: HttpTransportLogger;
   readonly clearSessionEventStore: (eventStore?: TEventStore) => void;
@@ -101,10 +92,7 @@ export interface RegisterHttpTransportRoutesDependencies<
     eventStoreTtlMs: number;
     eventStoreMaxEvents: number;
   }) => TEventStore;
-  readonly createSessionSecurityContext: (
-    req: Request,
-    token: string
-  ) => TSecurityContext;
+  readonly createSessionSecurityContext: (req: Request, token: string) => TSecurityContext;
   readonly normalizeMcpSessionHeader: (req: Request) => string | undefined;
   readonly verifySessionSecurityContext: (
     stored: TSecurityContext,
@@ -318,26 +306,32 @@ export function registerHttpTransportRoutes<
 
   if (!legacySseEnabled) {
     app.get('/sse', ...sseMiddleware, (_req: Request, res: Response) => {
-      res.status(410).set(legacySseHeaders).json({
-        error: {
-          code: 'DEPRECATED',
-          message: 'Legacy SSE transport is disabled. Use /mcp (Streamable HTTP).',
-          retryable: false,
-        },
-      });
-    });
-
-    app.post(
-      '/sse/message',
-      validateResourceIndicator as express.RequestHandler,
-      (_req: Request, res: Response) => {
-        res.status(410).set(legacySseHeaders).json({
+      res
+        .status(410)
+        .set(legacySseHeaders)
+        .json({
           error: {
             code: 'DEPRECATED',
             message: 'Legacy SSE transport is disabled. Use /mcp (Streamable HTTP).',
             retryable: false,
           },
         });
+    });
+
+    app.post(
+      '/sse/message',
+      validateResourceIndicator as express.RequestHandler,
+      (_req: Request, res: Response) => {
+        res
+          .status(410)
+          .set(legacySseHeaders)
+          .json({
+            error: {
+              code: 'DEPRECATED',
+              message: 'Legacy SSE transport is disabled. Use /mcp (Streamable HTTP).',
+              retryable: false,
+            },
+          });
       }
     );
   } else {
@@ -371,13 +365,16 @@ export function registerHttpTransportRoutes<
             userId,
           });
 
-          res.status(403).set(legacySseHeaders).json({
-            error: {
-              code: 'SESSION_SECURITY_VIOLATION',
-              message: `Session reconnection rejected: ${securityCheck.reason}`,
-              retryable: false,
-            },
-          });
+          res
+            .status(403)
+            .set(legacySseHeaders)
+            .json({
+              error: {
+                code: 'SESSION_SECURITY_VIOLATION',
+                message: `Session reconnection rejected: ${securityCheck.reason}`,
+                retryable: false,
+              },
+            });
           return;
         }
 
@@ -431,13 +428,16 @@ export function registerHttpTransportRoutes<
 
       const limitCheck = sessionLimiter.canCreateSession(userId);
       if (!limitCheck.allowed) {
-        res.status(429).set(legacySseHeaders).json({
-          error: {
-            code: 'TOO_MANY_SESSIONS',
-            message: limitCheck.reason,
-            retryable: true,
-          },
-        });
+        res
+          .status(429)
+          .set(legacySseHeaders)
+          .json({
+            error: {
+              code: 'TOO_MANY_SESSIONS',
+              message: limitCheck.reason,
+              retryable: true,
+            },
+          });
         return;
       }
 
@@ -487,18 +487,21 @@ export function registerHttpTransportRoutes<
           });
         });
       } catch (error) {
-        res.status(500).set(legacySseHeaders).json({
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to establish SSE connection',
-            details:
-              process.env['NODE_ENV'] === 'production'
-                ? undefined
-                : error instanceof Error
-                  ? error.message
-                  : String(error),
-          },
-        });
+        res
+          .status(500)
+          .set(legacySseHeaders)
+          .json({
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: 'Failed to establish SSE connection',
+              details:
+                process.env['NODE_ENV'] === 'production'
+                  ? undefined
+                  : error instanceof Error
+                    ? error.message
+                    : String(error),
+            },
+          });
       }
     });
 
@@ -511,12 +514,15 @@ export function registerHttpTransportRoutes<
           (req.headers['mcp-session-id'] as string | undefined);
 
         if (!sessionId) {
-          res.status(400).set(legacySseHeaders).json({
-            error: {
-              code: 'INVALID_REQUEST',
-              message: 'Missing X-Session-ID header',
-            },
-          });
+          res
+            .status(400)
+            .set(legacySseHeaders)
+            .json({
+              error: {
+                code: 'INVALID_REQUEST',
+                message: 'Missing X-Session-ID header',
+              },
+            });
           return;
         }
 
@@ -527,12 +533,15 @@ export function registerHttpTransportRoutes<
         const transport = session?.transport;
 
         if (!transport) {
-          res.status(404).set(legacySseHeaders).json({
-            error: {
-              code: 'SESSION_NOT_FOUND',
-              message: 'Session not found',
-            },
-          });
+          res
+            .status(404)
+            .set(legacySseHeaders)
+            .json({
+              error: {
+                code: 'SESSION_NOT_FOUND',
+                message: 'Session not found',
+              },
+            });
           return;
         }
 
@@ -542,26 +551,32 @@ export function registerHttpTransportRoutes<
               await transport.handlePostMessage(req, res);
             });
           } else {
-            res.status(400).set(legacySseHeaders).json({
-              error: {
-                code: 'INVALID_REQUEST',
-                message: 'Invalid transport type for SSE message',
-              },
-            });
+            res
+              .status(400)
+              .set(legacySseHeaders)
+              .json({
+                error: {
+                  code: 'INVALID_REQUEST',
+                  message: 'Invalid transport type for SSE message',
+                },
+              });
           }
         } catch (error) {
-          res.status(500).set(legacySseHeaders).json({
-            error: {
-              code: 'INTERNAL_ERROR',
-              message: 'Failed to process message',
-              details:
-                process.env['NODE_ENV'] === 'production'
-                  ? undefined
-                  : error instanceof Error
-                    ? error.message
-                    : String(error),
-            },
-          });
+          res
+            .status(500)
+            .set(legacySseHeaders)
+            .json({
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to process message',
+                details:
+                  process.env['NODE_ENV'] === 'production'
+                    ? undefined
+                    : error instanceof Error
+                      ? error.message
+                      : String(error),
+              },
+            });
         }
       }
     );
@@ -573,6 +588,40 @@ export function registerHttpTransportRoutes<
       : [validateResourceIndicator as express.RequestHandler];
 
   app.all('/mcp', ...streamableMiddleware, async (req: Request, res: Response) => {
+    // DELETE is handled inline to avoid routing issues with app.all intercepting
+    if (req.method === 'DELETE') {
+      const delSessionId = normalizeMcpSessionHeader(req);
+      if (!delSessionId) {
+        res.status(400).json({
+          error: { code: 'INVALID_REQUEST', message: 'Mcp-Session-Id header required for session termination' },
+        });
+        return;
+      }
+      const delSession = sessions.get(delSessionId);
+      if (!delSession) {
+        res.status(404).json({
+          error: { code: 'SESSION_NOT_FOUND', message: `Session ${delSessionId} not found` },
+        });
+        return;
+      }
+      if (delSession.securityContext) {
+        const callerToken = req.headers.authorization?.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7)
+          : '';
+        const currentCtx = createSessionSecurityContext(req, callerToken);
+        const secCheck = verifySessionSecurityContext(delSession.securityContext, currentCtx);
+        if (!secCheck.valid) {
+          res.status(403).json({
+            error: { code: 'SESSION_SECURITY_VIOLATION', message: `Session ownership verification failed: ${secCheck.reason}`, retryable: false },
+          });
+          return;
+        }
+      }
+      disposeSession(delSessionId);
+      res.status(200).json({ success: true, sessionId: delSessionId });
+      return;
+    }
+
     const authHeader = req.headers.authorization;
     const googleToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
     const userId = googleToken
@@ -785,8 +834,9 @@ export function registerHttpTransportRoutes<
       if (!securityCheck.valid) {
         res.status(403).json({
           error: {
-            code: 'FORBIDDEN',
-            message: 'Session ownership verification failed',
+            code: 'SESSION_SECURITY_VIOLATION',
+            message: `Session ownership verification failed: ${securityCheck.reason}`,
+            retryable: false,
           },
         });
         return;

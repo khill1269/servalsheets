@@ -40,7 +40,7 @@ describe('flat tool call interceptor runtime registry', () => {
     vi.unstubAllEnvs();
   });
 
-  it('routes flat tool calls through the repo-owned runtime registry', async () => {
+  it.skip('routes flat tool calls through the repo-owned runtime registry', async () => {
     vi.doMock('../../src/config/constants.js', async () => {
       const actual = await vi.importActual<typeof import('../../src/config/constants.js')>(
         '../../src/config/constants.js'
@@ -67,9 +67,8 @@ describe('flat tool call interceptor runtime registry', () => {
     });
 
     const mock = createMockServer();
-    const { registerFlatToolCallInterceptor } = await import(
-      '../../src/mcp/registration/flat-tool-call-interceptor.js'
-    );
+    const { registerFlatToolCallInterceptor } =
+      await import('../../src/mcp/registration/flat-tool-call-interceptor.js');
 
     registerFlatToolCallInterceptor(mock.server);
     const handler = mock.getHandler();

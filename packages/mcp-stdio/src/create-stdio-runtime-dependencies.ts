@@ -7,9 +7,9 @@ export interface CreateStdioRuntimeDependenciesInput<
   TContext,
   THandlers,
 > extends Omit<
-    InitializeStdioRuntimeDependencies<TEnvConfig, TGoogleClient, TAuthHandler, TContext, THandlers>,
-    'onResourceDiscoveryDeferred' | 'startHealthMonitor'
-  > {
+  InitializeStdioRuntimeDependencies<TEnvConfig, TGoogleClient, TAuthHandler, TContext, THandlers>,
+  'onResourceDiscoveryDeferred' | 'startHealthMonitor'
+> {
   readonly onResourceDiscoveryDeferred?: () => void;
   readonly startHealthMonitor: () => Promise<void>;
   readonly onHealthMonitorStarted?: () => void;

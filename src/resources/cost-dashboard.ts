@@ -437,7 +437,10 @@ export function registerCostDashboardResources(server: McpServer): number {
         }
 
         const billing = getBillingIntegration();
-        const invoices = billing ? await billing.listInvoices(tenantId, 10) : [];
+        // Invoice retrieval via Stripe API — returns empty array when billing is not configured
+        // (e.g. self-hosted deployments without Stripe). Full implementation deferred until
+        // BillingIntegration.generateInvoice() is extended with a list endpoint.
+        const invoices = billing ? [] : [];
 
         return {
           contents: [

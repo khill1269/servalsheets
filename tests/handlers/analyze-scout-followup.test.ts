@@ -171,11 +171,9 @@ describe('handleScoutAction follow-up wiring', () => {
       [{ sheetId: 1, title: 'Summary' }],
       assessment
     );
-    expect(integrateUserAnswers).toHaveBeenCalledWith(
-      'sheet-123',
-      assessment,
-      { freeformContext: 'Track weekly operations for finance' }
-    );
+    expect(integrateUserAnswers).toHaveBeenCalledWith('sheet-123', assessment, {
+      freeformContext: 'Track weekly operations for finance',
+    });
     expect(recordOperation).toHaveBeenCalledWith(
       expect.objectContaining({
         tool: 'sheets_analyze',

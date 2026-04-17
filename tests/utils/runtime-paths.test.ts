@@ -23,16 +23,16 @@ describe('runtime path resolution', () => {
   });
 
   it('prefers built-in template directories relative to the runtime module', () => {
-    vi.mocked(existsSync).mockImplementation((candidate) =>
-      normalizePath(String(candidate))?.endsWith('/src/knowledge/templates') ?? false
+    vi.mocked(existsSync).mockImplementation(
+      (candidate) => normalizePath(String(candidate))?.endsWith('/src/knowledge/templates') ?? false
     );
 
     expect(normalizePath(resolveBuiltinTemplatesPath())).toMatch(/\/src\/knowledge\/templates$/);
   });
 
   it('resolves packaged guide directories without relying on cwd', () => {
-    vi.mocked(existsSync).mockImplementation((candidate) =>
-      normalizePath(String(candidate))?.endsWith('/docs/guides') ?? false
+    vi.mocked(existsSync).mockImplementation(
+      (candidate) => normalizePath(String(candidate))?.endsWith('/docs/guides') ?? false
     );
 
     expect(normalizePath(resolveGuidesDirectory())).toMatch(/\/docs\/guides$/);
@@ -41,7 +41,9 @@ describe('runtime path resolution', () => {
   it('resolves OpenAPI specs from the package root', () => {
     vi.mocked(existsSync).mockImplementation((candidate) => {
       const normalized = normalizePath(String(candidate));
-      return normalized?.endsWith('/openapi.json') || normalized?.endsWith('/openapi.yaml') || false;
+      return (
+        normalized?.endsWith('/openapi.json') || normalized?.endsWith('/openapi.yaml') || false
+      );
     });
 
     expect(normalizePath(resolveOpenApiJsonPath())).toMatch(/\/openapi\.json$/);
@@ -49,8 +51,9 @@ describe('runtime path resolution', () => {
   });
 
   it('falls back to the source tracing dashboard build when dist assets are absent', () => {
-    vi.mocked(existsSync).mockImplementation((candidate) =>
-      normalizePath(String(candidate))?.endsWith('/src/ui/tracing-dashboard/dist') ?? false
+    vi.mocked(existsSync).mockImplementation(
+      (candidate) =>
+        normalizePath(String(candidate))?.endsWith('/src/ui/tracing-dashboard/dist') ?? false
     );
 
     expect(normalizePath(resolveTracingDashboardPath())).toMatch(
@@ -59,9 +62,10 @@ describe('runtime path resolution', () => {
   });
 
   it('resolves the tool hash baseline from runtime assets', () => {
-    vi.mocked(existsSync).mockImplementation((candidate) =>
-      normalizePath(String(candidate))?.endsWith('/src/security/tool-hashes.baseline.json') ??
-      false
+    vi.mocked(existsSync).mockImplementation(
+      (candidate) =>
+        normalizePath(String(candidate))?.endsWith('/src/security/tool-hashes.baseline.json') ??
+        false
     );
 
     expect(normalizePath(resolveToolHashBaselinePath())).toMatch(

@@ -67,7 +67,10 @@ describe('legacy registered tool failover path', () => {
   });
 
   it('falls back to the hosted executor for sheets_compute task execution after a local failure', async () => {
-    const registeredTaskHandlers: Record<string, { createTask: (...args: unknown[]) => Promise<unknown> }> = {};
+    const registeredTaskHandlers: Record<
+      string,
+      { createTask: (...args: unknown[]) => Promise<unknown> }
+    > = {};
     const computeHandle = vi.fn(async () => {
       throw new Error('local compute failed');
     });
@@ -147,7 +150,10 @@ describe('legacy registered tool failover path', () => {
   });
 
   it('falls back to the hosted executor for sheets_analyze task execution after a local failure', async () => {
-    const registeredTaskHandlers: Record<string, { createTask: (...args: unknown[]) => Promise<unknown> }> = {};
+    const registeredTaskHandlers: Record<
+      string,
+      { createTask: (...args: unknown[]) => Promise<unknown> }
+    > = {};
     const analyzeHandle = vi.fn(async () => {
       throw new Error('local analyze failed');
     });
@@ -229,7 +235,10 @@ describe('legacy registered tool failover path', () => {
   });
 
   it('falls back to the hosted executor for sheets_connectors task execution after a local failure', async () => {
-    const registeredTaskHandlers: Record<string, { createTask: (...args: unknown[]) => Promise<unknown> }> = {};
+    const registeredTaskHandlers: Record<
+      string,
+      { createTask: (...args: unknown[]) => Promise<unknown> }
+    > = {};
     const connectorsHandle = vi.fn(async () => {
       throw new Error('local connectors failed');
     });
@@ -309,7 +318,10 @@ describe('legacy registered tool failover path', () => {
   });
 
   it('falls back to the hosted executor for sheets_agent task execution after a local failure', async () => {
-    const registeredTaskHandlers: Record<string, { createTask: (...args: unknown[]) => Promise<unknown> }> = {};
+    const registeredTaskHandlers: Record<
+      string,
+      { createTask: (...args: unknown[]) => Promise<unknown> }
+    > = {};
     const agentHandle = vi.fn(async () => {
       throw new Error('local agent failed');
     });
@@ -389,7 +401,10 @@ describe('legacy registered tool failover path', () => {
   });
 
   it('falls back to the hosted executor for sheets_bigquery task execution after a local failure', async () => {
-    const registeredTaskHandlers: Record<string, { createTask: (...args: unknown[]) => Promise<unknown> }> = {};
+    const registeredTaskHandlers: Record<
+      string,
+      { createTask: (...args: unknown[]) => Promise<unknown> }
+    > = {};
     const bigqueryHandle = vi.fn(async () => {
       throw new Error('local bigquery failed');
     });
@@ -470,7 +485,10 @@ describe('legacy registered tool failover path', () => {
   });
 
   it('falls back to the hosted executor for sheets_appsscript task execution after a local failure', async () => {
-    const registeredTaskHandlers: Record<string, { createTask: (...args: unknown[]) => Promise<unknown> }> = {};
+    const registeredTaskHandlers: Record<
+      string,
+      { createTask: (...args: unknown[]) => Promise<unknown> }
+    > = {};
     const appsscriptHandle = vi.fn(async () => {
       throw new Error('local appsscript failed');
     });

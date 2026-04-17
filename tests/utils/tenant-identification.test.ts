@@ -30,4 +30,3 @@ describe('resolveCostTrackingTenantId', () => {
     expect(tenantId).toBe('default');
   });
 });
-

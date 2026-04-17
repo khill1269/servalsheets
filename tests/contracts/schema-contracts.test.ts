@@ -60,7 +60,7 @@ function getDiscriminatorError(
 ): { discriminator?: string; path?: string[] } | null {
   const result = schema.safeParse(input);
   if (result.success) return null;
-  const issues = ((result.error?.issues ?? result.error?.errors) ?? []) as Array<
+  const issues = (result.error?.issues ?? result.error?.errors ?? []) as Array<
     Record<string, unknown>
   >;
   for (const issue of issues) {
@@ -167,10 +167,9 @@ describe('Schema Contracts', () => {
       for (const { tool, schema } of introspectableSchemas) {
         const errInfo = getDiscriminatorError(schema, { request: {} });
         if (errInfo !== null) {
-          expect(
-            errInfo.discriminator,
-            `${tool}: discriminator field must be 'action'`
-          ).toBe('action');
+          expect(errInfo.discriminator, `${tool}: discriminator field must be 'action'`).toBe(
+            'action'
+          );
           expect(
             errInfo.path,
             `${tool}: error path must include 'action' at the request level`

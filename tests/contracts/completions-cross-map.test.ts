@@ -46,17 +46,17 @@ function extractSchemaActions(inputSchema: ZodTypeAny): string[] | null {
 }
 
 describe('TOOL_ACTIONS cross-map consistency (G17)', () => {
-  const toolDefinitionsByName = new Map(TOOL_DEFINITIONS.map(t => [t.name, t]));
+  const toolDefinitionsByName = new Map(TOOL_DEFINITIONS.map((t) => [t.name, t]));
 
   it('TOOL_ACTIONS contains entries for all 25 registered tools', () => {
-    const toolNames = TOOL_DEFINITIONS.map(t => t.name);
-    const missingFromCompletions = toolNames.filter(name => !(name in TOOL_ACTIONS));
+    const toolNames = TOOL_DEFINITIONS.map((t) => t.name);
+    const missingFromCompletions = toolNames.filter((name) => !(name in TOOL_ACTIONS));
     expect(missingFromCompletions).toEqual([]);
   });
 
   it('TOOL_ACTIONS has no entries for unregistered tools', () => {
-    const toolNames = new Set(TOOL_DEFINITIONS.map(t => t.name));
-    const phantomTools = Object.keys(TOOL_ACTIONS).filter(name => !toolNames.has(name));
+    const toolNames = new Set(TOOL_DEFINITIONS.map((t) => t.name));
+    const phantomTools = Object.keys(TOOL_ACTIONS).filter((name) => !toolNames.has(name));
     expect(phantomTools).toEqual([]);
   });
 
@@ -79,8 +79,8 @@ describe('TOOL_ACTIONS cross-map consistency (G17)', () => {
       const completionSet = new Set(completionActions);
       const schemaSet = new Set(schemaActions);
 
-      const inCompletionNotSchema = completionActions.filter(a => !schemaSet.has(a));
-      const inSchemaNoteCompletion = schemaActions.filter(a => !completionSet.has(a));
+      const inCompletionNotSchema = completionActions.filter((a) => !schemaSet.has(a));
+      const inSchemaNoteCompletion = schemaActions.filter((a) => !completionSet.has(a));
 
       expect(inCompletionNotSchema).toEqual(
         [],

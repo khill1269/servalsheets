@@ -38,7 +38,9 @@ function expectValid(
 ): void {
   const result = schema.safeParse(input);
   if (!result.success) {
-    throw new Error(`${label} failed schema validation:\n${JSON.stringify(result.error?.issues, null, 2)}`);
+    throw new Error(
+      `${label} failed schema validation:\n${JSON.stringify(result.error?.issues, null, 2)}`
+    );
   }
   expect(result.success).toBe(true);
 }
@@ -48,7 +50,10 @@ describe('Cross-Tool Workflow Contracts', () => {
     const create = getFixtureInput('sheets_core', 'create');
     const createdSpreadsheetId = 'workflow-sheet-001';
 
-    const addSheet = withSpreadsheetId(getFixtureInput('sheets_core', 'add_sheet'), createdSpreadsheetId);
+    const addSheet = withSpreadsheetId(
+      getFixtureInput('sheets_core', 'add_sheet'),
+      createdSpreadsheetId
+    );
     addSheet.request.title = 'Expenses';
 
     const write = withSpreadsheetId(getFixtureInput('sheets_data', 'write'), createdSpreadsheetId);
@@ -107,7 +112,10 @@ describe('Cross-Tool Workflow Contracts', () => {
 
   it('validates collaboration flows with shared spreadsheet context', () => {
     const spreadsheetId = 'workflow-sheet-004';
-    const share = withSpreadsheetId(getFixtureInput('sheets_collaborate', 'share_add'), spreadsheetId);
+    const share = withSpreadsheetId(
+      getFixtureInput('sheets_collaborate', 'share_add'),
+      spreadsheetId
+    );
     const comment = withSpreadsheetId(
       getFixtureInput('sheets_collaborate', 'comment_add'),
       spreadsheetId

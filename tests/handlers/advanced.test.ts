@@ -7,10 +7,7 @@ import { AdvancedHandler } from '../../src/handlers/advanced.js';
 import { SheetsAdvancedOutputSchema } from '../../src/schemas/advanced.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
-import {
-  createRequestContext,
-  runWithRequestContext,
-} from '../../src/utils/request-context.js';
+import { createRequestContext, runWithRequestContext } from '../../src/utils/request-context.js';
 
 const createMockSheetsApi = () => ({
   spreadsheets: {

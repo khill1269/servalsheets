@@ -68,9 +68,7 @@ function buildSheetNoGoogleFormulas(): SheetData {
 describe('FormulaEvaluator without googleClient', () => {
   it('evaluateScenario returns null when sheet not loaded', async () => {
     const evaluator = new FormulaEvaluator();
-    const result = await evaluator.evaluateScenario('unloaded-id', [
-      { cell: 'A1', newValue: 500 },
-    ]);
+    const result = await evaluator.evaluateScenario('unloaded-id', [{ cell: 'A1', newValue: 500 }]);
     expect(result).toBeNull();
   });
 
@@ -79,9 +77,7 @@ describe('FormulaEvaluator without googleClient', () => {
     const sheet = buildSheetWithGoogleFormula();
     await evaluator.loadSheet('test-id', sheet);
 
-    const result = await evaluator.evaluateScenario('test-id', [
-      { cell: 'A1', newValue: 500 },
-    ]);
+    const result = await evaluator.evaluateScenario('test-id', [{ cell: 'A1', newValue: 500 }]);
 
     expect(result).not.toBeNull();
     // Google-only formula cells should be in needsGoogleEval, not localResults
@@ -97,9 +93,7 @@ describe('FormulaEvaluator without googleClient', () => {
     const sheet = buildSheetNoGoogleFormulas();
     await evaluator.loadSheet('clean-id', sheet);
 
-    const result = await evaluator.evaluateScenario('clean-id', [
-      { cell: 'A1', newValue: 999 },
-    ]);
+    const result = await evaluator.evaluateScenario('clean-id', [{ cell: 'A1', newValue: 999 }]);
 
     expect(result).not.toBeNull();
     expect(result!.needsGoogleEval).toHaveLength(0);
@@ -124,9 +118,7 @@ describe('FormulaEvaluator with googleClient', () => {
     const sheet = buildSheetWithGoogleFormula();
     await evaluator.loadSheet('test-id', sheet);
 
-    const result = await evaluator.evaluateScenario('test-id', [
-      { cell: 'A1', newValue: 500 },
-    ]);
+    const result = await evaluator.evaluateScenario('test-id', [{ cell: 'A1', newValue: 500 }]);
 
     expect(result).not.toBeNull();
 
@@ -173,9 +165,7 @@ describe('FormulaEvaluator with googleClient', () => {
     await evaluator.loadSheet('test-id', sheet);
 
     // Should not throw
-    const result = await evaluator.evaluateScenario('test-id', [
-      { cell: 'A1', newValue: 500 },
-    ]);
+    const result = await evaluator.evaluateScenario('test-id', [{ cell: 'A1', newValue: 500 }]);
 
     expect(result).not.toBeNull();
     // HyperFormula results still present

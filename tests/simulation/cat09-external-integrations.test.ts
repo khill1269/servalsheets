@@ -68,7 +68,10 @@ const createMockAppsScriptApi = () => ({
       data: { scriptId: 'script-123', title: 'My Script' },
     }),
     getContent: vi.fn().mockResolvedValue({
-      data: { scriptId: 'script-123', files: [{ name: 'Code', type: 'SERVER_JS', source: 'function test() {}' }] },
+      data: {
+        scriptId: 'script-123',
+        files: [{ name: 'Code', type: 'SERVER_JS', source: 'function test() {}' }],
+      },
     }),
     updateContent: vi.fn().mockResolvedValue({
       data: { scriptId: 'script-123', files: [{ name: 'Code' }] },

@@ -114,4 +114,4 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
 # Deploy strategy: canary with automatic rollback
 [deploy]
   strategy = "canary"
-  release_command = "node -e \"require('./dist/schemas/index.js')\" || exit 1"
+  release_command = "node --input-type=module -e \"import('./dist/schemas/index.js').then(m => { if (!m.TOOL_COUNT || m.TOOL_COUNT < 25) { console.error('Release check failed: TOOL_COUNT=' + m.TOOL_COUNT); process.exit(1); } console.log('Release OK: ' + m.TOOL_COUNT + ' tools, ' + m.ACTION_COUNT + ' actions'); }).catch(e => { console.error('Release check error:', e.message); process.exit(1); })\""

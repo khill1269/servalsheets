@@ -35,9 +35,7 @@ function wrap(req: Record<string, unknown>) {
 function expectValid(input: unknown) {
   const result = SheetsCollaborateInputSchema.safeParse(input);
   if (!result.success) {
-    throw new Error(
-      `Expected valid but got: ${JSON.stringify(result.error.issues, null, 2)}`
-    );
+    throw new Error(`Expected valid but got: ${JSON.stringify(result.error.issues, null, 2)}`);
   }
   return result.data;
 }
@@ -107,9 +105,7 @@ describe('sheets_collaborate: all 41 actions accept valid minimal inputs', () =>
   });
 
   it('share_set_link: valid input accepted', () => {
-    expectValid(
-      wrap({ action: 'share_set_link', spreadsheetId: SPREADSHEET_ID, enabled: true })
-    );
+    expectValid(wrap({ action: 'share_set_link', spreadsheetId: SPREADSHEET_ID, enabled: true }));
   });
 
   it('share_get_link: valid input accepted', () => {
@@ -119,9 +115,7 @@ describe('sheets_collaborate: all 41 actions accept valid minimal inputs', () =>
   // ---- Comments (10) ----
 
   it('comment_add: valid input accepted', () => {
-    expectValid(
-      wrap({ action: 'comment_add', spreadsheetId: SPREADSHEET_ID, content: 'Hello' })
-    );
+    expectValid(wrap({ action: 'comment_add', spreadsheetId: SPREADSHEET_ID, content: 'Hello' }));
   });
 
   it('comment_update: valid input accepted', () => {
@@ -146,9 +140,7 @@ describe('sheets_collaborate: all 41 actions accept valid minimal inputs', () =>
   });
 
   it('comment_get: valid input accepted', () => {
-    expectValid(
-      wrap({ action: 'comment_get', spreadsheetId: SPREADSHEET_ID, commentId: 'c-1' })
-    );
+    expectValid(wrap({ action: 'comment_get', spreadsheetId: SPREADSHEET_ID, commentId: 'c-1' }));
   });
 
   it('comment_resolve: valid input accepted', () => {
@@ -343,15 +335,11 @@ describe('sheets_collaborate: all 41 actions accept valid minimal inputs', () =>
 
 describe('sheets_collaborate: missing required fields are rejected', () => {
   it('share_add: missing type is rejected', () => {
-    expectInvalid(
-      wrap({ action: 'share_add', spreadsheetId: SPREADSHEET_ID, role: 'writer' })
-    );
+    expectInvalid(wrap({ action: 'share_add', spreadsheetId: SPREADSHEET_ID, role: 'writer' }));
   });
 
   it('share_add: missing role is rejected', () => {
-    expectInvalid(
-      wrap({ action: 'share_add', spreadsheetId: SPREADSHEET_ID, type: 'user' })
-    );
+    expectInvalid(wrap({ action: 'share_add', spreadsheetId: SPREADSHEET_ID, type: 'user' }));
   });
 
   it('share_add: missing spreadsheetId is rejected', () => {
@@ -359,9 +347,7 @@ describe('sheets_collaborate: missing required fields are rejected', () => {
   });
 
   it('share_update: missing permissionId is rejected', () => {
-    expectInvalid(
-      wrap({ action: 'share_update', spreadsheetId: SPREADSHEET_ID, role: 'reader' })
-    );
+    expectInvalid(wrap({ action: 'share_update', spreadsheetId: SPREADSHEET_ID, role: 'reader' }));
   });
 
   it('share_update: missing role is rejected', () => {

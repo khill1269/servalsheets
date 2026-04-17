@@ -3,10 +3,7 @@
  * Covers: freeze
  */
 
-import type {
-  DimensionsFreezeInput,
-  DimensionsResponse,
-} from '../../schemas/index.js';
+import type { DimensionsFreezeInput, DimensionsResponse } from '../../schemas/index.js';
 import type { DimensionsHandlerAccess } from './internal.js';
 
 // ─── handleFreeze ─────────────────────────────────────────────────────────

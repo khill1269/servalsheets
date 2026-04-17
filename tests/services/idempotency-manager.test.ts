@@ -206,10 +206,7 @@ describe('IdempotencyManager', () => {
       const store = { 'format-key': entry };
       fs.writeFileSync(storePath, JSON.stringify(store), 'utf8');
 
-      const loaded = JSON.parse(fs.readFileSync(storePath, 'utf8')) as Record<
-        string,
-        typeof entry
-      >;
+      const loaded = JSON.parse(fs.readFileSync(storePath, 'utf8')) as Record<string, typeof entry>;
       expect(loaded['format-key']!.expiresAt).toBeGreaterThan(Date.now());
       expect(loaded['format-key']!.tool).toBe('sheets_data');
       expect(loaded['format-key']!.fingerprint).toBe('fp-format-check');

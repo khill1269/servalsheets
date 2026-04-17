@@ -215,7 +215,9 @@ export function registerHttpTraceRoutes<
           success: stats.successCount,
           errors: stats.errorCount,
           errorRate:
-            stats.totalTraces > 0 ? ((stats.errorCount / stats.totalTraces) * 100).toFixed(2) + '%' : '0%',
+            stats.totalTraces > 0
+              ? ((stats.errorCount / stats.totalTraces) * 100).toFixed(2) + '%'
+              : '0%',
           averageDuration: `${stats.averageDuration.toFixed(2)}ms`,
           p50Duration: `${stats.p50Duration.toFixed(2)}ms`,
           p95Duration: `${stats.p95Duration.toFixed(2)}ms`,

@@ -24,11 +24,15 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-function makePlanExecutable<T extends { steps: Array<{ tool: string; action: string; params: Record<string, unknown> }> }>(
-  plan: T
-): T {
+function makePlanExecutable<
+  T extends { steps: Array<{ tool: string; action: string; params: Record<string, unknown> }> },
+>(plan: T): T {
   for (const step of plan.steps) {
-    if (step.tool === 'sheets_data' && step.action === 'read' && step.params['range'] === undefined) {
+    if (
+      step.tool === 'sheets_data' &&
+      step.action === 'read' &&
+      step.params['range'] === undefined
+    ) {
       step.params['range'] = 'Sheet1!A1:B5';
     }
     if (
@@ -81,22 +85,27 @@ describe('D1: inject_cross_sheet_lookup step type', () => {
   it('executes without error and returns formulasWritten > 0', async () => {
     const plan = makeCrossSheetPlan();
 
-    const mockHandler = vi.fn(async (tool: string, action: string, params: Record<string, unknown>) => {
-      // Scout call returns sheet info so lastRow can be computed
-      if (tool === 'sheets_analyze' && action === 'scout') {
-        return {
-          sheets: [
-            { name: 'Orders', rowCount: 5 },
-            { name: 'Customers', rowCount: 3 },
-          ],
-        };
+    const mockHandler = vi.fn(
+      async (tool: string, action: string, params: Record<string, unknown>) => {
+        // Scout call returns sheet info so lastRow can be computed
+        if (tool === 'sheets_analyze' && action === 'scout') {
+          return {
+            sheets: [
+              { name: 'Orders', rowCount: 5 },
+              { name: 'Customers', rowCount: 3 },
+            ],
+          };
+        }
+        // Write call returns success
+        if (tool === 'sheets_data' && action === 'write') {
+          return {
+            success: true,
+            updatedCells: params['values'] ? (params['values'] as unknown[][]).length : 0,
+          };
+        }
+        return { success: true };
       }
-      // Write call returns success
-      if (tool === 'sheets_data' && action === 'write') {
-        return { success: true, updatedCells: params['values'] ? (params['values'] as unknown[][]).length : 0 };
-      }
-      return { success: true };
-    }) satisfies ExecuteHandlerFn;
+    ) satisfies ExecuteHandlerFn;
 
     const result = await executePlan(plan.planId, false, mockHandler);
 
@@ -114,16 +123,18 @@ describe('D1: inject_cross_sheet_lookup step type', () => {
 
     let capturedWriteParams: Record<string, unknown> | null = null;
 
-    const mockHandler = vi.fn(async (tool: string, action: string, params: Record<string, unknown>) => {
-      if (tool === 'sheets_analyze' && action === 'scout') {
-        return { sheets: [{ name: 'Orders', rowCount: 3 }] };
-      }
-      if (tool === 'sheets_data' && action === 'write') {
-        capturedWriteParams = params;
+    const mockHandler = vi.fn(
+      async (tool: string, action: string, params: Record<string, unknown>) => {
+        if (tool === 'sheets_analyze' && action === 'scout') {
+          return { sheets: [{ name: 'Orders', rowCount: 3 }] };
+        }
+        if (tool === 'sheets_data' && action === 'write') {
+          capturedWriteParams = params;
+          return { success: true };
+        }
         return { success: true };
       }
-      return { success: true };
-    }) satisfies ExecuteHandlerFn;
+    ) satisfies ExecuteHandlerFn;
 
     await executePlan(plan.planId, false, mockHandler);
 
@@ -149,18 +160,20 @@ describe('D1: inject_cross_sheet_lookup step type', () => {
 
     const capturedValues: string[][] = [];
 
-    const mockHandler = vi.fn(async (tool: string, action: string, params: Record<string, unknown>) => {
-      if (tool === 'sheets_analyze' && action === 'scout') {
-        // 4 data rows starting at row 1 (header), so rowCount = 4
-        return { sheets: [{ name: 'Orders', rowCount: 4 }] };
-      }
-      if (tool === 'sheets_data' && action === 'write') {
-        const v = params['values'] as string[][];
-        capturedValues.push(...v);
+    const mockHandler = vi.fn(
+      async (tool: string, action: string, params: Record<string, unknown>) => {
+        if (tool === 'sheets_analyze' && action === 'scout') {
+          // 4 data rows starting at row 1 (header), so rowCount = 4
+          return { sheets: [{ name: 'Orders', rowCount: 4 }] };
+        }
+        if (tool === 'sheets_data' && action === 'write') {
+          const v = params['values'] as string[][];
+          capturedValues.push(...v);
+          return { success: true };
+        }
         return { success: true };
       }
-      return { success: true };
-    }) satisfies ExecuteHandlerFn;
+    ) satisfies ExecuteHandlerFn;
 
     await executePlan(plan.planId, false, mockHandler);
 
@@ -178,17 +191,19 @@ describe('D1: inject_cross_sheet_lookup step type', () => {
 
     let writtenCount = 0;
 
-    const mockHandler = vi.fn(async (tool: string, action: string, params: Record<string, unknown>) => {
-      if (tool === 'sheets_analyze' && action === 'scout') {
-        // Returns sheets that do NOT include 'Orders'
-        return { sheets: [{ name: 'Customers', rowCount: 10 }] };
-      }
-      if (tool === 'sheets_data' && action === 'write') {
-        writtenCount = (params['values'] as unknown[][]).length;
+    const mockHandler = vi.fn(
+      async (tool: string, action: string, params: Record<string, unknown>) => {
+        if (tool === 'sheets_analyze' && action === 'scout') {
+          // Returns sheets that do NOT include 'Orders'
+          return { sheets: [{ name: 'Customers', rowCount: 10 }] };
+        }
+        if (tool === 'sheets_data' && action === 'write') {
+          writtenCount = (params['values'] as unknown[][]).length;
+          return { success: true };
+        }
         return { success: true };
       }
-      return { success: true };
-    }) satisfies ExecuteHandlerFn;
+    ) satisfies ExecuteHandlerFn;
 
     const result = await executePlan(plan.planId, false, mockHandler);
 

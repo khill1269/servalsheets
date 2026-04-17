@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { CostTracker, getCostTracker } from '../../src/services/cost-tracker.js';
 import {
   BillingIntegration,
-  createBillingIntegration,
+  initializeBillingIntegration,
 } from '../../src/services/billing-integration.js';
 
 describe('CostTracker', () => {
@@ -356,18 +356,13 @@ describe('BillingIntegration', () => {
 
   it('should require Stripe API key', () => {
     expect(() => {
-      createBillingIntegration({ stripeSecretKey: '' });
+      initializeBillingIntegration('');
     }).toThrow();
   });
 
   it('should initialize with config', () => {
-    const config = {
-      stripeSecretKey: 'sk_test_123',
-      currency: 'usd',
-      billingCycle: 'monthly' as const,
-    };
-
-    const billing = createBillingIntegration(config);
+    const apiKey = 'sk_test_123';
+    const billing = initializeBillingIntegration(apiKey);
     expect(billing).toBeDefined();
   });
 

@@ -646,6 +646,7 @@ export class DiffEngine {
 
     // Aggregate results from parallel processing
     for (const result of sheetResults) {
+      if (!result) continue;
       changes.push(...result.changes);
       cellsAdded += result.cellsAdded;
       cellsRemoved += result.cellsRemoved;

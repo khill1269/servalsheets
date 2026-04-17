@@ -223,7 +223,7 @@ const createMockContext = (): HandlerContext =>
       checkRedundantRead: vi.fn().mockReturnValue(false),
       recordReadAttempt: vi.fn(),
     } as any,
-  } as any);
+  }) as any;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Test Suite
@@ -263,7 +263,11 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         data: { range: 'Sheet1!A1:D4', values: financialData },
       });
 
-      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+      const response = await handler.handle({
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D4',
+      });
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -281,7 +285,11 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         data: { range: 'Sheet1!A1:C4', values: data },
       });
 
-      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:C4' });
+      const response = await handler.handle({
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:C4',
+      });
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -299,7 +307,11 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
         data: { range: 'Sheet1!A1:D4', values: riskData },
       });
 
-      const response = await handler.handle({ action: 'read', spreadsheetId: 'test-id', range: 'Sheet1!A1:D4' });
+      const response = await handler.handle({
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:D4',
+      });
 
       expect(response.response?.success).toBe(true);
       expect((response.response as any)?.values).toBeDefined();
@@ -388,13 +400,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
       const response = await handler.handle({
         action: 'batch_read',
         spreadsheetId: 'test-id',
-        ranges: [
-          'Sheet1!A1:B1',
-          'Sheet1!A2:B2',
-          'Sheet1!A3:B3',
-          'Sheet1!A4:B4',
-          'Sheet1!A5:B5',
-        ],
+        ranges: ['Sheet1!A1:B1', 'Sheet1!A2:B2', 'Sheet1!A3:B3', 'Sheet1!A4:B4', 'Sheet1!A5:B5'],
         response_format: 'compact',
       });
 
@@ -898,14 +904,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
     });
 
     it('should detect outlier values in numeric columns', async () => {
-      const outlierData = [
-        ['Sales'],
-        [1000],
-        [1100],
-        [1050],
-        [999999],
-        [1200],
-      ];
+      const outlierData = [['Sales'], [1000], [1100], [1050], [999999], [1200]];
 
       mockSheetsApi.spreadsheets.values.get.mockResolvedValueOnce({
         data: { range: 'Sheet1!A1:A6', values: outlierData },

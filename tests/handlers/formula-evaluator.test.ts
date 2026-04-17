@@ -6,7 +6,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { FormulaEvaluator, type SheetData, type CellChange } from '../../src/services/formula-evaluator.js';
+import {
+  FormulaEvaluator,
+  type SheetData,
+  type CellChange,
+} from '../../src/services/formula-evaluator.js';
 
 // ============================================================================
 // Helper: build simple sheet data
@@ -17,11 +21,7 @@ function makeSheetData(
   formulas: (string | null)[][] = []
 ): SheetData {
   const maxRows = Math.max(values.length, formulas.length);
-  const maxCols = Math.max(
-    ...values.map((r) => r.length),
-    ...formulas.map((r) => r.length),
-    0
-  );
+  const maxCols = Math.max(...values.map((r) => r.length), ...formulas.map((r) => r.length), 0);
 
   const paddedValues = Array.from({ length: maxRows }, (_, r) =>
     Array.from({ length: maxCols }, (_, c) => values[r]?.[c] ?? null)
@@ -80,10 +80,7 @@ describe('FormulaEvaluator', () => {
     beforeEach(async () => {
       // Sheet layout:
       //   A1=100  B1=200  C1=(=A1+B1 → 300)
-      const sheet = makeSheetData(
-        [[100, 200, 300]],
-        [[null, null, '=A1+B1']]
-      );
+      const sheet = makeSheetData([[100, 200, 300]], [[null, null, '=A1+B1']]);
       await evaluator.loadSheet(ssId, sheet);
     });
 
@@ -176,14 +173,7 @@ describe('FormulaEvaluator', () => {
     beforeEach(async () => {
       // A1:A5 = [10, 20, 30, 40, 50], A6 = SUM(A1:A5) = 150
       const vals: (number | null)[][] = [[10], [20], [30], [40], [50], [150]];
-      const fmls: (string | null)[][] = [
-        [null],
-        [null],
-        [null],
-        [null],
-        [null],
-        ['=SUM(A1:A5)'],
-      ];
+      const fmls: (string | null)[][] = [[null], [null], [null], [null], [null], ['=SUM(A1:A5)']];
       const sheet = makeSheetData(vals, fmls);
       await evaluator.loadSheet(ssId, sheet);
     });
@@ -229,8 +219,14 @@ describe('FormulaEvaluator', () => {
       // Put QUERY and a simple formula in separate rows so they don't interfere.
       // Row 0: A1=input, B1=IMPORTRANGE (simpler string, clearly Google-specific)
       // Row 1: A2=A1*2 (simple arithmetic, always evaluated)
-      const vals = [[100, null], [200, null]];
-      const fmls = [[null, '=IMPORTRANGE("id","Sheet1!A1")'], ['=A1*2', null]];
+      const vals = [
+        [100, null],
+        [200, null],
+      ];
+      const fmls = [
+        [null, '=IMPORTRANGE("id","Sheet1!A1")'],
+        ['=A1*2', null],
+      ];
       await evaluator.loadSheet(ssId, makeSheetData(vals, fmls));
 
       const result = await evaluator.evaluateScenario(ssId, [{ cell: 'A1', newValue: 50 }]);
@@ -266,8 +262,14 @@ describe('FormulaEvaluator', () => {
     it('cells with volatile formulas are pre-scanned and excluded from localResults', async () => {
       // B1 has NOW() — volatile, should never be in localResults
       // A2 is =A1*2 — non-volatile, should be in localResults
-      const vals = [[100, null], [200, null]];
-      const fmls = [[null, '=NOW()'], ['=A1*2', null]];
+      const vals = [
+        [100, null],
+        [200, null],
+      ];
+      const fmls = [
+        [null, '=NOW()'],
+        ['=A1*2', null],
+      ];
       await evaluator.loadSheet(ssId, makeSheetData(vals, fmls));
 
       const result = await evaluator.evaluateScenario(ssId, [{ cell: 'A1', newValue: 50 }]);

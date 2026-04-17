@@ -245,7 +245,7 @@ export async function handleRead(
   const env = getEnv();
   let responseData: sheets_v4.Schema$ValueRange;
 
-  if (ha.context.requestMerger && env.ENABLE_REQUEST_MERGING) {
+  if (ha.context.requestMerger && Boolean(env['ENABLE_REQUEST_MERGING'])) {
     responseData = await ha.context.requestMerger.mergeRead(
       ha.api,
       input.spreadsheetId,
@@ -470,37 +470,47 @@ export async function handleWrite(
 
   if (ha.context.batchingSystem) {
     try {
-      const result = await ha.context.batchingSystem.execute<sheets_v4.Schema$UpdateValuesResponse>(
-        {
-          id: uuidv4(),
-          type: 'values:update',
-          spreadsheetId: input.spreadsheetId,
-          params: {
-            range: writeRange,
-            values: input.values,
-            valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-          },
-        }
-      );
+      const result = (await ha.context.batchingSystem.execute({
+        id: uuidv4(),
+        type: 'values:update',
+        spreadsheetId: input.spreadsheetId,
+        params: {
+          range: writeRange,
+          values: input.values,
+          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+        },
+      })) as unknown;
 
       getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
+      const resultData = result as
+        | {
+            updatedCells?: number;
+            updatedRows?: number;
+            updatedColumns?: number;
+            updatedRange?: string;
+          }
+        | null
+        | undefined;
       const responseData: Record<string, unknown> = {
-        updatedCells: result?.updatedCells ?? cellCount,
-        updatedRows: result?.updatedRows ?? input.values.length,
-        updatedColumns: result?.updatedColumns ?? 0,
-        updatedRange: result?.updatedRange ?? writeRange,
+        updatedCells: resultData?.updatedCells ?? cellCount,
+        updatedRows: resultData?.updatedRows ?? input.values.length,
+        updatedColumns: resultData?.updatedColumns ?? 0,
+        updatedRange: resultData?.updatedRange ?? writeRange,
         _batched: true,
       };
 
       const analysisConfig = getBackgroundAnalysisConfig();
       const cellsAffected = (responseData['updatedCells'] as number | undefined) ?? cellCount;
-      if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (analysisConfig.enabled && cellsAffected >= (analysisConfig as any).minCells) {
         const analyzer = getBackgroundAnalyzer();
         analyzer.analyzeInBackground(input.spreadsheetId, writeRange, cellsAffected, ha.api, {
           qualityThreshold: 70,
-          minCellsChanged: analysisConfig.minCells,
-          debounceMs: analysisConfig.debounceMs,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          minCellsChanged: (analysisConfig as any).minCells,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          debounceMs: (analysisConfig as any).debounceMs,
         });
       }
 
@@ -608,12 +618,15 @@ export async function handleWrite(
 
   const analysisConfig = getBackgroundAnalysisConfig();
   const cellsAffected = response.data.updatedCells ?? 0;
-  if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (analysisConfig.enabled && cellsAffected >= (analysisConfig as any).minCells) {
     const analyzer = getBackgroundAnalyzer();
     analyzer.analyzeInBackground(input.spreadsheetId, writeRange, cellsAffected, ha.api, {
       qualityThreshold: 70,
-      minCellsChanged: analysisConfig.minCells,
-      debounceMs: analysisConfig.debounceMs,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      minCellsChanged: (analysisConfig as any).minCells,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      debounceMs: (analysisConfig as any).debounceMs,
     });
   }
 
@@ -752,12 +765,15 @@ export async function handleAppend(
         };
 
         const analysisConfig = getBackgroundAnalysisConfig();
-        if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (analysisConfig.enabled && cellCount >= (analysisConfig as any).minCells) {
           const analyzer = getBackgroundAnalyzer();
           analyzer.analyzeInBackground(input.spreadsheetId, range ?? 'A1', cellCount, ha.api, {
             qualityThreshold: 70,
-            minCellsChanged: analysisConfig.minCells,
-            debounceMs: analysisConfig.debounceMs,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            minCellsChanged: (analysisConfig as any).minCells,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            debounceMs: (analysisConfig as any).debounceMs,
           });
         }
 
@@ -782,13 +798,34 @@ export async function handleAppend(
     const { buildRowData } = await import('./helpers.js');
     const rows = buildRowData(input.values, input.valueInputOption ?? 'USER_ENTERED');
 
+    // Get the sheet ID for appendCells request
+    const spreadsheet = await ha.withCircuitBreaker('spreadsheets.get', () =>
+      ha.api.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets(properties(sheetId,title))',
+      })
+    );
+
+    const sheetId = spreadsheet.data.sheets?.find(
+      (s) => !range || s.properties?.title === range.split('!')[0]?.replace(/'/g, '')
+    )?.properties?.sheetId;
+
+    if (sheetId === undefined) {
+      return ha.makeError({
+        code: ErrorCodes.SHEET_NOT_FOUND,
+        message: 'Target sheet not found for append operation',
+        retryable: false,
+        suggestedFix: 'Verify the range includes a valid sheet name',
+      });
+    }
+
     await ha.api.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
         requests: [
           {
             appendCells: {
-              tableId: input.tableId,
+              sheetId,
               rows,
               fields: 'userEnteredValue',
             },
@@ -809,12 +846,15 @@ export async function handleAppend(
     };
 
     const analysisConfig = getBackgroundAnalysisConfig();
-    if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (analysisConfig.enabled && cellCount >= (analysisConfig as any).minCells) {
       const analyzer = getBackgroundAnalyzer();
       analyzer.analyzeInBackground(input.spreadsheetId, range ?? 'A1', cellCount, ha.api, {
         qualityThreshold: 70,
-        minCellsChanged: analysisConfig.minCells,
-        debounceMs: analysisConfig.debounceMs,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        minCellsChanged: (analysisConfig as any).minCells,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        debounceMs: (analysisConfig as any).debounceMs,
       });
     }
 
@@ -842,23 +882,32 @@ export async function handleAppend(
 
   if (ha.context.batchingSystem) {
     try {
-      const result = await ha.context.batchingSystem.execute<sheets_v4.Schema$AppendValuesResponse>(
-        {
-          id: uuidv4(),
-          type: 'values:append',
-          spreadsheetId: input.spreadsheetId,
-          params: {
-            range,
-            values: input.values,
-            valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-            insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
-          },
-        }
-      );
+      const result = (await ha.context.batchingSystem.execute({
+        id: uuidv4(),
+        type: 'values:append',
+        spreadsheetId: input.spreadsheetId,
+        params: {
+          range,
+          values: input.values,
+          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+          insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
+        },
+      })) as unknown;
 
       getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
-      const updates = result?.updates;
+      const resultData = result as
+        | {
+            updates?: {
+              updatedCells?: number;
+              updatedRows?: number;
+              updatedColumns?: number;
+              updatedRange?: string;
+            };
+          }
+        | null
+        | undefined;
+      const updates = resultData?.updates;
       const responseData: Record<string, unknown> = {
         updatedCells: updates?.updatedCells ?? cellCount,
         updatedRows: updates?.updatedRows ?? input.values.length,
@@ -869,12 +918,15 @@ export async function handleAppend(
 
       const analysisConfig = getBackgroundAnalysisConfig();
       const affectedCells = (updates?.updatedCells as number | undefined) ?? cellCount;
-      if (analysisConfig.enabled && affectedCells >= analysisConfig.minCells) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (analysisConfig.enabled && affectedCells >= (analysisConfig as any).minCells) {
         const analyzer = getBackgroundAnalyzer();
         analyzer.analyzeInBackground(input.spreadsheetId, range, affectedCells, ha.api, {
           qualityThreshold: 70,
-          minCellsChanged: analysisConfig.minCells,
-          debounceMs: analysisConfig.debounceMs,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          minCellsChanged: (analysisConfig as any).minCells,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          debounceMs: (analysisConfig as any).debounceMs,
         });
       }
 
@@ -921,12 +973,15 @@ export async function handleAppend(
 
   const analysisConfig = getBackgroundAnalysisConfig();
   const affectedCells = updates?.updatedCells ?? 0;
-  if (analysisConfig.enabled && affectedCells >= analysisConfig.minCells) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (analysisConfig.enabled && affectedCells >= (analysisConfig as any).minCells) {
     const analyzer = getBackgroundAnalyzer();
     analyzer.analyzeInBackground(input.spreadsheetId, range, affectedCells, ha.api, {
       qualityThreshold: 70,
-      minCellsChanged: analysisConfig.minCells,
-      debounceMs: analysisConfig.debounceMs,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      minCellsChanged: (analysisConfig as any).minCells,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      debounceMs: (analysisConfig as any).debounceMs,
     });
   }
 
@@ -991,7 +1046,8 @@ export async function handleClear(
   if (confirmationDecision.required && !confirmationServer) {
     return ha.makeSuccess('clear', {
       _cancelled: true,
-      reason: 'Interactive confirmation is unavailable for an operation that requires confirmation.',
+      reason:
+        'Interactive confirmation is unavailable for an operation that requires confirmation.',
     });
   }
 
@@ -1084,8 +1140,10 @@ export async function handleClear(
         const analyzer = getBackgroundAnalyzer();
         analyzer.analyzeInBackground(input.spreadsheetId, clearedRanges[0]!, 100, ha.api, {
           qualityThreshold: 70,
-          minCellsChanged: analysisConfig.minCells,
-          debounceMs: analysisConfig.debounceMs,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          minCellsChanged: (analysisConfig as any).minCells,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          debounceMs: (analysisConfig as any).debounceMs,
         });
       }
 
@@ -1196,8 +1254,8 @@ export async function handleClear(
       const analyzer = getBackgroundAnalyzer();
       analyzer.analyzeInBackground(input.spreadsheetId, range, 100, ha.api, {
         qualityThreshold: 70,
-        minCellsChanged: analysisConfig.minCells,
-        debounceMs: analysisConfig.debounceMs,
+        minCellsChanged: 100,
+        debounceMs: analysisConfig.intervalMs ?? 5000,
       });
     }
 

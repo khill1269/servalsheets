@@ -674,9 +674,7 @@ describe('Category 4: Analysis & Intelligence', () => {
   describe('Data Shape Detection', () => {
     it('identifies daily time series', () => {
       const today = new Date();
-      const data: CellValue[][] = [
-        ['Date', 'Value'],
-      ];
+      const data: CellValue[][] = [['Date', 'Value']];
       // Need at least 7 rows for time series detection
       for (let i = 0; i < 8; i++) {
         const date = new Date(today.getTime() + i * 86400000);
@@ -690,9 +688,7 @@ describe('Category 4: Analysis & Intelligence', () => {
 
     it('identifies weekly time series', () => {
       const startDate = new Date('2026-01-05');
-      const data: CellValue[][] = [
-        ['Week', 'Sales'],
-      ];
+      const data: CellValue[][] = [['Week', 'Sales']];
       // Need at least 7 rows for time series detection, spaced weekly
       for (let i = 0; i < 8; i++) {
         const date = new Date(startDate.getTime() + i * 7 * 86400000);
@@ -731,9 +727,7 @@ describe('Category 4: Analysis & Intelligence', () => {
 
       const hints = generateResponseHints(data);
       expect(hints?.dataRelationships).toBeDefined();
-      const profitOpp = hints?.dataRelationships?.find((r) =>
-        r.toLowerCase().includes('profit')
-      );
+      const profitOpp = hints?.dataRelationships?.find((r) => r.toLowerCase().includes('profit'));
       expect(profitOpp).toBeDefined();
     });
 
@@ -787,13 +781,7 @@ describe('Category 4: Analysis & Intelligence', () => {
     });
 
     it('suggests alternative strategies for empty cells', () => {
-      const data: CellValue[][] = [
-        ['Values'],
-        [null],
-        [null],
-        [100],
-        [200],
-      ];
+      const data: CellValue[][] = [['Values'], [null], [null], [100], [200]];
 
       const warnings = detectEmptyRequiredCells(data);
       expect(warnings.length).toBeGreaterThan(0);
@@ -849,12 +837,7 @@ describe('Category 4: Analysis & Intelligence', () => {
     });
 
     it('handles single-column data', () => {
-      const data: CellValue[][] = [
-        ['Values'],
-        [100],
-        [200],
-        [300],
-      ];
+      const data: CellValue[][] = [['Values'], [100], [200], [300]];
 
       const hints = generateResponseHints(data);
       expect(hints).toBeDefined();
@@ -864,13 +847,7 @@ describe('Category 4: Analysis & Intelligence', () => {
     });
 
     it('handles mixed null and empty string', () => {
-      const data: CellValue[][] = [
-        ['Name'],
-        ['Alice'],
-        [null],
-        [''],
-        ['Bob'],
-      ];
+      const data: CellValue[][] = [['Name'], ['Alice'], [null], [''], ['Bob']];
 
       const warnings = detectEmptyRequiredCells(data);
       // Both null and '' should count as empty
@@ -878,12 +855,7 @@ describe('Category 4: Analysis & Intelligence', () => {
     });
 
     it('handles very large numeric values', () => {
-      const data: CellValue[][] = [
-        ['Amount'],
-        [1000000000],
-        [2000000000],
-        [3000000000],
-      ];
+      const data: CellValue[][] = [['Amount'], [1000000000], [2000000000], [3000000000]];
 
       const hints = generateResponseHints(data);
       // Very small dataset (1 header + 3 data rows) may return null
