@@ -238,7 +238,8 @@ export function validateEnv(throwOnError: boolean = false): Env {
 
     // Profile storage directory must be persistent if set
     if (env['PROFILE_STORAGE_DIR']?.startsWith('/tmp')) {
-      const message = 'PROFILE_STORAGE_DIR must point to persistent storage in production (not /tmp)';
+      const message =
+        'PROFILE_STORAGE_DIR must point to persistent storage in production (not /tmp)';
       logger.error(message);
       if (throwOnError) throw new Error(message);
       process.exit(1);
@@ -246,7 +247,8 @@ export function validateEnv(throwOnError: boolean = false): Env {
 
     // If checkpoints are enabled, directory must be persistent
     if (env['ENABLE_CHECKPOINTS'] && env['CHECKPOINT_DIR']?.startsWith('/tmp')) {
-      const message = 'CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production (not /tmp)';
+      const message =
+        'CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production (not /tmp)';
       logger.error(message);
       if (throwOnError) throw new Error(message);
       process.exit(1);
@@ -254,7 +256,8 @@ export function validateEnv(throwOnError: boolean = false): Env {
 
     // Google credentials must be present
     if (!hasGoogleCredentials(env as Partial<Record<string, string>>)) {
-      const message = 'Production requires Google credentials (GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, or OAuth config)';
+      const message =
+        'Production requires Google credentials (GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, or OAuth config)';
       logger.error(message);
       if (throwOnError) throw new Error(message);
       process.exit(1);
@@ -432,9 +435,15 @@ export function getRemoteMcpExecutorConfig(): {
 } {
   const e = getEnv();
   const url = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_URL'] as string | undefined;
-  const toolsStr = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_TOOLS'] as string | undefined;
-  const authType = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_AUTH_TYPE'] as string | undefined;
-  const authToken = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_AUTH_TOKEN'] as string | undefined;
+  const toolsStr = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_TOOLS'] as
+    | string
+    | undefined;
+  const authType = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_AUTH_TYPE'] as
+    | string
+    | undefined;
+  const authToken = (e as Record<string, unknown>)['MCP_REMOTE_EXECUTOR_AUTH_TOKEN'] as
+    | string
+    | undefined;
 
   // Parse and clean tool list
   const allowedTools = (toolsStr || '')
@@ -479,7 +488,8 @@ export function getSessionStoreConfig(): { type: string; redisUrl?: string } {
 
   if (storeType === 'redis') {
     if (!redisUrl || !redisUrl.match(/^rediss?:\/\//)) {
-      const message = 'REDIS_URL is required when SESSION_STORE_TYPE=redis and must start with redis:// or rediss://';
+      const message =
+        'REDIS_URL is required when SESSION_STORE_TYPE=redis and must start with redis:// or rediss://';
       logger.error(message);
       throw new Error(message);
     }

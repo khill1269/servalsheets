@@ -252,7 +252,9 @@ export class SessionManager {
 
     // Store updated index with same TTL as session
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await this.store.set(this.getUserIndexKey(userId), { ids: sessionIds } as any, { ttlMs: ttlSeconds * 1000 });
+    await this.store.set(this.getUserIndexKey(userId), { ids: sessionIds } as any, {
+      ttlMs: ttlSeconds * 1000,
+    });
   }
 
   private async removeFromUserIndex(userId: string, sessionId: string): Promise<void> {
@@ -262,11 +264,9 @@ export class SessionManager {
     if (filtered.length > 0) {
       // Re-store with original TTL (we don't know it, so use default)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await this.store.set(
-        this.getUserIndexKey(userId),
-        { ids: filtered } as any,
-        { ttlMs: this.defaultTtlSeconds * 1000 }
-      );
+      await this.store.set(this.getUserIndexKey(userId), { ids: filtered } as any, {
+        ttlMs: this.defaultTtlSeconds * 1000,
+      });
     } else {
       // No more sessions, delete the index
       await this.store.delete(this.getUserIndexKey(userId));

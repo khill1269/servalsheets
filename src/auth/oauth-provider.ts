@@ -367,11 +367,9 @@ export class OAuthProvider {
       grantedAt: Date.now(),
       redirectUris,
     };
-    await this.sessionStore.set(
-      this.consentKey(clientId),
-      record as unknown as SessionData,
-      { ttlMs: 365 * 24 * 60 * 60 * 1000 }
-    );
+    await this.sessionStore.set(this.consentKey(clientId), record as unknown as SessionData, {
+      ttlMs: 365 * 24 * 60 * 60 * 1000,
+    });
     logger.info('DCR client consent granted', { clientId, clientName });
   }
 
@@ -778,7 +776,9 @@ export class OAuthProvider {
       };
 
       // Store authorization code with 10-minute TTL
-      await this.sessionStore.set(`auth:${authCode}`, stateData as unknown as SessionData, { ttlMs: 600 * 1000 });
+      await this.sessionStore.set(`auth:${authCode}`, stateData as unknown as SessionData, {
+        ttlMs: 600 * 1000,
+      });
 
       // Generate Google OAuth state to track the round-trip
       // State format: {authCode}:{clientId}:{nonce}
@@ -839,7 +839,9 @@ export class OAuthProvider {
         }
 
         // Retrieve authorization state
-        const stateData = (await this.sessionStore.get(`auth:${authCode}`)) as unknown as StateData | null;
+        const stateData = (await this.sessionStore.get(
+          `auth:${authCode}`
+        )) as unknown as StateData | null;
 
         if (!stateData) {
           res.status(400).json({
@@ -898,11 +900,9 @@ export class OAuthProvider {
         };
 
         // Store authorization code with 10-minute TTL
-        await this.sessionStore.set(
-          `code:${authCode}`,
-          authCodeData as unknown as SessionData,
-          { ttlMs: 600 * 1000 }
-        );
+        await this.sessionStore.set(`code:${authCode}`, authCodeData as unknown as SessionData, {
+          ttlMs: 600 * 1000,
+        });
 
         // Redirect back to client with authorization code
         const redirectUrl = new URL(stateData.redirectUri);

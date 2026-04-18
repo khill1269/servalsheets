@@ -376,7 +376,9 @@ export class BatchingSystem {
       // Attach a no-op catch before rejecting so callers who do not await the
       // queued promise do not trigger an UnhandledPromiseRejection.
       // Callers that DO await still receive the rejection normally.
-      item.promise.catch(() => { /* suppress teardown rejection */ });
+      item.promise.catch(() => {
+        /* suppress teardown rejection */
+      });
       item.reject(destroyError);
     }
     this.pending = [];

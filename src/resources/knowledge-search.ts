@@ -491,7 +491,7 @@ async function searchKnowledge(query: string): Promise<SearchResult[]> {
 
   // Extract name from URI for display
   const extractMetadata = (
-    uri: string,
+    uri: string
   ): { name: string; description: string; category: string } => {
     const pathPart = uri.split('://').pop() || uri;
     const name = pathPart
