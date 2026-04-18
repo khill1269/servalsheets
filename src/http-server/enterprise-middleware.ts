@@ -17,17 +17,14 @@ export function registerHttpEnterpriseMiddleware(
   app: Pick<Application, 'use'>,
   options: RegisterHttpEnterpriseMiddlewareOptions
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   registerPackagedHttpEnterpriseMiddleware(app as any, {
     ...options,
-    importTenantIsolationModule:
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (options.importTenantIsolationModule ??
-        (() => import('../middleware/tenant-isolation.js'))) as any,
-    importRbacMiddlewareModule:
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (options.importRbacMiddlewareModule ??
-        (() => import('../middleware/rbac-middleware.js'))) as any,
+    importTenantIsolationModule: (options.importTenantIsolationModule ??
+      (() => import('../middleware/tenant-isolation.js'))) as any,
+    importRbacMiddlewareModule: (options.importRbacMiddlewareModule ??
+      (() => import('../middleware/rbac-middleware.js'))) as any,
     log: options.log ?? defaultLogger,
   });
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }

@@ -555,7 +555,6 @@ export class RbacManager {
         if (!hasDeny || actionPerm.permission === 'deny') {
           finalPermission = actionPerm.permission;
           reason = actionPerm.reason || `Action permission: ${actionPerm.permission}`;
-          hasDeny = actionPerm.permission === 'deny';
           matchedRules.push({
             ruleType: 'action',
             ruleName: `${toolName}.${actionName}`,
@@ -575,7 +574,6 @@ export class RbacManager {
         // Resource-level always wins
         finalPermission = resourcePerm.permission;
         reason = resourcePerm.reason || `Resource permission: ${resourcePerm.permission}`;
-        hasDeny = resourcePerm.permission === 'deny';
         matchedRules.push({
           ruleType: 'resource',
           ruleName: resourcePerm.resourceId || resourcePerm.resourceType,

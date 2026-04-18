@@ -161,7 +161,7 @@ async function updateEnvFile(
   redirectUri: string
 ): Promise<void> {
   const envPath = path.join(process.cwd(), '.env');
-  let envContent = '';
+  let envContent: string;
 
   try {
     await fsPromises.access(envPath);

@@ -116,7 +116,8 @@ function toJsonSchema(
           });
         }
         throw new Error(
-          `Failed to convert ${schemaType} schema for ${toolName} to JSON Schema: ${msg}`
+          `Failed to convert ${schemaType} schema for ${toolName} to JSON Schema: ${msg}`,
+          { cause: err }
         );
       }
       throw err instanceof Error ? err : new Error(String(err));

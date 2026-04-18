@@ -456,7 +456,7 @@ export class Scout {
     }
 
     // Build recommended action based on intent and indicators
-    let recommended: ScoutResult['nextActions']['recommended'] = null;
+    let recommended: ScoutResult['nextActions']['recommended'];
     const alternatives: ScoutResult['nextActions']['alternatives'] = [];
 
     // Primary recommendation based on intent

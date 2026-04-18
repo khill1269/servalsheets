@@ -867,7 +867,7 @@ export function formatZodErrors(
       // For discriminated union errors, explain the action/type mismatch
       if (err.code === 'invalid_union' || err.code === 'invalid_union_discriminator') {
         const actionPath = pathStr || 'action';
-        let message = '';
+        let message: string;
 
         // Fix QA: Provide field-specific guidance instead of raw Zod dump
         if (actionPath.includes('rule') && actionPath.includes('type')) {

@@ -58,7 +58,7 @@ export function evaluateExpression(expr: string): number | string {
     const startIndex = ifStart.index + ifStart[0].length - 1; // Position of opening paren
     let depth = 0;
     let commaPositions: number[] = [];
-    let i = startIndex;
+    let i: number;
 
     // Find matching closing paren and comma positions at depth 1
     for (i = startIndex; i < expr.length; i++) {
