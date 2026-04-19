@@ -718,14 +718,14 @@ jobs:
           node --input-type=module <<'EOF'
           const needs = JSON.parse(process.env.NEEDS_JSON);
           // Jobs that may be skipped without failing CI
-          const allowedSkipped = new Set(['mutation-testing', 'coverage', 'build', 'security']);
+          const allowedSkipped = new Set(['mutation-testing', 'coverage', 'security']);
           // Jobs that may fail without failing CI
           const optionalFailures = new Set(['mutation-testing']);
           // Jobs that MUST succeed (never allowed to skip)
           const requiredJobs = new Set([
             'quick-checks', 'test-fast', 'snapshot-tests',
             'test-integration', 'mcp-http-task-contract',
-            'http-transport-failover', 'validate-server-json'
+            'http-transport-failover', 'validate-server-json', 'build'
           ]);
           const failures = [];
 

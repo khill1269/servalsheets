@@ -41,6 +41,9 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   # OR Google Service Account (alternative — no user consent required):
   #   fly secrets set GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
   #
+  # OAuth redirect (REQUIRED — app hard-crashes on startup without this):
+  #   fly secrets set OAUTH_REDIRECT_URI="https://servalsheets.fly.dev/oauth/callback"
+  #
   # Security:
   #   fly secrets set OAUTH_CLIENT_SECRET="<random-32-chars>"
   #   fly secrets set JWT_SECRET="<random-32-chars>"
