@@ -107,7 +107,22 @@ export async function executeWithRetry<T>(
     },
   };
 
-  return coreExecuteWithRetry(operation, mergedOptions, GOOGLE_SHEETS_RETRY_CONFIG);
+  // Merge the request context's client-disconnect signal with the per-call timeout signal
+  // that serval-core's withTimeout creates. Without this, a cancelled MCP request would
+  // not abort in-flight Google API calls until the timeout fires.
+  const requestAbortSignal = requestContext?.abortSignal;
+  const wrappedOperation =
+    requestAbortSignal && !requestAbortSignal.aborted
+      ? (timeoutSignal: AbortSignal) => {
+          const merged =
+            typeof AbortSignal.any === 'function'
+              ? AbortSignal.any([timeoutSignal, requestAbortSignal])
+              : timeoutSignal;
+          return operation(merged);
+        }
+      : operation;
+
+  return coreExecuteWithRetry(wrappedOperation, mergedOptions, GOOGLE_SHEETS_RETRY_CONFIG);
 }
 
 /**

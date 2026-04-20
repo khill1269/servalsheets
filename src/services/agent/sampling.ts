@@ -135,18 +135,40 @@ export function extractTextFromResult(result: SamplingCreateMessageResult): stri
     .trim();
 }
 
+// ============================================================================
+// Multi-model routing (P2.4)
+// ============================================================================
+
+// Env var overrides allow deployment-specific model selection without code changes
+const SONNET_MODEL =
+  process.env['SAMPLING_SONNET_MODEL'] ?? 'claude-sonnet-4-6';
+const HAIKU_MODEL =
+  process.env['SAMPLING_HAIKU_MODEL'] ?? 'claude-haiku-4-5-20251001';
+
+/**
+ * Route sampling requests to the appropriate model based on operation complexity.
+ *
+ * Sonnet-class (complex reasoning): agentPlanning, formulaGeneration, dataAnalysis
+ * Haiku-class (fast, cheap):        stepValidation, qualityCheck, patternDetection, default
+ */
 export function getModelHint(operationType: string): {
   hints: Array<{ name: string }>;
   temperature: number;
 } {
-  if (operationType === 'agentPlanning') {
-    return {
-      hints: [{ name: 'claude-sonnet-4-latest' }],
-      temperature: 0.2,
-    };
+  switch (operationType) {
+    case 'agentPlanning':
+      return { hints: [{ name: SONNET_MODEL }], temperature: 0.2 };
+    case 'formulaGeneration':
+      return { hints: [{ name: SONNET_MODEL }], temperature: 0.15 };
+    case 'dataAnalysis':
+      return { hints: [{ name: SONNET_MODEL }], temperature: 0.25 };
+    case 'stepValidation':
+      return { hints: [{ name: HAIKU_MODEL }], temperature: 0.1 };
+    case 'qualityCheck':
+      return { hints: [{ name: HAIKU_MODEL }], temperature: 0.1 };
+    case 'patternDetection':
+      return { hints: [{ name: HAIKU_MODEL }], temperature: 0.2 };
+    default:
+      return { hints: [{ name: HAIKU_MODEL }], temperature: 0.3 };
   }
-  return {
-    hints: [{ name: 'claude-3-5-haiku-latest' }],
-    temperature: 0.3,
-  };
 }

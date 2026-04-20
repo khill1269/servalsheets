@@ -364,18 +364,37 @@ const SqlQueryActionSchema = CommonFieldsSchema.extend({
     .describe('Query timeout in milliseconds'),
 }).strict();
 
+const SqlJoinAliasSchema = z
+  .string()
+  .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'Alias must be a valid SQL identifier (letters, digits, underscores)');
+
 const SqlJoinActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sql_join').describe('Join two ranges using SQL JOIN semantics via DuckDB'),
   left: z.object({
     range: RangeInputSchema,
-    alias: z.string().default('left').describe('SQL alias for left table'),
+    alias: SqlJoinAliasSchema.default('left').describe('SQL alias for left table'),
   }),
   right: z.object({
     range: RangeInputSchema,
-    alias: z.string().default('right').describe('SQL alias for right table'),
+    alias: SqlJoinAliasSchema.default('right').describe('SQL alias for right table'),
   }),
-  on: z.string().describe('JOIN condition (e.g., "left.id = right.id")'),
-  select: z.string().optional().describe('SELECT clause (default: *)'),
+  on: z
+    .string()
+    .max(500)
+    .regex(
+      /^[a-zA-Z0-9_\.\s=<>!()'"]+$/,
+      'ON clause must contain only column references, operators, and literals'
+    )
+    .describe('JOIN condition (e.g., "left.id = right.id")'),
+  select: z
+    .string()
+    .max(500)
+    .regex(
+      /^[a-zA-Z0-9_\*,\s\.()]+$/,
+      'SELECT clause must contain only column names, wildcards, and aliases'
+    )
+    .optional()
+    .describe('SELECT clause (default: *)'),
   joinType: z.enum(['inner', 'left', 'right', 'full']).default('inner'),
   timeoutMs: z.number().min(1000).max(60000).default(30000),
 }).strict();

@@ -70,6 +70,8 @@ interface AuthorizationCode {
   googleAccessToken: string | undefined;
   googleRefreshToken: string | undefined;
   expiresAt: number;
+  /** RFC 8707 resource indicator — bound into aud claim of issued token */
+  resource?: string;
 }
 
 interface RefreshTokenData {
@@ -78,6 +80,8 @@ interface RefreshTokenData {
   scope: string;
   googleRefreshToken?: string;
   expiresAt: number;
+  /** RFC 8707: resource URI the refresh token is bound to */
+  resource?: string;
 }
 
 interface StateData {
@@ -89,6 +93,8 @@ interface StateData {
   // clientId is carried through Google OAuth state so the callback knows which
   // MCP client initiated the request (required for confused deputy prevention).
   clientId: string;
+  /** RFC 8707 resource indicator forwarded from the authorization request */
+  resource?: string;
 }
 
 interface DcrClientData {
@@ -475,12 +481,14 @@ export class OAuthProvider {
         return;
       }
 
+      const refreshAudience = refreshTokenData.resource ?? refreshTokenData.clientId;
       const accessToken = jwt.sign(
         {
           sub: refreshTokenData.userId,
-          aud: refreshTokenData.clientId,
+          aud: refreshAudience,
           iss: this.config.issuer,
           scope: refreshTokenData.scope,
+          ...(refreshTokenData.resource ? { resource: refreshTokenData.resource } : {}),
         },
         this.config.jwtSecret,
         {
@@ -489,11 +497,31 @@ export class OAuthProvider {
         }
       );
 
+      // Rotate refresh token: invalidate the used token and issue a new one.
+      // This prevents replay attacks — a stolen token can only be used once.
+      await this.sessionStore.delete(`refresh:${refreshToken}`);
+
+      const newRefreshTokenId = randomUUID();
+      const newRefreshTokenData: RefreshTokenData = {
+        userId: refreshTokenData.userId,
+        clientId: refreshTokenData.clientId,
+        scope: refreshTokenData.scope,
+        googleRefreshToken: refreshTokenData.googleRefreshToken,
+        expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
+        resource: refreshTokenData.resource, // RFC 8707: preserve binding on rotation
+      };
+      await this.sessionStore.set(
+        `refresh:${newRefreshTokenId}`,
+        newRefreshTokenData as unknown as SessionData,
+        { ttlMs: (this.config.refreshTokenTtl ?? 2592000) * 1000 }
+      );
+
       res.json({
         access_token: accessToken,
         token_type: 'Bearer',
         expires_in: this.config.accessTokenTtl,
         scope: refreshTokenData.scope,
+        refresh_token: newRefreshTokenId,
       });
     } catch (error) {
       logger.error('Refresh token exchange error', {
@@ -601,6 +629,8 @@ export class OAuthProvider {
         code_challenge_methods_supported: ['S256'],
         token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
         scopes_supported: ['sheets:read', 'sheets:write', 'sheets:admin'],
+        // RFC 8707 Resource Indicators
+        resource_indicators_supported: true,
       });
     });
 
@@ -633,7 +663,19 @@ export class OAuthProvider {
         state,
         code_challenge,
         code_challenge_method,
+        resource, // RFC 8707 Resource Indicator
       } = req.query as Record<string, string | undefined>;
+
+      // RFC 8707 §2: validate resource is an absolute URI without fragment
+      if (resource !== undefined) {
+        try {
+          const u = new URL(resource);
+          if (u.hash) throw new Error('fragment not allowed');
+        } catch {
+          res.status(400).json({ error: 'invalid_target', error_description: 'resource must be an absolute URI without fragment' });
+          return;
+        }
+      }
 
       // Validate request
       if (response_type !== 'code') {
@@ -773,6 +815,7 @@ export class OAuthProvider {
         codeChallenge: code_challenge,
         codeChallengeMethod: code_challenge_method,
         clientId: resolvedClientId,
+        resource, // RFC 8707
       };
 
       // Store authorization code with 10-minute TTL
@@ -897,6 +940,7 @@ export class OAuthProvider {
           googleAccessToken,
           googleRefreshToken,
           expiresAt: Date.now() + 600000, // 10 minutes
+          resource: stateData.resource, // RFC 8707
         };
 
         // Store authorization code with 10-minute TTL
@@ -1008,12 +1052,16 @@ export class OAuthProvider {
 
           // Generate tokens
           const userId = `user:${authCodeData.clientId}:${randomUUID()}`;
+          // RFC 8707: if a resource indicator was requested, bind it as the audience;
+          // otherwise fall back to clientId for backwards compatibility.
+          const tokenAudience = authCodeData.resource ?? authCodeData.clientId;
           const accessToken = jwt.sign(
             {
               sub: userId,
-              aud: authCodeData.clientId,
+              aud: tokenAudience,
               iss: this.config.issuer,
               scope: authCodeData.scope,
+              ...(authCodeData.resource ? { resource: authCodeData.resource } : {}),
             },
             this.config.jwtSecret,
             {
@@ -1029,6 +1077,7 @@ export class OAuthProvider {
             scope: authCodeData.scope,
             googleRefreshToken: authCodeData.googleRefreshToken,
             expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
+            resource: authCodeData.resource, // RFC 8707: carry through to token refresh
           };
 
           // Store refresh token with TTL
@@ -1278,10 +1327,15 @@ export class OAuthProvider {
           created_at: new Date().toISOString(),
         };
 
+        // RFC 7591 §3.2.1: registration_access_token for client management operations
+        const registrationAccessToken = randomBytes(32).toString('hex');
+        const baseUrl = process.env['OAUTH_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3000}`;
+        const registrationClientUri = `${baseUrl}/oauth/register/${clientId}`;
+
         // Store in session store with 1 year TTL
         await this.sessionStore.set(
           `dcr:${clientId}`,
-          clientData,
+          { ...clientData, registration_access_token: registrationAccessToken },
           { ttlMs: 365 * 24 * 60 * 60 * 1000 } // 1 year (ms)
         );
 
@@ -1297,17 +1351,20 @@ export class OAuthProvider {
           redirectUris: redirect_uris,
         });
 
-        // Return client credentials (RFC 7591 response)
+        // Return client credentials (RFC 7591 §3.2.1 compliant response)
         res.status(201).json({
           client_id: clientId,
           client_secret: clientSecret,
+          client_id_issued_at: clientIdIssuedAt,
+          client_secret_expires_at: 0, // 0 = never expires (RFC 7591 §3.2.1)
+          registration_access_token: registrationAccessToken,
+          registration_client_uri: registrationClientUri,
           client_name: clientData.client_name,
           redirect_uris,
           grant_types: requestedGrantTypes,
           response_types: clientData.response_types,
           scope: clientData.scope,
           token_endpoint_auth_method: clientData.token_endpoint_auth_method,
-          client_id_issued_at: clientIdIssuedAt,
         });
       } catch (error) {
         logger.error('DCR registration failed', {
@@ -1318,6 +1375,77 @@ export class OAuthProvider {
           error_description: 'Failed to register client',
         });
       }
+    });
+
+    // RFC 7591 §4 — Client Configuration Endpoint (read / update / delete)
+
+    const authenticateDcrRequest = async (req: express.Request, res: express.Response, clientId: string): Promise<Record<string, unknown> | null> => {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      if (!token) {
+        res.status(401).json({ error: 'invalid_token', error_description: 'Bearer token required' });
+        return null;
+      }
+      const stored = await this.sessionStore.get(`dcr:${clientId}`) as Record<string, unknown> | null;
+      if (!stored) {
+        res.status(404).json({ error: 'invalid_client_metadata', error_description: 'Client not found' });
+        return null;
+      }
+      if (stored['registration_access_token'] !== token) {
+        res.status(401).json({ error: 'invalid_token', error_description: 'Invalid registration access token' });
+        return null;
+      }
+      return stored;
+    };
+
+    router.get('/oauth/register/:clientId', async (req, res) => {
+      const clientId = req.params['clientId'];
+      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      const stored = await authenticateDcrRequest(req, res, clientId);
+      if (!stored) return;
+      const { registration_access_token: _rat, ...publicData } = stored;
+      res.json(publicData);
+    });
+
+    router.put('/oauth/register/:clientId', async (req, res) => {
+      const clientId = req.params['clientId'];
+      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      const stored = await authenticateDcrRequest(req, res, clientId);
+      if (!stored) return;
+
+      const { redirect_uris, client_name, scope, token_endpoint_auth_method } =
+        req.body as Record<string, string | string[] | undefined>;
+
+      if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+        res.status(400).json({ error: 'invalid_request', error_description: 'redirect_uris required' });
+        return;
+      }
+
+      const updated: Record<string, unknown> = {
+        ...stored,
+        redirect_uris,
+        client_name: typeof client_name === 'string' ? client_name : stored['client_name'],
+        scope: typeof scope === 'string' ? scope : stored['scope'],
+        token_endpoint_auth_method: typeof token_endpoint_auth_method === 'string'
+          ? token_endpoint_auth_method
+          : stored['token_endpoint_auth_method'],
+        updated_at: new Date().toISOString(),
+      };
+
+      await this.sessionStore.set(`dcr:${clientId}`, updated, { ttlMs: 365 * 24 * 60 * 60 * 1000 });
+      logger.info('Dynamic client updated', { clientId });
+      const { registration_access_token: _rat, ...publicData } = updated;
+      res.json(publicData);
+    });
+
+    router.delete('/oauth/register/:clientId', async (req, res) => {
+      const clientId = req.params['clientId'];
+      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      const stored = await authenticateDcrRequest(req, res, clientId);
+      if (!stored) return;
+      await this.sessionStore.delete(`dcr:${clientId}`);
+      logger.info('Dynamic client deleted', { clientId });
+      res.status(204).end();
     });
 
     return router;

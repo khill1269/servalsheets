@@ -122,6 +122,9 @@ export interface OAuthAuthorizationServerMetadata {
   grant_types_supported: string[];
   token_endpoint_auth_methods_supported: string[];
   code_challenge_methods_supported: string[];
+  op_policy_uri?: string;
+  op_tos_uri?: string;
+  registration_endpoint?: string;
 }
 
 /**
@@ -473,6 +476,10 @@ export function getOAuthAuthorizationServerMetadata(
   const isGoogleIssuer =
     !issuer || issuer.includes('google.com') || issuer.includes('accounts.google.com');
 
+  const policyUri = process.env['SERVAL_PRIVACY_POLICY_URI'];
+  const tosUri = process.env['SERVAL_TOS_URI'];
+  const registrationEndpoint = process.env['SERVAL_REGISTRATION_ENDPOINT'];
+
   if (isGoogleIssuer) {
     return {
       issuer: 'https://accounts.google.com',
@@ -482,11 +489,14 @@ export function getOAuthAuthorizationServerMetadata(
       jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
       scopes_supported: [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
         (v, i, a) => a.indexOf(v) === i
-      ), // Deduplicate
+      ),
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
       code_challenge_methods_supported: ['S256'],
+      ...(policyUri && { op_policy_uri: policyUri }),
+      ...(tosUri && { op_tos_uri: tosUri }),
+      ...(registrationEndpoint && { registration_endpoint: registrationEndpoint }),
     };
   }
 
@@ -504,6 +514,9 @@ export function getOAuthAuthorizationServerMetadata(
     grant_types_supported: ['authorization_code', 'refresh_token'],
     token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
     code_challenge_methods_supported: ['S256'],
+    ...(policyUri && { op_policy_uri: policyUri }),
+    ...(tosUri && { op_tos_uri: tosUri }),
+    ...(registrationEndpoint && { registration_endpoint: registrationEndpoint }),
   };
 }
 

@@ -814,6 +814,13 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       rowIndex++;
     }
 
+    if (namedRangeRequests.length > 100) {
+      return this._makeError({
+        code: 'INVALID_PARAMS',
+        message: `build_dependent_dropdown requires ${namedRangeRequests.length} named ranges but Google Sheets allows max 100 per batchUpdate. Split parent categories into groups of ≤100.`,
+        retryable: false,
+      });
+    }
     if (namedRangeRequests.length > 0) {
       await this.sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId,

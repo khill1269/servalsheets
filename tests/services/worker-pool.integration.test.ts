@@ -182,7 +182,7 @@ describe('WorkerPool - Analysis Worker Integration', () => {
       // Generate 100K rows
       const data: number[][] = [];
       for (let i = 0; i < 100000; i++) {
-        data.push([i, i * 2 + Math.random() * 10, 100 - i * 0.001 + Math.random() * 5]);
+        data.push([i, i * 2 + (i % 10), 100 - i * 0.001 + (i % 5)]);
       }
 
       const startTime = Date.now();

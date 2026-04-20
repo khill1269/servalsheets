@@ -93,8 +93,15 @@ export async function handleLogin(
         try {
           logger.info('Opening browser for OAuth...', { url: authUrl.substring(0, 100) + '...' });
           const subprocess = await open(authUrl, { wait: false });
-          subprocess.stdout?.destroy();
-          subprocess.stderr?.destroy();
+          // Detach the child so the MCP server's stdio stays clean. We must
+          // NOT destroy stdout/stderr immediately — on some platforms the
+          // launcher prints a line before the browser actually opens, and
+          // destroying the stream synchronously races the child's write and
+          // fires an EPIPE that shows up as an unhandled error in the log.
+          // Instead, drain streams without destroying and unref the handle
+          // so Node exits cleanly regardless.
+          subprocess.stdout?.resume();
+          subprocess.stderr?.resume();
           subprocess.unref();
           logger.info('Browser opened successfully');
         } catch (error) {

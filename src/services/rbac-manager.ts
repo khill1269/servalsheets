@@ -38,6 +38,64 @@ import {
 } from '../schemas/rbac.js';
 
 // ============================================================================
+// RANGE PARSING HELPERS
+// ============================================================================
+
+interface ParsedRange {
+  startCol: number; // 0 = unbounded (full row)
+  endCol: number;
+  startRow: number; // 0 = unbounded (full column)
+  endRow: number;
+}
+
+function colLetterToNumber(col: string): number {
+  let n = 0;
+  for (const c of col.toUpperCase()) {
+    n = n * 26 + (c.charCodeAt(0) - 64);
+  }
+  return n;
+}
+
+const CELL_REF_RE = /^([A-Z]*)(\d*)$/i;
+
+function parseCellRef(ref: string): { col: number; row: number } {
+  const match = CELL_REF_RE.exec(ref.trim());
+  if (!match) return { col: 0, row: 0 };
+  return {
+    col: match[1] ? colLetterToNumber(match[1]) : 0,
+    row: match[2] ? parseInt(match[2], 10) : 0,
+  };
+}
+
+function parseA1Range(range: string): ParsedRange | null {
+  // Strip optional sheet name prefix (e.g. "Sheet1!A1:B10" → "A1:B10")
+  const bangIdx = range.indexOf('!');
+  const a1 = bangIdx >= 0 ? range.slice(bangIdx + 1) : range;
+
+  const parts = a1.split(':');
+  const start = parseCellRef(parts[0] ?? '');
+  const end = parts[1] ? parseCellRef(parts[1]) : { col: start.col, row: start.row };
+
+  return {
+    startCol: start.col,
+    startRow: start.row,
+    endCol: end.col || start.col,
+    endRow: end.row || start.row,
+  };
+}
+
+function rangesOverlap(a: ParsedRange, b: ParsedRange): boolean {
+  // 0 means unbounded — treat as matching any value on that axis
+  const colOverlap =
+    (a.startCol === 0 || b.endCol === 0 || a.startCol <= b.endCol) &&
+    (a.endCol === 0 || b.startCol === 0 || a.endCol >= b.startCol);
+  const rowOverlap =
+    (a.startRow === 0 || b.endRow === 0 || a.startRow <= b.endRow) &&
+    (a.endRow === 0 || b.startRow === 0 || a.endRow >= b.startRow);
+  return colOverlap && rowOverlap;
+}
+
+// ============================================================================
 // RBAC MANAGER
 // ============================================================================
 
@@ -582,6 +640,58 @@ export class RbacManager {
       }
     }
 
+    // 4. Check range-level restrictions (only when a range is provided and resource rules have range config)
+    if (request.range && allPermissions.resourcePermissions.length > 0 && !hasDeny) {
+      const requestedRange = parseA1Range(request.range);
+      if (requestedRange) {
+        for (const resourcePerm of allPermissions.resourcePermissions) {
+          // Check denied ranges first — explicit deny wins
+          if (resourcePerm.deniedRanges?.length) {
+            for (const deniedA1 of resourcePerm.deniedRanges) {
+              const denied = parseA1Range(deniedA1);
+              if (denied && rangesOverlap(requestedRange, denied)) {
+                finalPermission = 'deny';
+                reason = resourcePerm.reason ?? `Range ${request.range} is explicitly denied`;
+                hasDeny = true;
+                matchedRules.push({
+                  ruleType: 'resource',
+                  ruleName: `range:${deniedA1}`,
+                  permission: 'deny',
+                });
+                break;
+              }
+            }
+          }
+          if (hasDeny) break;
+
+          // If allowedRanges is specified, the request must overlap at least one
+          if (resourcePerm.allowedRanges?.length) {
+            const inAllowed = resourcePerm.allowedRanges.some((allowedA1) => {
+              const allowed = parseA1Range(allowedA1);
+              return allowed && rangesOverlap(requestedRange, allowed);
+            });
+            if (inAllowed) {
+              finalPermission = 'allow';
+              reason = `Range ${request.range} is within allowed ranges`;
+              matchedRules.push({
+                ruleType: 'resource',
+                ruleName: `range:allowed_ranges`,
+                permission: 'allow',
+              });
+            } else {
+              finalPermission = 'deny';
+              reason = `Range ${request.range} is outside allowed ranges`;
+              matchedRules.push({
+                ruleType: 'resource',
+                ruleName: `range:allowed_ranges`,
+                permission: 'deny',
+              });
+            }
+          }
+        }
+      }
+    }
+
     const allowed = finalPermission === 'allow';
 
     const result: PermissionCheckResult = {
@@ -681,6 +791,7 @@ export class RbacManager {
       toolName: request.toolName,
       actionName: request.actionName,
       resourceId: request.resourceId,
+      range: request.range,
       permission: result.permission,
       allowed: result.allowed,
       reason: result.reason,

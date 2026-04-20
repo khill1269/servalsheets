@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CachedSheetsApi, resetCachedSheetsApi } from '../../src/services/cached-sheets-api.js';
+import { resetEnvForTest } from '../../src/config/env.js';
 
 // Mock the etag-cache to control caching behavior
 vi.mock('../../src/services/etag-cache.js', () => {
@@ -106,7 +107,10 @@ describe('CachedSheetsApi', () => {
   let mockSheets: ReturnType<typeof createMockSheetsApi>;
 
   beforeEach(async () => {
-    // Disable conditional requests so tests use the simpler local cache path
+    // Disable conditional requests so tests use the simpler local cache path.
+    // resetEnvForTest() must be called before setting process.env so getEnv()
+    // re-parses rather than returning the cached (default=true) value.
+    resetEnvForTest();
     process.env['ENABLE_CONDITIONAL_REQUESTS'] = 'false';
 
     // Reset singleton

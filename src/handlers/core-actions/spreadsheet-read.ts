@@ -1,6 +1,7 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
+import { getRootDriveFolderIds } from '../../mcp/roots-manager.js';
 import type {
   CoreBatchGetInput,
   CoreGetUrlInput,
@@ -212,6 +213,13 @@ export async function handleListAction(
   let q = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
   if (input.query) {
     q += ` and ${input.query}`;
+  }
+
+  // Scope to MCP root Drive folders when declared by the client
+  const rootFolderIds = getRootDriveFolderIds();
+  if (rootFolderIds.length > 0) {
+    const folderClauses = rootFolderIds.map((id) => `'${id}' in parents`).join(' or ');
+    q += ` and (${folderClauses})`;
   }
 
   try {

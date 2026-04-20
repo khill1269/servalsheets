@@ -66,7 +66,6 @@ const serverMain = read('src/server.ts');
 const envConfig = read('src/config/env.ts');
 const graphqlResolvers = read('src/graphql/resolvers.ts');
 const formulaEvaluator = read('src/services/formula-evaluator.ts');
-const googleFormulaService = read('src/services/google-formula-service.ts');
 const dependenciesHandler = read('src/handlers/dependencies.ts') + read('src/handlers/dependencies-actions/scenario.ts');
 const toolHandlers = read('src/mcp/registration/tool-handlers.ts');
 const auditMiddleware = read('src/middleware/audit-middleware.ts');
@@ -210,16 +209,7 @@ if (webhookSecurityDoc.includes('servalsheets/security/webhook-signature')) {
 }
 
 // Strategic integration debt markers: keep these modules until an explicit wire-or-delete decision.
-ensureExists(
-  'src/services/google-formula-service.ts',
-  'src/services/google-formula-service.ts is missing; this is a documented Layer-3 architecture component.',
-  issues
-);
-if (googleFormulaService.includes('deploymentId')) {
-  issues.push(
-    'src/services/google-formula-service.ts still references deploymentId; expected scriptId contract for Apps Script run API.'
-  );
-}
+// Note: google-formula-service.ts was intentionally deleted (zero imports, dead code — 2026-04-19)
 ensureExists(
   'src/config/action-field-masks.ts',
   'src/config/action-field-masks.ts is missing; delete only after an explicit optimization decision.',

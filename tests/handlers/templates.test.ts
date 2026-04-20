@@ -106,17 +106,6 @@ describe('SheetsTemplatesHandler', () => {
     mockContext = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock client type
       googleClient: {} as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      sheetsApi: mockSheetsApi as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock API type
-      driveApi: mockDriveApi as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock auth type
-      authClient: { credentials: { access_token: 'test-token' } } as any,
-      authService: {
-        isAuthenticated: vi.fn().mockReturnValue(true),
-        getClient: vi.fn().mockResolvedValue({}),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock service type
-      } as any,
       auth: {
         hasElevatedAccess: true,
         scopes: [
@@ -145,6 +134,8 @@ describe('SheetsTemplatesHandler', () => {
         }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock resolver type
       } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock compiler type
+      batchCompiler: { compile: vi.fn(), execute: vi.fn(), executeAll: vi.fn() } as any,
     };
 
     handler = new SheetsTemplatesHandler(mockContext, mockSheetsApi, mockDriveApi);
@@ -161,7 +152,7 @@ describe('SheetsTemplatesHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'templates' in result.response) {
@@ -177,7 +168,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'list',
           category: 'finance',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockDriveApi.files.list).toHaveBeenCalled();
@@ -189,7 +180,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'list',
           includeBuiltin: true,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'builtinCount' in result.response) {
@@ -197,7 +188,7 @@ describe('SheetsTemplatesHandler', () => {
         const builtins =
           result.response.templates?.filter((template) => template.id.startsWith('builtin:')) ?? [];
         // In test environment, builtin templates may not be available on disk
-        if (result.response.builtinCount > 0) {
+        if (result.response.builtinCount! > 0) {
           expect(builtins).toEqual(
             expect.arrayContaining([
               expect.objectContaining({
@@ -220,7 +211,7 @@ describe('SheetsTemplatesHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'templates' in result.response) {
@@ -236,10 +227,10 @@ describe('SheetsTemplatesHandler', () => {
         request: {
           action: 'list',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -250,12 +241,12 @@ describe('SheetsTemplatesHandler', () => {
           action: 'get',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
         expect(result.response.template).toBeDefined();
-        expect(result.response.template.id).toBe('template-1');
+        expect(result.response.template!.id).toBe('template-1');
       }
       expect(mockDriveApi.files.get).toHaveBeenCalledWith(
         expect.objectContaining({ fileId: 'template-1' })
@@ -270,10 +261,10 @@ describe('SheetsTemplatesHandler', () => {
           action: 'get',
           templateId: 'nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should get builtin template', async () => {
@@ -282,7 +273,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'get',
           templateId: 'builtin:budget',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       // May succeed or fail depending on builtin templates available
@@ -309,12 +300,12 @@ describe('SheetsTemplatesHandler', () => {
           action: 'get',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template.name).toBe('Budget Template');
-        expect(result.response.template.category).toBe('finance');
+        expect(result.response.template!.name).toBe('Budget Template');
+        expect(result.response.template!.category).toBe('finance');
       }
     });
 
@@ -326,10 +317,10 @@ describe('SheetsTemplatesHandler', () => {
           action: 'get',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -343,12 +334,12 @@ describe('SheetsTemplatesHandler', () => {
           description: 'Custom template',
           category: 'custom',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
         expect(result.response.template).toBeDefined();
-        expect(result.response.template.name).toBe('My Template');
+        expect(result.response.template!.name).toBe('My Template');
       }
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
       expect(mockDriveApi.files.create).toHaveBeenCalled();
@@ -362,7 +353,7 @@ describe('SheetsTemplatesHandler', () => {
           name: 'Data Template',
           includeData: true,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledWith(
@@ -380,7 +371,7 @@ describe('SheetsTemplatesHandler', () => {
           name: 'Structure Only',
           includeData: false,
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledWith(
@@ -397,7 +388,7 @@ describe('SheetsTemplatesHandler', () => {
           spreadsheetId: 'source-id',
           name: 'Header Template',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
@@ -414,10 +405,10 @@ describe('SheetsTemplatesHandler', () => {
           spreadsheetId: 'invalid-id',
           name: 'Failed Template',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should handle Drive API errors', async () => {
@@ -429,10 +420,10 @@ describe('SheetsTemplatesHandler', () => {
           spreadsheetId: 'source-id',
           name: 'Template',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -444,7 +435,7 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'template-1',
           title: 'My Budget 2024',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'spreadsheetId' in result.response) {
@@ -461,7 +452,7 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'builtin:budget',
           title: 'Budget 2024',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       // May succeed or fail depending on builtin templates
@@ -476,10 +467,10 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'nonexistent',
           title: 'New Sheet',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should apply template to specific folder', async () => {
@@ -490,7 +481,7 @@ describe('SheetsTemplatesHandler', () => {
           title: 'Budget 2024',
           folderId: 'folder-123',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
     });
@@ -510,7 +501,7 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'template-1',
           title: 'Test Sheet',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'spreadsheetId' in result.response) {
@@ -527,10 +518,10 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'template-1',
           title: 'Test',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should emit progress notifications for multi-sheet template application', async () => {
@@ -578,7 +569,7 @@ describe('SheetsTemplatesHandler', () => {
             templateId: 'template-1',
             title: 'My Multi Sheet Template',
           },
-        })
+        } as any)
       );
 
       expect(result.response.success).toBe(true);
@@ -602,7 +593,7 @@ describe('SheetsTemplatesHandler', () => {
           name: 'Updated Name',
           description: 'Updated description',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       expect(mockDriveApi.files.update).toHaveBeenCalled();
@@ -615,11 +606,11 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'builtin:budget',
           name: 'Cannot update',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('builtin');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('builtin');
     });
 
     it('should update template name only', async () => {
@@ -629,7 +620,7 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'template-1',
           name: 'New Name',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
     });
@@ -641,7 +632,7 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'template-1',
           category: 'analytics',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
     });
@@ -655,10 +646,10 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'nonexistent',
           name: 'Updated',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should handle Drive API errors', async () => {
@@ -670,10 +661,10 @@ describe('SheetsTemplatesHandler', () => {
           templateId: 'template-1',
           name: 'Updated',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -684,7 +675,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'delete',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       expect(mockDriveApi.files.delete).toHaveBeenCalledWith(
@@ -698,11 +689,11 @@ describe('SheetsTemplatesHandler', () => {
           action: 'delete',
           templateId: 'builtin:budget',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.message).toContain('builtin');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.message).toContain('builtin');
     });
 
     it('should handle template not found', async () => {
@@ -713,10 +704,10 @@ describe('SheetsTemplatesHandler', () => {
           action: 'delete',
           templateId: 'nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should handle Drive API errors', async () => {
@@ -727,10 +718,10 @@ describe('SheetsTemplatesHandler', () => {
           action: 'delete',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -741,7 +732,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'preview',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       if (result.response.success && 'preview' in result.response) {
@@ -756,7 +747,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'preview',
           templateId: 'builtin:budget',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       // May succeed or fail depending on builtin templates
@@ -770,10 +761,10 @@ describe('SheetsTemplatesHandler', () => {
           action: 'preview',
           templateId: 'nonexistent',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
 
     it('should handle Drive API errors', async () => {
@@ -784,10 +775,10 @@ describe('SheetsTemplatesHandler', () => {
           action: 'preview',
           templateId: 'template-1',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
+      expect((result.response as any).error).toBeDefined();
     });
   });
 
@@ -798,7 +789,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'import_builtin',
           builtinName: 'budget',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       // May succeed or fail depending on builtin templates
@@ -811,7 +802,7 @@ describe('SheetsTemplatesHandler', () => {
           builtinName: 'budget',
           customName: 'My Budget Template',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
     });
@@ -822,7 +813,7 @@ describe('SheetsTemplatesHandler', () => {
           action: 'import_builtin',
           builtinName: 'nonexistent_template',
         },
-      });
+      } as any);
 
       // May return error if template doesn't exist
       expect(result.response).toBeDefined();
@@ -835,7 +826,7 @@ describe('SheetsTemplatesHandler', () => {
           builtinName: 'budget',
           customName: 'Imported Budget',
         },
-      });
+      } as any);
 
       expect(result.response).toBeDefined();
       if (result.response.success && 'template' in result.response) {
@@ -849,14 +840,13 @@ describe('SheetsTemplatesHandler', () => {
     it('should handle unknown action', async () => {
       const result = await handler.handle({
         request: {
-          // @ts-expect-error - Testing invalid action
           action: 'invalid_action',
         },
-      });
+      } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('INVALID_PARAMS');
+      expect((result.response as any).error).toBeDefined();
+      expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
 });

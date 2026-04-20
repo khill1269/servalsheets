@@ -3,6 +3,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
+import { ErrorCodes } from '../error-codes.js';
 import { recordScriptId } from '../../mcp/completions.js';
 import type { AppsScriptHandlerAccess } from './internal.js';
 import type {
@@ -126,6 +127,30 @@ export async function handleUpdateContent(
   req: AppsScriptUpdateContentInput
 ): Promise<AppsScriptResponse> {
   logger.info(`Updating Apps Script content: ${req.scriptId}`);
+
+  const CONTENT_SIZE_LIMIT = 50_000;
+  const DENY_PATTERNS = [
+    /ScriptApp\.newTrigger/,
+    /PropertiesService\.getScriptProperties\(\)\.setProperty\(['"]SERVAL_HMAC_SECRET['"]/,
+  ];
+  for (const f of req.files) {
+    if (f.source.length > CONTENT_SIZE_LIMIT) {
+      return access.error({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: `File "${f.name}" source exceeds 50KB limit (${f.source.length} bytes)`,
+        retryable: false,
+      });
+    }
+    for (const pattern of DENY_PATTERNS) {
+      if (pattern.test(f.source)) {
+        return access.error({
+          code: ErrorCodes.VALIDATION_ERROR,
+          message: `File "${f.name}" references a restricted Apps Script API pattern`,
+          retryable: false,
+        });
+      }
+    }
+  }
 
   const body = {
     files: req.files.map((f) => ({

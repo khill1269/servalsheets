@@ -273,6 +273,16 @@ export class GoogleApiClient {
   private lastSuccessfulCall = Date.now();
   private connectionResetQueue: PQueue = new PQueue({ concurrency: 1 });
   private keepaliveInterval?: NodeJS.Timeout;
+  // Proactive GOAWAY rotation: track the most recent GOAWAY so we can
+  // (a) skip redundant resets when a storm of in-flight requests all fail
+  //     with the same session-level error, and
+  // (b) expose telemetry via `recordHttp2ConnectionReset('goaway_*')`.
+  private lastGoawayAt: number | undefined;
+  // Minimum interval between GOAWAY-triggered resets. Google's HTTP/2
+  // load balancers emit GOAWAY every ~1000 streams or on rolling restarts;
+  // debouncing prevents us from thrashing the agent pool if multiple
+  // in-flight requests fail simultaneously.
+  private static readonly GOAWAY_DEBOUNCE_MS = 2000;
 
   // Shared Drive rate limiter
   private sharedDriveRateLimiter: SharedDriveRateLimiter;
@@ -736,16 +746,39 @@ export class GoogleApiClient {
   /**
    * Force reset HTTP/2 connections on GOAWAY or similar connection errors.
    * Called by the retry wrapper before retrying a failed request.
+   *
+   * Debounced: a burst of in-flight requests hitting the same GOAWAY all
+   * call into here simultaneously. We short-circuit subsequent calls within
+   * `GOAWAY_DEBOUNCE_MS` so we don't thrash the agent pool. Telemetry still
+   * records each event so burst size is observable.
    */
   public async resetOnConnectionError(): Promise<void> {
+    const now = Date.now();
+    const sinceLast = this.lastGoawayAt ? now - this.lastGoawayAt : Infinity;
+
+    // Record every GOAWAY observation (for SLO dashboards), but only trigger
+    // the expensive agent rebuild when we're outside the debounce window.
+    (await getMetrics())?.recordHttp2ConnectionReset(
+      sinceLast < GoogleApiClient.GOAWAY_DEBOUNCE_MS ? 'goaway_debounced' : 'goaway_retry'
+    );
+
+    if (sinceLast < GoogleApiClient.GOAWAY_DEBOUNCE_MS) {
+      logger.debug('GOAWAY reset debounced — recent reset still settling', {
+        sinceLastMs: sinceLast,
+        debounceMs: GoogleApiClient.GOAWAY_DEBOUNCE_MS,
+      });
+      return;
+    }
+
     if (this.connectionResetQueue.pending > 0) {
       return; // Already resetting
     }
 
+    this.lastGoawayAt = now;
+
     await this.connectionResetQueue.add(async () => {
       try {
         logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
-        (await getMetrics())?.recordHttp2ConnectionReset('goaway_retry');
         await this.resetHttpAgents();
         this.consecutiveErrors = 0;
         logger.info('HTTP/2 connections reset successfully for retry');
@@ -753,6 +786,14 @@ export class GoogleApiClient {
         logger.error('Failed to reset connections for retry', { error });
       }
     });
+  }
+
+  /**
+   * Returns the timestamp of the last observed GOAWAY reset, or undefined
+   * if none has occurred. Exposed for tests and diagnostic endpoints.
+   */
+  public getLastGoawayAt(): number | undefined {
+    return this.lastGoawayAt;
   }
 
   /**
@@ -797,7 +838,9 @@ export class GoogleApiClient {
    */
   public async refreshTokenOnAuthError(): Promise<void> {
     if (this.tokenManager) {
-      await this.tokenManager.refreshTokenOnAuthError();
+      await this.tokenRefreshQueue.add(async () => {
+        await this.tokenManager!.refreshTokenOnAuthError();
+      });
     }
   }
 

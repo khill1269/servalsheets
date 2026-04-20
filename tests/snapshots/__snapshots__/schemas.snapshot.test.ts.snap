@@ -30415,6 +30415,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                 "alias": {
                   "default": "left",
                   "description": "SQL alias for left table",
+                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
                   "type": "string"
                 },
                 "range": {
@@ -30542,6 +30543,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             },
             "on": {
               "description": "JOIN condition (e.g., \\"left.id = right.id\\")",
+              "maxLength": 500,
+              "pattern": "^[a-zA-Z0-9_\\\\.\\\\s=<>!()'\\"]+$",
               "type": "string"
             },
             "right": {
@@ -30550,6 +30553,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                 "alias": {
                   "default": "right",
                   "description": "SQL alias for right table",
+                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
                   "type": "string"
                 },
                 "range": {
@@ -30778,6 +30782,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             },
             "select": {
               "description": "SELECT clause (default: *)",
+              "maxLength": 500,
+              "pattern": "^[a-zA-Z0-9_\\\\*,\\\\s\\\\.()]+$",
               "type": "string"
             },
             "spreadsheetId": {

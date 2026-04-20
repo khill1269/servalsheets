@@ -108,6 +108,19 @@ export class RangeResolver {
    * Resolve A1 notation directly
    */
   private async resolveA1(spreadsheetId: string, a1: string): Promise<ResolvedRange> {
+    // Defensive guard: internal callers occasionally pass a wrapped form
+    // like `{ a1: 'Sheet1!A1' }` or undefined when a schema precondition
+    // is bypassed. Surface that as a typed error instead of a
+    // `a1.match is not a function` TypeError that crashes the handler.
+    if (typeof a1 !== 'string') {
+      throw new RangeResolutionError(
+        `Expected A1 notation to be a string, got ${a1 === null ? 'null' : typeof a1}. ` +
+          `Pass the raw A1 string (e.g. "Sheet1!A1:Z200"), not a wrapped object.`,
+        'INVALID_RANGE',
+        { received: a1 === null ? 'null' : typeof a1 }
+      );
+    }
+
     // Check if input is JUST a range (e.g., "A1:Z200") without sheet qualifier
     // A1 notation pattern: optional column letters, optional row numbers, optional colon, repeat
     const rangeOnlyPattern = /^[A-Z]+\d*(?::[A-Z]+\d*)?$/i;
@@ -512,7 +525,9 @@ export class RangeResolver {
    * Convert A1 reference to grid range
    */
   private a1ToGridRange(sheetId: number, a1: string): GridRange {
-    if (!a1) {
+    // Defensive guard — callers occasionally pass a wrapped object when
+    // schema validation was bypassed. Avoid `a1.match is not a function`.
+    if (typeof a1 !== 'string' || !a1) {
       return { sheetId };
     }
 

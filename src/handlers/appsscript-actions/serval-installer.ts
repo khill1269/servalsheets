@@ -31,6 +31,13 @@ export async function handleInstallServalFunction(
 
   const hmacSecret = randomBytes(32).toString('hex');
   const defaultModel = req.defaultModel ?? 'claude-sonnet-4-6';
+  if (!/^[\w.-]+$/.test(defaultModel)) {
+    return access.error({
+      code: ErrorCodes.VALIDATION_ERROR,
+      message: 'defaultModel contains invalid characters (only alphanumeric, hyphens, underscores, dots allowed)',
+      retryable: false,
+    });
+  }
   const callbackBaseUrlRaw =
     req.callbackUrl ?? process.env['SERVAL_CALLBACK_URL'] ?? process.env['SERVALSHEETS_BASE_URL'];
   if (!callbackBaseUrlRaw) {

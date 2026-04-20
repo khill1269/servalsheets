@@ -28,9 +28,13 @@ export function isFlatToolName(toolName: string): boolean {
 }
 
 /**
- * The 25 compound tool names. Used for fast exclusion in isFlatToolName.
+ * The 25 compound tool names. Used for fast exclusion in isFlatToolName
+ * and by the flat-tool interceptor to short-circuit compound dispatch.
+ *
+ * Exported so consumers (like flat-tool-call-interceptor) share the same
+ * source of truth — avoids duplicate compound-name tables drifting apart.
  */
-const COMPOUND_TOOL_NAMES: ReadonlySet<string> = new Set([
+export const COMPOUND_TOOL_NAMES: ReadonlySet<string> = new Set([
   'sheets_auth',
   'sheets_core',
   'sheets_data',

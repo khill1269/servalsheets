@@ -258,6 +258,7 @@ export class WebhookManager {
       // We watch the spreadsheet file for changes via Drive API
       const watchResponse = await this.googleApi.drive.files.watch({
         fileId: input.spreadsheetId,
+        supportsAllDrives: true,
         requestBody: {
           id: channelId,
           type: 'web_hook',
@@ -718,6 +719,7 @@ export class WebhookManager {
 
             const watchResponse = await this.googleApi.drive.files.watch({
               fileId: record.spreadsheetId,
+              supportsAllDrives: true,
               requestBody: {
                 id: newChannelId,
                 type: 'web_hook',

@@ -2,6 +2,7 @@ import { z, type ZodSchema, type ZodTypeAny } from '../../lib/schema.js';
 import { TOOL_ACTIONS } from '../completions.js';
 import { logger } from '../../utils/logger.js';
 import { parseWithCache } from '../../utils/schema-cache.js';
+import { resolveActionAlias } from '../../schemas/action-aliases.js';
 
 type PlainRecord = Record<string, unknown>;
 
@@ -161,7 +162,34 @@ export function detectLegacyInvocation(args: unknown): string | null {
   return null;
 }
 
-export function normalizeToolArgs(args: unknown): PlainRecord {
+/**
+ * Apply an action-rename alias to a request record in place.
+ *
+ * If `request.action` matches a registered alias for `toolName`, rewrite it
+ * to the canonical action name and log a deprecation warning. No-op when
+ * toolName is absent or the action isn't aliased.
+ *
+ * Kept internal — consumers call `normalizeToolArgs(args, toolName)` to
+ * trigger alias resolution.
+ */
+function applyActionAlias(request: PlainRecord, toolName: string | undefined): void {
+  if (!toolName) return;
+  const action = request['action'];
+  if (typeof action !== 'string') return;
+  const alias = resolveActionAlias(toolName, action);
+  if (!alias) return;
+  logger.warn('mcp.deprecation.alias_used', {
+    tool: toolName,
+    oldAction: action,
+    newAction: alias.canonical,
+    deprecatedSince: alias.deprecatedSince,
+    removeIn: alias.removeIn,
+    reason: alias.reason,
+  });
+  request['action'] = alias.canonical;
+}
+
+export function normalizeToolArgs(args: unknown, toolName?: string): PlainRecord {
   if (!isPlainRecord(args)) {
     logger.warn(
       'normalizeToolArgs: received non-object args, falling back to empty record for Zod validation',
@@ -173,25 +201,29 @@ export function normalizeToolArgs(args: unknown): PlainRecord {
   const rootParams = args['params'];
   if (isPlainRecord(rootParams)) {
     const action = typeof args['action'] === 'string' ? { action: args['action'] } : {};
-    return {
-      request: normalizeRangeFields({ ...rootParams, ...action }),
-    };
+    const merged = normalizeRangeFields({ ...rootParams, ...action }) as PlainRecord;
+    applyActionAlias(merged, toolName);
+    return { request: merged };
   }
 
   const request = args['request'];
   if (!isPlainRecord(request)) {
-    return { request: normalizeRangeFields(args) };
+    const merged = normalizeRangeFields(args) as PlainRecord;
+    applyActionAlias(merged, toolName);
+    return { request: merged };
   }
 
   const nestedParams = request['params'];
   if (isPlainRecord(nestedParams)) {
     const action = typeof request['action'] === 'string' ? { action: request['action'] } : {};
-    return {
-      request: normalizeRangeFields({ ...nestedParams, ...action }),
-    };
+    const merged = normalizeRangeFields({ ...nestedParams, ...action }) as PlainRecord;
+    applyActionAlias(merged, toolName);
+    return { request: merged };
   }
 
-  return { request: normalizeRangeFields(request) };
+  const merged = normalizeRangeFields(request) as PlainRecord;
+  applyActionAlias(merged, toolName);
+  return { request: merged };
 }
 
 export const parseForHandler = <T>(
