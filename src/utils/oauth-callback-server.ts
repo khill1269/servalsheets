@@ -55,11 +55,11 @@ function isAddressInUseError(err: unknown): err is NodeJS.ErrnoException {
 
 async function bindServer(server: http.Server, host: string, port: number): Promise<number> {
   return new Promise((resolve, reject) => {
-    const onError = (err: Error) => {
+    const onError = (err: Error): void => {
       server.removeListener('listening', onListening);
       reject(err);
     };
-    const onListening = () => {
+    const onListening = (): void => {
       server.removeListener('error', onError);
       const addr = server.address();
       const boundPort = typeof addr === 'object' && addr !== null ? addr.port : port;

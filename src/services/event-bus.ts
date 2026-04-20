@@ -25,7 +25,6 @@ import { logger } from '../utils/logger.js';
 
 // Bypass TypeScript's static module resolution for optional peer dependencies.
 // These packages may not be installed; dynamic import is caught at runtime.
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
 const optionalImport = new Function('m', 'return import(m)') as (m: string) => Promise<unknown>;
 
 // ============================================================================

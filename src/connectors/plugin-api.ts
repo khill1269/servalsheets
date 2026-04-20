@@ -120,7 +120,8 @@ export class ConnectorPluginLoader {
       throw new Error(
         `ConnectorPluginLoader: failed to import '${packageName}'. ` +
           `Ensure the package is installed (npm install ${packageName}). ` +
-          `Original error: ${err instanceof Error ? err.message : String(err)}`
+          `Original error: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err }
       );
     }
 
