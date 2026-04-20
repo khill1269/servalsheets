@@ -224,6 +224,9 @@ jobs:
           retry_wait_seconds: 30
           command: npm ci
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run fast tests with retry (shard ${{ matrix.shard }}/4)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -255,6 +258,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci
+
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Run snapshot regression suite
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -315,6 +321,9 @@ jobs:
             ${{ runner.os }}-turbo-test-
             ${{ runner.os }}-turbo-
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run integration tests with retry (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -347,6 +356,9 @@ jobs:
           retry_wait_seconds: 30
           command: npm ci
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run MCP HTTP task contract checks
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -378,6 +390,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci
+
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Run HTTP transport failover regression
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
