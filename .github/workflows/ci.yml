@@ -236,6 +236,9 @@ jobs:
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run fast tests with retry (shard ${{ matrix.shard }}/4)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -267,6 +270,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
+
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Run snapshot regression suite
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -317,6 +323,9 @@ jobs:
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -359,6 +368,9 @@ jobs:
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run MCP HTTP task contract checks
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -390,6 +402,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
+
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Run HTTP transport failover regression
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -684,10 +699,12 @@ jobs:
         run: npm run check:security-exceptions
 
       - name: Run security audit (fail on high/critical)
-        # continue-on-error: node-saml → xml-encryption → node-forge has unfixable high/critical
-        # vulns with no upstream fix. Re-evaluate when node-saml v4 stable ships.
-        continue-on-error: true
-        run: npm audit --audit-level=high
+        # Allowlisted CVEs (no fix available, unfixable transitive deps). See SECURITY_EXCEPTIONS.md.
+        # node-tar GHSAs via duckdb → node-gyp; GHSA-65ch-62r8-g69g via node-saml.
+        # Any NEW CVE not in this list will still fail CI.
+        run: >
+          npm audit --audit-level=high
+          --allow-ghsas GHSA-65ch-62r8-g69g,GHSA-34x7-hfp2-rc4v,GHSA-8qq5-rm4j-mr97,GHSA-83g3-92jg-28cx,GHSA-qffp-2rhf-9h96,GHSA-9ppj-qmqm-q256,GHSA-r6q2-hw4h-h46w,GHSA-vpq2-c234-7xj6
 
       - name: Run security audit (warn on moderate)
         run: npm audit --audit-level=moderate
