@@ -22,7 +22,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade MCP server for Google Sheets with 25 tools, 409 actions"
+      "description": "Production-grade MCP server for Google Sheets — 25 tools, 409 actions"
     }
   ],
   "tools": [
