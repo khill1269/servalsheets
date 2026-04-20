@@ -64,9 +64,9 @@ export function extractMcpLogEntry(
   message: unknown,
   meta: unknown[]
 ): ExtractedMcpLogEntry | null {
-  let level = 'info';
+  let level: string;
   let text = '';
-  let data: unknown = message;
+  let data: unknown;
 
   if (typeof levelOrEntry === 'string') {
     level = levelOrEntry;

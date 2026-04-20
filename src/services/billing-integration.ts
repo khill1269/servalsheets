@@ -121,7 +121,7 @@ export class BillingIntegration extends EventEmitter {
     return customer.metadata?.['plan'] || 'free';
   }
 
-  private getMonthlySpend(customer: Stripe.Customer): number {
+  private getMonthlySpend(_customer: Stripe.Customer): number {
     // Calculate from invoices or subscription price
     return 0; // Placeholder
   }

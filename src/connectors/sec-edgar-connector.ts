@@ -221,7 +221,7 @@ export class SecEdgarConnector implements SpreadsheetConnector {
     // Enforce SEC rate limit (10 req/sec)
     await this.enforceRateLimit();
 
-    let url = '';
+    let url: string;
     let headers: Record<string, string> = {
       'User-Agent': this.userAgent,
       Accept: 'application/json',

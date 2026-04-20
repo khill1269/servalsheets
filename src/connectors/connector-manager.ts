@@ -780,7 +780,7 @@ function applyTransform(data: DataResult, transform: TransformSpec): DataResult 
         for (let i = 0; i < headers.length - 1; i++) {
           ctx[headers[i]!] = row[i] ?? null;
         }
-        let result: string | number | boolean | null = null;
+        let result: string | number | boolean | null;
         try {
           // Support simple arithmetic: column references and operators
           let expr = calc.expression;
