@@ -26,7 +26,9 @@ export function registerHttpFoundationMiddleware(params: {
     ...params,
     envConfig: {
       OAUTH_ISSUER: (envConfig['OAUTH_ISSUER'] as string | undefined) ?? '',
-      STRICT_MCP_PROTOCOL_VERSION: Boolean(envConfig['STRICT_MCP_PROTOCOL_VERSION']),
+      STRICT_MCP_PROTOCOL_VERSION:
+        envConfig['STRICT_MCP_PROTOCOL_VERSION'] === true ||
+        envConfig['STRICT_MCP_PROTOCOL_VERSION'] === 'true',
     },
     nodeEnv: process.env['NODE_ENV'] ?? '',
     extraAllowedHosts:

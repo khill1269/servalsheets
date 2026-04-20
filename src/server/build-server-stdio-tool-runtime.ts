@@ -47,7 +47,10 @@ import {
 } from '../../packages/mcp-stdio/dist/build-stdio-tool-runtime.js';
 import { createMetadataCache } from '../services/metadata-cache.js';
 import { recordToolCall, updateQueueMetrics } from '../observability/metrics.js';
-import { setRegisteredToolRuntime } from '../mcp/registration/registered-tool-runtime.js';
+import {
+  setRegisteredToolRuntime,
+  resetRegisteredToolRuntime,
+} from '../mcp/registration/registered-tool-runtime.js';
 
 type CachedHandlerMap = Record<string, (args: unknown, extra?: unknown) => Promise<unknown>>;
 
@@ -132,12 +135,31 @@ export function buildServerStdioToolRuntime(
       CachedHandlerMap
     >,
     {
-      registerResources: () =>
-        registerServerResources({
-          server: input.server,
-          googleClient: input.getGoogleClient(),
-          context: input.getContext(),
-        }),
+      registerResources: async () => {
+        try {
+          await registerServerResources({
+            server: input.server,
+            googleClient: input.getGoogleClient(),
+            context: input.getContext(),
+          });
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.includes('Cannot register capabilities after connecting')
+          ) {
+            // Transport is already connected — resources cannot be registered via MCP SDK.
+            // This is expected when resource discovery is deferred to first tool access in
+            // production STDIO mode. Swallow so the registration guard marks done and
+            // subsequent tool calls are not blocked.
+            log.warn(
+              'Resource registration skipped — transport already connected (deferred-registration mode)',
+              { reason: error.message }
+            );
+            return;
+          }
+          throw error;
+        }
+      },
       executeToolCall: {
         updateQueueMetrics,
         createAbortError: (reason) => createRequestAbortError(reason),
@@ -188,6 +210,17 @@ export function buildServerStdioToolRuntime(
       getToolExecution: (toolName) => TOOL_EXECUTION_CONFIG[toolName],
       registerTaskTool: (name, config, handler) => {
         input.server.experimental.tasks.registerToolTask(name, config, handler);
+        const taskRuntimeHandler = Object.assign(
+          async (_args: Record<string, unknown>, _extra?: unknown): Promise<CallToolResult> => {
+            throw new Error(`Task-only tool ${name} must be invoked as a task`);
+          },
+          { createTask: handler.createTask }
+        );
+        setRegisteredToolRuntime(name, {
+          enabled: true,
+          execution: config.execution,
+          handler: taskRuntimeHandler,
+        });
       },
       registerTool: (name, config, handler) => {
         (
@@ -213,6 +246,7 @@ export function buildServerStdioToolRuntime(
         });
       },
       initializeStageManager: (registerNewTools) => {
+        resetRegisteredToolRuntime();
         toolStageManager.initialize(TOOL_DEFINITIONS, registerNewTools);
       },
       getInitialTools: () => toolStageManager.getInitialTools(),

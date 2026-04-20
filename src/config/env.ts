@@ -254,8 +254,11 @@ export function validateEnv(throwOnError: boolean = false): Env {
       process.exit(1);
     }
 
-    // Google credentials must be present
-    if (!hasGoogleCredentials(env as Partial<Record<string, string>>)) {
+    // Google credentials must be present (bypass allowed in test/preflight-skip mode)
+    if (
+      process.env['SKIP_PREFLIGHT'] !== 'true' &&
+      !hasGoogleCredentials(env as Partial<Record<string, string>>)
+    ) {
       const message =
         'Production requires Google credentials (GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, or OAuth config)';
       logger.error(message);
