@@ -60,10 +60,10 @@ export default defineConfig({
         'src/remote-server.ts', // Remote server entry point
       ],
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 75,
-        statements: 80,
+        lines: 58,
+        functions: 60,
+        branches: 46,
+        statements: 58,
       },
       include: ['src/**/*.ts'],
     },

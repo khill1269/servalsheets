@@ -54,7 +54,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm run build -w packages/serval-core
-          node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
+          NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
           npm run generate:metadata
 
       - name: Verify dist artifacts exist
@@ -90,7 +90,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm run build -w packages/serval-core
-          node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
+          NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
           npm run generate:metadata
 
       - uses: superfly/flyctl-actions/setup-flyctl@63da3ecc5e2793b98a3f2519b3d75d4f4c11cec2 # master
