@@ -25,7 +25,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "prebuild": "npm run build -w packages/serval-core",
+    "prebuild": "npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio",
     "build": "tsc && npm run generate:metadata",
     "build:docker": "npm run build --workspaces --if-present && tsc",
     "build:cli": "tsc && node dist/cli.js",
@@ -195,6 +195,12 @@
     "typescript": "^6.0.2",
     "vitest": "^4.1.4",
     "yaml": "^2.8.3"
+  },
+  "overrides": {
+    "xmldom": "npm:@xmldom/xmldom@^0.9.0",
+    "handlebars": "^4.7.9",
+    "diff": ">=8.0.3",
+    "protobufjs": "^7.5.5"
   },
   "workspaces": [
     "packages/mcp-client",
