@@ -140,10 +140,8 @@ export function extractTextFromResult(result: SamplingCreateMessageResult): stri
 // ============================================================================
 
 // Env var overrides allow deployment-specific model selection without code changes
-const SONNET_MODEL =
-  process.env['SAMPLING_SONNET_MODEL'] ?? 'claude-sonnet-4-6';
-const HAIKU_MODEL =
-  process.env['SAMPLING_HAIKU_MODEL'] ?? 'claude-haiku-4-5-20251001';
+const SONNET_MODEL = process.env['SAMPLING_SONNET_MODEL'] ?? 'claude-sonnet-4-6';
+const HAIKU_MODEL = process.env['SAMPLING_HAIKU_MODEL'] ?? 'claude-haiku-4-5-20251001';
 
 /**
  * Route sampling requests to the appropriate model based on operation complexity.

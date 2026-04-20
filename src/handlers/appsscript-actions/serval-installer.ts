@@ -34,7 +34,8 @@ export async function handleInstallServalFunction(
   if (!/^[\w.-]+$/.test(defaultModel)) {
     return access.error({
       code: ErrorCodes.VALIDATION_ERROR,
-      message: 'defaultModel contains invalid characters (only alphanumeric, hyphens, underscores, dots allowed)',
+      message:
+        'defaultModel contains invalid characters (only alphanumeric, hyphens, underscores, dots allowed)',
       retryable: false,
     });
   }

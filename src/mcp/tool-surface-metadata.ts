@@ -283,7 +283,8 @@ export const TOOL_AGENCY_HINTS: Record<string, ToolAgencyHint> = {
   },
   sheets_collaborate: {
     level: 'orchestrated',
-    reason: 'Approval and version workflows require multi-step create -> review -> resolve sequences',
+    reason:
+      'Approval and version workflows require multi-step create -> review -> resolve sequences',
   },
   sheets_history: {
     level: 'orchestrated',

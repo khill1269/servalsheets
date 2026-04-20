@@ -170,7 +170,9 @@ export class DocsConnector implements SpreadsheetConnector {
     }
 
     if (endpoint === 'documents/search') {
-      const escapedQuery = String(params['query'] || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedQuery = String(params['query'] || '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
       const query = `mimeType='application/vnd.google-apps.document' and name contains '${escapedQuery}'`;
       const url = new URL('https://www.googleapis.com/drive/v3/files');
       url.searchParams.set('q', query);

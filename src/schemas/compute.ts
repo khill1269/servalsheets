@@ -366,7 +366,10 @@ const SqlQueryActionSchema = CommonFieldsSchema.extend({
 
 const SqlJoinAliasSchema = z
   .string()
-  .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, 'Alias must be a valid SQL identifier (letters, digits, underscores)');
+  .regex(
+    /^[a-zA-Z_][a-zA-Z0-9_]*$/,
+    'Alias must be a valid SQL identifier (letters, digits, underscores)'
+  );
 
 const SqlJoinActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sql_join').describe('Join two ranges using SQL JOIN semantics via DuckDB'),

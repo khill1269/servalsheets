@@ -228,9 +228,9 @@ jobs:
       - name: Build All MCP Servers
         run: |
           echo "📦 Building all MCP servers..."
-          cd tools/google-docs-server && npm ci && npm run build
-          cd ../test-intelligence-server && npm ci && npm run build
-          cd ../gcloud-console-server && npm ci && npm run build
+          cd tools/google-docs-server && npm install --ignore-scripts && npm run build
+          cd ../test-intelligence-server && npm install --ignore-scripts && npm run build
+          cd ../gcloud-console-server && npm install --ignore-scripts && npm run build
 
       - name: Run Fast Tests
         run: npm run test:fast

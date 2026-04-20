@@ -243,7 +243,11 @@ export class AuditLogger {
    */
   private async saveChainState(): Promise<void> {
     const statePath = join(this.logDir, '.chain-state.json');
-    const state = { date: this.currentDate, previousHash: this.previousHash, sequenceNumber: this.sequenceNumber };
+    const state = {
+      date: this.currentDate,
+      previousHash: this.previousHash,
+      sequenceNumber: this.sequenceNumber,
+    };
     await fs.writeFile(statePath, JSON.stringify(state), { mode: 0o600 });
   }
 
@@ -256,11 +260,18 @@ export class AuditLogger {
     const statePath = join(this.logDir, '.chain-state.json');
     try {
       const raw = await fs.readFile(statePath, 'utf-8');
-      const state = JSON.parse(raw) as { date: string; previousHash: string; sequenceNumber: number };
+      const state = JSON.parse(raw) as {
+        date: string;
+        previousHash: string;
+        sequenceNumber: number;
+      };
       if (state.date !== this.currentDate && typeof state.previousHash === 'string') {
         // Different day — carry the last hash forward as the genesis for today
         this.previousHash = state.previousHash;
-        logger.debug('Loaded cross-day chain state', { fromDate: state.date, toDate: this.currentDate });
+        logger.debug('Loaded cross-day chain state', {
+          fromDate: state.date,
+          toDate: this.currentDate,
+        });
       }
     } catch {
       // No state file yet — genesis hash stays as zeros (expected on first run)
@@ -851,7 +862,12 @@ export class AuditLogger {
           try {
             entry = this.parseLogEntry(line);
           } catch {
-            return { valid: false, filesChecked, entriesChecked, firstViolation: { file: fileName, sequenceNumber: -1, reason: 'Parse error' } };
+            return {
+              valid: false,
+              filesChecked,
+              entriesChecked,
+              firstViolation: { file: fileName, sequenceNumber: -1, reason: 'Parse error' },
+            };
           }
 
           if (entry.previousHash !== chainHash) {
@@ -859,7 +875,11 @@ export class AuditLogger {
               valid: false,
               filesChecked,
               entriesChecked,
-              firstViolation: { file: fileName, sequenceNumber: entry.sequenceNumber, reason: `previousHash mismatch (expected ${chainHash.slice(0, 8)}…, got ${entry.previousHash.slice(0, 8)}…)` },
+              firstViolation: {
+                file: fileName,
+                sequenceNumber: entry.sequenceNumber,
+                reason: `previousHash mismatch (expected ${chainHash.slice(0, 8)}…, got ${entry.previousHash.slice(0, 8)}…)`,
+              },
             };
           }
 
@@ -874,7 +894,11 @@ export class AuditLogger {
               valid: false,
               filesChecked,
               entriesChecked,
-              firstViolation: { file: fileName, sequenceNumber: entry.sequenceNumber, reason: 'HMAC hash mismatch' },
+              firstViolation: {
+                file: fileName,
+                sequenceNumber: entry.sequenceNumber,
+                reason: 'HMAC hash mismatch',
+              },
             };
           }
 
@@ -889,7 +913,12 @@ export class AuditLogger {
       return { valid: true, filesChecked, entriesChecked };
     } catch (error) {
       logger.error('Failed to verify full audit log chain', { error });
-      return { valid: false, filesChecked, entriesChecked, firstViolation: { file: '', sequenceNumber: -1, reason: String(error) } };
+      return {
+        valid: false,
+        filesChecked,
+        entriesChecked,
+        firstViolation: { file: '', sequenceNumber: -1, reason: String(error) },
+      };
     }
   }
 }

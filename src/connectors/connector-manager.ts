@@ -914,7 +914,9 @@ export class ConnectorManager {
    * must be called separately to supply real credentials.
    */
   registerPlugin(plugin: ConnectorPlugin): void {
-    const connector = plugin.factory({ type: plugin.manifest.authType === 'none' ? 'none' : 'api_key' });
+    const connector = plugin.factory({
+      type: plugin.manifest.authType === 'none' ? 'none' : 'api_key',
+    });
     this.register(connector);
     logger.info('Connector plugin registered', {
       id: plugin.manifest.id,

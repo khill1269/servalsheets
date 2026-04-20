@@ -697,8 +697,10 @@ async function runStepWithGuards(
   // Mid-execution elicitation for destructive steps in interactive mode
   const actionKey = `${step.tool}.${step.action}`;
   if (interactiveMode && elicitationServer && DESTRUCTIVE_AGENT_ACTIONS.has(actionKey)) {
-    const rangeInfo = typeof step.params['range'] === 'string' ? ` on range ${step.params['range']}` : '';
-    const sheetInfo = typeof step.params['sheetName'] === 'string' ? ` sheet "${step.params['sheetName']}"` : '';
+    const rangeInfo =
+      typeof step.params['range'] === 'string' ? ` on range ${step.params['range']}` : '';
+    const sheetInfo =
+      typeof step.params['sheetName'] === 'string' ? ` sheet "${step.params['sheetName']}"` : '';
     const confirmation = await confirmDestructiveAction(
       elicitationServer,
       `Agent plan: ${step.description}`,
@@ -708,7 +710,8 @@ async function runStepWithGuards(
       return {
         status: 'pause',
         pauseReason: `User declined destructive step: ${step.description}`,
-        suggestedFix: confirmation.reason ?? 'The step was not approved. Modify the plan or skip this step.',
+        suggestedFix:
+          confirmation.reason ?? 'The step was not approved. Modify the plan or skip this step.',
         stepResult: {
           stepId: step.stepId,
           success: false,

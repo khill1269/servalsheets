@@ -81,7 +81,10 @@ export function installStdioGuard(): void {
     // Non-JSON on stdout — redirect to stderr with a prefix so the operator
     // can see who was about to corrupt the protocol. Truncate long payloads
     // to keep log noise bounded.
-    const preview = asString.length > 500 ? `${asString.slice(0, 500)}…(truncated ${asString.length} bytes)` : asString;
+    const preview =
+      asString.length > 500
+        ? `${asString.slice(0, 500)}…(truncated ${asString.length} bytes)`
+        : asString;
     const suffix = preview.endsWith('\n') ? '' : '\n';
     process.stderr.write(`[STDIO-GUARD] non-JSON stdout write blocked: ${preview}${suffix}`);
 

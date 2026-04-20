@@ -65,11 +65,16 @@ function validateManifest(raw: unknown, packageName: string): ConnectorPluginMan
     throw new Error(`Plugin ${packageName}: manifest must be an object`);
   }
   const m = raw as Record<string, unknown>;
-  if (typeof m['id'] !== 'string' || !m['id']) throw new Error(`Plugin ${packageName}: manifest.id is required`);
-  if (typeof m['name'] !== 'string' || !m['name']) throw new Error(`Plugin ${packageName}: manifest.name is required`);
-  if (typeof m['version'] !== 'string') throw new Error(`Plugin ${packageName}: manifest.version is required`);
+  if (typeof m['id'] !== 'string' || !m['id'])
+    throw new Error(`Plugin ${packageName}: manifest.id is required`);
+  if (typeof m['name'] !== 'string' || !m['name'])
+    throw new Error(`Plugin ${packageName}: manifest.name is required`);
+  if (typeof m['version'] !== 'string')
+    throw new Error(`Plugin ${packageName}: manifest.version is required`);
   if (!['api_key', 'oauth2', 'none'].includes(m['authType'] as string)) {
-    throw new Error(`Plugin ${packageName}: manifest.authType must be 'api_key' | 'oauth2' | 'none'`);
+    throw new Error(
+      `Plugin ${packageName}: manifest.authType must be 'api_key' | 'oauth2' | 'none'`
+    );
   }
   return m as unknown as ConnectorPluginManifest;
 }
@@ -114,8 +119,8 @@ export class ConnectorPluginLoader {
     } catch (err) {
       throw new Error(
         `ConnectorPluginLoader: failed to import '${packageName}'. ` +
-        `Ensure the package is installed (npm install ${packageName}). ` +
-        `Original error: ${err instanceof Error ? err.message : String(err)}`
+          `Ensure the package is installed (npm install ${packageName}). ` +
+          `Original error: ${err instanceof Error ? err.message : String(err)}`
       );
     }
 
@@ -130,7 +135,11 @@ export class ConnectorPluginLoader {
     };
 
     this.loaded.set(packageName, entry);
-    logger.info('Connector plugin loaded', { packageName, id: plugin.manifest.id, version: plugin.manifest.version });
+    logger.info('Connector plugin loaded', {
+      packageName,
+      id: plugin.manifest.id,
+      version: plugin.manifest.version,
+    });
     return entry;
   }
 
@@ -141,7 +150,10 @@ export class ConnectorPluginLoader {
   async loadFromEnv(): Promise<LoadedPlugin[]> {
     const raw = process.env['SERVAL_CONNECTOR_PLUGINS'];
     if (!raw) return [];
-    const packageNames = raw.split(',').map(s => s.trim()).filter(Boolean);
+    const packageNames = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const results: LoadedPlugin[] = [];
     for (const pkg of packageNames) {
       try {

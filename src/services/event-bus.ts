@@ -88,12 +88,18 @@ export class InMemoryEventBus implements EventBusBackend {
 
   subscribe(listener: InMemoryListener): () => void {
     this.listeners.push(listener);
-    return () => { this.listeners = this.listeners.filter(l => l !== listener); };
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
   }
 
   async publish(event: SheetChangeEvent): Promise<void> {
     for (const listener of this.listeners) {
-      try { listener(event); } catch { /* isolate listener errors */ }
+      try {
+        listener(event);
+      } catch {
+        /* isolate listener errors */
+      }
     }
   }
 }
@@ -119,11 +125,9 @@ export class KafkaEventBus implements EventBusBackend {
   async initialize(): Promise<void> {
     let kafka: { Kafka: new (config: unknown) => unknown };
     try {
-      kafka = await optionalImport('kafkajs') as typeof kafka;
+      kafka = (await optionalImport('kafkajs')) as typeof kafka;
     } catch {
-      throw new Error(
-        'Kafka backend requires kafkajs — run: npm install kafkajs'
-      );
+      throw new Error('Kafka backend requires kafkajs — run: npm install kafkajs');
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = new (kafka as any).Kafka({ clientId: this.clientId, brokers: this.brokers });
@@ -165,7 +169,7 @@ export class PubSubEventBus implements EventBusBackend {
   async initialize(): Promise<void> {
     let pubsubModule: { PubSub: new (config: unknown) => unknown };
     try {
-      pubsubModule = await optionalImport('@google-cloud/pubsub') as typeof pubsubModule;
+      pubsubModule = (await optionalImport('@google-cloud/pubsub')) as typeof pubsubModule;
     } catch {
       throw new Error(
         'Pub/Sub backend requires @google-cloud/pubsub — run: npm install @google-cloud/pubsub'
@@ -175,13 +179,19 @@ export class PubSubEventBus implements EventBusBackend {
     const client = new (pubsubModule as any).PubSub({ projectId: this.projectId });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.topic = (client as any).topic(this.topicId);
-    logger.info('Pub/Sub event bus initialized', { projectId: this.projectId, topicId: this.topicId });
+    logger.info('Pub/Sub event bus initialized', {
+      projectId: this.projectId,
+      topicId: this.topicId,
+    });
   }
 
   async publish(event: SheetChangeEvent): Promise<void> {
     if (!this.topic) throw new Error('PubSubEventBus not initialized');
     const data = Buffer.from(JSON.stringify(event));
-    await this.topic.publishMessage({ data, attributes: { eventType: event.eventType, spreadsheetId: event.spreadsheetId } });
+    await this.topic.publishMessage({
+      data,
+      attributes: { eventType: event.eventType, spreadsheetId: event.spreadsheetId },
+    });
   }
 }
 
@@ -204,7 +214,7 @@ export class SnsEventBus implements EventBusBackend {
   async initialize(): Promise<void> {
     let snsModule: { SNSClient: new (config: unknown) => unknown };
     try {
-      snsModule = await optionalImport('@aws-sdk/client-sns') as typeof snsModule;
+      snsModule = (await optionalImport('@aws-sdk/client-sns')) as typeof snsModule;
     } catch {
       throw new Error(
         'SNS backend requires @aws-sdk/client-sns — run: npm install @aws-sdk/client-sns'
@@ -219,19 +229,23 @@ export class SnsEventBus implements EventBusBackend {
     if (!this.client) throw new Error('SnsEventBus not initialized');
     let publishCommand: new (input: unknown) => unknown;
     try {
-      const mod = await optionalImport('@aws-sdk/client-sns') as { PublishCommand: typeof publishCommand };
+      const mod = (await optionalImport('@aws-sdk/client-sns')) as {
+        PublishCommand: typeof publishCommand;
+      };
       publishCommand = mod.PublishCommand;
     } catch {
       throw new Error('SnsEventBus: @aws-sdk/client-sns not available');
     }
-    await this.client.send(new publishCommand({
-      TopicArn: this.topicArn,
-      Message: JSON.stringify(event),
-      MessageAttributes: {
-        eventType: { DataType: 'String', StringValue: event.eventType },
-        spreadsheetId: { DataType: 'String', StringValue: event.spreadsheetId },
-      },
-    }));
+    await this.client.send(
+      new publishCommand({
+        TopicArn: this.topicArn,
+        Message: JSON.stringify(event),
+        MessageAttributes: {
+          eventType: { DataType: 'String', StringValue: event.eventType },
+          spreadsheetId: { DataType: 'String', StringValue: event.spreadsheetId },
+        },
+      })
+    );
   }
 }
 
@@ -244,11 +258,11 @@ export class FanOutEventBus implements EventBusBackend {
   constructor(private readonly backends: EventBusBackend[]) {}
 
   async initialize(): Promise<void> {
-    await Promise.all(this.backends.map(b => b.initialize?.()));
+    await Promise.all(this.backends.map((b) => b.initialize?.()));
   }
 
   async publish(event: SheetChangeEvent): Promise<void> {
-    const results = await Promise.allSettled(this.backends.map(b => b.publish(event)));
+    const results = await Promise.allSettled(this.backends.map((b) => b.publish(event)));
     for (const [i, result] of results.entries()) {
       if (result.status === 'rejected') {
         logger.error('Event bus backend publish failed', {
@@ -260,7 +274,7 @@ export class FanOutEventBus implements EventBusBackend {
   }
 
   async shutdown(): Promise<void> {
-    await Promise.allSettled(this.backends.map(b => b.shutdown?.()));
+    await Promise.allSettled(this.backends.map((b) => b.shutdown?.()));
   }
 }
 
@@ -317,7 +331,10 @@ function buildBackendFromEnv(): EventBusBackend {
   const backend = (process.env['EVENT_BUS_BACKEND'] ?? 'memory').toLowerCase();
 
   if (backend === 'kafka') {
-    const brokers = (process.env['KAFKA_BROKERS'] ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const brokers = (process.env['KAFKA_BROKERS'] ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const topic = process.env['KAFKA_TOPIC'];
     const clientId = process.env['KAFKA_CLIENT_ID'] ?? 'servalsheets';
     if (!brokers.length || !topic) {

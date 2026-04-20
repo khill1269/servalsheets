@@ -17,7 +17,8 @@ COPY packages/mcp-stdio/package.json ./packages/mcp-stdio/
 COPY packages/serval-sdk/package.json ./packages/serval-sdk/
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+# --ignore-scripts prevents the prepare→build hook from running before source is copied
+RUN npm ci --ignore-scripts
 
 # Copy source code
 COPY . .

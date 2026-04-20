@@ -146,12 +146,20 @@ function isAllowedRedirect(url: string, allowedOrigins: string[]): boolean {
 }
 
 /** Parse a JWT without verifying — used to extract header/claims before signature check */
-function parseJwtParts(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } | null {
+function parseJwtParts(
+  token: string
+): { header: Record<string, unknown>; payload: Record<string, unknown> } | null {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   try {
-    const header = JSON.parse(Buffer.from(parts[0]!, 'base64url').toString('utf8')) as Record<string, unknown>;
-    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8')) as Record<string, unknown>;
+    const header = JSON.parse(Buffer.from(parts[0]!, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
+    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
     return { header, payload };
   } catch {
     return null;
@@ -162,7 +170,10 @@ function parseJwtParts(token: string): { header: Record<string, unknown>; payloa
 function jwkToPublicKey(jwk: JwkKey): KeyObject | null {
   try {
     // Node 15+ supports JWK input natively; cast via a local shim type to satisfy strict TS
-    interface JwkInput { key: Record<string, unknown>; format: 'jwk' }
+    interface JwkInput {
+      key: Record<string, unknown>;
+      format: 'jwk';
+    }
     const input: JwkInput = { key: jwk as unknown as Record<string, unknown>, format: 'jwk' };
     return createPublicKey(input as Parameters<typeof createPublicKey>[0]);
   } catch {
@@ -234,7 +245,10 @@ export class OidcProvider {
   private async getPublicKey(kid: string | undefined, alg: string): Promise<KeyObject | null> {
     // Try cache first
     const cacheKey = kid ?? `_alg_${alg}`;
-    if (this.jwksCache.has(cacheKey) && Date.now() - this.jwksFetchedAt < this.config.discoveryTtlMs) {
+    if (
+      this.jwksCache.has(cacheKey) &&
+      Date.now() - this.jwksFetchedAt < this.config.discoveryTtlMs
+    ) {
       return this.jwksCache.get(cacheKey) ?? null;
     }
 
@@ -265,7 +279,10 @@ export class OidcProvider {
   // id_token validation
   // --------------------------------------------------------------------------
 
-  private async validateIdToken(idToken: string, expectedNonce: string): Promise<Record<string, unknown> | null> {
+  private async validateIdToken(
+    idToken: string,
+    expectedNonce: string
+  ): Promise<Record<string, unknown> | null> {
     const parsed = parseJwtParts(idToken);
     if (!parsed) return null;
 
@@ -295,7 +312,10 @@ export class OidcProvider {
     const now = Math.floor(Date.now() / 1000);
 
     if (payload['iss'] !== discovery.issuer) {
-      logger.warn('OIDC: id_token issuer mismatch', { expected: discovery.issuer, actual: payload['iss'] });
+      logger.warn('OIDC: id_token issuer mismatch', {
+        expected: discovery.issuer,
+        actual: payload['iss'],
+      });
       return null;
     }
 
@@ -352,7 +372,8 @@ export class OidcProvider {
   // --------------------------------------------------------------------------
 
   issueToken(claims: Record<string, unknown>): string {
-    const sub = typeof claims['sub'] === 'string' ? claims['sub'] : String(claims['sub'] ?? 'unknown');
+    const sub =
+      typeof claims['sub'] === 'string' ? claims['sub'] : String(claims['sub'] ?? 'unknown');
     const email = typeof claims['email'] === 'string' ? claims['email'] : undefined;
     const name = typeof claims['name'] === 'string' ? claims['name'] : undefined;
     const nonce = typeof claims['nonce'] === 'string' ? claims['nonce'] : undefined;
@@ -407,11 +428,18 @@ export class OidcProvider {
         const codeVerifier = generateCodeVerifier();
         const codeChallenge = generateCodeChallenge(codeVerifier);
 
-        const redirectUri = (req.query['redirect_uri'] as string | undefined) ?? this.config.callbackUrl;
+        const redirectUri =
+          (req.query['redirect_uri'] as string | undefined) ?? this.config.callbackUrl;
 
         // Validate redirect_uri against allowlist
-        if (this.config.allowedRedirectOrigins.length > 0 && !isAllowedRedirect(redirectUri, this.config.allowedRedirectOrigins)) {
-          res.status(400).json({ error: 'OIDC_INVALID_REDIRECT_URI', message: 'redirect_uri not in allowed origins' });
+        if (
+          this.config.allowedRedirectOrigins.length > 0 &&
+          !isAllowedRedirect(redirectUri, this.config.allowedRedirectOrigins)
+        ) {
+          res.status(400).json({
+            error: 'OIDC_INVALID_REDIRECT_URI',
+            message: 'redirect_uri not in allowed origins',
+          });
           return;
         }
 
@@ -432,7 +460,9 @@ export class OidcProvider {
         res.redirect(`${discovery.authorization_endpoint}?${params.toString()}`);
       } catch (error) {
         logger.error('OIDC login initiation failed', { error });
-        res.status(500).json({ error: 'OIDC_INIT_FAILED', message: 'Failed to initiate OIDC login' });
+        res
+          .status(500)
+          .json({ error: 'OIDC_INIT_FAILED', message: 'Failed to initiate OIDC login' });
       }
     });
 
@@ -442,8 +472,13 @@ export class OidcProvider {
         const errorParam = req.query['error'] as string | undefined;
         if (errorParam) {
           const desc = req.query['error_description'] as string | undefined;
-          logger.warn('OIDC callback received error from IdP', { error: errorParam, description: desc });
-          res.status(400).json({ error: `OIDC_IDP_ERROR: ${errorParam}`, message: desc ?? errorParam });
+          logger.warn('OIDC callback received error from IdP', {
+            error: errorParam,
+            description: desc,
+          });
+          res
+            .status(400)
+            .json({ error: `OIDC_IDP_ERROR: ${errorParam}`, message: desc ?? errorParam });
           return;
         }
 
@@ -451,13 +486,18 @@ export class OidcProvider {
         const state = req.query['state'] as string | undefined;
 
         if (!code || !state) {
-          res.status(400).json({ error: 'OIDC_MISSING_PARAMS', message: 'code and state are required' });
+          res
+            .status(400)
+            .json({ error: 'OIDC_MISSING_PARAMS', message: 'code and state are required' });
           return;
         }
 
         const pending = this.consumePendingState(state);
         if (!pending) {
-          res.status(400).json({ error: 'OIDC_INVALID_STATE', message: 'State mismatch or expired — possible CSRF' });
+          res.status(400).json({
+            error: 'OIDC_INVALID_STATE',
+            message: 'State mismatch or expired — possible CSRF',
+          });
           return;
         }
 
@@ -478,8 +518,14 @@ export class OidcProvider {
 
         if (!tokenRes.ok) {
           const body = await tokenRes.text();
-          logger.error('OIDC token exchange failed', { status: tokenRes.status, body: body.slice(0, 200) });
-          res.status(502).json({ error: 'OIDC_TOKEN_EXCHANGE_FAILED', message: 'Token exchange with IdP failed' });
+          logger.error('OIDC token exchange failed', {
+            status: tokenRes.status,
+            body: body.slice(0, 200),
+          });
+          res.status(502).json({
+            error: 'OIDC_TOKEN_EXCHANGE_FAILED',
+            message: 'Token exchange with IdP failed',
+          });
           return;
         }
 
@@ -488,7 +534,9 @@ export class OidcProvider {
         // Validate id_token
         const claims = await this.validateIdToken(tokens.id_token, pending.nonce);
         if (!claims) {
-          res.status(401).json({ error: 'OIDC_INVALID_ID_TOKEN', message: 'id_token validation failed' });
+          res
+            .status(401)
+            .json({ error: 'OIDC_INVALID_ID_TOKEN', message: 'id_token validation failed' });
           return;
         }
 
@@ -579,10 +627,24 @@ export interface OidcEnvConfig {
  * Create an OidcProvider from environment variables.
  * Returns null if OIDC is not configured (missing required vars).
  */
-export function createOidcProviderFromEnv(env: OidcEnvConfig = process.env as OidcEnvConfig): OidcProvider | null {
-  const { OIDC_DISCOVERY_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_CALLBACK_URL, SSO_JWT_SECRET } = env;
+export function createOidcProviderFromEnv(
+  env: OidcEnvConfig = process.env as OidcEnvConfig
+): OidcProvider | null {
+  const {
+    OIDC_DISCOVERY_URL,
+    OIDC_CLIENT_ID,
+    OIDC_CLIENT_SECRET,
+    OIDC_CALLBACK_URL,
+    SSO_JWT_SECRET,
+  } = env;
 
-  if (!OIDC_DISCOVERY_URL || !OIDC_CLIENT_ID || !OIDC_CLIENT_SECRET || !OIDC_CALLBACK_URL || !SSO_JWT_SECRET) {
+  if (
+    !OIDC_DISCOVERY_URL ||
+    !OIDC_CLIENT_ID ||
+    !OIDC_CLIENT_SECRET ||
+    !OIDC_CALLBACK_URL ||
+    !SSO_JWT_SECRET
+  ) {
     return null;
   }
 

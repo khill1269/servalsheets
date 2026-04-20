@@ -49,17 +49,11 @@ export interface CallbackResult {
 
 function isAddressInUseError(err: unknown): err is NodeJS.ErrnoException {
   return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as NodeJS.ErrnoException).code === 'EADDRINUSE'
+    typeof err === 'object' && err !== null && (err as NodeJS.ErrnoException).code === 'EADDRINUSE'
   );
 }
 
-async function bindServer(
-  server: http.Server,
-  host: string,
-  port: number
-): Promise<number> {
+async function bindServer(server: http.Server, host: string, port: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const onError = (err: Error) => {
       server.removeListener('listening', onListening);
@@ -68,8 +62,7 @@ async function bindServer(
     const onListening = () => {
       server.removeListener('error', onError);
       const addr = server.address();
-      const boundPort =
-        typeof addr === 'object' && addr !== null ? addr.port : port;
+      const boundPort = typeof addr === 'object' && addr !== null ? addr.port : port;
       resolve(boundPort);
     };
     server.once('error', onError);
@@ -219,24 +212,20 @@ export async function startCallbackServer(
             'localhost',
             '127.0.0.1',
           ]);
-          logger.info(
-            `OAuth callback server listening on http://${host}:${boundPort}/callback`
-          );
+          logger.info(`OAuth callback server listening on http://${host}:${boundPort}/callback`);
           return;
         } catch (err) {
           if (isAddressInUseError(err)) {
             attemptedErrors.push(`:${candidate} in use`);
-            logger.warn(
-              `OAuth callback: port ${candidate} in use, trying fallback`,
-              { candidate, error: err.message }
-            );
+            logger.warn(`OAuth callback: port ${candidate} in use, trying fallback`, {
+              candidate,
+              error: err.message,
+            });
             continue;
           }
           finalize(
             new Error(
-              `Failed to start callback server on port ${candidate}: ${
-                (err as Error).message
-              }`
+              `Failed to start callback server on port ${candidate}: ${(err as Error).message}`
             )
           );
           return;
@@ -247,8 +236,7 @@ export async function startCallbackServer(
         new Error(
           `Failed to start OAuth callback server. All candidate ports unavailable: ${attemptedErrors.join(
             ', '
-          )}. ` +
-            `Close the process occupying them or register additional redirect URIs.`
+          )}. ` + `Close the process occupying them or register additional redirect URIs.`
         )
       );
     })();

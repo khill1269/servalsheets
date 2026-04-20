@@ -672,7 +672,10 @@ export class OAuthProvider {
           const u = new URL(resource);
           if (u.hash) throw new Error('fragment not allowed');
         } catch {
-          res.status(400).json({ error: 'invalid_target', error_description: 'resource must be an absolute URI without fragment' });
+          res.status(400).json({
+            error: 'invalid_target',
+            error_description: 'resource must be an absolute URI without fragment',
+          });
           return;
         }
       }
@@ -1329,7 +1332,8 @@ export class OAuthProvider {
 
         // RFC 7591 §3.2.1: registration_access_token for client management operations
         const registrationAccessToken = randomBytes(32).toString('hex');
-        const baseUrl = process.env['OAUTH_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3000}`;
+        const baseUrl =
+          process.env['OAUTH_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3000}`;
         const registrationClientUri = `${baseUrl}/oauth/register/${clientId}`;
 
         // Store in session store with 1 year TTL
@@ -1379,20 +1383,33 @@ export class OAuthProvider {
 
     // RFC 7591 §4 — Client Configuration Endpoint (read / update / delete)
 
-    const authenticateDcrRequest = async (req: express.Request, res: express.Response, clientId: string): Promise<Record<string, unknown> | null> => {
+    const authenticateDcrRequest = async (
+      req: express.Request,
+      res: express.Response,
+      clientId: string
+    ): Promise<Record<string, unknown> | null> => {
       const authHeader = req.headers['authorization'];
       const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
       if (!token) {
-        res.status(401).json({ error: 'invalid_token', error_description: 'Bearer token required' });
+        res
+          .status(401)
+          .json({ error: 'invalid_token', error_description: 'Bearer token required' });
         return null;
       }
-      const stored = await this.sessionStore.get(`dcr:${clientId}`) as Record<string, unknown> | null;
+      const stored = (await this.sessionStore.get(`dcr:${clientId}`)) as Record<
+        string,
+        unknown
+      > | null;
       if (!stored) {
-        res.status(404).json({ error: 'invalid_client_metadata', error_description: 'Client not found' });
+        res
+          .status(404)
+          .json({ error: 'invalid_client_metadata', error_description: 'Client not found' });
         return null;
       }
       if (stored['registration_access_token'] !== token) {
-        res.status(401).json({ error: 'invalid_token', error_description: 'Invalid registration access token' });
+        res
+          .status(401)
+          .json({ error: 'invalid_token', error_description: 'Invalid registration access token' });
         return null;
       }
       return stored;
@@ -1400,7 +1417,10 @@ export class OAuthProvider {
 
     router.get('/oauth/register/:clientId', async (req, res) => {
       const clientId = req.params['clientId'];
-      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      if (!clientId) {
+        res.status(400).json({ error: 'invalid_request' });
+        return;
+      }
       const stored = await authenticateDcrRequest(req, res, clientId);
       if (!stored) return;
       const { registration_access_token: _rat, ...publicData } = stored;
@@ -1409,15 +1429,22 @@ export class OAuthProvider {
 
     router.put('/oauth/register/:clientId', async (req, res) => {
       const clientId = req.params['clientId'];
-      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      if (!clientId) {
+        res.status(400).json({ error: 'invalid_request' });
+        return;
+      }
       const stored = await authenticateDcrRequest(req, res, clientId);
       if (!stored) return;
 
-      const { redirect_uris, client_name, scope, token_endpoint_auth_method } =
-        req.body as Record<string, string | string[] | undefined>;
+      const { redirect_uris, client_name, scope, token_endpoint_auth_method } = req.body as Record<
+        string,
+        string | string[] | undefined
+      >;
 
       if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
-        res.status(400).json({ error: 'invalid_request', error_description: 'redirect_uris required' });
+        res
+          .status(400)
+          .json({ error: 'invalid_request', error_description: 'redirect_uris required' });
         return;
       }
 
@@ -1426,9 +1453,10 @@ export class OAuthProvider {
         redirect_uris,
         client_name: typeof client_name === 'string' ? client_name : stored['client_name'],
         scope: typeof scope === 'string' ? scope : stored['scope'],
-        token_endpoint_auth_method: typeof token_endpoint_auth_method === 'string'
-          ? token_endpoint_auth_method
-          : stored['token_endpoint_auth_method'],
+        token_endpoint_auth_method:
+          typeof token_endpoint_auth_method === 'string'
+            ? token_endpoint_auth_method
+            : stored['token_endpoint_auth_method'],
         updated_at: new Date().toISOString(),
       };
 
@@ -1440,7 +1468,10 @@ export class OAuthProvider {
 
     router.delete('/oauth/register/:clientId', async (req, res) => {
       const clientId = req.params['clientId'];
-      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      if (!clientId) {
+        res.status(400).json({ error: 'invalid_request' });
+        return;
+      }
       const stored = await authenticateDcrRequest(req, res, clientId);
       if (!stored) return;
       await this.sessionStore.delete(`dcr:${clientId}`);

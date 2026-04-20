@@ -50,10 +50,7 @@ export interface ToolCallExecutionDependencies {
     parent?: SpanContext
   ) => Promise<T>;
   checkRateLimit?: (principalId: string) => RateLimitResult;
-  normalizeArgs?: (
-    args: Record<string, unknown>,
-    toolName?: string
-  ) => Record<string, unknown>;
+  normalizeArgs?: (args: Record<string, unknown>, toolName?: string) => Record<string, unknown>;
   detectMutationSafety?: (
     normalizedArgs: Record<string, unknown>
   ) => MutationSafetyViolation | null;

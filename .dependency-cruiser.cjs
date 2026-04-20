@@ -131,6 +131,7 @@ module.exports = {
           '^src/analysis/workbook-semantics\\.ts$', // understanding-store.ts uses SemanticIndex type
           '^src/analysis/formula-helpers\\.ts$',    // sheet-generator.ts + sampling-analysis.ts (dynamic import)
           '^src/mcp/sampling\\.ts$',
+          '^src/mcp/elicitation\\.ts$',             // plan-executor.ts uses ElicitationServer for interactive agent mode
         ],
       },
     },
