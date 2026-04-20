@@ -26,8 +26,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "prebuild": "npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio",
-    "build": "tsc && npm run generate:metadata",
-    "build:docker": "npm run build --workspaces --if-present && tsc",
+    "build": "tsc -p tsconfig.build.json && npm run generate:metadata",
+    "build:docker": "npm run build --workspaces --if-present && tsc -p tsconfig.build.json",
     "build:cli": "tsc && node dist/cli.js",
     "start": "node dist/server.js",
     "start:http": "node dist/http-server.js",
