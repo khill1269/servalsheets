@@ -69,7 +69,7 @@ export function registerAnalyzeResources(_server: unknown): number {
   return getAnalyzeResources().length;
 }
 
-/** Store analysis result (stub for compatibility) */
+/** Store analysis result (no-op: kept for compatibility) */
 export function storeAnalysisResult(_spreadsheetId: string, _result: unknown): void {
   // No-op: results are stored in memory by the analysis service
 }
