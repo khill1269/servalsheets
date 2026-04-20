@@ -57,16 +57,12 @@ jobs:
             .tsbuildinfo
             .tsbuildinfo.build
           key: ${{ runner.os }}-tsbuildinfo-${{ hashFiles('src/**/*.ts', 'tsconfig*.json') }}
-          restore-keys: |
-            ${{ runner.os }}-tsbuildinfo-
 
       - name: Cache dist folder
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: dist
           key: ${{ runner.os }}-dist-${{ hashFiles('src/**/*.ts', 'tsconfig*.json', 'package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-dist-
 
       - name: Cache ESLint results
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -84,6 +80,9 @@ jobs:
 
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
+      - name: Clear stale build artifacts
+        run: rm -f .tsbuildinfo .tsbuildinfo.build && rm -rf dist
 
       - name: Emit dist/ (noCheck — type errors gate at the typecheck step below)
         run: NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
