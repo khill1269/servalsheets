@@ -14,6 +14,7 @@ COPY packages/mcp-client/package.json ./packages/mcp-client/
 COPY packages/mcp-http/package.json ./packages/mcp-http/
 COPY packages/mcp-runtime/package.json ./packages/mcp-runtime/
 COPY packages/mcp-stdio/package.json ./packages/mcp-stdio/
+COPY packages/serval-sdk/package.json ./packages/serval-sdk/
 
 # Install all dependencies (including devDependencies for build)
 RUN npm ci

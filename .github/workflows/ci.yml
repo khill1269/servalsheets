@@ -82,8 +82,8 @@ jobs:
       - name: Validate action metadata consistency
         run: npm run validate:actions
 
-      - name: Build @serval/core
-        run: npm run build -w packages/serval-core
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Emit dist/ (noCheck — type errors gate at the typecheck step below)
         run: node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
@@ -471,8 +471,8 @@ jobs:
           name: dist-build
           path: dist
 
-      - name: Build @serval/core
-        run: npm run build -w packages/serval-core
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Rebuild dist (incremental — dist already seeded)
         run: node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
