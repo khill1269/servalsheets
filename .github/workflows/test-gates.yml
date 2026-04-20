@@ -161,7 +161,7 @@ jobs:
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Run contract tests
-        run: npm test -- --run tests/contracts
+        run: npx vitest run tests/contracts
         env:
           REDIS_URL: redis://localhost:6379
 
