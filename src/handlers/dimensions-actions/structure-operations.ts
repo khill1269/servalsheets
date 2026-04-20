@@ -459,8 +459,5 @@ export async function handleAppend(
     },
   });
 
-  return ha.success(
-    'append',
-    isRows ? { rowsAffected: count } : { columnsAffected: count }
-  );
+  return ha.success('append', isRows ? { rowsAffected: count } : { columnsAffected: count });
 }

@@ -428,7 +428,10 @@ export class OAuthProvider {
         return next();
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Token validation error';
-        res.setHeader('WWW-Authenticate', `Bearer error="invalid_token", error_description="${msg}"`);
+        res.setHeader(
+          'WWW-Authenticate',
+          `Bearer error="invalid_token", error_description="${msg}"`
+        );
         return res.status(401).json({
           error: 'invalid_token',
           error_description: msg,
@@ -929,11 +932,7 @@ export class OAuthProvider {
 
         // Verify client authentication first (RFC 6749 §3.2.1) — prevents
         // leaking code validity to unauthenticated clients
-        const preAuthClientId = await this.authenticateClient(
-          '',
-          client_id,
-          client_secret
-        );
+        const preAuthClientId = await this.authenticateClient('', client_id, client_secret);
         if (!preAuthClientId) {
           res.status(401).json({
             error: 'invalid_client',

@@ -310,21 +310,17 @@ export async function handleBatchRead(
         fields: 'valueRanges(range,values)',
       });
 
-      return (response.data.valueRanges ?? []).map(
-        (vr: sheets_v4.Schema$ValueRange) => ({
-          range: vr.range ?? '',
-          values: (vr.values ?? []) as ValuesArray,
-        })
-      );
+      return (response.data.valueRanges ?? []).map((vr: sheets_v4.Schema$ValueRange) => ({
+        range: vr.range ?? '',
+        values: (vr.values ?? []) as ValuesArray,
+      }));
     };
 
     // Run chunks in batches of CHUNK_CONCURRENCY
     const allValueRanges: Array<{ range: string; values: ValuesArray }> = [];
     for (let i = 0; i < chunks.length; i += CHUNK_CONCURRENCY) {
       const batch = chunks.slice(i, i + CHUNK_CONCURRENCY);
-      const results = await Promise.all(
-        batch.map((chunk, j) => fetchChunk(chunk, i + j))
-      );
+      const results = await Promise.all(batch.map((chunk, j) => fetchChunk(chunk, i + j)));
       for (const result of results) {
         allValueRanges.push(...result);
       }
@@ -1024,11 +1020,16 @@ export async function handleFindReplace(
     const query = resolvedInput.matchCase ? resolvedInput.find : resolvedInput.find.toLowerCase();
     const limit = input.limit ?? 100;
 
-    for (let rangeIndex = 0; rangeIndex < valueRanges.length && matches.length < limit; rangeIndex++) {
+    for (
+      let rangeIndex = 0;
+      rangeIndex < valueRanges.length && matches.length < limit;
+      rangeIndex++
+    ) {
       const valueRange = valueRanges[rangeIndex];
       if (!valueRange) continue;
 
-      const sourceRange = valueRange.range ?? searchRanges[rangeIndex] ?? DEFAULT_FIND_REPLACE_SCAN_RANGE;
+      const sourceRange =
+        valueRange.range ?? searchRanges[rangeIndex] ?? DEFAULT_FIND_REPLACE_SCAN_RANGE;
       const parsedRange = parseA1Notation(sourceRange);
       const rowOffset = parsedRange.startRow;
       const columnOffset = parsedRange.startCol;

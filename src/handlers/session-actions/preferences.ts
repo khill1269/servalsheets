@@ -20,11 +20,7 @@ export function handleUpdatePreferences(
   const updates: Partial<UserPreferences> = {};
 
   if (confirmationLevel) {
-    const validLevels: UserPreferences['confirmationLevel'][] = [
-      'always',
-      'destructive',
-      'never',
-    ];
+    const validLevels: UserPreferences['confirmationLevel'][] = ['always', 'destructive', 'never'];
     if (validLevels.includes(confirmationLevel as UserPreferences['confirmationLevel'])) {
       updates.confirmationLevel = confirmationLevel as UserPreferences['confirmationLevel'];
     }
@@ -32,8 +28,7 @@ export function handleUpdatePreferences(
   if (dryRunDefault !== undefined || snapshotDefault !== undefined) {
     updates.defaultSafety = {
       dryRun: dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
-      createSnapshot:
-        snapshotDefault ?? session.getPreferences().defaultSafety.createSnapshot,
+      createSnapshot: snapshotDefault ?? session.getPreferences().defaultSafety.createSnapshot,
     };
   }
   if (autoRecord !== undefined) {

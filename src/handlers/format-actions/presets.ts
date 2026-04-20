@@ -118,10 +118,11 @@ export async function handleApplyPreset(
       break;
 
     case 'alternating_rows':
-      ({
-        requests,
-        idempotent,
-      } = await buildAlternatingRowsRequests(ha, input.spreadsheetId, googleRange));
+      ({ requests, idempotent } = await buildAlternatingRowsRequests(
+        ha,
+        input.spreadsheetId,
+        googleRange
+      ));
       break;
 
     case 'total_row':

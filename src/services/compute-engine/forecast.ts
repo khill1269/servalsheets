@@ -111,7 +111,9 @@ export function computeForecast(data: CellValue[][], options: ForecastOptions): 
  * Detect seasonal period via autocorrelation scan.
  * Returns the lag with the strongest positive autocorrelation (above threshold).
  */
-export function detectSeasonalPeriod(values: number[]): { period: number; strength: number } | null {
+export function detectSeasonalPeriod(
+  values: number[]
+): { period: number; strength: number } | null {
   if (values.length < 6) return null;
 
   const maxLag = Math.min(Math.floor(values.length / 2), 365);

@@ -14,10 +14,7 @@ import type {
   SheetInfo,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { recordSheetName } from '../../mcp/completions.js';
 
@@ -158,9 +155,7 @@ export async function handleAddSheetAction(
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.properties',
     });
-    const duplicate = (existing.data.sheets ?? []).find(
-      (s) => s.properties?.title === input.title
-    );
+    const duplicate = (existing.data.sheets ?? []).find((s) => s.properties?.title === input.title);
     if (duplicate && duplicate.properties) {
       return deps.success('add_sheet', {
         sheet: toSheetInfo(duplicate.properties, deps),

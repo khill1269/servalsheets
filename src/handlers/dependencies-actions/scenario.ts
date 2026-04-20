@@ -8,10 +8,19 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import type { SheetsDependenciesOutput, ModelScenarioInput, CompareScenariosInput, CreateScenarioSheetInput } from '../../schemas/index.js';
+import type {
+  SheetsDependenciesOutput,
+  ModelScenarioInput,
+  CompareScenariosInput,
+  CreateScenarioSheetInput,
+} from '../../schemas/index.js';
 import { ErrorCodes } from '../error-codes.js';
 import { ImpactAnalyzer } from '../../analysis/impact-analyzer.js';
-import { assertSamplingConsent, generateAIInsight, withSamplingTimeout } from '../../mcp/sampling.js';
+import {
+  assertSamplingConsent,
+  generateAIInsight,
+  withSamplingTimeout,
+} from '../../mcp/sampling.js';
 import { logger } from '../../utils/logger.js';
 import { executeWithRetry } from '../../utils/retry.js';
 import { mapStandaloneError } from '../helpers/error-mapping.js';
@@ -59,8 +68,7 @@ async function loadSheetForEvaluation(
 
     const rawValues = (valueResp.data.values ?? []) as (string | number | boolean | null)[][];
     const rawFormulas = (formulaResp.data.values ?? []) as (string | null)[][];
-    const spreadsheetLocale = (metaResp.data.properties as { locale?: string } | undefined)
-      ?.locale;
+    const spreadsheetLocale = (metaResp.data.properties as { locale?: string } | undefined)?.locale;
 
     const maxRows = Math.max(rawValues.length, rawFormulas.length);
     const maxCols = Math.max(
@@ -381,7 +389,9 @@ export async function handleModelScenario(
         );
         const text = Array.isArray(narrativeResult.content)
           ? ((
-              narrativeResult.content.find((c: { type: string }) => c.type === 'text') as { text: string } | undefined
+              narrativeResult.content.find((c: { type: string }) => c.type === 'text') as
+                | { text: string }
+                | undefined
             )?.text ?? '')
           : ((narrativeResult.content as { text?: string }).text ?? '');
         aiNarrative = text.trim();

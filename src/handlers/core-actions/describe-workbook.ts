@@ -205,20 +205,26 @@ export async function handleDescribeWorkbookAction(
         }
       : undefined;
 
-    return deps.success('describe_workbook', {
-      workbookSummary: {
-        title: (properties.title as string) ?? '',
-        locale: (properties.locale as string) ?? undefined,
-        timeZone: (properties.timeZone as string) ?? undefined,
-        sheetCount: sheets.length,
-        analyzedSheetCount: analyzedSheets.length,
-        totalFormulaCount,
-        totalCells: totalNonEmptyCells,
-        sheets: sheetSummaries,
-        lastModifiedTime,
-        ownerEmail,
+    return deps.success(
+      'describe_workbook',
+      {
+        workbookSummary: {
+          title: (properties.title as string) ?? '',
+          locale: (properties.locale as string) ?? undefined,
+          timeZone: (properties.timeZone as string) ?? undefined,
+          sheetCount: sheets.length,
+          analyzedSheetCount: analyzedSheets.length,
+          totalFormulaCount,
+          totalCells: totalNonEmptyCells,
+          sheets: sheetSummaries,
+          lastModifiedTime,
+          ownerEmail,
+        },
       },
-    }, undefined, undefined, meta);
+      undefined,
+      undefined,
+      meta
+    );
   } catch (err) {
     return deps.mapError(err);
   }

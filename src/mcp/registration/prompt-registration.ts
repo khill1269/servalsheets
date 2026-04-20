@@ -543,8 +543,7 @@ Report:
   server.registerPrompt(
     'recover_from_error',
     {
-      description:
-        'Recover from ServalSheets errors - AI-powered troubleshooting and self-healing',
+      description: 'Recover from ServalSheets errors - AI-powered troubleshooting and self-healing',
       argsSchema: RecoverFromErrorPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
@@ -1156,8 +1155,7 @@ Pro tips: Use transactions (atomic), migrate during low-usage hours, test on cop
   server.registerPrompt(
     'performance_audit',
     {
-      description:
-        'Comprehensive spreadsheet performance audit with optimization recommendations',
+      description: 'Comprehensive spreadsheet performance audit with optimization recommendations',
       argsSchema: PerformanceAuditPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
@@ -1575,18 +1573,18 @@ Solution 1 - Centralize: A1=NOW(), A2=A1, A3=A1 (1 recalc not 3)
 Solution 2 - Named range: Create "CurrentDate" -> A1, use =CurrentDate elsewhere
 Solution 3 - Apps Script: Periodic refresh via ScriptApp triggers
 Task: Audit (sheets_analyze checkVolatility), consolidate if >10`
-      : selectedTopic === 'lookup_optimization'
-        ? `VLOOKUP (200ms, <1K rows) vs INDEX/MATCH (50ms, >10K rows) vs QUERY (30ms, optimized)
+        : selectedTopic === 'lookup_optimization'
+          ? `VLOOKUP (200ms, <1K rows) vs INDEX/MATCH (50ms, >10K rows) vs QUERY (30ms, optimized)
 Perf: VLOOKUP slow on large data. INDEX/MATCH 4x faster. QUERY 6x faster.
 Examples: =VLOOKUP vs =INDEX(B:B,MATCH(A2,A:A,0)) vs =QUERY(A:B,"SELECT B WHERE...")
 Task: Find VLOOKUPs (sheets_analyze), convert top 5 to INDEX/MATCH, benchmark.`
-        : `Common errors: #REF! (broken ref), #DIV/0! (divide by zero), #N/A (lookup miss), #VALUE! (type), #NAME? (unknown func)
+          : `Common errors: #REF! (broken ref), #DIV/0! (divide by zero), #N/A (lookup miss), #VALUE! (type), #NAME? (unknown func)
 Strategies: IFERROR (catches all), IFNA (lookup-specific, faster), IF+ISERROR (conditional), Defensive (IF B2=0, 0, A2/B2)
 Best practice: Always use error handling in production
 Task: Audit formulas (sheets_analyze), add error handling, test edge cases.`
 }
 
-Pro tips: Use sheets_dependencies before changes, test small data first, document complexity, snapshot changes.`
+Pro tips: Use sheets_dependencies before changes, test small data first, document complexity, snapshot changes.`,
             },
           },
         ],
@@ -2140,8 +2138,7 @@ Output: Detected Type % | Key Columns | Recommended Knowledge (3 URIs) | Suggest
   server.registerPrompt(
     'full_setup',
     {
-      description:
-        'Complete workspace setup using the canonical readiness → create → verify flow',
+      description: 'Complete workspace setup using the canonical readiness → create → verify flow',
       argsSchema: FullSetupPromptArgsSchema,
     },
     async ({ type, name, collaborators }) => {
@@ -2610,8 +2607,7 @@ The action creates a formatted sheet with:
   server.registerPrompt(
     'data_pipeline',
     {
-      description:
-        'Build a recurring ETL pipeline (fetch → transform → write) for a spreadsheet',
+      description: 'Build a recurring ETL pipeline (fetch → transform → write) for a spreadsheet',
       argsSchema: DataPipelinePromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {

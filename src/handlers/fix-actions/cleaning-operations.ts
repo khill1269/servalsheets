@@ -92,7 +92,13 @@ export async function handleCleanAction(
         ? await handler._createSnapshot(resolvedInput.spreadsheetId)
         : undefined;
 
-    await handler._writeChanges(resolvedInput.spreadsheetId, rangeA1, data, result.changes, rangeOffset);
+    await handler._writeChanges(
+      resolvedInput.spreadsheetId,
+      rangeA1,
+      data,
+      result.changes,
+      rangeOffset
+    );
 
     handler._trackContextFromRequest({ spreadsheetId: resolvedInput.spreadsheetId });
 
@@ -114,7 +120,11 @@ export async function handleCleanAction(
       /* non-blocking */
     }
 
-    await handler._sendProgress(3, 3, `Cleaning complete: ${result.summary.cellsCleaned} cell(s) updated`);
+    await handler._sendProgress(
+      3,
+      3,
+      `Cleaning complete: ${result.summary.cellsCleaned} cell(s) updated`
+    );
 
     const response = {
       success: true as const,
@@ -151,7 +161,8 @@ export async function handleCleanAction(
         })
       );
       const text = Array.isArray(recResult.content)
-        ? ((recResult.content.find((c) => c.type === 'text') as { text: string } | undefined)?.text ?? '')
+        ? ((recResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+            ?.text ?? '')
         : ((recResult.content as { text?: string }).text ?? '');
       aiRecommendation = text.trim();
     } catch {
@@ -203,15 +214,27 @@ export async function handleStandardizeFormatsAction(
   const data = await handler._fetchRangeData(req.spreadsheetId, extractRangeA1(req.range));
   const rangeOffset = parseRangeOffset(extractRangeA1(req.range));
 
-  await handler._sendProgress(1, 3, `Standardizing formats across ${req.columns.length} column(s)...`);
+  await handler._sendProgress(
+    1,
+    3,
+    `Standardizing formats across ${req.columns.length} column(s)...`
+  );
 
   const result = await engine.standardizeFormats(data, req.columns, rangeOffset);
 
   if (mode === 'apply' && result.changes.length > 0) {
     const snapshot =
-      req.safety?.createSnapshot !== false ? await handler._createSnapshot(req.spreadsheetId) : undefined;
+      req.safety?.createSnapshot !== false
+        ? await handler._createSnapshot(req.spreadsheetId)
+        : undefined;
 
-    await handler._writeChanges(req.spreadsheetId, extractRangeA1(req.range), data, result.changes, rangeOffset);
+    await handler._writeChanges(
+      req.spreadsheetId,
+      extractRangeA1(req.range),
+      data,
+      result.changes,
+      rangeOffset
+    );
 
     handler._trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
@@ -273,7 +296,8 @@ export async function handleStandardizeFormatsAction(
         })
       );
       const text = Array.isArray(warnResult.content)
-        ? ((warnResult.content.find((c) => c.type === 'text') as { text: string } | undefined)?.text ?? '')
+        ? ((warnResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+            ?.text ?? '')
         : ((warnResult.content as { text?: string }).text ?? '');
       aiWarnings = text.trim();
     } catch {
@@ -319,7 +343,11 @@ export async function handleFillMissingAction(
   const mode = req.mode ?? 'preview';
   const engine = _cleaningEngine; // ISSUE-047: reuse module-level singleton
 
-  await handler._sendProgress(0, 3, `Fetching data for fill_missing (strategy: ${req.strategy})...`);
+  await handler._sendProgress(
+    0,
+    3,
+    `Fetching data for fill_missing (strategy: ${req.strategy})...`
+  );
 
   const data = await handler._fetchRangeData(req.spreadsheetId, extractRangeA1(req.range));
   const rangeOffset = parseRangeOffset(extractRangeA1(req.range));
@@ -335,9 +363,17 @@ export async function handleFillMissingAction(
 
   if (mode === 'apply' && result.changes.length > 0) {
     const snapshot =
-      req.safety?.createSnapshot !== false ? await handler._createSnapshot(req.spreadsheetId) : undefined;
+      req.safety?.createSnapshot !== false
+        ? await handler._createSnapshot(req.spreadsheetId)
+        : undefined;
 
-    await handler._writeChanges(req.spreadsheetId, extractRangeA1(req.range), data, result.changes, rangeOffset);
+    await handler._writeChanges(
+      req.spreadsheetId,
+      extractRangeA1(req.range),
+      data,
+      result.changes,
+      rangeOffset
+    );
 
     handler._trackContextFromRequest({ spreadsheetId: req.spreadsheetId });
 
@@ -399,7 +435,8 @@ export async function handleFillMissingAction(
         })
       );
       const text = Array.isArray(evalResult.content)
-        ? ((evalResult.content.find((c) => c.type === 'text') as { text: string } | undefined)?.text ?? '')
+        ? ((evalResult.content.find((c) => c.type === 'text') as { text: string } | undefined)
+            ?.text ?? '')
         : ((evalResult.content as { text?: string }).text ?? '');
       aiEvaluation = text.trim();
     } catch {

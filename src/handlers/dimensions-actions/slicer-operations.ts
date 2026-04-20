@@ -12,10 +12,7 @@ import type {
   DimensionsListSlicersInput,
   DimensionsResponse,
 } from '../../schemas/index.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import {
   indexToColumnLetter,
   parseCellReference,

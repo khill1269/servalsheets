@@ -36,9 +36,7 @@ function buildSetupFeatureResponse(options: {
     verified: options.verified,
     nextStep: options.nextStep,
     ...(options.instructions ? { instructions: options.instructions } : {}),
-    ...(options.fallbackInstructions
-      ? { fallbackInstructions: options.fallbackInstructions }
-      : {}),
+    ...(options.fallbackInstructions ? { fallbackInstructions: options.fallbackInstructions } : {}),
     _meta: {
       journeyStage: options.journeyStage ?? 'readiness',
       nextBestAction: options.nextStep,
@@ -228,7 +226,8 @@ async function setupConnector(
       message: 'Choose which connector to configure before entering credentials.',
       configured: false,
       verified: false,
-      nextStep: 'Retry setup_feature with feature="connectors", connectorId, and apiKey when ready.',
+      nextStep:
+        'Retry setup_feature with feature="connectors", connectorId, and apiKey when ready.',
       instructions: ['Connector IDs: finnhub | fred | alpha_vantage | polygon | fmp'],
       fallbackInstructions: [
         'Example: sheets_auth { "action": "setup_feature", "feature": "connectors", "connectorId": "finnhub", "apiKey": "<your-key>" }',

@@ -846,7 +846,8 @@ export function registerServalSheetsResources(
     'metrics://servalsheets/health',
     {
       title: 'Server Health Snapshot',
-      description: 'Server health snapshot including circuit breakers, cache, quota, and error rates',
+      description:
+        'Server health snapshot including circuit breakers, cache, quota, and error rates',
       mimeType: 'application/json',
     },
     async () => ({
@@ -865,37 +866,44 @@ export function registerServalSheetsResources(
   const guideResources: Array<{ uri: string; description: string; content: string }> = [
     {
       uri: 'guide://tool-selection',
-      description: 'Unified tool selection guide: quick routing table, decision tree by intent, and disambiguation for same-named actions (list/delete/create/get/update/import)',
+      description:
+        'Unified tool selection guide: quick routing table, decision tree by intent, and disambiguation for same-named actions (list/delete/create/get/update/import)',
       content: TOOL_SELECTION_CONTENT,
     },
     {
       uri: 'guide://workflows',
-      description: 'Common patterns, tool chaining workflows, interactive wizards, and advanced sheet patterns',
+      description:
+        'Common patterns, tool chaining workflows, interactive wizards, and advanced sheet patterns',
       content: WORKFLOWS_CONTENT,
     },
     {
       uri: 'guide://error-reference',
-      description: 'Error codes, recovery steps, performance tiers, API limitations, and common request examples',
+      description:
+        'Error codes, recovery steps, performance tiers, API limitations, and common request examples',
       content: ERROR_REFERENCE_CONTENT,
     },
     {
       uri: 'guide://range-strategy',
-      description: 'Priority-ordered strategies for efficient data fetching with range resolution patterns',
+      description:
+        'Priority-ordered strategies for efficient data fetching with range resolution patterns',
       content: RANGE_STRATEGY_CONTENT,
     },
     {
       uri: 'guide://advanced-usage',
-      description: 'AI features (Sampling), MCP protocol details (elicitation, tasks, transactions), formula locale, color format',
+      description:
+        'AI features (Sampling), MCP protocol details (elicitation, tasks, transactions), formula locale, color format',
       content: ADVANCED_USAGE_CONTENT,
     },
     {
       uri: 'guide://safety-confirmation',
-      description: 'When and how to request user confirmation before operations — decision tree with thresholds and golden rules',
+      description:
+        'When and how to request user confirmation before operations — decision tree with thresholds and golden rules',
       content: SAFETY_CONFIRMATION_CONTENT,
     },
     {
       uri: 'guide://confirmation-examples',
-      description: 'Good vs bad confirmation behavior examples — 6 scenarios showing proper confirmation patterns',
+      description:
+        'Good vs bad confirmation behavior examples — 6 scenarios showing proper confirmation patterns',
       content: CONFIRMATION_EXAMPLES_CONTENT,
     },
   ];

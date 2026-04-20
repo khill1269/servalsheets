@@ -3,10 +3,7 @@ import type { sheets_v4 } from 'googleapis';
 import type { HandlerContext } from '../base.js';
 import type { SheetsAdvancedInput, AdvancedResponse } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 
 type SetMetadataRequest = Extract<SheetsAdvancedInput['request'], { action: 'set_metadata' }>;
 type GetMetadataRequest = Extract<SheetsAdvancedInput['request'], { action: 'get_metadata' }>;

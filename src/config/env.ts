@@ -117,206 +117,205 @@ const PrefetchSchema = z.object({
 // Main Environment Schema
 // ============================================================================
 
-export const EnvSchema = z
-  .object({
-    // Server
-    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    PORT: PortSchema.default(3000),
-    STDIO_MODE: StrictBooleanSchema.default(false),
-    HTTP_MODE: StrictBooleanSchema.default(false),
-    HOST: z.string().default('0.0.0.0'),
+export const EnvSchema = z.object({
+  // Server
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: PortSchema.default(3000),
+  STDIO_MODE: StrictBooleanSchema.default(false),
+  HTTP_MODE: StrictBooleanSchema.default(false),
+  HOST: z.string().default('0.0.0.0'),
 
-    // Logging
-    LOG_LEVEL: LogLevelSchema,
-    LOG_FORMAT: z.enum(['json', 'pretty']).default('json'),
+  // Logging
+  LOG_LEVEL: LogLevelSchema,
+  LOG_FORMAT: z.enum(['json', 'pretty']).default('json'),
 
-    // Feature Flags
-    ENABLE_REQUEST_MERGING: StrictBooleanSchema.default(true),
-    ENABLE_PARALLEL_EXECUTOR: StrictBooleanSchema.default(true),
-    ENABLE_AGGRESSIVE_FIELD_MASKS: StrictBooleanSchema.default(true),
-    ENABLE_CACHE_COMPRESSION: StrictBooleanSchema.default(true),
-    ENABLE_PREFETCH: StrictBooleanSchema.default(true),
-    ENABLE_COST_TRACKING: StrictBooleanSchema.default(false),
-    ENABLE_METRICS_SERVER: StrictBooleanSchema.default(false),
-    METRICS_PORT: z.coerce.number().default(9090),
-    METRICS_HOST: z.string().default('0.0.0.0'),
-    ENABLE_BILLING_INTEGRATION: StrictBooleanSchema.default(false),
-    ENABLE_GRANULAR_PROGRESS: StrictBooleanSchema.default(false),
-    ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: StrictBooleanSchema.default(false),
-    ENABLE_RBAC: StrictBooleanSchema.default(false),
-    TASK_WATCHDOG_MS: z.coerce.number().int().min(1000).default(300000),
+  // Feature Flags
+  ENABLE_REQUEST_MERGING: StrictBooleanSchema.default(true),
+  ENABLE_PARALLEL_EXECUTOR: StrictBooleanSchema.default(true),
+  ENABLE_AGGRESSIVE_FIELD_MASKS: StrictBooleanSchema.default(true),
+  ENABLE_CACHE_COMPRESSION: StrictBooleanSchema.default(true),
+  ENABLE_PREFETCH: StrictBooleanSchema.default(true),
+  ENABLE_COST_TRACKING: StrictBooleanSchema.default(false),
+  ENABLE_METRICS_SERVER: StrictBooleanSchema.default(false),
+  METRICS_PORT: z.coerce.number().default(9090),
+  METRICS_HOST: z.string().default('0.0.0.0'),
+  ENABLE_BILLING_INTEGRATION: StrictBooleanSchema.default(false),
+  ENABLE_GRANULAR_PROGRESS: StrictBooleanSchema.default(false),
+  ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: StrictBooleanSchema.default(false),
+  ENABLE_RBAC: StrictBooleanSchema.default(false),
+  TASK_WATCHDOG_MS: z.coerce.number().int().min(1000).default(300000),
 
-    // Google Cloud
-    ...GoogleCloudSchema.shape,
+  // Google Cloud
+  ...GoogleCloudSchema.shape,
 
-    // Sessions
-    ...RedisSchema.shape,
+  // Sessions
+  ...RedisSchema.shape,
 
-    // OTEL
-    ...OtelSchema.shape,
-    OTEL_LOG_SPANS: StrictBooleanSchema.default(false),
-    OTEL_EXPORTER_OTLP_ENDPOINT: URLSchema.optional(),
-    OTEL_EXPORTER_OTLP_BATCH_SIZE: z.coerce.number().int().min(1).default(100),
-    OTEL_EXPORTER_OTLP_EXPORT_INTERVAL_MS: z.coerce.number().int().min(100).default(5000),
+  // OTEL
+  ...OtelSchema.shape,
+  OTEL_LOG_SPANS: StrictBooleanSchema.default(false),
+  OTEL_EXPORTER_OTLP_ENDPOINT: URLSchema.optional(),
+  OTEL_EXPORTER_OTLP_BATCH_SIZE: z.coerce.number().int().min(1).default(100),
+  OTEL_EXPORTER_OTLP_EXPORT_INTERVAL_MS: z.coerce.number().int().min(100).default(5000),
 
-    // Prefetch
-    ...PrefetchSchema.shape,
-    PREFETCH_MAX_PREDICTIONS: z.coerce.number().int().min(1).default(50),
+  // Prefetch
+  ...PrefetchSchema.shape,
+  PREFETCH_MAX_PREDICTIONS: z.coerce.number().int().min(1).default(50),
 
-    // Circuit Breakers
-    CIRCUIT_BREAKER_OAUTH: z.string().optional(),
-    CIRCUIT_BREAKER_APPSSCRIPT: z.string().optional(),
-    CIRCUIT_BREAKER_SNAPSHOT: z.string().optional(),
-    CIRCUIT_BREAKER_WEBHOOK_DELIVERY: z.string().optional(),
-    CIRCUIT_BREAKER_WEBHOOK_WORKER: z.string().optional(),
-    CIRCUIT_BREAKER_FEDERATION: z.string().optional(),
+  // Circuit Breakers
+  CIRCUIT_BREAKER_OAUTH: z.string().optional(),
+  CIRCUIT_BREAKER_APPSSCRIPT: z.string().optional(),
+  CIRCUIT_BREAKER_SNAPSHOT: z.string().optional(),
+  CIRCUIT_BREAKER_WEBHOOK_DELIVERY: z.string().optional(),
+  CIRCUIT_BREAKER_WEBHOOK_WORKER: z.string().optional(),
+  CIRCUIT_BREAKER_FEDERATION: z.string().optional(),
 
-    // Billing (optional)
-    BILLING_ENABLED: StrictBooleanSchema.default(false),
-    STRIPE_SECRET_KEY: z.string().optional(),
+  // Billing (optional)
+  BILLING_ENABLED: StrictBooleanSchema.default(false),
+  STRIPE_SECRET_KEY: z.string().optional(),
 
-    // Production Safety
-    TENANT_ISOLATION_REQUIRED: StrictBooleanSchema.default(false),
-    DATA_DIR: z.string().default('/tmp/serval'),
-    CHECKPOINT_DIR: z.string().optional(),
-    PERSIST_CHECKPOINTS: StrictBooleanSchema.default(false),
-    ENABLE_SAMPLING: StrictBooleanSchema.default(true),
+  // Production Safety
+  TENANT_ISOLATION_REQUIRED: StrictBooleanSchema.default(false),
+  DATA_DIR: z.string().default('/tmp/serval'),
+  CHECKPOINT_DIR: z.string().optional(),
+  PERSIST_CHECKPOINTS: StrictBooleanSchema.default(false),
+  ENABLE_SAMPLING: StrictBooleanSchema.default(true),
 
-    // Tenant / Session
-    ENABLE_TENANT_ISOLATION: StrictBooleanSchema.default(false),
-    SESSION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(3600000),
+  // Tenant / Session
+  ENABLE_TENANT_ISOLATION: StrictBooleanSchema.default(false),
+  SESSION_TIMEOUT_MS: z.coerce.number().int().min(1000).default(3600000),
 
-    // Admin Authentication
-    ADMIN_SECRET: z.string().optional(),
-    ADMIN_API_KEY: z.string().optional(),
-    ADMIN_VIEWER_KEY: z.string().optional(),
+  // Admin Authentication
+  ADMIN_SECRET: z.string().optional(),
+  ADMIN_API_KEY: z.string().optional(),
+  ADMIN_VIEWER_KEY: z.string().optional(),
 
-    // OAuth
-    OAUTH_ISSUER: z.string().default(''),
-    OAUTH_MAX_TOKEN_TTL: z.coerce.number().int().min(1).default(86400),
-    OAUTH_CLIENT_ID: z.string().default(''),
-    OAUTH_CLIENT_SECRET: z.string().optional(),
-    ALLOWED_REDIRECT_URIS: z.string().default(''),
-    ACCESS_TOKEN_TTL: z.coerce.number().int().min(1).default(3600),
-    REFRESH_TOKEN_TTL: z.coerce.number().int().min(1).default(86400),
+  // OAuth
+  OAUTH_ISSUER: z.string().default(''),
+  OAUTH_MAX_TOKEN_TTL: z.coerce.number().int().min(1).default(86400),
+  OAUTH_CLIENT_ID: z.string().default(''),
+  OAUTH_CLIENT_SECRET: z.string().optional(),
+  ALLOWED_REDIRECT_URIS: z.string().default(''),
+  ACCESS_TOKEN_TTL: z.coerce.number().int().min(1).default(3600),
+  REFRESH_TOKEN_TTL: z.coerce.number().int().min(1).default(86400),
 
-    // Rate Limiting
-    RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(1000),
-    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(300),
-    RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).default(10000),
-    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
-    RATE_LIMIT_BURST: z.coerce.number().int().min(1).default(50),
+  // Rate Limiting
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(1000),
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(300),
+  RATE_LIMIT_PER_HOUR: z.coerce.number().int().min(1).default(10000),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60000),
+  RATE_LIMIT_BURST: z.coerce.number().int().min(1).default(50),
 
-    // Request Limits
-    MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).default(100),
-    REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60000),
-    SAMPLING_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
+  // Request Limits
+  MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).default(100),
+  REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60000),
+  SAMPLING_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
 
-    // Response Handling
-    COMPACT_RESPONSES: StrictBooleanSchema.default(true),
-    VALIDATE_OUTPUT_SCHEMAS: StrictBooleanSchema.default(false),
-    MCP_NON_FATAL_TOOL_ERRORS: StrictBooleanSchema.default(false),
-    STRICT_MCP_PROTOCOL_VERSION: StrictBooleanSchema.default(false),
+  // Response Handling
+  COMPACT_RESPONSES: StrictBooleanSchema.default(true),
+  VALIDATE_OUTPUT_SCHEMAS: StrictBooleanSchema.default(false),
+  MCP_NON_FATAL_TOOL_ERRORS: StrictBooleanSchema.default(false),
+  STRICT_MCP_PROTOCOL_VERSION: StrictBooleanSchema.default(false),
 
-    // Parallel Executor
-    PARALLEL_CONCURRENCY: z.coerce.number().int().min(1).default(20),
-    PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().min(1).default(100),
-    PARALLEL_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+  // Parallel Executor
+  PARALLEL_CONCURRENCY: z.coerce.number().int().min(1).default(20),
+  PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().min(1).default(100),
+  PARALLEL_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 
-    // Request Merging
-    REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().min(0).default(50),
+  // Request Merging
+  REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().min(0).default(50),
 
-    // ETag Cache
-    ETAG_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).default(1000),
+  // ETag Cache
+  ETAG_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).default(1000),
 
-    // Composite operations
-    COMPOSITE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(120000),
+  // Composite operations
+  COMPOSITE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(120000),
 
-    // Per-spreadsheet throttling
-    PER_SPREADSHEET_RPS: z.coerce.number().min(0.1).default(10),
+  // Per-spreadsheet throttling
+  PER_SPREADSHEET_RPS: z.coerce.number().min(0.1).default(10),
 
-    // Discovery API
-    DISCOVERY_API_ENABLED: StrictBooleanSchema.default(true),
-    DISCOVERY_CACHE_TTL: z.coerce.number().int().min(1000).default(300000),
+  // Discovery API
+  DISCOVERY_API_ENABLED: StrictBooleanSchema.default(true),
+  DISCOVERY_CACHE_TTL: z.coerce.number().int().min(1000).default(300000),
 
-    // Streamable HTTP event store
-    STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().int().min(1000).default(300000),
-    STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().min(1).default(1000),
+  // Streamable HTTP event store
+  STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().int().min(1000).default(300000),
+  STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().min(1).default(1000),
 
-    // Legacy compatibility
-    ENABLE_LEGACY_SSE: StrictBooleanSchema.default(false),
+  // Legacy compatibility
+  ENABLE_LEGACY_SSE: StrictBooleanSchema.default(false),
 
-    // Idempotency
-    ENABLE_IDEMPOTENCY: StrictBooleanSchema.default(false),
+  // Idempotency
+  ENABLE_IDEMPOTENCY: StrictBooleanSchema.default(false),
 
-    // Payload Validation
-    ENABLE_PAYLOAD_VALIDATION: StrictBooleanSchema.default(true),
+  // Payload Validation
+  ENABLE_PAYLOAD_VALIDATION: StrictBooleanSchema.default(true),
 
-    // Checkpoints
-    ENABLE_CHECKPOINTS: StrictBooleanSchema.default(false),
-    TRANSACTION_WAL_DIR: z.string().optional(),
+  // Checkpoints
+  ENABLE_CHECKPOINTS: StrictBooleanSchema.default(false),
+  TRANSACTION_WAL_DIR: z.string().optional(),
 
-    // Audit Logging
-    ENABLE_AUDIT_LOGGING: StrictBooleanSchema.default(false),
-    AUDIT_HMAC_SECRET: z.string().optional(),
-    AUDIT_LOG_DIR: z.string().optional(),
-    AUDIT_LOG_ENCRYPTION_KEY: z.string().optional(),
-    AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(90),
+  // Audit Logging
+  ENABLE_AUDIT_LOGGING: StrictBooleanSchema.default(false),
+  AUDIT_HMAC_SECRET: z.string().optional(),
+  AUDIT_LOG_DIR: z.string().optional(),
+  AUDIT_LOG_ENCRYPTION_KEY: z.string().optional(),
+  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(90),
 
-    // Action Log Sheet
-    ENABLE_ACTION_LOG_SHEET: StrictBooleanSchema.default(false),
-    ACTION_LOG_SPREADSHEET_ID: z.string().optional(),
-    ACTION_LOG_SHEET_NAME: z.string().default('Action Log'),
+  // Action Log Sheet
+  ENABLE_ACTION_LOG_SHEET: StrictBooleanSchema.default(false),
+  ACTION_LOG_SPREADSHEET_ID: z.string().optional(),
+  ACTION_LOG_SHEET_NAME: z.string().default('Action Log'),
 
-    // CORS
-    CORS_ORIGINS: z.string().default(''),
+  // CORS
+  CORS_ORIGINS: z.string().default(''),
 
-    // Federation
-    MCP_FEDERATION_SERVERS: z.string().optional(),
-    MCP_FEDERATION_DNS_STRICT: StrictBooleanSchema.default(true),
-    MCP_REMOTE_EXECUTOR_DNS_STRICT: StrictBooleanSchema.default(true),
-    PLAN_ENCRYPTION_KEY: z.string().optional(),
+  // Federation
+  MCP_FEDERATION_SERVERS: z.string().optional(),
+  MCP_FEDERATION_DNS_STRICT: StrictBooleanSchema.default(true),
+  MCP_REMOTE_EXECUTOR_DNS_STRICT: StrictBooleanSchema.default(true),
+  PLAN_ENCRYPTION_KEY: z.string().optional(),
 
-    // Webhooks
-    WEBHOOK_DNS_STRICT: StrictBooleanSchema.default(true),
-    WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
+  // Webhooks
+  WEBHOOK_DNS_STRICT: StrictBooleanSchema.default(true),
+  WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
 
-    // Transactions
-    TRANSACTIONS_ENABLED: StrictBooleanSchema.default(true),
-    TRANSACTIONS_AUTO_SNAPSHOT: StrictBooleanSchema.default(true),
-    TRANSACTIONS_AUTO_ROLLBACK: StrictBooleanSchema.default(true),
-    MAX_TRANSACTION_OPS: z.coerce.number().int().min(1).default(100),
+  // Transactions
+  TRANSACTIONS_ENABLED: StrictBooleanSchema.default(true),
+  TRANSACTIONS_AUTO_SNAPSHOT: StrictBooleanSchema.default(true),
+  TRANSACTIONS_AUTO_ROLLBACK: StrictBooleanSchema.default(true),
+  MAX_TRANSACTION_OPS: z.coerce.number().int().min(1).default(100),
 
-    // Access Pattern Tracking
-    ACCESS_PATTERN_MAX_HISTORY: z.coerce.number().int().min(1).default(100),
-    ACCESS_PATTERN_WINDOW_MS: z.coerce.number().int().min(1000).default(300000),
+  // Access Pattern Tracking
+  ACCESS_PATTERN_MAX_HISTORY: z.coerce.number().int().min(1).default(100),
+  ACCESS_PATTERN_WINDOW_MS: z.coerce.number().int().min(1000).default(300000),
 
-    // Sampling Consent
-    SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(300000),
+  // Sampling Consent
+  SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(300000),
 
-    // BigQuery
-    MAX_BIGQUERY_RESULT_ROWS: z.coerce.number().int().min(1).default(100000),
+  // BigQuery
+  MAX_BIGQUERY_RESULT_ROWS: z.coerce.number().int().min(1).default(100000),
 
-    // AppsScript
-    APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().min(1).default(5),
-    ENABLE_APPSSCRIPT_TRIGGER_COMPAT: StrictBooleanSchema.default(false),
+  // AppsScript
+  APPSSCRIPT_MAX_CONCURRENT_RUNS: z.coerce.number().int().min(1).default(5),
+  ENABLE_APPSSCRIPT_TRIGGER_COMPAT: StrictBooleanSchema.default(false),
 
-    // Google API
-    GOOGLE_API_HTTP2_ENABLED: StrictBooleanSchema.default(true),
-    ENABLE_CONDITIONAL_REQUESTS: StrictBooleanSchema.default(true),
-    ENABLE_DATAFILTER_BATCH: StrictBooleanSchema.default(true),
-    ENABLE_TABLE_APPENDS: StrictBooleanSchema.default(true),
-    ENABLE_AUTO_CONNECTION_RESET: StrictBooleanSchema.default(true),
+  // Google API
+  GOOGLE_API_HTTP2_ENABLED: StrictBooleanSchema.default(true),
+  ENABLE_CONDITIONAL_REQUESTS: StrictBooleanSchema.default(true),
+  ENABLE_DATAFILTER_BATCH: StrictBooleanSchema.default(true),
+  ENABLE_TABLE_APPENDS: StrictBooleanSchema.default(true),
+  ENABLE_AUTO_CONNECTION_RESET: StrictBooleanSchema.default(true),
 
-    // Python Compute
-    ENABLE_PYTHON_COMPUTE: StrictBooleanSchema.default(false),
+  // Python Compute
+  ENABLE_PYTHON_COMPUTE: StrictBooleanSchema.default(false),
 
-    // Mutation Safety
-    MUTATION_VERIFY_STRICT: StrictBooleanSchema.default(false),
+  // Mutation Safety
+  MUTATION_VERIFY_STRICT: StrictBooleanSchema.default(false),
 
-    // Incremental OAuth Consent
-    INCREMENTAL_CONSENT_ENABLED: StrictBooleanSchema.default(true),
-  });
+  // Incremental OAuth Consent
+  INCREMENTAL_CONSENT_ENABLED: StrictBooleanSchema.default(true),
+});
 
 export type Env = z.infer<typeof EnvSchema>;
 
@@ -510,7 +509,9 @@ export function getFederationConfig(): {
 } {
   const e = getEnv();
   const servers = e.MCP_FEDERATION_SERVERS
-    ? e.MCP_FEDERATION_SERVERS.split(',').map((s) => s.trim()).filter(Boolean)
+    ? e.MCP_FEDERATION_SERVERS.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
   return {
     enabled: servers.length > 0,

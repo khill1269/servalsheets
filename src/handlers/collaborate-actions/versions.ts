@@ -17,10 +17,7 @@ import type {
   CollaborateVersionSnapshotStatusInput,
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { createNotFoundError } from '../../utils/error-factory.js';
 import { logger } from '../../utils/logger.js';
 import { registerCleanup } from '../../utils/resource-cleanup.js';

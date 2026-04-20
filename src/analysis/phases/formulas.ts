@@ -95,10 +95,7 @@ export function extractDependencies(formula: string): string[] {
 /**
  * Build a FormulaInfo object for a complex/volatile formula cell
  */
-export function buildFormulaInfo(
-  cellRef: string,
-  formula: string
-): FormulaInfo {
+export function buildFormulaInfo(cellRef: string, formula: string): FormulaInfo {
   return {
     cell: cellRef,
     formula,

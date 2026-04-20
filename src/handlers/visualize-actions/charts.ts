@@ -21,10 +21,7 @@ import {
   toGridRange as toApiGridRange,
   type GridRangeInput,
 } from '../../utils/google-sheets-helpers.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { logger } from '../../utils/logger.js';
 import { recordChartId } from '../../mcp/completions.js';
 
@@ -315,10 +312,7 @@ export async function handleChartCreateAction(
   if ('code' in resolvedAnchor) {
     return deps.error(resolvedAnchor);
   }
-  const position = await toOverlayPosition(
-    resolvedAnchor,
-    resolvedInput.position
-  );
+  const position = await toOverlayPosition(resolvedAnchor, resolvedInput.position);
 
   // Route to appropriate chart spec builder based on chart type
   const chartSpec = buildChartSpec(
@@ -441,10 +435,7 @@ export async function handleChartUpdateAction(
     if ('code' in resolvedAnchor) {
       return deps.error(resolvedAnchor);
     }
-    const position = await toOverlayPosition(
-      resolvedAnchor,
-      input.position
-    );
+    const position = await toOverlayPosition(resolvedAnchor, input.position);
     requests.push({
       updateEmbeddedObjectPosition: {
         objectId: input.chartId,
@@ -647,10 +638,7 @@ export async function handleChartMoveAction(
   if ('code' in resolvedAnchor) {
     return deps.error(resolvedAnchor);
   }
-  const position = await toOverlayPosition(
-    resolvedAnchor,
-    input.position
-  );
+  const position = await toOverlayPosition(resolvedAnchor, input.position);
 
   await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: input.spreadsheetId,
@@ -1385,7 +1373,8 @@ async function resolveOverlayAnchor(
       code: ErrorCodes.NOT_FOUND,
       message: `Sheet ${parsed.sheetName ?? sheetId} not found`,
       retryable: false,
-      suggestedFix: 'Use an existing sheet name or an explicit position.sheetId for the chart anchor.',
+      suggestedFix:
+        'Use an existing sheet name or an explicit position.sheetId for the chart anchor.',
     };
   }
 

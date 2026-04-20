@@ -7,7 +7,11 @@
 import { ErrorCodes } from '../error-codes.js';
 import { extractRangeA1 } from '../../utils/range-helpers.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
-import { fetchRangeData, computeRegression, computeForecast } from '../../services/compute-engine.js';
+import {
+  fetchRangeData,
+  computeRegression,
+  computeForecast,
+} from '../../services/compute-engine.js';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/compute.js';
 import type { ComputeHandlerAccess } from './internal.js';
 import { resolveComputeInputData } from './header-resolution.js';
@@ -223,10 +227,15 @@ export async function handleRegression(
   req: SheetsComputeInput['request'] & { action: 'regression' }
 ): Promise<SheetsComputeOutput> {
   const startMs = Date.now();
-  const resolvedData = await resolveComputeInputData(access.sheetsApi, req.spreadsheetId, req.range, {
-    hasHeaders: req.hasHeaders,
-    headerRow: req.headerRow,
-  });
+  const resolvedData = await resolveComputeInputData(
+    access.sheetsApi,
+    req.spreadsheetId,
+    req.range,
+    {
+      hasHeaders: req.hasHeaders,
+      headerRow: req.headerRow,
+    }
+  );
   if (!resolvedData.ok) {
     return {
       response: {

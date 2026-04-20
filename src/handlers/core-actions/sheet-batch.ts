@@ -9,10 +9,7 @@ import type {
   CoreResponse,
 } from '../../schemas/index.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../../utils/error-factory.js';
 import { createMetadataCache } from '../../services/metadata-cache.js';
 import type { SheetResolutionResult } from '../../services/sheet-resolver.js';

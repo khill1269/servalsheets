@@ -7,7 +7,10 @@ import type { GoogleApiClient } from '../../services/google-api.js';
 import type { AuthResponse, AuthLoginInput, AuthCallbackInput } from '../../schemas/auth.js';
 import { getRecommendedScopes } from '../../config/oauth-scopes.js';
 import { EncryptedFileTokenStore } from '../../services/token-store.js';
-import { startCallbackServer, extractPortFromRedirectUri } from '../../utils/oauth-callback-server.js';
+import {
+  startCallbackServer,
+  extractPortFromRedirectUri,
+} from '../../utils/oauth-callback-server.js';
 import { TokenManager } from '../../services/token-manager.js';
 import { logger } from '../../utils/logger.js';
 import { executeWithRetry } from '../../utils/retry.js';
@@ -15,10 +18,7 @@ import { ErrorCodes } from '../error-codes.js';
 import open from 'open';
 import { getSessionContext } from '../../services/session-context.js';
 import type { ElicitationServer } from '../../mcp/elicitation.js';
-import {
-  initiateOAuthFlow,
-  completeOAuthFlow,
-} from '../../mcp/elicitation.js';
+import { initiateOAuthFlow, completeOAuthFlow } from '../../mcp/elicitation.js';
 import {
   verifyOAuthState,
   cleanupExpiredSessionStates,
@@ -35,7 +35,12 @@ export async function handleLogin(
   redirectUri: string | undefined,
   elicitationServer: ElicitationServer | undefined,
   _pendingOAuthElicitationId: { value?: string }
-): Promise<{ response: AuthResponse; pendingReauthState?: undefined; tokenManager?: TokenManager; pendingOAuthElicitationId?: string }> {
+): Promise<{
+  response: AuthResponse;
+  pendingReauthState?: undefined;
+  tokenManager?: TokenManager;
+  pendingOAuthElicitationId?: string;
+}> {
   if (!oauthClient) {
     return {
       response: {

@@ -244,10 +244,7 @@ export async function handleApply(
       }
 
       processedSheets += 1;
-      if (
-        shouldReportProgress &&
-        (processedSheets % 2 === 0 || processedSheets === totalSheets)
-      ) {
+      if (shouldReportProgress && (processedSheets % 2 === 0 || processedSheets === totalSheets)) {
         await h.sendProgress(
           1 + processedSheets,
           totalProgressSteps,
@@ -263,11 +260,7 @@ export async function handleApply(
           addNamedRange: {
             namedRange: {
               name: namedRange.name,
-              range: parseA1Range(
-                namedRange.range,
-                response.data.sheets || [],
-                h.letterToColumn
-              ),
+              range: parseA1Range(namedRange.range, response.data.sheets || [], h.letterToColumn),
             },
           },
         });

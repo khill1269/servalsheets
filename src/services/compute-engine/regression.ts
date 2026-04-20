@@ -4,11 +4,7 @@
 
 import type { RegressionOptions, RegressionResult, CellValue } from './types.js';
 import { resolveColumnIndex, extractNumericColumn } from './helpers.js';
-import {
-  linearRegression,
-  polynomialRegression,
-  predictValue,
-} from '../compute-engine-math.js';
+import { linearRegression, polynomialRegression, predictValue } from '../compute-engine-math.js';
 import { ValidationError } from '../../core/errors.js';
 
 /**

@@ -668,7 +668,8 @@ export const ERROR_RECOVERY_RULES: Record<string, SuggestedAction[]> = {
     {
       tool: 'sheets_core',
       action: 'list_sheets',
-      reason: 'Sheet name not found — list available sheets (names may contain emoji or trailing spaces)',
+      reason:
+        'Sheet name not found — list available sheets (names may contain emoji or trailing spaces)',
     },
   ],
   SPREADSHEET_NOT_FOUND: [
@@ -689,7 +690,8 @@ export const ERROR_RECOVERY_RULES: Record<string, SuggestedAction[]> = {
     {
       tool: 'sheets_transaction',
       action: 'begin',
-      reason: 'Quota exceeded — batch remaining operations into a transaction (80-95% fewer API calls)',
+      reason:
+        'Quota exceeded — batch remaining operations into a transaction (80-95% fewer API calls)',
     },
   ],
   UNAUTHENTICATED: [
@@ -724,7 +726,8 @@ export const ERROR_RECOVERY_RULES: Record<string, SuggestedAction[]> = {
     {
       tool: 'sheets_data',
       action: 'batch_read',
-      reason: 'Request timed out — break the range into smaller chunks using batch_read with pagination',
+      reason:
+        'Request timed out — break the range into smaller chunks using batch_read with pagination',
     },
   ],
 };
@@ -748,9 +751,21 @@ export const WORKFLOW_CHAINS: WorkflowChain[] = [
     trigger: 'sheets_composite.import_csv',
     workflow: 'Import → Clean → Format → Share',
     steps: [
-      { tool: 'sheets_fix', action: 'clean', reason: 'Step 1/3: Clean imported data (trim, normalize types)' },
-      { tool: 'sheets_format', action: 'apply_preset', reason: 'Step 2/3: Apply professional formatting' },
-      { tool: 'sheets_collaborate', action: 'share_add', reason: 'Step 3/3: Share the polished spreadsheet' },
+      {
+        tool: 'sheets_fix',
+        action: 'clean',
+        reason: 'Step 1/3: Clean imported data (trim, normalize types)',
+      },
+      {
+        tool: 'sheets_format',
+        action: 'apply_preset',
+        reason: 'Step 2/3: Apply professional formatting',
+      },
+      {
+        tool: 'sheets_collaborate',
+        action: 'share_add',
+        reason: 'Step 3/3: Share the polished spreadsheet',
+      },
     ],
   },
   {
@@ -758,8 +773,16 @@ export const WORKFLOW_CHAINS: WorkflowChain[] = [
     workflow: 'Import → Clean → Format → Share',
     steps: [
       { tool: 'sheets_fix', action: 'clean', reason: 'Step 1/3: Clean imported data' },
-      { tool: 'sheets_format', action: 'apply_preset', reason: 'Step 2/3: Apply professional formatting' },
-      { tool: 'sheets_collaborate', action: 'share_add', reason: 'Step 3/3: Share the polished spreadsheet' },
+      {
+        tool: 'sheets_format',
+        action: 'apply_preset',
+        reason: 'Step 2/3: Apply professional formatting',
+      },
+      {
+        tool: 'sheets_collaborate',
+        action: 'share_add',
+        reason: 'Step 3/3: Share the polished spreadsheet',
+      },
     ],
   },
   {
@@ -768,49 +791,101 @@ export const WORKFLOW_CHAINS: WorkflowChain[] = [
     steps: [
       { tool: 'sheets_data', action: 'write', reason: 'Step 1/3: Write headers and initial data' },
       { tool: 'sheets_dimensions', action: 'freeze', reason: 'Step 2/3: Freeze header row' },
-      { tool: 'sheets_format', action: 'batch_format', reason: 'Step 3/3: Apply formatting in one batch call' },
+      {
+        tool: 'sheets_format',
+        action: 'batch_format',
+        reason: 'Step 3/3: Apply formatting in one batch call',
+      },
     ],
   },
   {
     trigger: 'sheets_analyze.scout',
     workflow: 'Scout → Analyze → Fix → Visualize',
     steps: [
-      { tool: 'sheets_analyze', action: 'comprehensive', reason: 'Step 1/3: Deep analysis of patterns and issues' },
-      { tool: 'sheets_fix', action: 'clean', reason: 'Step 2/3: Fix any data quality issues found' },
-      { tool: 'sheets_visualize', action: 'suggest_chart', reason: 'Step 3/3: Visualize key insights' },
+      {
+        tool: 'sheets_analyze',
+        action: 'comprehensive',
+        reason: 'Step 1/3: Deep analysis of patterns and issues',
+      },
+      {
+        tool: 'sheets_fix',
+        action: 'clean',
+        reason: 'Step 2/3: Fix any data quality issues found',
+      },
+      {
+        tool: 'sheets_visualize',
+        action: 'suggest_chart',
+        reason: 'Step 3/3: Visualize key insights',
+      },
     ],
   },
   {
     trigger: 'sheets_data.read',
     workflow: 'Read → Compute → Write Results',
     steps: [
-      { tool: 'sheets_compute', action: 'aggregate', reason: 'Step 1/2: Compute aggregations (SUM, AVG, etc.) server-side' },
-      { tool: 'sheets_data', action: 'write', reason: 'Step 2/2: Write computed results back to the sheet' },
+      {
+        tool: 'sheets_compute',
+        action: 'aggregate',
+        reason: 'Step 1/2: Compute aggregations (SUM, AVG, etc.) server-side',
+      },
+      {
+        tool: 'sheets_data',
+        action: 'write',
+        reason: 'Step 2/2: Write computed results back to the sheet',
+      },
     ],
   },
   {
     trigger: 'sheets_fix.clean',
     workflow: 'Clean → Validate → Format → Protect',
     steps: [
-      { tool: 'sheets_quality', action: 'validate', reason: 'Step 1/3: Validate cleaned data passes all rules' },
-      { tool: 'sheets_format', action: 'batch_format', reason: 'Step 2/3: Apply consistent formatting' },
-      { tool: 'sheets_advanced', action: 'add_protected_range', reason: 'Step 3/3: Protect clean data from accidental edits' },
+      {
+        tool: 'sheets_quality',
+        action: 'validate',
+        reason: 'Step 1/3: Validate cleaned data passes all rules',
+      },
+      {
+        tool: 'sheets_format',
+        action: 'batch_format',
+        reason: 'Step 2/3: Apply consistent formatting',
+      },
+      {
+        tool: 'sheets_advanced',
+        action: 'add_protected_range',
+        reason: 'Step 3/3: Protect clean data from accidental edits',
+      },
     ],
   },
   {
     trigger: 'sheets_bigquery.query',
     workflow: 'Query → Import → Visualize',
     steps: [
-      { tool: 'sheets_bigquery', action: 'import_from_bigquery', reason: 'Step 1/2: Import query results into a sheet' },
-      { tool: 'sheets_visualize', action: 'chart_create', reason: 'Step 2/2: Create a chart from the imported data' },
+      {
+        tool: 'sheets_bigquery',
+        action: 'import_from_bigquery',
+        reason: 'Step 1/2: Import query results into a sheet',
+      },
+      {
+        tool: 'sheets_visualize',
+        action: 'chart_create',
+        reason: 'Step 2/2: Create a chart from the imported data',
+      },
     ],
   },
   {
     trigger: 'sheets_dependencies.model_scenario',
     workflow: 'Model → Compare → Materialize',
     steps: [
-      { tool: 'sheets_dependencies', action: 'compare_scenarios', reason: 'Step 1/2: Compare multiple what-if scenarios side by side' },
-      { tool: 'sheets_dependencies', action: 'create_scenario_sheet', reason: 'Step 2/2: Materialize the best scenario as a new sheet' },
+      {
+        tool: 'sheets_dependencies',
+        action: 'compare_scenarios',
+        reason: 'Step 1/2: Compare multiple what-if scenarios side by side',
+      },
+      {
+        tool: 'sheets_dependencies',
+        action: 'create_scenario_sheet',
+        reason: 'Step 2/2: Materialize the best scenario as a new sheet',
+      },
     ],
   },
   // ── Newly covered tool chains ──────────────────────────────────────────────
@@ -818,32 +893,64 @@ export const WORKFLOW_CHAINS: WorkflowChain[] = [
     trigger: 'sheets_history.timeline',
     workflow: 'Timeline → Diff → Restore',
     steps: [
-      { tool: 'sheets_history', action: 'diff_revisions', reason: 'Step 1/2: Compare two revisions to find what changed' },
-      { tool: 'sheets_history', action: 'restore_cells', reason: 'Step 2/2: Surgically restore specific cells from a past revision' },
+      {
+        tool: 'sheets_history',
+        action: 'diff_revisions',
+        reason: 'Step 1/2: Compare two revisions to find what changed',
+      },
+      {
+        tool: 'sheets_history',
+        action: 'restore_cells',
+        reason: 'Step 2/2: Surgically restore specific cells from a past revision',
+      },
     ],
   },
   {
     trigger: 'sheets_templates.apply',
     workflow: 'Apply Template → Populate → Format',
     steps: [
-      { tool: 'sheets_data', action: 'write', reason: 'Step 1/2: Populate the template with actual data' },
-      { tool: 'sheets_format', action: 'batch_format', reason: 'Step 2/2: Customize formatting for the populated template' },
+      {
+        tool: 'sheets_data',
+        action: 'write',
+        reason: 'Step 1/2: Populate the template with actual data',
+      },
+      {
+        tool: 'sheets_format',
+        action: 'batch_format',
+        reason: 'Step 2/2: Customize formatting for the populated template',
+      },
     ],
   },
   {
     trigger: 'sheets_connectors.discover',
     workflow: 'Discover → Configure → Query',
     steps: [
-      { tool: 'sheets_connectors', action: 'configure', reason: 'Step 1/2: Configure the discovered connector with credentials' },
-      { tool: 'sheets_connectors', action: 'query', reason: 'Step 2/2: Query external data via the configured connector' },
+      {
+        tool: 'sheets_connectors',
+        action: 'configure',
+        reason: 'Step 1/2: Configure the discovered connector with credentials',
+      },
+      {
+        tool: 'sheets_connectors',
+        action: 'query',
+        reason: 'Step 2/2: Query external data via the configured connector',
+      },
     ],
   },
   {
     trigger: 'sheets_agent.execute',
     workflow: 'Execute → Observe → Adjust',
     steps: [
-      { tool: 'sheets_agent', action: 'observe', reason: 'Step 1/2: Observe execution results and verify correctness' },
-      { tool: 'sheets_agent', action: 'rollback', reason: 'Step 2/2: Roll back if results are incorrect (checkpoint-based)' },
+      {
+        tool: 'sheets_agent',
+        action: 'observe',
+        reason: 'Step 1/2: Observe execution results and verify correctness',
+      },
+      {
+        tool: 'sheets_agent',
+        action: 'rollback',
+        reason: 'Step 2/2: Roll back if results are incorrect (checkpoint-based)',
+      },
     ],
   },
   {
@@ -851,7 +958,11 @@ export const WORKFLOW_CHAINS: WorkflowChain[] = [
     workflow: 'Validate → Fix → Re-validate',
     steps: [
       { tool: 'sheets_fix', action: 'clean', reason: 'Step 1/2: Auto-fix validation issues found' },
-      { tool: 'sheets_quality', action: 'validate', reason: 'Step 2/2: Re-validate to confirm all issues are resolved' },
+      {
+        tool: 'sheets_quality',
+        action: 'validate',
+        reason: 'Step 2/2: Re-validate to confirm all issues are resolved',
+      },
     ],
   },
 ];

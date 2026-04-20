@@ -82,7 +82,9 @@ export function validateDraftPlanStep(
 
   const issues = parseResult.error.issues.map((issue) => ({
     field: formatIssuePath(
-      issue.path.filter((pathSegment): pathSegment is string | number => typeof pathSegment !== 'symbol')
+      issue.path.filter(
+        (pathSegment): pathSegment is string | number => typeof pathSegment !== 'symbol'
+      )
     ),
     message: issue.message,
   }));

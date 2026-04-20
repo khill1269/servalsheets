@@ -6,10 +6,7 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import {
   assertSamplingConsent,
   checkSamplingSupport,
@@ -611,15 +608,16 @@ async function resolveSuggestFormatRange(
     const targetSheet =
       sheets.find((sheet) => sheet.properties?.title === input.sheetName) ?? sheets[0];
     const title = targetSheet?.properties?.title ?? input.sheetName ?? 'Sheet1';
-    const rowCount = Math.max(1, Math.min(targetSheet?.properties?.gridProperties?.rowCount ?? 50, 50));
+    const rowCount = Math.max(
+      1,
+      Math.min(targetSheet?.properties?.gridProperties?.rowCount ?? 50, 50)
+    );
     const columnCount = Math.max(
       1,
       Math.min(targetSheet?.properties?.gridProperties?.columnCount ?? 26, 26)
     );
     const endColumn = ha.columnToLetter(columnCount - 1);
-    const escapedTitle = /^[A-Za-z0-9_]+$/.test(title)
-      ? title
-      : `'${title.replace(/'/g, "''")}'`;
+    const escapedTitle = /^[A-Za-z0-9_]+$/.test(title) ? title : `'${title.replace(/'/g, "''")}'`;
     return `${escapedTitle}!A1:${endColumn}${rowCount}`;
   } catch {
     if (input.sheetName) {

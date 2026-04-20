@@ -12,10 +12,7 @@ import { ErrorCodes } from '../error-codes.js';
 import { getRequestLogger, sendProgress } from '../../utils/request-context.js';
 import { getEnv } from '../../config/env.js';
 import { withTimeout } from '../../utils/timeout.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import type {
   CompositeImportCsvInput,
   CompositeSmartAppendInput,
@@ -23,7 +20,12 @@ import type {
   CompositeDeduplicateInput,
   CompositeOutput,
 } from '../../schemas/composite.js';
-import type { CsvImportResult, SmartAppendResult, BulkUpdateResult, DeduplicateResult } from '../../services/composite-operations.js';
+import type {
+  CsvImportResult,
+  SmartAppendResult,
+  BulkUpdateResult,
+  DeduplicateResult,
+} from '../../services/composite-operations.js';
 import type { CompositeHandlerAccess } from './internal.js';
 
 /**
@@ -312,10 +314,7 @@ export async function handleDeduplicateAction(
   let resolvedInput = input;
 
   // Wizard: If range is provided but keyColumns is missing, elicit key column
-  if (
-    resolvedInput.sheet &&
-    (!resolvedInput.keyColumns || resolvedInput.keyColumns.length === 0)
-  ) {
+  if (resolvedInput.sheet && (!resolvedInput.keyColumns || resolvedInput.keyColumns.length === 0)) {
     if (access.context?.server?.elicitInput) {
       try {
         const wizard = await access.context.server.elicitInput({
@@ -333,9 +332,7 @@ export async function handleDeduplicateAction(
         });
         const wizardContent = wizard?.content as Record<string, unknown> | undefined;
         const keyColumn =
-          typeof wizardContent?.['keyColumn'] === 'string'
-            ? wizardContent['keyColumn']
-            : undefined;
+          typeof wizardContent?.['keyColumn'] === 'string' ? wizardContent['keyColumn'] : undefined;
         if (wizard?.action === 'accept' && keyColumn) {
           resolvedInput = {
             ...resolvedInput,

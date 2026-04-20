@@ -15,14 +15,8 @@ import type {
   DimensionsGetFilterViewInput,
   DimensionsResponse,
 } from '../../schemas/index.js';
-import {
-  safeElicit,
-  FILTER_SETTINGS_SCHEMA,
-} from '../../mcp/elicitation.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { safeElicit, FILTER_SETTINGS_SCHEMA } from '../../mcp/elicitation.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { toGridRange } from '../../utils/google-sheets-helpers.js';
 import {
   mapDimensionsCriteria,

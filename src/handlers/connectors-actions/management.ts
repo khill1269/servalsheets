@@ -55,9 +55,7 @@ export async function handleConfigure(
       'Run list_connectors first or retry configure with connectorId on an elicitation-capable client.';
     return h.makeErrorResponse(
       'configure',
-      h.elicitationServer
-        ? ErrorCodes.OPERATION_CANCELLED
-        : ErrorCodes.ELICITATION_UNAVAILABLE,
+      h.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.ELICITATION_UNAVAILABLE,
       'Connector configuration needs a connectorId. On elicitation-capable MCP clients, the server can prompt for it; otherwise provide connectorId explicitly.',
       'Call list_connectors to see valid connector IDs, then retry configure with connectorId and credentials.',
       nextBestAction
@@ -88,9 +86,7 @@ export async function handleConfigure(
       if (!apiKey) {
         return h.makeErrorResponse(
           'configure',
-          h.elicitationServer
-            ? ErrorCodes.OPERATION_CANCELLED
-            : ErrorCodes.ELICITATION_UNAVAILABLE,
+          h.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.ELICITATION_UNAVAILABLE,
           h.elicitationServer
             ? `Connector configuration for "${connector.name}" was cancelled before an API key was provided.`
             : `Connector "${connector.name}" requires credentials.apiKey.`,
@@ -113,9 +109,7 @@ export async function handleConfigure(
     if (!oauth) {
       return h.makeErrorResponse(
         'configure',
-        h.elicitationServer
-          ? ErrorCodes.OPERATION_CANCELLED
-          : ErrorCodes.ELICITATION_UNAVAILABLE,
+        h.elicitationServer ? ErrorCodes.OPERATION_CANCELLED : ErrorCodes.ELICITATION_UNAVAILABLE,
         h.elicitationServer
           ? `Connector configuration for "${connector.name}" was cancelled before OAuth credentials were provided.`
           : `Connector "${connector.name}" requires credentials.oauth with clientId and clientSecret.`,

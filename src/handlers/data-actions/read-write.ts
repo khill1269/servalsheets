@@ -991,7 +991,8 @@ export async function handleClear(
   if (confirmationDecision.required && !confirmationServer) {
     return ha.makeSuccess('clear', {
       _cancelled: true,
-      reason: 'Interactive confirmation is unavailable for an operation that requires confirmation.',
+      reason:
+        'Interactive confirmation is unavailable for an operation that requires confirmation.',
     });
   }
 

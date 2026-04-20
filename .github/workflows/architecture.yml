@@ -200,11 +200,9 @@ jobs:
           cache: 'npm'
 
       - name: Security Audit
-        # GHSA-65ch-62r8-g69g: node-saml → xml-encryption → node-forge — no upstream fix.
-        # xmldom critical vulns resolved via package.json overrides to @xmldom/xmldom.
-        # Allowlisted explicitly so any NEW critical CVE still fails CI.
-        # Re-evaluate when node-saml v4 stable ships. See SECURITY_EXCEPTIONS.md.
-        run: npm audit --audit-level=critical --allow-ghsas GHSA-65ch-62r8-g69g
+        # Uses custom wrapper that reads SECURITY_EXCEPTIONS.md to allowlist known-unfixable GHSAs.
+        # Any NEW critical CVE not listed in SECURITY_EXCEPTIONS.md will still fail CI.
+        run: node scripts/audit-with-exceptions.mjs --audit-level=critical
 
       - name: Check Outdated Packages
         run: |
@@ -230,9 +228,9 @@ jobs:
       - name: Build All MCP Servers
         run: |
           echo "📦 Building all MCP servers..."
-          cd tools/google-docs-server && npm ci && npm run build
-          cd ../test-intelligence-server && npm ci && npm run build
-          cd ../gcloud-console-server && npm ci && npm run build
+          cd tools/google-docs-server && npm install --ignore-scripts && npm run build
+          cd ../test-intelligence-server && npm install --ignore-scripts && npm run build
+          cd ../gcloud-console-server && npm install --ignore-scripts && npm run build
 
       - name: Run Fast Tests
         run: npm run test:fast

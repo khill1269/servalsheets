@@ -14,10 +14,7 @@ import type {
 } from '../../schemas/index.js';
 import type { ErrorDetail, MutationSummary } from '../../schemas/shared.js';
 import { elicitSharingSettings } from '../../mcp/elicitation.js';
-import {
-  createSnapshotIfNeeded,
-  requestSafetyConfirmation,
-} from '../../utils/safety-helpers.js';
+import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
 import { driveRateLimiter } from '../../utils/drive-rate-limiter.js';
 import { TimeoutError, withTimeout } from '../../utils/timeout.js';
 
@@ -327,8 +324,7 @@ export async function handleShareAddAction(
     } else if (resolvedInput.type === 'domain') {
       matchingPermission = permissions.find(
         (p) =>
-          p.type === 'domain' &&
-          p.domain?.toLowerCase() === resolvedInput.domain?.toLowerCase()
+          p.type === 'domain' && p.domain?.toLowerCase() === resolvedInput.domain?.toLowerCase()
       );
       if (matchingPermission) {
         const roleHierarchy: Record<string, number> = {
