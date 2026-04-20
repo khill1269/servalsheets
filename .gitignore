@@ -138,6 +138,7 @@ test-replay.jsonl
 docs/generated/
 !docs/generated/facts.json
 docs/.vitepress/dist/
+.vitepress/
 docs/development/complete-file-audit/
 
 # Analysis reports (Word/Excel documents)
