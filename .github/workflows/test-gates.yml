@@ -26,6 +26,7 @@ jobs:
   schema-gate:
     name: Schema Validation Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -70,6 +71,7 @@ jobs:
   unit-gate:
     name: Unit Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -99,6 +101,7 @@ jobs:
   integration-gate:
     name: Integration Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [schema-gate, unit-gate]
     permissions:
       contents: read
@@ -129,6 +132,7 @@ jobs:
   contract-gate:
     name: Contract Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [schema-gate]
     permissions:
       contents: read
@@ -161,7 +165,7 @@ jobs:
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Run contract tests
-        run: npx vitest run tests/contracts
+        run: npm test -- --run tests/contracts
         env:
           REDIS_URL: redis://localhost:6379
 
@@ -196,6 +200,7 @@ jobs:
   safety-gate:
     name: Safety Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -241,6 +246,7 @@ jobs:
   infrastructure-gate:
     name: Infrastructure Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [unit-gate, integration-gate]
     permissions:
       contents: read
