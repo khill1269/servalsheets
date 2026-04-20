@@ -32,15 +32,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies with retry
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          # --ignore-scripts prevents prepare→build→tsc from running during install.
-          # The explicit build steps below handle compilation.
-          command: npm ci --ignore-scripts
+      - name: Install dependencies
+        # --ignore-scripts prevents prepare→build→tsc from running during install.
+        # The explicit build steps below handle compilation.
+        run: npm ci --ignore-scripts
+
+      - name: Diagnostics
+        run: |
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "Disk: $(df -h . | tail -1)"
+          echo "RAM: $(free -m | awk '/Mem:/{print $2"M total, "$7"M free"}')"
+          echo "Packages: $(ls node_modules | wc -l) directories"
 
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -79,12 +82,14 @@ jobs:
         run: npm run validate:actions
 
       - name: Build workspace packages
+        timeout-minutes: 3
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Clear stale build artifacts
         run: rm -f .tsbuildinfo .tsbuildinfo.build && rm -rf dist
 
       - name: Emit dist/ (noCheck — type errors gate at the typecheck step below)
+        timeout-minutes: 5
         run: NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
 
       - name: Copy runtime assets to dist/
