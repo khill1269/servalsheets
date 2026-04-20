@@ -168,6 +168,16 @@ export const parseA1Notation = memoize(_parseA1Notation, {
  * Parse single cell reference (e.g., "Sheet1!A1" or "B5")
  */
 function _parseCellReference(cell: string): ParsedCell {
+  // Defensive boundary guard. Callers should validate via Zod first, but
+  // internal service-to-service paths occasionally bypass it and we want
+  // a typed ValidationError, not a raw `cell.match is not a function`.
+  if (typeof cell !== 'string') {
+    throw new ValidationError(
+      `Invalid cell reference: expected string, got ${cell === null ? 'null' : typeof cell}`,
+      'range',
+      'Sheet1!A1'
+    );
+  }
   const match = cell.match(CELL_REF_RE);
   if (!match) {
     throw new ValidationError(`Invalid cell reference: ${cell}`, 'range', 'Sheet1!A1');

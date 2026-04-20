@@ -493,34 +493,40 @@ export class CacheInvalidationGraph {
     rules['sheets_composite.migrate_spreadsheet'] = { invalidates: ['values:*', 'metadata:*'] }; // Write: copies data
 
     // ========================================================================
-    // sheets_session (26 actions) - No cache invalidation
+    // sheets_session (32 actions) - Session state only; no spreadsheet cache invalidation
     // ========================================================================
-    rules['sheets_session.init'] = { invalidates: [] };
-    rules['sheets_session.set_context'] = { invalidates: [] };
+    rules['sheets_session.set_active'] = { invalidates: [] };
+    rules['sheets_session.get_active'] = { invalidates: [] };
     rules['sheets_session.get_context'] = { invalidates: [] };
-    rules['sheets_session.clear_context'] = { invalidates: [] };
-    rules['sheets_session.set_preferences'] = { invalidates: [] };
-    rules['sheets_session.get_preferences'] = { invalidates: [] };
-    rules['sheets_session.add_to_history'] = { invalidates: [] };
+    rules['sheets_session.record_operation'] = { invalidates: [] };
+    rules['sheets_session.get_last_operation'] = { invalidates: [] };
     rules['sheets_session.get_history'] = { invalidates: [] };
-    rules['sheets_session.clear_history'] = { invalidates: [] };
-    rules['sheets_session.set_goal'] = { invalidates: [] };
-    rules['sheets_session.get_goal'] = { invalidates: [] };
-    rules['sheets_session.update_state'] = { invalidates: [] };
-    rules['sheets_session.get_state'] = { invalidates: [] };
-    rules['sheets_session.add_memory'] = { invalidates: [] };
-    rules['sheets_session.get_memory'] = { invalidates: [] };
-    rules['sheets_session.clear_memory'] = { invalidates: [] };
-    rules['sheets_session.set_active_sheet'] = { invalidates: [] };
-    rules['sheets_session.get_active_sheet'] = { invalidates: [] };
-    rules['sheets_session.add_bookmark'] = { invalidates: [] };
-    rules['sheets_session.list_bookmarks'] = { invalidates: [] };
-    rules['sheets_session.delete_bookmark'] = { invalidates: [] };
-    rules['sheets_session.set_variable'] = { invalidates: [] };
-    rules['sheets_session.get_variable'] = { invalidates: [] };
-    rules['sheets_session.list_variables'] = { invalidates: [] };
-    rules['sheets_session.delete_variable'] = { invalidates: [] };
-    rules['sheets_session.end'] = { invalidates: [] };
+    rules['sheets_session.find_by_reference'] = { invalidates: [] };
+    rules['sheets_session.update_preferences'] = { invalidates: [] };
+    rules['sheets_session.get_preferences'] = { invalidates: [] };
+    rules['sheets_session.set_pending'] = { invalidates: [] };
+    rules['sheets_session.get_pending'] = { invalidates: [] };
+    rules['sheets_session.clear_pending'] = { invalidates: [] };
+    rules['sheets_session.save_checkpoint'] = { invalidates: [] };
+    rules['sheets_session.load_checkpoint'] = { invalidates: [] };
+    rules['sheets_session.list_checkpoints'] = { invalidates: [] };
+    rules['sheets_session.delete_checkpoint'] = { invalidates: [] };
+    rules['sheets_session.reset'] = { invalidates: [] };
+    rules['sheets_session.compact_session'] = { invalidates: [] };
+    rules['sheets_session.get_alerts'] = { invalidates: [] };
+    rules['sheets_session.acknowledge_alert'] = { invalidates: [] };
+    rules['sheets_session.clear_alerts'] = { invalidates: [] };
+    rules['sheets_session.set_user_id'] = { invalidates: [] };
+    rules['sheets_session.get_profile'] = { invalidates: [] };
+    rules['sheets_session.update_profile_preferences'] = { invalidates: [] };
+    rules['sheets_session.record_successful_formula'] = { invalidates: [] };
+    rules['sheets_session.reject_suggestion'] = { invalidates: [] };
+    rules['sheets_session.get_top_formulas'] = { invalidates: [] };
+    rules['sheets_session.execute_pipeline'] = { invalidates: [] };
+    rules['sheets_session.schedule_create'] = { invalidates: [] };
+    rules['sheets_session.schedule_list'] = { invalidates: [] };
+    rules['sheets_session.schedule_cancel'] = { invalidates: [] };
+    rules['sheets_session.schedule_run_now'] = { invalidates: [] };
 
     // ========================================================================
     // sheets_templates (8 actions)

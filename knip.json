@@ -22,7 +22,8 @@
     "dist/**",
     "coverage/**",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "vite.config.ts"
   ],
   "ignoreDependencies": [
     "@types/*",
@@ -45,6 +46,9 @@
   ],
   "ignoreExportsUsedInFile": true,
   "includeEntryExports": false,
+  "vite": {
+    "config": []
+  },
   "vitest": {
     "config": ["vitest.config.ts", "vitest.config.*.ts"],
     "entry": ["tests/**/*.test.ts", "tests/**/*.spec.ts"]

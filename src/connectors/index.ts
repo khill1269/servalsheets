@@ -37,3 +37,14 @@ export { DocsConnector } from './docs-connector.js';
 // Bridge connectors
 export { McpBridgeConnector } from './mcp-bridge.js';
 export { GenericRestConnector } from './rest-generic.js';
+
+// Plugin API (for third-party connector development)
+export {
+  ConnectorPluginLoader,
+  getPluginLoader,
+  resetPluginLoader,
+  type ConnectorPlugin,
+  type ConnectorPluginManifest,
+  type ConnectorFactory,
+  type LoadedPlugin,
+} from './plugin-api.js';

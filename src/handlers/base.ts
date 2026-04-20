@@ -970,7 +970,39 @@ export abstract class BaseHandler<TInput, TOutput> {
       };
     }
 
-    // Default: internal error
+    // Default: internal error.
+    // Preserve structured diagnostic info in `details` so operators can
+    // triage INTERNAL_ERROR without needing server-side log access.
+    // We intentionally truncate the stack slice so we don't leak
+    // repo-absolute paths or sensitive call frames into client responses.
+    const errRecord = error as unknown as Record<string, unknown>;
+    const errorName = typeof errRecord['name'] === 'string' ? errRecord['name'] : 'Error';
+    const detailsErrorCode =
+      typeof errRecord['code'] === 'string'
+        ? errRecord['code']
+        : typeof errRecord['code'] === 'number'
+          ? String(errRecord['code'])
+          : undefined;
+
+    let stackSlice: string | undefined;
+    if (typeof errRecord['stack'] === 'string') {
+      // Strip absolute path prefixes and keep only the top 3 frames.
+      const frames = (errRecord['stack'] as string)
+        .split('\n')
+        .slice(1, 4) // drop the message line; keep 3 frames
+        .map((line) => line.replace(/\/[^\s]*\/(src|dist|node_modules)\//g, '$1/'))
+        .join('\n');
+      if (frames) stackSlice = frames;
+    }
+
+    // Categorize: infer a finer-grained signal than the generic "server"
+    // bucket for things like "TypeError"/"RangeError" which are almost
+    // always code bugs rather than transient server problems.
+    const errorCategory: 'bug' | 'server' =
+      errorName === 'TypeError' || errorName === 'RangeError' || errorName === 'SyntaxError'
+        ? 'bug'
+        : 'server';
+
     return {
       code: ErrorCodes.INTERNAL_ERROR,
       message: error.message,
@@ -985,6 +1017,12 @@ export abstract class BaseHandler<TInput, TOutput> {
         '2. Verify your request parameters are correct',
         '3. If the error persists, report it with the full error message',
       ],
+      details: {
+        errorName,
+        errorCategory,
+        ...(detailsErrorCode !== undefined ? { errorCode: detailsErrorCode } : {}),
+        ...(stackSlice ? { stackSlice } : {}),
+      },
     };
   }
 

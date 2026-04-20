@@ -30,9 +30,23 @@ import {
   withSamplingTimeout,
   createUserMessage,
   extractTextFromResult,
+  getModelHint,
 } from './sampling.js';
+import { confirmDestructiveAction, type ElicitationServer } from '../../mcp/elicitation.js';
 import { planStore, persistPlanState } from './plan-store.js';
 import { createCheckpoint } from './checkpoints.js';
+
+// ============================================================================
+// Destructive action registry — triggers mid-execution elicitation
+// ============================================================================
+
+const DESTRUCTIVE_AGENT_ACTIONS = new Set([
+  'sheets_data.clear',
+  'sheets_data.batch_clear',
+  'sheets_core.delete_sheet',
+  'sheets_core.batch_delete_sheets',
+  'sheets_dimensions.delete',
+]);
 
 // ============================================================================
 // Shared helpers
@@ -630,12 +644,15 @@ ${resultStr}
 Did this step succeed as expected? If the response shows success:false or an unexpected error, report it.
 Reply with ONLY JSON (no markdown): { "valid": boolean, "issue"?: string, "suggestedFix"?: string }`;
 
+    const stepValidationHint = getModelHint('stepValidation');
     const response = await withSamplingTimeout(() =>
       samplingServer.createMessage({
         messages: [createUserMessage(prompt)],
         systemPrompt:
           'You are validating spreadsheet operation results. Reply with only valid JSON.',
         maxTokens: 200,
+        modelPreferences: { hints: stepValidationHint.hints },
+        temperature: stepValidationHint.temperature,
       })
     );
 
@@ -671,10 +688,37 @@ async function runStepWithGuards(
   step: ExecutionStep,
   executeHandler: ExecuteHandlerFn,
   checkpointContext: string,
-  _interactiveMode: boolean = false
+  interactiveMode: boolean = false,
+  elicitationServer?: ElicitationServer
 ): Promise<StepRunOutcome> {
   const startedAt = new Date().toISOString();
   createCheckpoint(plan.planId, checkpointContext);
+
+  // Mid-execution elicitation for destructive steps in interactive mode
+  const actionKey = `${step.tool}.${step.action}`;
+  if (interactiveMode && elicitationServer && DESTRUCTIVE_AGENT_ACTIONS.has(actionKey)) {
+    const rangeInfo = typeof step.params['range'] === 'string' ? ` on range ${step.params['range']}` : '';
+    const sheetInfo = typeof step.params['sheetName'] === 'string' ? ` sheet "${step.params['sheetName']}"` : '';
+    const confirmation = await confirmDestructiveAction(
+      elicitationServer,
+      `Agent plan: ${step.description}`,
+      `Step ${plan.currentStepIndex + 1}/${plan.steps.length}: ${step.tool}.${step.action}${rangeInfo}${sheetInfo}`
+    );
+    if (!confirmation.confirmed) {
+      return {
+        status: 'pause',
+        pauseReason: `User declined destructive step: ${step.description}`,
+        suggestedFix: confirmation.reason ?? 'The step was not approved. Modify the plan or skip this step.',
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          error: `Execution paused: user declined ${step.tool}.${step.action}`,
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+  }
 
   const validation = validateStepParamsAgainstSchema(step, plan);
   step.params = validation.params;
@@ -822,7 +866,8 @@ export async function executePlan(
   planId: string,
   dryRun: boolean,
   executeHandler: ExecuteHandlerFn,
-  interactiveMode: boolean = false
+  interactiveMode: boolean = false,
+  elicitationServer?: ElicitationServer
 ): Promise<PlanState> {
   const plan = planStore.get(planId);
   if (!plan) {
@@ -860,7 +905,8 @@ export async function executePlan(
       step,
       executeHandler,
       `Before step: ${step.description}`,
-      interactiveMode
+      interactiveMode,
+      elicitationServer
     );
 
     if (outcome.status === 'retry') {

@@ -179,12 +179,25 @@ export const EnvSchema = z
 
     // Production Safety
     TENANT_ISOLATION_REQUIRED: StrictBooleanSchema.default(false),
+    ENABLE_RBAC: StrictBooleanSchema.default(false),
     DATA_DIR: z.string().default('/tmp/servalsheets'),
     PROFILE_STORAGE_DIR: z.string().optional(),
     CHECKPOINT_DIR: z.string().optional(),
     ENABLE_CHECKPOINTS: StrictBooleanSchema.default(false),
     PERSIST_CHECKPOINTS: StrictBooleanSchema.default(false),
     ENABLE_SAMPLING: StrictBooleanSchema.default(true),
+
+    // Sampling Consent (GDPR gate)
+    // When true, assertSamplingConsent() requires explicit opt-in before any LLM sampling call.
+    // Set to false only in trusted internal deployments where consent is handled upstream.
+    SAMPLING_CONSENT_REQUIRED: StrictBooleanSchema.default(false),
+    // TTL for sampling consent cache (milliseconds). Default: 5 minutes.
+    SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(300000),
+
+    // Conditional Requests (ETag-based caching)
+    // When true, cached-sheets-api.ts sends If-None-Match headers to avoid redundant data
+    // transfers. Reduces Google Sheets API quota usage by 80-100x on repeated reads.
+    ENABLE_CONDITIONAL_REQUESTS: StrictBooleanSchema.default(true),
 
     // Plan Encryption
     PLAN_ENCRYPTION_KEY: z

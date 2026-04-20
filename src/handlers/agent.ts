@@ -24,15 +24,18 @@ export class AgentHandler {
   private handlers?: AgentHandlerRegistry;
   private executeHandler: ExecuteHandlerFn;
   private sessionContext?: import('../services/session-context.js').SessionContextManager;
+  private elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
 
   constructor(
     handlers?: AgentHandlerRegistry,
     options?: {
       sessionContext?: import('../services/session-context.js').SessionContextManager;
+      elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
     }
   ) {
     this.handlers = handlers;
     this.sessionContext = options?.sessionContext;
+    this.elicitationServer = options?.elicitationServer;
     // Create executeHandler that dispatches to actual tool handlers
     this.executeHandler = async (tool: string, action: string, params: Record<string, unknown>) => {
       if (!this.handlers) {
@@ -278,7 +281,8 @@ export class AgentHandler {
             req.planId,
             req.dryRun ?? false,
             this.executeHandler,
-            req.interactiveMode ?? false
+            req.interactiveMode ?? false,
+            this.elicitationServer
           );
           const completedSteps = result.results.filter((r) => r.success).length;
 

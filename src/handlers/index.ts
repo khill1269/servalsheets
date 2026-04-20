@@ -237,6 +237,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       const { AgentHandler } = await import('./agent.js');
       return new AgentHandler(handlersRef as unknown as import('./agent.js').AgentHandlerRegistry, {
         sessionContext: options.context.sessionContext,
+        elicitationServer: options.context.elicitationServer,
       });
     },
     // Live data connectors (Wave 6)

@@ -75,6 +75,14 @@ export const ResourcePermissionSchema = z.object({
   resourceId: z.string().optional().describe('Resource ID (spreadsheetId, sheetId, etc.)'),
   permission: PermissionLevelEnum,
   reason: z.string().optional().describe('Reason for permission (for audit logs)'),
+  allowedRanges: z
+    .array(z.string())
+    .optional()
+    .describe('A1 notation ranges the user may access (empty = unrestricted)'),
+  deniedRanges: z
+    .array(z.string())
+    .optional()
+    .describe('A1 notation ranges that are explicitly denied (checked before allowedRanges)'),
 });
 
 export type ResourcePermission = z.infer<typeof ResourcePermissionSchema>;
@@ -179,6 +187,7 @@ export const PermissionCheckRequestSchema = z.object({
   toolName: z.string().min(1).describe('Tool name'),
   actionName: z.string().optional().describe('Action name (optional)'),
   resourceId: z.string().optional().describe('Resource ID (optional)'),
+  range: z.string().optional().describe('A1 notation range being accessed (optional)'),
 });
 
 export type PermissionCheckRequest = z.infer<typeof PermissionCheckRequestSchema>;
@@ -219,6 +228,7 @@ export const PermissionAuditLogSchema = z.object({
   toolName: z.string().optional(),
   actionName: z.string().optional(),
   resourceId: z.string().optional(),
+  range: z.string().optional(),
   permission: PermissionLevelEnum,
   allowed: z.boolean(),
   reason: z.string(),

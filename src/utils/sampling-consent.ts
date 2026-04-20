@@ -55,11 +55,21 @@ export function clearSamplingConsentCache(): void {
 }
 
 export async function assertSamplingConsent(): Promise<void> {
+  const env = getEnv();
+
   if (!_consentChecker) {
+    if (env.SAMPLING_CONSENT_REQUIRED) {
+      throw new ServiceError(
+        'GDPR_CONSENT_REQUIRED: SAMPLING_CONSENT_REQUIRED=true but no consent checker registered. Call registerSamplingConsentChecker() at startup.',
+        'INTERNAL_ERROR',
+        'sampling',
+        false
+      );
+    }
     return;
   }
 
-  const ttlMs = Number(getEnv()['SAMPLING_CONSENT_CACHE_TTL_MS'] as number | undefined) || 300000;
+  const ttlMs = env.SAMPLING_CONSENT_CACHE_TTL_MS;
   if (ttlMs <= 0) {
     await _consentChecker();
     return;

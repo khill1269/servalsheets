@@ -1894,15 +1894,26 @@ export class TransactionManager {
     }
 
     try {
-      const signal = this.createTimeoutSignal(this.config.transactionTimeoutMs);
-      const response = await this.googleClient.sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: batchRequest as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
-        ...(signal ? { signal } : {}),
-      });
+      const CHUNK_SIZE = 100;
+      const requests = batchRequest.requests;
+      const allReplies: sheets_v4.Schema$Response[] = [];
 
-      this.log(`Batch request succeeded with ${response.data.replies?.length ?? 0} replies`);
-      return response.data;
+      for (let i = 0; i < requests.length; i += CHUNK_SIZE) {
+        const chunk = requests.slice(i, i + CHUNK_SIZE);
+        const signal = this.createTimeoutSignal(this.config.transactionTimeoutMs);
+        const response = await this.googleClient.sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            ...batchRequest,
+            requests: chunk,
+          } as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
+          ...(signal ? { signal } : {}),
+        });
+        allReplies.push(...(response.data.replies ?? []));
+      }
+
+      this.log(`Batch request succeeded with ${allReplies.length} replies`);
+      return { replies: allReplies };
     } catch (error) {
       if (this.isTimeoutLikeError(error)) {
         const timeoutError = new ApiTimeoutError(

@@ -119,7 +119,6 @@ jobs:
 
       - name: Validate metadata consistency (strict mode)
         run: npm run check:metadata-strict
-        continue-on-error: true
 
       - name: Validate Zod schema markers
         run: npm run check:zod-markers
@@ -438,7 +437,6 @@ jobs:
 
       - name: Validate server.json (extended)
         run: npm run validate:server-json-extended
-        continue-on-error: true
 
   # Build after all tests pass
   build:
@@ -651,23 +649,32 @@ jobs:
           echo "  Functions: $FUNCTIONS%"
           echo "  Lines: $LINES%"
 
-          # Root vitest.config.ts enforces 80/75/80/80 for full coverage runs.
-          # This CI job is tracking-only because the broader suite is not yet a stable
-          # mandatory gate in every environment.
+          # Thresholds enforced: lines 80%, branches 75%, functions 80%, statements 80%.
+          # Coverage is a required CI gate — threshold breaches fail the build.
+          FAILED=0
           if (( $(echo "$LINES < 80" | bc -l) )); then
-            echo "::warning::Line coverage ($LINES%) is below repository threshold (80%)"
+            echo "::error::Line coverage ($LINES%) is below repository threshold (80%)"
+            FAILED=1
           fi
 
           if (( $(echo "$BRANCHES < 75" | bc -l) )); then
-            echo "::warning::Branch coverage ($BRANCHES%) is below repository threshold (75%)"
+            echo "::error::Branch coverage ($BRANCHES%) is below repository threshold (75%)"
+            FAILED=1
           fi
 
           if (( $(echo "$FUNCTIONS < 80" | bc -l) )); then
-            echo "::warning::Function coverage ($FUNCTIONS%) is below repository threshold (80%)"
+            echo "::error::Function coverage ($FUNCTIONS%) is below repository threshold (80%)"
+            FAILED=1
           fi
 
           if (( $(echo "$STATEMENTS < 80" | bc -l) )); then
-            echo "::warning::Statement coverage ($STATEMENTS%) is below repository threshold (80%)"
+            echo "::error::Statement coverage ($STATEMENTS%) is below repository threshold (80%)"
+            FAILED=1
+          fi
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "Coverage thresholds not met — failing build."
+            exit 1
           fi
 
       - name: Report status
@@ -735,14 +742,15 @@ jobs:
           node --input-type=module <<'EOF'
           const needs = JSON.parse(process.env.NEEDS_JSON);
           // Jobs that may be skipped without failing CI
-          const allowedSkipped = new Set(['mutation-testing', 'coverage', 'security']);
+          const allowedSkipped = new Set(['mutation-testing', 'security']);
           // Jobs that may fail without failing CI
           const optionalFailures = new Set(['mutation-testing']);
           // Jobs that MUST succeed (never allowed to skip)
           const requiredJobs = new Set([
             'quick-checks', 'test-fast', 'snapshot-tests',
             'test-integration', 'mcp-http-task-contract',
-            'http-transport-failover', 'validate-server-json', 'build'
+            'http-transport-failover', 'validate-server-json', 'build',
+            'coverage'
           ]);
           const failures = [];
 

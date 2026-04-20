@@ -1238,13 +1238,13 @@ describe('SheetsAppsScriptHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('scriptProcessFilter.functionName=myFunction'),
+        expect.stringContaining('userProcessFilter.functionName=myFunction'),
         expect.objectContaining({
           method: 'GET',
         })
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('scriptProcessFilter.types=WEBAPP'),
+        expect.stringContaining('userProcessFilter.types=WEBAPP'),
         expect.objectContaining({
           method: 'GET',
         })

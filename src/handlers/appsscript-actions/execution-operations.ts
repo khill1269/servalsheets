@@ -145,7 +145,7 @@ export async function handleRun(
     body.devMode = req.devMode;
   }
 
-  const runTarget = req.devMode ? req.scriptId : req.deploymentId!;
+  const runTarget = req.deploymentId!;
 
   activeRunExecutions++;
 
@@ -266,13 +266,13 @@ export async function handleListProcesses(
 
   const params: string[] = [];
   if (req.functionName) {
-    params.push(`scriptProcessFilter.functionName=${encodeURIComponent(req.functionName)}`);
+    params.push(`userProcessFilter.functionName=${encodeURIComponent(req.functionName)}`);
   }
   if (req.processType) {
-    params.push(`scriptProcessFilter.types=${encodeURIComponent(req.processType)}`);
+    params.push(`userProcessFilter.types=${encodeURIComponent(req.processType)}`);
   }
   if (req.processStatus) {
-    params.push(`scriptProcessFilter.statuses=${encodeURIComponent(req.processStatus)}`);
+    params.push(`userProcessFilter.statuses=${encodeURIComponent(req.processStatus)}`);
   }
   if (req.pageSize) {
     params.push(`pageSize=${req.pageSize}`);
