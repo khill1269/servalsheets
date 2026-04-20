@@ -194,7 +194,8 @@
   "overrides": {
     "xmldom": "npm:@xmldom/xmldom@^0.9.0",
     "handlebars": "^4.7.9",
-    "diff": ">=8.0.3"
+    "diff": ">=8.0.3",
+    "protobufjs": "^7.5.5"
   },
   "workspaces": [
     "packages/serval-core",
