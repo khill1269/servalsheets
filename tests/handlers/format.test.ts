@@ -1742,4 +1742,83 @@ describe('FormatHandler', () => {
       expect(result.response.success).toBe(true);
     });
   });
+
+  describe('build_dependent_dropdown chunking (C6)', () => {
+    it('should dispatch 2 batchUpdate calls when namedRangeRequests exceeds 100', async () => {
+      // Build a lookup table with 150 rows (each has parent + 1 child → 150 named range requests)
+      const lookupRows: string[][] = [];
+      for (let i = 1; i <= 150; i++) {
+        lookupRows.push([`Category${i}`, `Option${i}`]);
+      }
+
+      mockApi.spreadsheets.values.get.mockResolvedValue({ data: { values: lookupRows } });
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            { properties: { sheetId: 0, title: 'Sheet1' } },
+            { properties: { sheetId: 1, title: 'Lookup' } },
+          ],
+        },
+      });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+
+      const result = await handler.handle({
+        action: 'build_dependent_dropdown',
+        spreadsheetId: 'test-id',
+        parentRange: 'Sheet1!A1:A200',
+        dependentRange: 'Sheet1!B1:B200',
+        lookupSheet: 'Lookup',
+      });
+
+      expect(result.response.success).toBe(true);
+      // 150 named ranges → 2 batchUpdate calls (100 + 50), plus 1 for parent validation = 3 total
+      // But we only assert the named-range calls are chunked (≥2 batchUpdate calls for named ranges)
+      const batchUpdateCalls = mockApi.spreadsheets.batchUpdate.mock.calls;
+      // Find calls that contain addNamedRange requests
+      const namedRangeCalls = batchUpdateCalls.filter((call) =>
+        call[0]?.requestBody?.requests?.some(
+          (r: Record<string, unknown>) => 'addNamedRange' in r
+        )
+      );
+      expect(namedRangeCalls.length).toBe(2);
+      expect(namedRangeCalls[0][0].requestBody.requests.length).toBe(100);
+      expect(namedRangeCalls[1][0].requestBody.requests.length).toBe(50);
+    });
+
+    it('should dispatch 1 batchUpdate call when namedRangeRequests is exactly 100', async () => {
+      const lookupRows: string[][] = [];
+      for (let i = 1; i <= 100; i++) {
+        lookupRows.push([`Cat${i}`, `Opt${i}`]);
+      }
+
+      mockApi.spreadsheets.values.get.mockResolvedValue({ data: { values: lookupRows } });
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            { properties: { sheetId: 0, title: 'Sheet1' } },
+            { properties: { sheetId: 1, title: 'Lookup' } },
+          ],
+        },
+      });
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
+
+      const result = await handler.handle({
+        action: 'build_dependent_dropdown',
+        spreadsheetId: 'test-id',
+        parentRange: 'Sheet1!A1:A200',
+        dependentRange: 'Sheet1!B1:B200',
+        lookupSheet: 'Lookup',
+      });
+
+      expect(result.response.success).toBe(true);
+      const batchUpdateCalls = mockApi.spreadsheets.batchUpdate.mock.calls;
+      const namedRangeCalls = batchUpdateCalls.filter((call) =>
+        call[0]?.requestBody?.requests?.some(
+          (r: Record<string, unknown>) => 'addNamedRange' in r
+        )
+      );
+      expect(namedRangeCalls.length).toBe(1);
+      expect(namedRangeCalls[0][0].requestBody.requests.length).toBe(100);
+    });
+  });
 });
