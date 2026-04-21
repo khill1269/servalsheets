@@ -801,6 +801,37 @@ export function applyResponseIntelligence(
       error['_recoveryPlaybook'] = playbook;
     }
 
+    // Inject top-level _hints for failed responses so LLMs get structured quick-guidance
+    // alongside the detailed error record, without needing to parse nested error fields.
+    const errorHints: Record<string, unknown> = {};
+
+    if (errorCode) {
+      errorHints['errorCode'] = errorCode;
+    }
+
+    if (playbook) {
+      errorHints['quickFix'] = playbook.description;
+      errorHints['nextStep'] = playbook.steps[0]
+        ? `${playbook.steps[0].tool}.${playbook.steps[0].action}: ${playbook.steps[0].description}`
+        : undefined;
+    } else if (error['suggestedFix']) {
+      const fix = error['suggestedFix'] as Record<string, unknown>;
+      errorHints['quickFix'] =
+        typeof fix['explanation'] === 'string' ? fix['explanation'] : undefined;
+      errorHints['nextStep'] =
+        typeof fix['tool'] === 'string' && typeof fix['action'] === 'string'
+          ? `${fix['tool']}.${fix['action']}`
+          : undefined;
+    }
+
+    if (options.toolName && options.actionName) {
+      errorHints['failedOp'] = `${options.toolName}.${options.actionName}`;
+    }
+
+    if (Object.keys(errorHints).length > 0) {
+      responseRecord['_hints'] = errorHints;
+    }
+
     return {}; // OK: no batching hint for failure responses
   }
 

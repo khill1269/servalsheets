@@ -232,7 +232,7 @@ describe('applyResponseIntelligence', () => {
     expect(responseRecord['_hints']).toBeUndefined();
   });
 
-  it('_hints absent when response has failure', () => {
+  it('_hints injected on failure with errorCode and quickFix guidance', () => {
     const responseRecord: Record<string, unknown> = {
       success: false,
       action: 'read',
@@ -245,11 +245,15 @@ describe('applyResponseIntelligence', () => {
 
     applyResponseIntelligence(responseRecord, {
       toolName: 'sheets_data',
+      actionName: 'read',
       hasFailure: true,
     });
 
-    // Failure path — _hints not injected
-    expect(responseRecord['_hints']).toBeUndefined();
+    // Failure path — _hints now injected with structured quick-guidance for LLMs
+    const hints = responseRecord['_hints'] as Record<string, unknown>;
+    expect(hints).toBeDefined();
+    expect(hints['errorCode']).toBe('PERMISSION_DENIED');
+    expect(hints['failedOp']).toBe('sheets_data.read');
     // suggestedFix (object) and fixableVia (structured) should be on the error
     const error = responseRecord['error'] as Record<string, unknown>;
     expect(typeof error['suggestedFix']).toBe('object');

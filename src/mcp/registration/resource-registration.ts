@@ -814,6 +814,96 @@ export function registerServalSheetsResources(
     }
   );
 
+  // Sheet-level resource — per-tab metadata + first 50 rows for LLM context injection.
+  // URI: sheets:///{spreadsheetId}/sheets/{sheetName}
+  // This is the most natural resource shape for a spreadsheet server: clients can
+  // read a named tab directly without knowing its row/column dimensions in advance.
+  const sheetTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/sheets/{sheetName}', {
+    list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
+      sheetName: async (value) => completeRangeContextAware(value),
+    },
+  });
+
+  server.registerResource(
+    'sheet_tab',
+    sheetTemplate,
+    {
+      title: 'Sheet Tab',
+      description:
+        'Sheet tab metadata and first 50 rows of data. Read a named tab by spreadsheetId and sheetName without needing to know its dimensions. Returns rowCount, columnCount, headers, and preview rows.',
+      mimeType: 'application/json',
+    },
+    async (uri, variables) => {
+      const rawSpreadsheetId = variables['spreadsheetId'];
+      const rawSheetName = variables['sheetName'];
+      const spreadsheetId = Array.isArray(rawSpreadsheetId)
+        ? rawSpreadsheetId[0]
+        : rawSpreadsheetId;
+      const sheetName = Array.isArray(rawSheetName) ? rawSheetName[0] : rawSheetName;
+
+      if (!spreadsheetId || typeof spreadsheetId !== 'string') {
+        return { contents: [] };
+      }
+      if (!sheetName || typeof sheetName !== 'string') {
+        return { contents: [] };
+      }
+
+      if (!googleClient) {
+        throw createAuthRequiredError(uri.href);
+      }
+
+      try {
+        // Fetch sheet properties + first 50 rows in a single batchGet call
+        const [metaResponse, dataResponse] = await Promise.all([
+          googleClient.sheets.spreadsheets.get({
+            spreadsheetId,
+            fields: 'sheets(properties)',
+          }),
+          googleClient.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: `${sheetName}!A1:ZZ50`,
+            valueRenderOption: 'FORMATTED_VALUE',
+          }),
+        ]);
+
+        const sheetMeta = (metaResponse.data.sheets ?? []).find(
+          (s) => s.properties?.title === sheetName
+        );
+
+        const values = (dataResponse.data.values ?? []) as string[][];
+        const headers = values[0] ?? [];
+        const previewRows = values.slice(1, 11);
+
+        const result = {
+          spreadsheetId,
+          sheetName,
+          sheetId: sheetMeta?.properties?.sheetId,
+          rowCount: sheetMeta?.properties?.gridProperties?.rowCount ?? values.length,
+          columnCount: sheetMeta?.properties?.gridProperties?.columnCount ?? headers.length,
+          frozenRows: sheetMeta?.properties?.gridProperties?.frozenRowCount ?? 0,
+          frozenColumns: sheetMeta?.properties?.gridProperties?.frozenColumnCount ?? 0,
+          headers,
+          previewRows,
+          totalPreviewRows: values.length - 1,
+        };
+
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: 'application/json',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        throw createResourceReadError(uri.href, error);
+      }
+    }
+  );
+
   // Action completion template — enables completeAction() via MCP completion protocol.
   // Clients can request completions for sheets://tools/{toolName}/actions/{action} URIs.
   // The action completer reads toolName from the completion context (MCP 2025-11-25 context.arguments).

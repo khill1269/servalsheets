@@ -22,6 +22,11 @@ type ReadinessSummary = {
     available: boolean;
     mode: 'llm_fallback' | 'unavailable';
   };
+  semanticSearch: {
+    available: boolean;
+    apiKeyConfigured: boolean;
+    description: string;
+  };
   connectors: {
     available: number;
     configured: number;
@@ -71,6 +76,8 @@ function getReadiness(
   const llmFallbackAvailable = isLLMFallbackAvailable();
   const webhooksConfigured = Boolean(process.env['REDIS_URL']);
 
+  const voyageApiKeyConfigured = Boolean(process.env['VOYAGE_API_KEY']);
+
   const missingConfig: string[] = [];
   if (!auth.configured) {
     missingConfig.push('Google authentication is not configured');
@@ -96,6 +103,13 @@ function getReadiness(
       configured: llmFallbackAvailable,
       available: llmFallbackAvailable,
       mode: llmFallbackAvailable ? 'llm_fallback' : 'unavailable',
+    },
+    semanticSearch: {
+      available: voyageApiKeyConfigured,
+      apiKeyConfigured: voyageApiKeyConfigured,
+      description: voyageApiKeyConfigured
+        ? 'Semantic search is available via sheets_analyze.semantic_search (Voyage AI embeddings).'
+        : 'Semantic search requires VOYAGE_API_KEY. Get one at voyageai.com and set it in your environment to enable sheets_analyze.semantic_search.',
     },
     connectors: {
       available: connectors.length,
