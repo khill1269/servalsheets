@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import type { Express } from 'express';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
 import { resetEnvForTest } from '../../src/config/env.js';
@@ -758,7 +759,6 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
     it('server uses Google OAuth tokens not client MCP tokens for API calls', () => {
       // MCP spec §2.8: Server MUST NOT pass through client tokens to downstream services
       // Verify no handler forwards req.headers.authorization to Google API calls
-      const { spawnSync } = require('child_process');
       const result = spawnSync(
         'grep',
         [
