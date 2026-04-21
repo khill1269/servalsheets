@@ -576,12 +576,10 @@ export class OidcProvider {
         logger.error('OIDC callback failed', {
           error: error instanceof Error ? error.message : String(error),
         });
-        res
-          .status(500)
-          .json({
-            error: 'OIDC_CALLBACK_FAILED',
-            message: 'Internal server error during OIDC callback',
-          });
+        res.status(500).json({
+          error: 'OIDC_CALLBACK_FAILED',
+          message: 'Internal server error during OIDC callback',
+        });
       }
     });
 
