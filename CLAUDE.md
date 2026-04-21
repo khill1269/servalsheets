@@ -129,12 +129,12 @@ const largeData = Array.from({ length: 1000 }, (_, i) => [(i + 1) * 10, '2024-01
 
 When renaming an action (e.g. `write_range` → `write`), also update:
 
-- `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
-- `AUTH_EXEMPT_ACTIONS` in `src/server.ts`
+- `MUTATION_ACTION_NAMES` in `src/middleware/mutation-actions.constants.ts` (canonical source; both middleware files derive from this)
+- `AUTH_EXEMPT_TOOLS` in `src/startup/lifecycle.ts:39`
 - Cache invalidation rules in `src/services/cache-invalidation-graph.ts`
 - `scripts/check-integration-wiring.mjs` guards
 
-Run `npm run check:integration-wiring` after any action rename to catch mismatches.
+Run `npm run check:integration-wiring` and `npm run check:mutation-actions` after any action rename to catch mismatches.
 
 ### 9. MCP Client Behavior (Session 107)
 
@@ -223,8 +223,7 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 **Step 2:** Handler in `src/handlers/{tool}.ts` — add case + private method
 **Step 3:** Test in `tests/handlers/{tool}.test.ts` — success + error paths (no `Math.random()`, no tautological assertions)
 **Step 4:** `npm run schema:commit`
-**Step 5 (if mutating):** Add action name to `MUTATION_ACTIONS` in `src/middleware/audit-middleware.ts`
-**Step 5b (if mutating):** Add action name to write-lock set in `src/middleware/mutation-safety-middleware.ts` — must match audit-middleware set or `npm run check:mutation-actions` fails
+**Step 5 (if mutating):** Add action name to `MUTATION_ACTION_NAMES` in `src/middleware/mutation-actions.constants.ts` — canonical source derived by both `audit-middleware.ts` and `write-lock-middleware.ts`. Also add to `MutationEvent['action']` in `src/services/audit-logger-types.ts` (TS compiler enforces membership).
 **Step 6 (always):** Add cache invalidation rule in `src/services/cache-invalidation-graph.ts` (use `invalidates: []` for read-only)
 **Step 7 (if session-context wired):** Write back with `sessionContext.recordOperation()` — not just read/filter
 **Step 8 (if new error code):** Add code to `ErrorCodeSchema` in `src/schemas/shared.ts` before using it in handlers
@@ -237,7 +236,7 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 | TOOL_COUNT       | `src/schemas/index.ts`                                                                         |
 | Protocol Version | `src/constants/protocol.ts` (re-exported via `src/version.ts:14`)                              |
 | TOOL_ACTIONS map | `src/mcp/completions.ts` — verified by `tests/contracts/completions-cross-map.test.ts`         |
-| MUTATION_ACTIONS | `src/middleware/audit-middleware.ts` (write-lock parity: `scripts/check-mutation-actions.mjs`) |
+| MUTATION_ACTIONS | `src/middleware/mutation-actions.constants.ts:MUTATION_ACTION_NAMES` (audit + write-lock both derive from this; CI gate: `scripts/check-mutation-actions.mjs`) |
 
 Never hardcode these values — always reference the source file with `file:line`.
 
@@ -294,8 +293,7 @@ Configured in `.claude/hooks.json`:
 
 ## Known Issues
 
-- ESLint may OOM in low-memory environments (~3GB heap needed) — use `verify:safe`
-- Silent fallback checker: 0 false positives (all annotated with inline comments)
+ESLint may OOM in low-memory environments (~3GB heap) — use `verify:safe`. Silent fallback checker has 0 false positives (all annotated with inline comments).
 
 ## Security Features (quick ref)
 
