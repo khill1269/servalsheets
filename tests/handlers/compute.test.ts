@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ComputeHandler } from '../../src/handlers/compute.js';
 import type { DuckDBEngine } from '../../src/services/duckdb-engine.js';
+import { SheetsComputeInputSchema } from '../../src/schemas/compute.js';
 
 // ---------------------------------------------------------------------------
 // Module-level mocks
@@ -1328,6 +1329,112 @@ describe('ComputeHandler', () => {
           expect(result.response.result).toBe((i + 1) * 2);
         }
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // sql_join schema security (C3: SQL injection via alias/on/select fields)
+  // -------------------------------------------------------------------------
+
+  describe('sql_join schema security (C3)', () => {
+    const VALID_BASE = {
+      action: 'sql_join' as const,
+      spreadsheetId: SPREADSHEET_ID,
+      left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left' },
+      right: { range: { a1: 'Sheet2!A1:B3' }, alias: 'right' },
+      on: 'left.id = right.id',
+      joinType: 'inner' as const,
+    };
+
+    it('rejects injection in on clause: UNION SELECT via read_csv', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          on: "1=1 UNION SELECT * FROM read_csv('/etc/passwd')",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects injection in on clause: semicolon command chaining', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          on: 'left.id = right.id; DROP TABLE users',
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects injection in on clause: quoted string literal', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          on: "left.id = 'injected'",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects injection in alias: semicolon + DDL', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left; DROP TABLE users --' },
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects injection in alias: spaces in alias name', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'left alias' },
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects injection in select clause: function call to read_csv', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          select: "left.id, read_csv('/etc/passwd')",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects injection in select clause: subquery in parentheses', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: {
+          ...VALID_BASE,
+          select: 'left.id, (SELECT secret FROM passwords)',
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts valid alias identifiers (letters, digits, underscores)', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: { ...VALID_BASE, left: { range: { a1: 'Sheet1!A1:B3' }, alias: 'tbl_1' } },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts valid on clause with simple column equality', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: { ...VALID_BASE, on: 'left.id = right.id' },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts valid select clause with wildcard and dotted columns', () => {
+      const result = SheetsComputeInputSchema.safeParse({
+        request: { ...VALID_BASE, select: 'left.id, right.name, left.*' },
+      });
+      expect(result.success).toBe(true);
     });
   });
 });
