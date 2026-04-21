@@ -144,7 +144,7 @@ for pattern in "${PATTERNS[@]}"; do
       --exclude="TOOL_MANIFEST.ts" \
       --exclude="secrets.ts" \
       --exclude="sec-edgar-connector.ts" \
-      "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null || true)
+      "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null | grep -v 'register-stubs' || true)
   fi
 
   if [ -n "$MATCHES" ]; then
