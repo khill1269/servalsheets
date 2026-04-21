@@ -139,7 +139,13 @@ export async function handleBuildDashboardAction(
         slicer: {
           spec: {
             dataRange: toGridRange(
-              buildGridRangeInput(dataSheetId, 0, 1000, slicer.filterColumn, slicer.filterColumn + 1)
+              buildGridRangeInput(
+                dataSheetId,
+                0,
+                1000,
+                slicer.filterColumn,
+                slicer.filterColumn + 1
+              )
             ),
             columnIndex: slicer.filterColumn,
             title: slicer.title,

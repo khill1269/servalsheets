@@ -573,8 +573,15 @@ export class OidcProvider {
           });
         }
       } catch (error) {
-        logger.error('OIDC callback failed', { error: error instanceof Error ? error.message : String(error) });
-        res.status(500).json({ error: 'OIDC_CALLBACK_FAILED', message: 'Internal server error during OIDC callback' });
+        logger.error('OIDC callback failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        res
+          .status(500)
+          .json({
+            error: 'OIDC_CALLBACK_FAILED',
+            message: 'Internal server error during OIDC callback',
+          });
       }
     });
 
@@ -595,9 +602,10 @@ export class OidcProvider {
         const params = new URLSearchParams();
         if (idTokenHint) params.set('id_token_hint', idTokenHint);
         if (postLogoutRedirectUri) {
-          const allowedRedirects = this.config.allowedRedirectOrigins.length > 0
-            ? this.config.allowedRedirectOrigins
-            : [this.config.callbackUrl];
+          const allowedRedirects =
+            this.config.allowedRedirectOrigins.length > 0
+              ? this.config.allowedRedirectOrigins
+              : [this.config.callbackUrl];
           if (isAllowedRedirect(postLogoutRedirectUri, allowedRedirects)) {
             params.set('post_logout_redirect_uri', postLogoutRedirectUri);
           } else {

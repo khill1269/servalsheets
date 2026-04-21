@@ -1244,9 +1244,9 @@ export class OAuthProvider {
         return;
       }
 
-      const refreshTokenData = (await this.sessionStore.get(
-        `refresh:${token}`
-      )) as unknown as RefreshTokenData | undefined;
+      const refreshTokenData = (await this.sessionStore.get(`refresh:${token}`)) as unknown as
+        | RefreshTokenData
+        | undefined;
 
       let userIdToClear = refreshTokenData?.userId;
       if (!userIdToClear) {
@@ -1513,7 +1513,10 @@ export class OAuthProvider {
 
     router.post('/oauth/register/:clientId/consent', async (req, res) => {
       const clientId = req.params['clientId'];
-      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+      if (!clientId) {
+        res.status(400).json({ error: 'invalid_request' });
+        return;
+      }
 
       const expectedToken = process.env['OAUTH_DCR_CONSENT_TOKEN'];
       const authHeader = req.headers['authorization'];
@@ -1543,7 +1546,10 @@ export class OAuthProvider {
         return;
       }
 
-      const stored = await this.sessionStore.get(`dcr:${clientId}`) as Record<string, unknown> | null;
+      const stored = (await this.sessionStore.get(`dcr:${clientId}`)) as Record<
+        string,
+        unknown
+      > | null;
       if (!stored) {
         res.status(404).json({
           error: 'invalid_client_metadata',
