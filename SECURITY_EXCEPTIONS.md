@@ -27,8 +27,8 @@
 | **Advisories** | GHSA-34x7-hfp2-rc4v, GHSA-8qq5-rm4j-mr97, GHSA-83g3-92jg-28cx, GHSA-qffp-2rhf-9h96, GHSA-9ppj-qmqm-q256, GHSA-r6q2-hw4h-h46w, GHSA-vpq2-c234-7xj6 |
 | **Severity** | High |
 | **Dependency Chain** | `duckdb` → `node-gyp` → `tar`, `make-fetch-happen`, `@tootallnate/once` |
-| **Root Cause** | `duckdb` native addon requires `node-gyp` which depends on old `tar ≤7.5.10`; no upstream fix available |
-| **Mitigation** | Build-time only; not present in runtime bundle |
+| **Root Cause** | `duckdb` native addon requires `node-gyp` which depends on old `tar ≤7.5.10` and related packages; no upstream fix available |
+| **Mitigation** | None — transitive build-time dependency only, not present in runtime bundle |
 | **CI Impact** | Allowlisted via `--allow-ghsas` in `.github/workflows/ci.yml` and `security.yml` |
 | **Resolution Path** | Wait for `duckdb` to upgrade its `node-gyp` dependency |
 | **Created** | 2026-04-20 |

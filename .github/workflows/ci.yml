@@ -32,10 +32,20 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+<<<<<<< HEAD
       - name: Install dependencies
         # --ignore-scripts prevents prepare→build→tsc from running during install.
         # The explicit build steps below handle compilation.
         run: npm ci --ignore-scripts
+=======
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm ci --ignore-scripts
+>>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
 
       - name: Diagnostics
         run: |
@@ -199,7 +209,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Node**: $(node --version)" >> $GITHUB_STEP_SUMMARY
           echo "- **TypeScript**: $(npx tsc --version)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tools**: $(node -e "const c=require('./src/generated/action-counts.ts').replace(/export /g,'');eval(c.replace(/:.*/g,''));console.log('check server.json')" 2>/dev/null || echo 'see server.json')" >> $GITHUB_STEP_SUMMARY
+          TOOLS=$(node --input-type=module -e "import { TOOL_COUNT } from './dist/schemas/index.js'; console.log(TOOL_COUNT)" 2>/dev/null || echo '?')
+          ACTIONS=$(node --input-type=module -e "import { ACTION_COUNT } from './dist/schemas/index.js'; console.log(ACTION_COUNT)" 2>/dev/null || echo '?')
+          echo "- **Tools/Actions**: ${TOOLS} tools, ${ACTIONS} actions" >> $GITHUB_STEP_SUMMARY
 
   # Fast unit tests with Vitest sharding
   test-fast:
@@ -245,6 +257,9 @@ jobs:
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run fast tests with retry (shard ${{ matrix.shard }}/4)
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -276,6 +291,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
+
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
@@ -342,6 +360,9 @@ jobs:
             ${{ runner.os }}-turbo-test-
             ${{ runner.os }}-turbo-
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run integration tests with retry (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -377,6 +398,9 @@ jobs:
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run MCP HTTP task contract checks
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -408,6 +432,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
+
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
@@ -539,6 +566,7 @@ jobs:
         startsWith(github.ref_name, 'fix/')
       ))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       issues: write

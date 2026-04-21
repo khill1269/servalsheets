@@ -93,11 +93,19 @@ jobs:
         id: security_exceptions
         run: npm run check:security-exceptions
 
+<<<<<<< HEAD
       - name: Run npm audit (fail on high/critical — allowlist in SECURITY_EXCEPTIONS.md)
         # Uses a custom wrapper (scripts/audit-with-exceptions.mjs) that reads SECURITY_EXCEPTIONS.md
         # to allowlist known-unfixable GHSAs. Any NEW CVE not listed there will still fail CI.
         # The npm --allow-ghsas flag is unreliable in npm 10.9.x — use the wrapper instead.
         run: node scripts/audit-with-exceptions.mjs --audit-level=high
+=======
+      - name: Run npm audit (fail on high/critical)
+        # GHSA-65ch-62r8-g69g: node-saml → xml-encryption → node-forge — no upstream fix.
+        # Allowlisted explicitly so any NEW high/critical CVE still fails CI.
+        # Re-evaluate when node-saml v4 stable ships. See SECURITY_EXCEPTIONS.md.
+        run: npm audit --audit-level=high --allow-ghsas GHSA-65ch-62r8-g69g
+>>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
 
       - name: Run npm audit (warn on moderate)
         run: npm audit --audit-level=moderate

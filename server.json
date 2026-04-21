@@ -1,6 +1,6 @@
 {
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
-  "name": "ServalSheets",
+  "name": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
   "description": "Production-grade Google Sheets MCP server with 25 tools and 409 actions",
   "icons": [
@@ -22,7 +22,7 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade MCP server for Google Sheets with 25 tools and 409 actions"
+      "description": "Production-grade MCP server for Google Sheets — 25 tools, 409 actions"
     }
   ],
   "tools": [

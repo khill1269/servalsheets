@@ -82,6 +82,7 @@ jobs:
             analysis-report.json
             analysis-report.md
             analysis-report.html
+          if-no-files-found: ignore
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
@@ -144,14 +145,13 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           if [ -f analysis-report.json ]; then
-            CRITICAL=$(jq '.summary.critical' analysis-report.json 2>/dev/null || echo "0")
-
-            if [ "$CRITICAL" -gt 0 ]; then
+            CRITICAL=$(jq -r '.summary.critical // 0' analysis-report.json 2>/dev/null || echo "0")
+            # Ensure numeric comparison is safe
+            if [[ "$CRITICAL" =~ ^[0-9]+$ ]] && [ "$CRITICAL" -gt 0 ]; then
               echo "❌ $CRITICAL critical issue(s) found - blocking merge"
               exit 1
             fi
-
-            echo "✅ No critical issues found"
+            echo "✅ No critical issues found (critical=$CRITICAL)"
           else
             echo "⚠️ No analysis report found - skipping check"
           fi

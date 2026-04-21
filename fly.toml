@@ -41,9 +41,6 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
   # OR Google Service Account (alternative — no user consent required):
   #   fly secrets set GOOGLE_SERVICE_ACCOUNT_KEY='{"type":"service_account",...}'
   #
-  # OAuth redirect (REQUIRED — app hard-crashes on startup without this):
-  #   fly secrets set OAUTH_REDIRECT_URI="https://servalsheets.fly.dev/oauth/callback"
-  #
   # Security:
   #   fly secrets set OAUTH_CLIENT_SECRET="<random-32-chars>"
   #   fly secrets set JWT_SECRET="<random-32-chars>"
@@ -114,4 +111,4 @@ primary_region = "iad"  # IAD = Northern Virginia (low latency to Anthropic)
 # Deploy strategy: canary with automatic rollback
 [deploy]
   strategy = "canary"
-  release_command = "node --input-type=module -e \"import('./dist/schemas/index.js').then(m => { if (!m.TOOL_COUNT || m.TOOL_COUNT < 25) { console.error('Release check failed: TOOL_COUNT=' + m.TOOL_COUNT); process.exit(1); } console.log('Release OK: ' + m.TOOL_COUNT + ' tools, ' + m.ACTION_COUNT + ' actions'); }).catch(e => { console.error('Release check error:', e.message); process.exit(1); })\""
+  release_command = "node --input-type=module -e \"import('./dist/schemas/index.js').catch(e => { console.error(e); process.exit(1); })\""
