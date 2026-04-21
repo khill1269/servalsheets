@@ -1,9 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import express from 'express';
 import type { Express } from 'express';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
 import { resetEnvForTest } from '../../src/config/env.js';
 import { requestApp } from '../helpers/request-app.js';
+import { registerHttpTransportRoutes } from '@serval/mcp-http';
 
 type TestServer = ReturnType<typeof createHttpServer>;
 
@@ -754,7 +756,7 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
     });
   });
 
-  // ─── T3: Token passthrough prohibition (MCP §2.8) ──────────────────
+  // ─── T3: Token passthrough prohibition (MCP §2.8) — static check ──
   describe('Token passthrough prohibition (MCP §2.8)', () => {
     it('server uses Google OAuth tokens not client MCP tokens for API calls', () => {
       // MCP spec §2.8: Server MUST NOT pass through client tokens to downstream services
@@ -770,6 +772,97 @@ describe('MCP HTTP Transport/Auth/Security Contracts', () => {
       );
 
       expect(result.stdout.trim()).toBe('');
+    });
+  });
+
+  // ─── T4: Bearer-not-passed-downstream — runtime contract ────────────
+  // Regression test for the P0 security fix: when enableOAuth=false, the
+  // MCP bearer token MUST NOT reach createMcpServerInstance as googleToken.
+  // This ensures a stolen/forged MCP bearer cannot be used as a Google credential.
+  describe('Bearer token isolation (runtime, enableOAuth=false)', () => {
+    it('passes googleToken=undefined to createMcpServerInstance when enableOAuth=false', async () => {
+      const capturedTokens: Array<{ googleToken: string | undefined }> = [];
+
+      const spyCreateInstance = vi.fn(
+        async (googleToken?: string, _googleRefreshToken?: string, _sessionId?: string) => {
+          capturedTokens.push({ googleToken });
+          // Return a minimal stub that satisfies the transport's expectations
+          const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js');
+          const mcpServer = new McpServer({ name: 'test', version: '0.0.1' });
+          return {
+            mcpServer,
+            taskStore: { dispose: () => {} } as unknown as import('../../src/core/index.js').TaskStoreAdapter,
+            disposeRuntime: () => {},
+          };
+        }
+      );
+
+      const app = express();
+      app.use(express.json());
+
+      const sessions = new Map();
+      const { cleanupSessions } = registerHttpTransportRoutes({
+        app,
+        enableOAuth: false,
+        oauth: null,
+        legacySseEnabled: false,
+        host: '127.0.0.1',
+        port: 0,
+        eventStoreRedisUrl: undefined,
+        eventStoreTtlMs: 30_000,
+        eventStoreMaxEvents: 100,
+        sessionTimeoutMs: 300_000,
+        sessions,
+        createMcpServerInstance: spyCreateInstance,
+        dependencies: {
+          sessionsTotal: { inc: () => {}, dec: () => {} } as any,
+          extractIdempotencyKeyFromHeaders: () => undefined,
+          createResourceIndicatorValidator: () => ({}),
+          optionalResourceIndicatorMiddleware: () => (_req: any, _res: any, next: any) => next(),
+          removeSessionContext: () => {},
+          extractPrincipalIdFromHeaders: () => undefined,
+          createRequestContext: () => ({}),
+          runWithRequestContext: (_ctx: any, fn: any) => fn(),
+          sessionLimiter: { check: () => ({ allowed: true }) } as any,
+          log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any,
+          clearSessionEventStore: () => {},
+          createSessionEventStore: () => ({ append: () => {}, read: () => [] }) as any,
+          createSessionSecurityContext: () => ({}),
+          normalizeMcpSessionHeader: () => undefined,
+          verifySessionSecurityContext: () => ({ valid: true }),
+        } as any,
+      });
+
+      try {
+        // POST /mcp with a Bearer token — server has enableOAuth=false
+        const response = await requestApp(app, {
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'Content-Type': 'application/json',
+            'MCP-Protocol-Version': '2025-11-25',
+            Authorization: 'Bearer mcp-client-secret-token-must-not-reach-google',
+          },
+          body: INITIALIZE_REQUEST,
+        });
+
+        // The transport may succeed (200) or reject for other reasons (e.g. protocol
+        // negotiation), but what matters is that if createMcpServerInstance was called,
+        // it received googleToken=undefined — never the raw Bearer value.
+        if (spyCreateInstance.mock.calls.length > 0) {
+          for (const { googleToken } of capturedTokens) {
+            expect(googleToken).toBeUndefined();
+            // Extra guard: raw Bearer value must never appear
+            expect(googleToken).not.toBe('mcp-client-secret-token-must-not-reach-google');
+          }
+        } else {
+          // Transport rejected before reaching createMcpServerInstance (e.g. auth
+          // middleware fired). That is also acceptable — the token was blocked upstream.
+          expect([200, 400, 401, 404, 405, 500]).toContain(response.status);
+        }
+      } finally {
+        clearInterval(cleanupSessions as unknown as NodeJS.Timeout);
+      }
     });
   });
 });

@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: false  # never cancel in-flight perf runs
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # ── Micro-benchmark regression (no secrets, runs on PRs + main) ──────────────

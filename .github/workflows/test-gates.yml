@@ -15,7 +15,7 @@ concurrency:
 permissions: {}
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
   # Test infrastructure settings
   TEST_INFRASTRUCTURE_ENABLED: 'true'
   TEST_QUOTA_DELAY_MS: '200'
