@@ -106,7 +106,9 @@ export function registerToolCompletionHandler(params: {
 
     server.server.setRequestHandler(
       looseCompleteSchema,
-      async (request: unknown): Promise<{ completion: { values: string[]; hasMore: boolean; total?: number } }> => {
+      async (
+        request: unknown
+      ): Promise<{ completion: { values: string[]; hasMore: boolean; total?: number } }> => {
         const req = request as {
           method?: string;
           params?: {
@@ -152,8 +154,30 @@ export function registerToolCompletionHandler(params: {
           return { completion: { values: [], hasMore: false } };
         }
 
-        // For non-tool refs (ref/prompt, ref/resource) return empty —
-        // the SDK handles those via its own completion pipeline.
+        // Handle ref/prompt — route argument names to their completers.
+        // The SDK's completable() functions are stored per-prompt at registration
+        // time. We replicate the argument-name routing here since our loose schema
+        // handler overrides the SDK's built-in completion/complete handler.
+        if (ref?.type === 'ref/prompt') {
+          const argName = arg?.name ?? '';
+
+          // Most prompt args that benefit from completions use these two completers.
+          if (argName === 'spreadsheetId') {
+            const values = completeSpreadsheetId(partial);
+            return { completion: { values, hasMore: false } };
+          }
+
+          if (argName === 'range' || argName === 'ranges') {
+            const values = completeRangeContextAware(partial);
+            return { completion: { values, hasMore: false } };
+          }
+
+          // Other prompt arguments (e.g. transformation, reportType) are free-form;
+          // return empty so the client shows no autocomplete popup.
+          return { completion: { values: [], hasMore: false } };
+        }
+
+        // For ref/resource and any future unknown ref types, return empty.
         return { completion: { values: [], hasMore: false } };
       }
     );

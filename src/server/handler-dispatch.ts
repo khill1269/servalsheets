@@ -148,7 +148,8 @@ export async function dispatchServerToolCall(
   }
 
   // C9: Mutation safety check (parity with HTTP path in tool-handlers.ts)
-  const mutationSafetyFn = dependencies.detectMutationSafetyViolationFn ?? detectMutationSafetyViolation;
+  const mutationSafetyFn =
+    dependencies.detectMutationSafetyViolationFn ?? detectMutationSafetyViolation;
   const mutationViolation = mutationSafetyFn(rawArgs);
   if (mutationViolation) {
     return {

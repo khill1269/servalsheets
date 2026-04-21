@@ -111,10 +111,7 @@ export async function registerServerResources(params: {
   }
 }
 
-export function ensureServerCompletionsRegistered(
-  log = baseLogger,
-  server?: McpServer
-): void {
+export function ensureServerCompletionsRegistered(log = baseLogger, server?: McpServer): void {
   try {
     if (server) {
       registerToolCompletionHandler({ server, log });
