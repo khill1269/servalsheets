@@ -314,3 +314,8 @@ risk_register.md
 .serval/codebase-manifest-report.txt
 .serval/codebase-manifest.json
 scripts/generate-codebase-manifest.mjs
+
+# Ephemeral dev scratch (local-only, not for VCS)
+packages/*/.dist-check-*/
+zod_probe.mjs
+0001-*.patch
