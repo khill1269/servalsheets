@@ -116,7 +116,9 @@ for pattern in "${PATTERNS[@]}"; do
       --glob '!src/resources/register-stubs.ts' \
       '$pattern' ${SEARCH_DIRS[*]} 2>/dev/null | grep -v 'register-stubs'" || true)
   else
-    # Fallback to grep
+    # Fallback to grep — keep exclusions in sync with the rg branch above.
+    # `register-stubs.ts` is a real file name; post-filter so its imports
+    # (e.g. `from './register-stubs.js'`) don't trip the `stub` pattern.
     MATCHES=$(grep -rn --exclude="*.md" \
       --exclude="TODO.md" \
       --exclude="PHASES.md" \
@@ -144,7 +146,8 @@ for pattern in "${PATTERNS[@]}"; do
       --exclude="TOOL_MANIFEST.ts" \
       --exclude="secrets.ts" \
       --exclude="sec-edgar-connector.ts" \
-      "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null || true)
+      --exclude="register-stubs.ts" \
+      "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null | grep -v 'register-stubs' || true)
   fi
 
   if [ -n "$MATCHES" ]; then
