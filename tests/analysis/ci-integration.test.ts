@@ -73,7 +73,7 @@ describe('CI Integration', () => {
       const nodeStep = steps.find((s: any) => s.uses?.includes('setup-node'));
 
       expect(nodeStep).toBeDefined();
-      expect(nodeStep.with['node-version']).toBe('20');
+      expect(nodeStep.with['node-version']).toBe('22');
     });
 
     it('should install dependencies', () => {

@@ -58,6 +58,23 @@ vi.mock('../../src/startup/google-client-bootstrap.js', () => ({
     httpTransportFailoverGoogleClientMocks.createTokenBackedGoogleClient,
 }));
 
+// Inject a fake Google token when enableOAuth=false so the handler bundle is initialized.
+// Required after the P0 security fix that removed MCP bearer token passthrough to Google.
+vi.mock('../../src/http-server/runtime-factory.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../src/http-server/runtime-factory.js')>();
+  return {
+    ...actual,
+    createHttpMcpServerInstance: async (
+      options: Parameters<typeof actual.createHttpMcpServerInstance>[0]
+    ) =>
+      actual.createHttpMcpServerInstance({
+        ...options,
+        googleToken: options.googleToken ?? 'http-failover-test-google-token',
+      }),
+  };
+});
+
 vi.mock('../../src/handlers/compute.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/handlers/compute.js')>();
 
