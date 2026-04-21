@@ -30,11 +30,27 @@ const TEST_DB_PATH = resolve(process.cwd(), '.data', 'test-requests.db');
 
 describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
   let recorder: RequestRecorder;
-  let originalRecordRequests: string | undefined;
+  const envNames = [
+    'NODE_ENV',
+    'RECORD_REQUESTS',
+    'REQUEST_RECORDER_RECORD_REQUEST_BODIES',
+    'REQUEST_RECORDER_RECORD_RESPONSE_BODIES',
+    'REQUEST_RECORDER_RETENTION_DAYS',
+    'REQUEST_RECORDER_RETENTION_MS',
+  ] as const;
+  let originalEnv: Partial<Record<(typeof envNames)[number], string | undefined>>;
 
   beforeEach(() => {
-    originalRecordRequests = process.env['RECORD_REQUESTS'];
+    originalEnv = {};
+    for (const name of envNames) {
+      originalEnv[name] = process.env[name];
+    }
+
     process.env['RECORD_REQUESTS'] = 'true';
+    delete process.env['REQUEST_RECORDER_RECORD_REQUEST_BODIES'];
+    delete process.env['REQUEST_RECORDER_RECORD_RESPONSE_BODIES'];
+    delete process.env['REQUEST_RECORDER_RETENTION_DAYS'];
+    delete process.env['REQUEST_RECORDER_RETENTION_MS'];
 
     // Clean up test database if it exists
     if (existsSync(TEST_DB_PATH)) {
@@ -47,10 +63,13 @@ describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
   afterEach(() => {
     recorder.close();
 
-    if (originalRecordRequests === undefined) {
-      delete process.env['RECORD_REQUESTS'];
-    } else {
-      process.env['RECORD_REQUESTS'] = originalRecordRequests;
+    for (const name of envNames) {
+      const originalValue = originalEnv[name];
+      if (originalValue === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = originalValue;
+      }
     }
 
     // Clean up test database
@@ -143,6 +162,54 @@ describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
       expect(stored?.request_body).not.toContain('short-lived-code');
       expect(stored?.request_body).not.toContain('google-api-key');
       expect(stored?.request_body).not.toContain('user@example.com');
+    });
+
+    it('omits request and response bodies by default in production', () => {
+      process.env['NODE_ENV'] = 'production';
+
+      const id = recorder.record({
+        timestamp: Date.now(),
+        tool_name: 'sheets_data',
+        action: 'write',
+        spreadsheet_id: 'test-private',
+        request_body: JSON.stringify({ values: [['private customer data']] }),
+        response_body: JSON.stringify({ updatedData: { values: [['private response data']] } }),
+        status_code: 200,
+        duration_ms: 30,
+        error_message: null,
+      });
+
+      const stored = recorder.getById(id!);
+
+      expect(stored?.request_body).toContain('disabled_by_request_recorder_policy');
+      expect(stored?.response_body).toContain('disabled_by_request_recorder_policy');
+      expect(stored?.request_body).not.toContain('private customer data');
+      expect(stored?.response_body).not.toContain('private response data');
+    });
+
+    it('allows explicit body capture in production while preserving redaction', () => {
+      process.env['NODE_ENV'] = 'production';
+      process.env['REQUEST_RECORDER_RECORD_REQUEST_BODIES'] = 'true';
+      process.env['REQUEST_RECORDER_RECORD_RESPONSE_BODIES'] = 'true';
+
+      const id = recorder.record({
+        timestamp: Date.now(),
+        tool_name: 'sheets_auth',
+        action: 'callback',
+        spreadsheet_id: null,
+        request_body: JSON.stringify({ authorization: 'Bearer request-secret' }),
+        response_body: JSON.stringify({ access_token: 'response-secret' }),
+        status_code: 200,
+        duration_ms: 20,
+        error_message: null,
+      });
+
+      const stored = recorder.getById(id!);
+
+      expect(stored?.request_body).toContain('Bearer [REDACTED]');
+      expect(stored?.response_body).toContain('[REDACTED]');
+      expect(stored?.request_body).not.toContain('request-secret');
+      expect(stored?.response_body).not.toContain('response-secret');
     });
   });
 
@@ -369,6 +436,42 @@ describe.skipIf(!sqliteAvailable)('RequestRecorder', () => {
       const remaining = recorder.query({});
       expect(remaining.length).toBe(1);
       expect(remaining[0].spreadsheet_id).toBe('test-recent');
+    });
+
+    it('applies configured retention on startup', () => {
+      const now = Date.now();
+
+      recorder.record({
+        timestamp: now - 10 * 24 * 60 * 60 * 1000,
+        tool_name: 'sheets_data',
+        action: 'read',
+        spreadsheet_id: 'test-expired',
+        request_body: '{}',
+        response_body: '{}',
+        status_code: 200,
+        duration_ms: 100,
+        error_message: null,
+      });
+
+      recorder.record({
+        timestamp: now,
+        tool_name: 'sheets_data',
+        action: 'read',
+        spreadsheet_id: 'test-retained',
+        request_body: '{}',
+        response_body: '{}',
+        status_code: 200,
+        duration_ms: 100,
+        error_message: null,
+      });
+
+      recorder.close();
+      process.env['REQUEST_RECORDER_RETENTION_MS'] = String(5 * 24 * 60 * 60 * 1000);
+      recorder = new RequestRecorder(TEST_DB_PATH);
+
+      const remaining = recorder.query({});
+      expect(remaining.length).toBe(1);
+      expect(remaining[0].spreadsheet_id).toBe('test-retained');
     });
   });
 });

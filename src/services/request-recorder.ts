@@ -32,6 +32,39 @@ const SENSITIVE_KEYS = new Set([
 ]);
 
 const BEARER_PATTERN = /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi;
+const DEFAULT_RETENTION_DAYS = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const OMITTED_BODY = JSON.stringify({
+  omitted: true,
+  reason: 'disabled_by_request_recorder_policy',
+});
+
+function parseNonNegativeInteger(value: string | undefined): number | null {
+  if (value === undefined || value.trim() === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function envFlag(name: string): boolean | null {
+  const value = process.env[name];
+  if (value === undefined) return null;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return null;
+}
+
+function shouldStoreBody(envName: string): boolean {
+  const configured = envFlag(envName);
+  if (configured !== null) return configured;
+  return process.env['NODE_ENV'] !== 'production';
+}
+
+function redactSensitiveValue(v: unknown): unknown {
+  if (typeof v !== 'string') return '[REDACTED]';
+  const bearerRedacted = v.replace(BEARER_PATTERN, 'Bearer [REDACTED]');
+  return bearerRedacted !== v ? bearerRedacted : '[REDACTED]';
+}
 
 function redactValue(value: unknown): unknown {
   if (typeof value === 'string') {
@@ -43,7 +76,7 @@ function redactValue(value: unknown): unknown {
   if (value !== null && typeof value === 'object') {
     const redacted: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      redacted[k] = SENSITIVE_KEYS.has(k.toLowerCase()) ? '[REDACTED]' : redactValue(v);
+      redacted[k] = SENSITIVE_KEYS.has(k.toLowerCase()) ? redactSensitiveValue(v) : redactValue(v);
     }
     return redacted;
   }
@@ -99,10 +132,12 @@ export class RequestRecorder {
   private db: Database.Database;
   private insertStmt: Database.Statement;
   private enabled: boolean;
+  private retentionMs: number;
 
   constructor(dbPath?: string) {
     // Opt-in only: recording requires explicit RECORD_REQUESTS=true
     this.enabled = process.env['RECORD_REQUESTS'] === 'true';
+    this.retentionMs = this.resolveRetentionMs();
 
     if (!this.enabled) {
       logger.info('Request recording disabled');
@@ -133,6 +168,7 @@ export class RequestRecorder {
 
     // Initialize schema
     this.initSchema();
+    this.applyRetentionPolicy();
 
     // Prepare insert statement for performance
     this.insertStmt = this.db.prepare(`
@@ -172,6 +208,38 @@ export class RequestRecorder {
     `);
   }
 
+  private resolveRetentionMs(): number {
+    const explicitMs = parseNonNegativeInteger(process.env['REQUEST_RECORDER_RETENTION_MS']);
+    if (explicitMs !== null) return explicitMs;
+
+    const explicitDays = parseNonNegativeInteger(process.env['REQUEST_RECORDER_RETENTION_DAYS']);
+    if (explicitDays !== null) return explicitDays * MS_PER_DAY;
+
+    return DEFAULT_RETENTION_DAYS * MS_PER_DAY;
+  }
+
+  private applyRetentionPolicy(): void {
+    if (this.retentionMs === 0) return;
+
+    const deleted = this.cleanup(this.retentionMs);
+    if (deleted > 0) {
+      logger.info('Request recorder retention cleanup completed', { deleted });
+    }
+  }
+
+  private prepareBodyForStorage(kind: 'request' | 'response', body: string): string {
+    const envName =
+      kind === 'request'
+        ? 'REQUEST_RECORDER_RECORD_REQUEST_BODIES'
+        : 'REQUEST_RECORDER_RECORD_RESPONSE_BODIES';
+
+    if (!shouldStoreBody(envName)) {
+      return OMITTED_BODY;
+    }
+
+    return redactForStorage(body);
+  }
+
   /**
    * Record a request/response pair
    */
@@ -184,8 +252,8 @@ export class RequestRecorder {
         entry.tool_name,
         entry.action,
         entry.spreadsheet_id,
-        redactForStorage(entry.request_body),
-        redactForStorage(entry.response_body),
+        this.prepareBodyForStorage('request', entry.request_body),
+        this.prepareBodyForStorage('response', entry.response_body),
         entry.status_code,
         entry.duration_ms,
         entry.error_message

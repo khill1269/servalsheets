@@ -119,8 +119,8 @@ run_gate "A10: Google API compliance" \
 run_gate "A11: MCP protocol compliance" \
   "npx vitest run tests/compliance/mcp-2025-11-25.test.ts tests/compliance/mcp-features.test.ts tests/compliance/mcp-evaluation-suite.test.ts tests/contracts/mcp-protocol.test.ts tests/contracts/mcp-http-transport-auth-security.test.ts tests/contracts/mcp-audit-docs.test.ts"
 
-# A12: Dead-code baseline (non-writing; prevents regressions without dirtying worktree)
-run_gate "A12: Dead-code baseline" "npm run check:dead-code:baseline"
+# A12: Source/dist consistency (verifies dist reflects source schema counts)
+run_gate "A12: Source/dist consistency" "npm run check:source-dist"
 
 # Summary
 TOTAL_DURATION=$((SECONDS - START_TIME))

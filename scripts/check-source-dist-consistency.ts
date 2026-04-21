@@ -5,8 +5,16 @@
  * This is a release-hygiene guard to prevent shipping stale runtime bundles.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ACTION_COUNTS as SOURCE_ACTION_COUNTS } from '../src/schemas/action-counts.js';
 import { TOOL_ACTIONS as SOURCE_TOOL_ACTIONS } from '../src/mcp/completions.js';
@@ -70,6 +78,96 @@ function checkRuntimeAsset(
     errors.push(
       `runtime asset missing from dist: ${distRelativePath} (source: ${sourceRelativePath})`
     );
+  }
+}
+
+function listFilesRecursive(root: string): string[] {
+  const files: string[] = [];
+  const visit = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      const path = join(dir, entry);
+      const stat = statSync(path);
+      if (stat.isDirectory()) {
+        visit(path);
+      } else if (stat.isFile()) {
+        files.push(relative(root, path));
+      }
+    }
+  };
+
+  visit(root);
+  return files.sort();
+}
+
+function checkPackageDistConsistency(packageDir: string, errors: string[]): void {
+  const srcDir = resolve(packageDir, 'src');
+  const distDir = resolve(packageDir, 'dist');
+  const tsconfigPath = resolve(packageDir, 'tsconfig.build.json');
+  const tscPath = resolve('node_modules/typescript/bin/tsc');
+
+  if (!existsSync(srcDir)) {
+    errors.push(`package source directory missing: ${srcDir}`);
+    return;
+  }
+  if (!existsSync(distDir)) {
+    errors.push(`package dist directory missing: ${distDir}`);
+    return;
+  }
+  if (!existsSync(tsconfigPath)) {
+    errors.push(`package build config missing: ${tsconfigPath}`);
+    return;
+  }
+  if (!existsSync(tscPath)) {
+    errors.push('TypeScript compiler missing: node_modules/typescript/bin/tsc');
+    return;
+  }
+
+  const tempRoot = mkdtempSync(resolve(packageDir, '.dist-check-'));
+  const tempDist = tempRoot;
+  const tempBuildInfo = join(tempRoot, 'tsconfig.tsbuildinfo');
+
+  try {
+    execFileSync(process.execPath, [
+      tscPath,
+      '-p',
+      tsconfigPath,
+      '--outDir',
+      tempDist,
+      '--declarationDir',
+      tempDist,
+      '--tsBuildInfoFile',
+      tempBuildInfo,
+    ]);
+
+    const expectedFiles = listFilesRecursive(tempDist).filter(
+      (file) => !file.endsWith('.tsbuildinfo')
+    );
+    const actualFiles = listFilesRecursive(distDir).filter((file) => !file.endsWith('.tsbuildinfo'));
+    diffKeys(
+      `${packageDir} dist files`,
+      expectedFiles,
+      actualFiles,
+      errors
+    );
+
+    for (const file of expectedFiles) {
+      const expectedPath = join(tempDist, file);
+      const actualPath = join(distDir, file);
+      if (!existsSync(actualPath)) {
+        continue;
+      }
+
+      const expected = readFileSync(expectedPath, 'utf8');
+      const actual = readFileSync(actualPath, 'utf8');
+      if (expected !== actual) {
+        errors.push(`${packageDir} dist drift: ${file} does not match current source build`);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(`${packageDir} temporary dist build failed: ${message}`);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 
@@ -162,6 +260,8 @@ async function main(): Promise<void> {
       );
     }
   }
+
+  checkPackageDistConsistency('packages/mcp-http', errors);
 
   const declaredSourceTotal = getDeclaredCompletionsTotal(srcCompletionsPath);
   if (declaredSourceTotal === null) {
