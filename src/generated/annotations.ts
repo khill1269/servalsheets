@@ -4704,6 +4704,26 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
         'This clears all session state and checkpoints. This cannot be undone—verify before resetting.',
     },
   },
+  'sheets_session.compact_session': {
+    apiCalls: 0,
+    idempotent: false,
+    whenToUse: 'Summarizing older session history entries into a compact digest',
+
+    errorRecovery: {
+      PERMISSION_DENIED: 'Call sheets_auth.login to refresh credentials',
+      QUOTA_EXCEEDED: 'Wait 60s then retry',
+      alternativeActions: [
+        { tool: 'sheets_session', action: 'get_history', when: 'when reviewing history first' },
+        { tool: 'sheets_session', action: 'get_context', when: 'when checking session state' },
+      ],
+      diagnosticSteps: [
+        'Check current history length with sheets_session.get_history',
+        'Use a lower keepRecent value only when older operations can be summarized',
+      ],
+      userGuidance:
+        'This replaces older operation history with a digest while preserving recent entries. Review history first if exact old operations matter.',
+    },
+  },
   'sheets_session.acknowledge_alert': {
     apiCalls: 1,
     idempotent: true,

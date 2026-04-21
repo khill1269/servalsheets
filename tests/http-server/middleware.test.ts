@@ -140,6 +140,7 @@ describe('http foundation middleware', () => {
     });
     expect(middlewareMocks.createHttpProtocolVersionMiddleware).toHaveBeenCalledWith({
       strictProtocolVersion: true,
+      supportedVersion: '2025-11-25',
       log: middlewareMocks.logger,
     });
   });

@@ -431,11 +431,13 @@ export class OidcProvider {
         const redirectUri =
           (req.query['redirect_uri'] as string | undefined) ?? this.config.callbackUrl;
 
-        // Validate redirect_uri against allowlist
-        if (
-          this.config.allowedRedirectOrigins.length > 0 &&
-          !isAllowedRedirect(redirectUri, this.config.allowedRedirectOrigins)
-        ) {
+        // Validate redirect_uri against allowlist.
+        // When no explicit allowlist is configured, only the server's own callbackUrl is allowed.
+        const allowedRedirects =
+          this.config.allowedRedirectOrigins.length > 0
+            ? this.config.allowedRedirectOrigins
+            : [this.config.callbackUrl];
+        if (!isAllowedRedirect(redirectUri, allowedRedirects)) {
           res.status(400).json({
             error: 'OIDC_INVALID_REDIRECT_URI',
             message: 'redirect_uri not in allowed origins',
@@ -571,9 +573,8 @@ export class OidcProvider {
           });
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error('OIDC callback failed', { error: message });
-        res.status(500).json({ error: 'OIDC_CALLBACK_FAILED', message });
+        logger.error('OIDC callback failed', { error: error instanceof Error ? error.message : String(error) });
+        res.status(500).json({ error: 'OIDC_CALLBACK_FAILED', message: 'Internal server error during OIDC callback' });
       }
     });
 
@@ -593,7 +594,16 @@ export class OidcProvider {
 
         const params = new URLSearchParams();
         if (idTokenHint) params.set('id_token_hint', idTokenHint);
-        if (postLogoutRedirectUri) params.set('post_logout_redirect_uri', postLogoutRedirectUri);
+        if (postLogoutRedirectUri) {
+          const allowedRedirects = this.config.allowedRedirectOrigins.length > 0
+            ? this.config.allowedRedirectOrigins
+            : [this.config.callbackUrl];
+          if (isAllowedRedirect(postLogoutRedirectUri, allowedRedirects)) {
+            params.set('post_logout_redirect_uri', postLogoutRedirectUri);
+          } else {
+            logger.warn('OIDC logout: post_logout_redirect_uri rejected (not in allowed origins)');
+          }
+        }
         params.set('client_id', this.config.clientId);
 
         logger.info('OIDC logout initiated');

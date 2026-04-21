@@ -11,7 +11,7 @@
  * STANDARD_SCOPES - Recommended scope set for most users
  *
  * This is the DEFAULT scope set for the published ServalSheets app.
- * Uses `drive.file` (sensitive) instead of `drive` (restricted) to:
+ * Uses `drive.file` (sensitive) instead of `drive` or `drive.readonly` (restricted) to:
  * - Avoid Google's restricted scope security assessment ($15K-75K, 4-8 weeks)
  * - Speed up Google app verification (3-5 business days vs 4-6 weeks)
  * - Follow principle of least privilege
@@ -26,10 +26,6 @@ export const STANDARD_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   // Drive AppData: template storage in hidden app folder
   'https://www.googleapis.com/auth/drive.appdata',
-  // Drive read-only: required for sheets_core.list (drive.files.list) to enumerate all user spreadsheets.
-  // RESTRICTED scope — requires Google verification but allows listing all Drive files.
-  // Without this, core.list only sees files the app created/opened (drive.file limitation).
-  'https://www.googleapis.com/auth/drive.readonly',
   // Drive Labels read-only: required for sheets_collaborate.label_list
   'https://www.googleapis.com/auth/drive.labels.readonly',
 ] as const;
@@ -111,13 +107,13 @@ export function getRecommendedScopes(): readonly string[] {
  * Get scopes based on environment or configuration
  *
  * Deployment-aware defaults:
- * - self-hosted (default): Uses 'full' scopes - all actions work
- * - saas: Uses 'standard' scopes - ~85% of actions, faster verification
+ * - default/self-hosted/saas: Uses 'standard' scopes
+ * - full: Requires explicit OAUTH_SCOPE_MODE=full opt-in
  *
  * Explicit OAUTH_SCOPE_MODE takes precedence over DEPLOYMENT_MODE.
  *
- * Set OAUTH_SCOPE_MODE=full for all features including sharing & BigQuery.
- * Set DEPLOYMENT_MODE=saas for fast Google verification (3-5 days).
+ * Set OAUTH_SCOPE_MODE=full only for deployments that have completed the
+ * required Google restricted-scope verification/security review.
  */
 export function getConfiguredScopes(): readonly string[] {
   // Explicit scope mode takes precedence (only if non-empty)
@@ -126,11 +122,10 @@ export function getConfiguredScopes(): readonly string[] {
     return getScopesByMode(explicitMode);
   }
 
-  // Deployment mode determines default
-  // self-hosted: Full features (backwards compatible, all actions)
-  // saas: Fast verification (standard scopes, ~85% of actions + incremental consent)
+  // Deployment mode no longer grants restricted scopes implicitly.
+  // Elevated/restricted scopes require explicit OAUTH_SCOPE_MODE=full.
   const deploymentMode = process.env['DEPLOYMENT_MODE'] ?? 'self-hosted';
-  const defaultMode = deploymentMode === 'saas' ? 'standard' : 'full';
+  const defaultMode = deploymentMode === 'full' ? 'full' : 'standard';
 
   return getScopesByMode(defaultMode);
 }

@@ -2,8 +2,8 @@
  * OAuth Scope Configuration Tests
  *
  * Tests deployment-aware scope selection logic to ensure:
- * - Self-hosted defaults to full scopes (all actions)
- * - SaaS defaults to standard scopes (~85% of actions, faster verification)
+ * - Default/self-hosted/SaaS deployments use standard scopes
+ * - Full/restricted scopes require explicit opt-in
  * - Explicit OAUTH_SCOPE_MODE overrides DEPLOYMENT_MODE
  * - All scope modes return correct scope sets
  */
@@ -52,19 +52,19 @@ describe('OAuth Scope Configuration', () => {
   });
 
   describe('Deployment-Aware Defaults', () => {
-    it('defaults to full scopes for self-hosted deployment', () => {
-      // No env vars = self-hosted default
+    it('defaults to standard scopes when deployment mode is unset', () => {
       const scopes = getConfiguredScopes();
-      expect(scopes).toEqual(FULL_ACCESS_SCOPES);
-      expect(scopes).toContain('https://www.googleapis.com/auth/drive');
-      expect(scopes).toContain('https://www.googleapis.com/auth/bigquery');
-      expect(scopes).toContain('https://www.googleapis.com/auth/script.projects');
+      expect(scopes).toEqual(STANDARD_SCOPES);
+      expect(scopes).toContain('https://www.googleapis.com/auth/spreadsheets');
+      expect(scopes).toContain('https://www.googleapis.com/auth/drive.file');
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/drive');
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/drive.readonly');
     });
 
-    it('defaults to full scopes when explicitly set to self-hosted', () => {
+    it('defaults to standard scopes when explicitly set to self-hosted', () => {
       process.env['DEPLOYMENT_MODE'] = 'self-hosted';
       const scopes = getConfiguredScopes();
-      expect(scopes).toEqual(FULL_ACCESS_SCOPES);
+      expect(scopes).toEqual(STANDARD_SCOPES);
     });
 
     it('uses standard scopes for SaaS deployment', () => {
@@ -138,6 +138,7 @@ describe('OAuth Scope Configuration', () => {
       expect(STANDARD_SCOPES).toContain('https://www.googleapis.com/auth/drive.appdata');
       // Should NOT have restricted scopes
       expect(STANDARD_SCOPES).not.toContain('https://www.googleapis.com/auth/drive');
+      expect(STANDARD_SCOPES).not.toContain('https://www.googleapis.com/auth/drive.readonly');
       expect(STANDARD_SCOPES).not.toContain('https://www.googleapis.com/auth/bigquery');
       expect(STANDARD_SCOPES).not.toContain('https://www.googleapis.com/auth/cloud-platform');
     });
@@ -242,13 +243,12 @@ describe('OAuth Scope Configuration', () => {
     });
   });
 
-  describe('Backwards Compatibility', () => {
-    it('existing deployments without env vars get full scopes', () => {
-      // Simulate existing deployment with no env vars set
+  describe('Restricted Scope Opt-In', () => {
+    it('deployments without env vars get standard scopes', () => {
       delete process.env['OAUTH_SCOPE_MODE'];
       delete process.env['DEPLOYMENT_MODE'];
       const scopes = getConfiguredScopes();
-      expect(scopes).toEqual(FULL_ACCESS_SCOPES);
+      expect(scopes).toEqual(STANDARD_SCOPES);
     });
 
     it('explicit OAUTH_SCOPE_MODE=full still works', () => {
@@ -271,18 +271,17 @@ describe('OAuth Scope Configuration', () => {
       expect(scopes).toEqual(STANDARD_SCOPES);
     });
 
-    it('unknown DEPLOYMENT_MODE defaults to self-hosted behavior', () => {
+    it('unknown DEPLOYMENT_MODE defaults to standard behavior', () => {
       process.env['DEPLOYMENT_MODE'] = 'unknown';
       const scopes = getConfiguredScopes();
-      expect(scopes).toEqual(FULL_ACCESS_SCOPES);
+      expect(scopes).toEqual(STANDARD_SCOPES);
     });
 
     it('empty string OAUTH_SCOPE_MODE uses deployment mode default', () => {
       process.env['OAUTH_SCOPE_MODE'] = '';
-      // Empty string is treated as not set, falls back to deployment mode
-      // Default deployment mode is 'self-hosted' which uses full scopes
+      // Empty string is treated as not set, falls back to standard deployment mode.
       const scopes = getConfiguredScopes();
-      expect(scopes).toEqual(FULL_ACCESS_SCOPES);
+      expect(scopes).toEqual(STANDARD_SCOPES);
     });
   });
 

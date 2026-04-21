@@ -62,8 +62,10 @@ export interface RegisterHttpFoundationMiddlewareParams<
     log: TLog;
   }) => express.RequestHandler;
   readonly extractTrustedClientIp: (req: Request) => string;
+  readonly mcpProtocolVersion?: string;
   readonly createHttpProtocolVersionMiddleware: (options: {
     strictProtocolVersion: boolean;
+    supportedVersion?: string;
     log: TLog;
   }) => express.RequestHandler;
   readonly log: TLog;
@@ -294,6 +296,7 @@ export function registerHttpFoundationMiddleware<
   app.use(
     createHttpProtocolVersionMiddleware({
       strictProtocolVersion: envConfig.STRICT_MCP_PROTOCOL_VERSION,
+      supportedVersion: params.mcpProtocolVersion,
       log,
     })
   );

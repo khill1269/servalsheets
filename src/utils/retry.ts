@@ -160,12 +160,13 @@ export function isRetryableError(error: unknown): boolean {
   if (status === 401) {
     const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
     const body = JSON.stringify(errAny.response?.data ?? '').toLowerCase();
+    // Only retry 401s caused by token expiry — not genuine permission-denied failures.
+    // 'unauthorized' without more context is a permanent failure (wrong credentials / insufficient scope).
     return (
       message.includes('token expired') ||
       message.includes('token has been expired') ||
       message.includes('invalid_grant') ||
       message.includes('invalid credentials') ||
-      message.includes('unauthorized') ||
       message.includes('invalid_token') ||
       message.includes('token has been revoked') ||
       body.includes('invalid_token') ||

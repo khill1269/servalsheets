@@ -470,6 +470,8 @@ export async function handleVersionListSnapshotsAction(
 
   const allFiles: drive_v3.Schema$File[] = [];
   let snapshotPageToken: string | undefined;
+  let pageCount = 0;
+  const MAX_SNAPSHOT_PAGES = 20;
   do {
     const response = await deps.driveApi.files.list({
       q: `appProperties has { key='sourceSpreadsheetId' and value='${input.spreadsheetId}' } and trashed=false`,
@@ -482,7 +484,8 @@ export async function handleVersionListSnapshotsAction(
     });
     allFiles.push(...(response.data.files ?? []));
     snapshotPageToken = response.data.nextPageToken ?? undefined;
-  } while (snapshotPageToken);
+    pageCount++;
+  } while (snapshotPageToken && pageCount < MAX_SNAPSHOT_PAGES);
 
   const snapshots = allFiles.map((file) => ({
     id: file.id ?? '',

@@ -336,15 +336,15 @@ export function registerHttpTransportRoutes<
     );
   } else {
     app.get('/sse', ...sseMiddleware, async (req: Request, res: Response) => {
+      const bearerToken = req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : undefined;
       const googleToken =
-        enableOAuth && oauth
-          ? ((await oauth.getGoogleToken(req)) ?? undefined)
-          : req.headers.authorization?.startsWith('Bearer ')
-            ? req.headers.authorization.slice(7)
-            : undefined;
+        enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : bearerToken;
+      const sessionOwnerToken = bearerToken ?? googleToken;
 
-      const userId = googleToken
-        ? `google:${createHash('sha256').update(googleToken).digest('hex').substring(0, 16)}`
+      const userId = sessionOwnerToken
+        ? `google:${createHash('sha256').update(sessionOwnerToken).digest('hex').substring(0, 16)}`
         : 'anonymous';
 
       const lastEventId = req.headers['last-event-id'] as string | undefined;
@@ -352,7 +352,7 @@ export function registerHttpTransportRoutes<
 
       if (requestedSessionId && sessions.has(requestedSessionId)) {
         const existingSession = sessions.get(requestedSessionId)!;
-        const currentSecurityContext = createSessionSecurityContext(req, googleToken || '');
+        const currentSecurityContext = createSessionSecurityContext(req, sessionOwnerToken || '');
         const securityCheck = verifySessionSecurityContext(
           existingSession.securityContext,
           currentSecurityContext
@@ -456,7 +456,7 @@ export function registerHttpTransportRoutes<
 
         sessionLimiter.registerSession(sessionId, userId);
 
-        const securityContext = createSessionSecurityContext(req, googleToken || '');
+        const securityContext = createSessionSecurityContext(req, sessionOwnerToken || '');
         const eventStore = createSessionEventStore({
           sessionId,
           eventStoreRedisUrl,
@@ -623,9 +623,12 @@ export function registerHttpTransportRoutes<
     }
 
     const authHeader = req.headers.authorization;
-    const googleToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
-    const userId = googleToken
-      ? `google:${createHash('sha256').update(googleToken).digest('hex').substring(0, 16)}`
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    const googleToken =
+      enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : bearerToken;
+    const sessionOwnerToken = bearerToken ?? googleToken;
+    const userId = sessionOwnerToken
+      ? `google:${createHash('sha256').update(sessionOwnerToken).digest('hex').substring(0, 16)}`
       : 'anonymous';
 
     const sessionId = normalizeMcpSessionHeader(req);
@@ -731,7 +734,7 @@ export function registerHttpTransportRoutes<
 
         sessionLimiter.registerSession(newSessionId, userId);
 
-        const securityContext = createSessionSecurityContext(req, googleToken || '');
+        const securityContext = createSessionSecurityContext(req, sessionOwnerToken || '');
         const { mcpServer, taskStore, disposeRuntime } = await createMcpServerInstance(
           googleToken,
           undefined,
@@ -756,7 +759,7 @@ export function registerHttpTransportRoutes<
 
         await mcpServer.connect(newTransport);
       } else if (session && transport instanceof StreamableHTTPServerTransport) {
-        const currentSecurityContext = createSessionSecurityContext(req, googleToken || '');
+        const currentSecurityContext = createSessionSecurityContext(req, sessionOwnerToken || '');
         const securityCheck = verifySessionSecurityContext(
           session.securityContext,
           currentSecurityContext

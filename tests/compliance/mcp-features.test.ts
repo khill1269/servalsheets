@@ -171,7 +171,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should use valid SVG data URIs', () => {
-      for (const [tool, icons] of Object.entries(TOOL_ICONS)) {
+      for (const [_tool, icons] of Object.entries(TOOL_ICONS)) {
         for (const icon of icons) {
           expect(icon.src).toMatch(/^data:image\/svg\+xml;base64,/);
           expect(icon.mimeType).toBe('image/svg+xml');
@@ -201,7 +201,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should have all 4 required annotation hints', () => {
-      for (const [tool, ann] of Object.entries(TOOL_ANNOTATIONS)) {
+      for (const [_tool, ann] of Object.entries(TOOL_ANNOTATIONS)) {
         expect(ann).toHaveProperty('readOnlyHint');
         expect(ann).toHaveProperty('destructiveHint');
         expect(ann).toHaveProperty('idempotentHint');

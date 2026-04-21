@@ -40,7 +40,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Setup live test credentials
-        if: ${{ github.event.inputs.include_live_tests == 'true' }}
+        if: github.event.inputs.include_live_tests == 'true'
         env:
           GOOGLE_TEST_CREDENTIALS: ${{ secrets.GOOGLE_TEST_CREDENTIALS }}
         run: |
@@ -52,11 +52,11 @@ jobs:
           printf '%s' "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
 
       - name: Run release audit
-        if: ${{ github.event.inputs.include_live_tests != 'true' }}
+        if: github.event.inputs.include_live_tests != 'true'
         run: npm run release:audit
 
       - name: Run release audit with live tests
-        if: ${{ github.event.inputs.include_live_tests == 'true' }}
+        if: github.event.inputs.include_live_tests == 'true'
         env:
           TEST_REAL_API: 'true'
           GOOGLE_TEST_CREDENTIALS_PATH: tests/config/test-credentials.json
@@ -65,7 +65,7 @@ jobs:
         run: npm run release:audit
 
       - name: Upload audit artifacts
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-audit-artifacts

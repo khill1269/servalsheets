@@ -18,6 +18,7 @@ function createMockRequest() {
       if (normalized === 'x-webhook-id') return 'webhook-123';
       if (normalized === 'x-webhook-signature') return 'sha256=test-signature';
       if (normalized === 'x-webhook-delivery') return 'delivery-123';
+      if (normalized === 'x-webhook-timestamp') return new Date().toISOString();
       return undefined;
     }),
   } as any;

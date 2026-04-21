@@ -71,52 +71,13 @@ export async function handleAuditSheetAction(
 
   let valueRanges: Array<{ range?: string | null; values?: unknown[][] | null }> = [];
   if (ranges.length > 0) {
-    const valuesApi = deps.sheetsApi.spreadsheets
-      .values as typeof deps.sheetsApi.spreadsheets.values & {
-      batchGet?: (params: {
-        spreadsheetId: string;
-        ranges: string[];
-        valueRenderOption: 'FORMULA';
-        fields: string;
-      }) => Promise<{
-        data: { valueRanges?: Array<{ range?: string | null; values?: unknown[][] | null }> };
-      }>;
-    };
-
-    const loadIndividually = async (): Promise<
-      Array<{ range?: string | null; values?: unknown[][] | null }>
-    > =>
-      await Promise.all(
-        ranges.map(async (range) => {
-          const response = await deps.sheetsApi.spreadsheets.values.get({
-            spreadsheetId: input.spreadsheetId,
-            range,
-            valueRenderOption: 'FORMULA',
-          });
-          return { range, values: response.data.values };
-        })
-      );
-
-    if (typeof valuesApi.batchGet === 'function') {
-      try {
-        const batchResponse = await valuesApi.batchGet({
-          spreadsheetId: input.spreadsheetId,
-          ranges,
-          valueRenderOption: 'FORMULA',
-          fields: 'valueRanges(range,values)',
-        });
-
-        if (batchResponse?.data?.valueRanges) {
-          valueRanges = batchResponse.data.valueRanges;
-        } else {
-          valueRanges = await loadIndividually();
-        }
-      } catch {
-        valueRanges = await loadIndividually();
-      }
-    } else {
-      valueRanges = await loadIndividually();
-    }
+    const batchResponse = await deps.sheetsApi.spreadsheets.values.batchGet({
+      spreadsheetId: input.spreadsheetId,
+      ranges,
+      valueRenderOption: 'FORMULA',
+      fields: 'valueRanges(range,values)',
+    });
+    valueRanges = batchResponse.data.valueRanges ?? [];
   }
 
   await sendProgress(1, 3, `Auditing ${sheetsToAudit.length} sheet(s)...`);

@@ -1,6 +1,5 @@
 /**
- * Protocol constants shared across layers.
- *
- * Kept in constants to avoid leaf-layer schema imports from non-leaf modules.
+ * Protocol constants — re-exported from src/constants/protocol.ts (canonical source).
+ * Import from src/constants/protocol.ts directly in new code.
  */
-export const MCP_PROTOCOL_VERSION = '2025-11-25';
+export { MCP_PROTOCOL_VERSION } from '../constants/protocol.js';

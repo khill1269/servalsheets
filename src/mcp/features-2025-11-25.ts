@@ -362,9 +362,10 @@ export function createServerCapabilities(): ServerCapabilities {
     // Clients can use logging/setLevel to adjust server verbosity
     logging: {},
 
-    // Completions support — argument autocompletion for tools (MCP 2025-11-25)
-    // Required when server handles completion/complete requests.
-    // ServalSheets completes spreadsheetId and action arguments.
+    // Completions support — prompt-argument autocompletion (MCP 2025-11-25)
+    // The SDK auto-registers a completion/complete handler for prompt arguments declared
+    // with completable(). Tool-argument completions (spreadsheetId, range, action) are
+    // built in src/mcp/completions.ts but not yet wired to the completion/complete handler.
     completions: {},
 
     // Extensions framework (MCP 2025-11-25)

@@ -153,27 +153,7 @@ jobs:
 
       - name: Check for dead code
         id: knip
-        run: |
-          echo "Running knip..."
-          npx knip --production > knip-output.txt 2>&1 || true
-
-          # Show results
-          if [ -s knip-output.txt ]; then
-            echo "⚠️  Dead code detected:"
-            cat knip-output.txt
-
-            # Count issues
-            ISSUE_COUNT=$(grep -c "^" knip-output.txt || echo "0")
-            echo "Total issues: $ISSUE_COUNT"
-
-            # Fail if more than 35 unused items (configurable threshold)
-            if [ "$ISSUE_COUNT" -gt 35 ]; then
-              echo "❌ Too many unused items ($ISSUE_COUNT > 35 threshold)"
-              exit 1
-            fi
-          else
-            echo "✅ No dead code detected"
-          fi
+        run: npm run check:knip 2>&1 | tee knip-output.txt
 
       - name: Upload dead code report
         if: always()

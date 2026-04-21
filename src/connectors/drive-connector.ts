@@ -235,7 +235,11 @@ export class DriveConnector implements SpreadsheetConnector {
       url.searchParams.set('q', String(params['q'] || ''));
       url.searchParams.set('pageSize', String(params['maxResults'] || 10));
     } else if (endpoint === 'folders/list') {
-      url.searchParams.set('q', `'${params['folderId']}' in parents and trashed=false`);
+      const folderId = String(params['folderId'] ?? '');
+      if (!/^[a-zA-Z0-9_-]{10,200}$/.test(folderId)) {
+        throw new Error(`Invalid folderId format: ${folderId.slice(0, 20)}`);
+      }
+      url.searchParams.set('q', `'${folderId}' in parents and trashed=false`);
       url.searchParams.set('pageSize', String(params['maxResults'] || 50));
     }
 

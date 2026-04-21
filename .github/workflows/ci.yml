@@ -550,6 +550,7 @@ jobs:
         run: npx stryker run stryker.critical.conf.mjs
 
   coverage:
+    timeout-minutes: 20
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'push' && (
@@ -751,6 +752,7 @@ jobs:
   ci-required:
     name: CI Required
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     needs:
       - quick-checks

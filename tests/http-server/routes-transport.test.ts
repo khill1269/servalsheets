@@ -179,4 +179,83 @@ describe('http transport routes', () => {
 
     clearInterval(sessionCleanupInterval);
   });
+
+  it('uses server-held Google token for OAuth streamable HTTP runtime creation', async () => {
+    const app = {
+      get: vi.fn(),
+      post: vi.fn(),
+      all: vi.fn(),
+      delete: vi.fn(),
+    };
+    const createMcpServerInstance = vi.fn(async () => {
+      throw new Error('stop after runtime token capture');
+    });
+    const oauth = {
+      getGoogleToken: vi.fn(async () => 'google-access-token'),
+      validateToken: vi.fn(() => (_req: unknown, _res: unknown, next: () => void) => next()),
+    };
+    routesTransportMocks.normalizeMcpSessionHeader.mockReturnValue(undefined);
+
+    const { sessionCleanupInterval } = registerHttpTransportRoutes({
+      app: app as never,
+      enableOAuth: true,
+      oauth: oauth as never,
+      legacySseEnabled: false,
+      host: '127.0.0.1',
+      port: 3000,
+      eventStoreRedisUrl: undefined,
+      eventStoreTtlMs: 60_000,
+      eventStoreMaxEvents: 100,
+      sessionTimeoutMs: 1_000,
+      sessions: new Map() as never,
+      createMcpServerInstance,
+    });
+
+    const allArgs = app.all.mock.calls.find((call) => call[0] === '/mcp');
+    expect(allArgs).toBeDefined();
+    const handler = allArgs![allArgs!.length - 1] as (req: unknown, res: unknown) => Promise<void>;
+
+    const req = {
+      method: 'POST',
+      path: '/mcp',
+      headers: {
+        authorization: 'Bearer mcp-access-token',
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'test-client', version: '1.0.0' },
+        },
+      },
+    };
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    };
+
+    await handler(req, res);
+
+    expect(oauth.getGoogleToken).toHaveBeenCalledWith(req);
+    expect(createMcpServerInstance).toHaveBeenCalledWith(
+      'google-access-token',
+      undefined,
+      expect.any(String)
+    );
+    expect(createMcpServerInstance).not.toHaveBeenCalledWith(
+      'mcp-access-token',
+      undefined,
+      expect.any(String)
+    );
+    expect(routesTransportMocks.createSessionSecurityContext).toHaveBeenCalledWith(
+      req,
+      'mcp-access-token'
+    );
+    expect(res.status).toHaveBeenCalledWith(500);
+
+    clearInterval(sessionCleanupInterval);
+  });
 });

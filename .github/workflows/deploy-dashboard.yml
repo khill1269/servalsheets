@@ -20,11 +20,6 @@ permissions:
   pages: write
   id-token: write
 
-# NOTE: Both docs.yml and deploy-dashboard.yml deploy to GitHub Pages. They use
-# separate concurrency groups so one doesn't block the other's queue, but because
-# each GitHub Pages deployment replaces the entire site, the last deployment to
-# complete will be live. These two workflows should be consolidated into a single
-# Pages deployment pipeline in the future.
 concurrency:
   group: 'pages-dashboard'
   cancel-in-progress: false

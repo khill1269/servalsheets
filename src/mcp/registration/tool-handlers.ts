@@ -118,6 +118,7 @@ import { executeRoutedToolCall } from '../routed-tool-execution.js';
 import { isLikelyMutationAction, withWriteLock } from '../../middleware/write-lock-middleware.js';
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
+import { getRbacManager } from '../../services/rbac-manager.js';
 import { startKeepalive } from '../../utils/keepalive.js';
 import { createTaskAwareSamplingServer } from '../sampling.js';
 import {
@@ -1200,6 +1201,53 @@ function createToolCallHandler(
                   recordRequestVerbosity(rawVerbosity);
                 }
 
+                // RBAC enforcement — applies to all transports including STDIO.
+                // Guarded by ENABLE_RBAC (default false) to match HTTP path behavior.
+                if (getEnv()['ENABLE_RBAC']) try {
+                  const rbacArgs = normalizedArgs as Record<string, unknown>;
+                  const rbacReq = rbacArgs['request'] as Record<string, unknown> | undefined;
+                  const rbacActionName =
+                    (typeof rbacReq?.['action'] === 'string' ? rbacReq['action'] : null) ??
+                    (typeof rbacArgs['action'] === 'string' ? rbacArgs['action'] : null) ??
+                    undefined;
+                  const rbacResourceId =
+                    (typeof rbacReq?.['spreadsheetId'] === 'string' ? rbacReq['spreadsheetId'] : null) ??
+                    (typeof rbacArgs['spreadsheetId'] === 'string' ? rbacArgs['spreadsheetId'] : null) ??
+                    undefined;
+                  const rbacResult = await getRbacManager().checkPermission({
+                    userId: principalId,
+                    toolName: tool.name,
+                    actionName: rbacActionName,
+                    resourceId: rbacResourceId,
+                  });
+                  if (!rbacResult.allowed) {
+                    logger.warn('RBAC: Permission denied (STDIO path)', {
+                      userId: principalId,
+                      toolName: tool.name,
+                      actionName: rbacActionName,
+                      resourceId: rbacResourceId,
+                      reason: rbacResult.reason,
+                    });
+                    return {
+                      response: {
+                        success: false,
+                        error: {
+                          code: 'PERMISSION_DENIED',
+                          message: rbacResult.reason ?? 'Permission denied',
+                          retryable: false,
+                        },
+                      },
+                    };
+                  }
+                } catch (rbacError) {
+                  // RBAC check failed (e.g. storage not configured) — log and allow.
+                  // Default-allow matches RbacManager's no-role-assignment policy.
+                  logger.warn('RBAC check error — allowing request', {
+                    error: rbacError instanceof Error ? rbacError.message : String(rbacError),
+                    toolName: tool.name,
+                  });
+                }
+
                 const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);
                 if (mutationSafetyViolation) {
                   return {
@@ -1209,11 +1257,10 @@ function createToolCallHandler(
                         code: 'FORMULA_INJECTION_BLOCKED',
                         message:
                           `Dangerous formula detected at ${mutationSafetyViolation.path}: ` +
-                          `${mutationSafetyViolation.preview}. ` +
-                          'Set safety.sanitizeFormulas=false to allow.',
+                          `${mutationSafetyViolation.preview}.`,
                         retryable: false,
                         suggestedFix:
-                          'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, or QUERY from mutation payloads.',
+                          'Remove formulas containing IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY, HYPERLINK, IMAGE, or INDIRECT from mutation payloads.',
                       },
                     },
                   };

@@ -62,7 +62,7 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
       // Content array for LLM display
       expect(result.content).toBeDefined();
       expect(Array.isArray(result.content)).toBe(true);
-      expect(result.content.length).toBeGreaterThan(0);
+      expect((result.content as unknown[]).length).toBeGreaterThan(0);
     });
 
     // NOTE: structuredContent tests are in response-format-jsonrpc.test.ts

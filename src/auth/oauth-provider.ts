@@ -22,6 +22,7 @@ import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { VERSION, SERVER_ICONS } from '../version.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { formatScopesForAuth, getConfiguredScopes } from '../config/oauth-scopes.js';
 
 // ============================================================================
 // SECURITY CONSTANTS
@@ -84,6 +85,14 @@ interface RefreshTokenData {
   resource?: string;
 }
 
+interface GoogleTokenData {
+  accessToken?: string;
+  refreshToken?: string;
+  /** Backward-compatible keys from older session-store records. */
+  googleAccessToken?: string;
+  googleRefreshToken?: string;
+}
+
 interface StateData {
   originalState: string | undefined;
   redirectUri: string;
@@ -114,6 +123,11 @@ interface ConsentRecord {
   clientName: string;
   grantedAt: number;
   redirectUris: string[];
+}
+
+interface ClientCredentials {
+  clientId?: string;
+  clientSecret?: string;
 }
 
 /**
@@ -387,6 +401,49 @@ export class OAuthProvider {
     logger.info('DCR client consent revoked', { clientId });
   }
 
+  private validateDcrRedirectUri(uri: string): { valid: boolean; error?: string } {
+    let url: URL;
+    try {
+      url = new URL(uri);
+    } catch {
+      return { valid: false, error: `Invalid redirect_uri: ${uri}` };
+    }
+
+    if (url.hash) {
+      return { valid: false, error: 'redirect_uri must not contain a fragment' };
+    }
+
+    if (url.protocol === 'https:') {
+      return { valid: true };
+    }
+
+    const hostname = url.hostname.toLowerCase();
+    const isLoopback =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.localhost');
+
+    if (url.protocol === 'http:' && isLoopback) {
+      return { valid: true };
+    }
+
+    return {
+      valid: false,
+      error: 'redirect_uri must use https, except loopback localhost redirect URIs may use http',
+    };
+  }
+
+  private validateDcrRedirectUris(redirectUris: string[]): { valid: boolean; error?: string } {
+    for (const uri of redirectUris) {
+      const validation = this.validateDcrRedirectUri(uri);
+      if (!validation.valid) {
+        return validation;
+      }
+    }
+    return { valid: true };
+  }
+
   /**
    * Validates OAuth token for HTTP transport layer (MCP compatibility)
    * Returns Express middleware that validates bearer tokens
@@ -515,6 +572,13 @@ export class OAuthProvider {
         newRefreshTokenData as unknown as SessionData,
         { ttlMs: (this.config.refreshTokenTtl ?? 2592000) * 1000 }
       );
+      const googleTokenKey = `google_tokens:${refreshTokenData.userId}`;
+      const googleTokenData = await this.sessionStore.get(googleTokenKey);
+      if (googleTokenData) {
+        await this.sessionStore.set(googleTokenKey, googleTokenData, {
+          ttlMs: (this.config.refreshTokenTtl ?? 2592000) * 1000,
+        });
+      }
 
       res.json({
         access_token: accessToken,
@@ -570,8 +634,8 @@ export class OAuthProvider {
         return null;
       }
 
-      const { accessToken } = googleTokenData as { accessToken?: string; refreshToken?: string };
-      return accessToken || null;
+      const { accessToken, googleAccessToken } = googleTokenData as GoogleTokenData;
+      return accessToken ?? googleAccessToken ?? null;
     } catch (error) {
       logger.error('Failed to retrieve Google token', {
         error: error instanceof Error ? error.message : String(error),
@@ -728,7 +792,7 @@ export class OAuthProvider {
           res.status(403).json({
             error: 'access_denied',
             error_description:
-              'Client has no consent. Re-register via POST /oauth/register to grant consent.',
+              'Client has no consent. An administrator must grant consent before authorization.',
           });
           return;
         }
@@ -838,10 +902,11 @@ export class OAuthProvider {
       googleAuthUrl.searchParams.set('client_id', this.config.googleClientId);
       googleAuthUrl.searchParams.set('redirect_uri', `${this.config.issuer}/oauth/callback`);
       googleAuthUrl.searchParams.set('response_type', 'code');
-      googleAuthUrl.searchParams.set('scope', 'openid profile email');
+      googleAuthUrl.searchParams.set('scope', formatScopesForAuth(getConfiguredScopes()));
       googleAuthUrl.searchParams.set('state', googleOAuthState);
       googleAuthUrl.searchParams.set('access_type', 'offline'); // To get refresh token
       googleAuthUrl.searchParams.set('prompt', 'consent'); // Force consent screen
+      googleAuthUrl.searchParams.set('include_granted_scopes', 'true');
 
       res.redirect(googleAuthUrl.toString());
     });
@@ -972,6 +1037,7 @@ export class OAuthProvider {
     router.post('/oauth/token', async (req, res) => {
       const { grant_type, code, code_verifier, refresh_token, client_id, client_secret } =
         req.body as Record<string, string | undefined>;
+      const clientCredentials = this.extractClientCredentials(req, client_id, client_secret);
 
       // Validate grant type
       if (!grant_type) {
@@ -987,7 +1053,11 @@ export class OAuthProvider {
 
         // Verify client authentication first (RFC 6749 §3.2.1) — prevents
         // leaking code validity to unauthenticated clients
-        const preAuthClientId = await this.authenticateClient('', client_id, client_secret);
+        const preAuthClientId = await this.authenticateClient(
+          '',
+          clientCredentials.clientId,
+          clientCredentials.clientSecret
+        );
         if (!preAuthClientId) {
           res.status(401).json({
             error: 'invalid_client',
@@ -1041,8 +1111,8 @@ export class OAuthProvider {
           // Re-verify client matches the code's intended client
           const authenticatedClientId = await this.authenticateClient(
             authCodeData.clientId,
-            client_id,
-            client_secret
+            clientCredentials.clientId,
+            clientCredentials.clientSecret
           );
 
           if (!authenticatedClientId) {
@@ -1095,8 +1165,8 @@ export class OAuthProvider {
             await this.sessionStore.set(
               `google_tokens:${userId}`,
               {
-                googleAccessToken: authCodeData.googleAccessToken,
-                googleRefreshToken: authCodeData.googleRefreshToken,
+                accessToken: authCodeData.googleAccessToken,
+                refreshToken: authCodeData.googleRefreshToken,
               },
               { ttlMs: (this.config.refreshTokenTtl ?? 2592000) * 1000 }
             );
@@ -1132,7 +1202,12 @@ export class OAuthProvider {
           return;
         }
 
-        await this.handleRefreshToken(refresh_token, res, client_id, client_secret);
+        await this.handleRefreshToken(
+          refresh_token,
+          res,
+          clientCredentials.clientId,
+          clientCredentials.clientSecret
+        );
       } else {
         res.status(400).json({
           error: 'unsupported_grant_type',
@@ -1144,6 +1219,7 @@ export class OAuthProvider {
     // Token revocation endpoint (RFC 7009)
     router.post('/oauth/revoke', async (req, res) => {
       const { token, client_id, client_secret } = req.body as Record<string, string | undefined>;
+      const clientCredentials = this.extractClientCredentials(req, client_id, client_secret);
 
       if (!token) {
         res.status(400).json({
@@ -1156,8 +1232,8 @@ export class OAuthProvider {
       // Verify client authentication
       const authenticatedClientId = await this.authenticateClient(
         '', // We don't know the client ID yet
-        client_id,
-        client_secret
+        clientCredentials.clientId,
+        clientCredentials.clientSecret
       );
 
       if (!authenticatedClientId) {
@@ -1166,6 +1242,29 @@ export class OAuthProvider {
           error_description: 'Client authentication failed',
         });
         return;
+      }
+
+      const refreshTokenData = (await this.sessionStore.get(
+        `refresh:${token}`
+      )) as unknown as RefreshTokenData | undefined;
+
+      let userIdToClear = refreshTokenData?.userId;
+      if (!userIdToClear) {
+        for (const secret of this.jwtSecrets) {
+          try {
+            const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+            if (decoded && typeof decoded !== 'string' && decoded.sub) {
+              userIdToClear = decoded.sub;
+              break;
+            }
+          } catch {
+            // Try next secret; revocation still returns success for unknown tokens.
+          }
+        }
+      }
+
+      if (userIdToClear) {
+        await this.sessionStore.delete(`google_tokens:${userIdToClear}`);
       }
 
       // Try to revoke as refresh token
@@ -1178,6 +1277,7 @@ export class OAuthProvider {
     // Token introspection endpoint (RFC 7662)
     router.post('/oauth/introspect', async (req, res) => {
       const { token, client_id, client_secret } = req.body as Record<string, string | undefined>;
+      const clientCredentials = this.extractClientCredentials(req, client_id, client_secret);
 
       if (!token) {
         res.status(400).json({
@@ -1190,8 +1290,8 @@ export class OAuthProvider {
       // Verify client authentication
       const authenticatedClientId = await this.authenticateClient(
         '', // We don't know the client ID yet
-        client_id,
-        client_secret
+        clientCredentials.clientId,
+        clientCredentials.clientSecret
       );
 
       if (!authenticatedClientId) {
@@ -1277,17 +1377,13 @@ export class OAuthProvider {
         return;
       }
 
-      // Validate redirect URIs are valid URLs
-      for (const uri of redirect_uris) {
-        try {
-          new URL(uri);
-        } catch {
-          res.status(400).json({
-            error: 'invalid_request',
-            error_description: `Invalid redirect_uri: ${uri}`,
-          });
-          return;
-        }
+      const redirectValidation = this.validateDcrRedirectUris(redirect_uris);
+      if (!redirectValidation.valid) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: redirectValidation.error,
+        });
+        return;
       }
 
       // Default to authorization_code if not specified
@@ -1343,11 +1439,10 @@ export class OAuthProvider {
           { ttlMs: 365 * 24 * 60 * 60 * 1000 } // 1 year (ms)
         );
 
-        // ✅ CONFUSED DEPUTY PROTECTION: grant per-client consent at registration time.
-        // The act of POSTing to /oauth/register is the consent signal — it requires an
-        // authorized HTTP request to our server. Pre-approving at registration prevents
-        // the confused deputy attack without requiring a separate consent UI flow.
-        await this.grantDcrConsent(clientId, clientData.client_name, redirect_uris as string[]);
+        const autoConsent = process.env['OAUTH_DCR_AUTO_CONSENT'] === 'true';
+        if (autoConsent) {
+          await this.grantDcrConsent(clientId, clientData.client_name, redirect_uris as string[]);
+        }
 
         logger.info('Dynamic client registered', {
           clientId,
@@ -1369,6 +1464,7 @@ export class OAuthProvider {
           response_types: clientData.response_types,
           scope: clientData.scope,
           token_endpoint_auth_method: clientData.token_endpoint_auth_method,
+          consent_required: !autoConsent,
         });
       } catch (error) {
         logger.error('DCR registration failed', {
@@ -1414,6 +1510,55 @@ export class OAuthProvider {
       }
       return stored;
     };
+
+    router.post('/oauth/register/:clientId/consent', async (req, res) => {
+      const clientId = req.params['clientId'];
+      if (!clientId) { res.status(400).json({ error: 'invalid_request' }); return; }
+
+      const expectedToken = process.env['OAUTH_DCR_CONSENT_TOKEN'];
+      const authHeader = req.headers['authorization'];
+      const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      if (!expectedToken || !providedToken) {
+        res.status(403).json({
+          error: 'access_denied',
+          error_description: 'DCR consent requires administrator authorization',
+        });
+        return;
+      }
+
+      try {
+        const matches = timingSafeEqual(Buffer.from(providedToken), Buffer.from(expectedToken));
+        if (!matches) {
+          res.status(403).json({
+            error: 'access_denied',
+            error_description: 'Invalid DCR consent token',
+          });
+          return;
+        }
+      } catch {
+        res.status(403).json({
+          error: 'access_denied',
+          error_description: 'Invalid DCR consent token',
+        });
+        return;
+      }
+
+      const stored = await this.sessionStore.get(`dcr:${clientId}`) as Record<string, unknown> | null;
+      if (!stored) {
+        res.status(404).json({
+          error: 'invalid_client_metadata',
+          error_description: 'Client not found',
+        });
+        return;
+      }
+
+      await this.grantDcrConsent(
+        clientId,
+        String(stored['client_name'] ?? clientId),
+        Array.isArray(stored['redirect_uris']) ? (stored['redirect_uris'] as string[]) : []
+      );
+      res.status(204).end();
+    });
 
     router.get('/oauth/register/:clientId', async (req, res) => {
       const clientId = req.params['clientId'];
@@ -1486,6 +1631,46 @@ export class OAuthProvider {
    * Authenticate client using client credentials (RFC 6749 Section 2.3)
    * Supports: client_secret_post, client_secret_basic
    */
+  private extractClientCredentials(
+    req: express.Request,
+    bodyClientId: string | undefined,
+    bodyClientSecret: string | undefined
+  ): ClientCredentials {
+    const authHeader = req.headers['authorization'];
+    const headerValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+
+    if (headerValue?.startsWith('Basic ')) {
+      try {
+        const decoded = Buffer.from(headerValue.slice(6), 'base64').toString('utf8');
+        const separatorIndex = decoded.indexOf(':');
+        if (separatorIndex === -1) {
+          return {}; // OK: Explicit empty — malformed Basic auth header, no credentials to extract
+        }
+        const encodedClientId = decoded.slice(0, separatorIndex);
+        const encodedClientSecret = decoded.slice(separatorIndex + 1);
+        return {
+          clientId: this.decodeBasicCredentialPart(encodedClientId),
+          clientSecret: this.decodeBasicCredentialPart(encodedClientSecret),
+        };
+      } catch {
+        return {}; // OK: Explicit empty — decode error, no credentials to extract
+      }
+    }
+
+    return {
+      clientId: bodyClientId,
+      clientSecret: bodyClientSecret,
+    };
+  }
+
+  private decodeBasicCredentialPart(value: string): string {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
   private async authenticateClient(
     expectedClientId: string,
     providedClientId: string | undefined,

@@ -131,11 +131,12 @@ export async function verifyToolIntegrity(): Promise<void> {
   const baseline = loadBaseline();
 
   if (!baseline) {
-    logger.warn(
-      'Tool integrity baseline not found — skipping verification. ' +
-        'Run `npm run security:tool-hashes` to generate the baseline.',
-      { toolCount: tools.length }
-    );
+    const message =
+      'Tool integrity baseline not found. Run `npm run security:tool-hashes` to generate the baseline.';
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error(message);
+    }
+    logger.warn(message, { toolCount: tools.length });
     return;
   }
 

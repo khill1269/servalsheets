@@ -385,16 +385,16 @@ const SqlJoinActionSchema = CommonFieldsSchema.extend({
     .string()
     .max(500)
     .regex(
-      /^[a-zA-Z0-9_.\s=<>!()'"]+$/,
-      'ON clause must contain only column references, operators, and literals'
+      /^[a-zA-Z0-9_\.\s=<>!]+$/,
+      'ON clause must contain only column references and comparison operators (no string literals or function calls)'
     )
     .describe('JOIN condition (e.g., "left.id = right.id")'),
   select: z
     .string()
     .max(500)
     .regex(
-      /^[a-zA-Z0-9_*,\s.()]+$/,
-      'SELECT clause must contain only column names, wildcards, and aliases'
+      /^[a-zA-Z0-9_\*,\s\.]+$/,
+      'SELECT clause must contain only column names, wildcards, and aliases (no function calls)'
     )
     .optional()
     .describe('SELECT clause (default: *)'),

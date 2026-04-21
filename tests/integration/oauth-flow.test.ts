@@ -14,6 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express, { type Express } from 'express';
 import jwt from 'jsonwebtoken';
 import { OAuthProvider } from '../../src/auth/oauth-provider.js';
+import { MemorySessionStore } from '../../src/storage/session-store.js';
 import { VERSION } from '../../src/version.js';
 import { randomBytes, createHash } from 'crypto';
 import { requestApp, type AppResponse } from '../helpers/request-app.js';
@@ -493,6 +494,88 @@ describe('OAuth Flow Integration Tests', () => {
     });
   });
 
+  describe('Google token bridge storage', () => {
+    it('retrieves server-held Google tokens by MCP access-token subject', async () => {
+      const sessionStore = new MemorySessionStore();
+      const provider = new OAuthProvider({
+        issuer,
+        clientId,
+        clientSecret,
+        jwtSecret,
+        stateSecret,
+        allowedRedirectUris,
+        accessTokenTtl: 3600,
+        refreshTokenTtl: 86400,
+        sessionStore,
+      });
+      const accessToken = jwt.sign(
+        {
+          sub: 'user:test-client:google-token-bridge',
+          aud: clientId,
+          iss: issuer,
+          scope: 'sheets:read',
+        },
+        jwtSecret,
+        { algorithm: 'HS256', expiresIn: '1h' }
+      );
+      await sessionStore.set('google_tokens:user:test-client:google-token-bridge', {
+        accessToken: 'google-access-token',
+        refreshToken: 'google-refresh-token',
+      });
+
+      const googleToken = await provider.getGoogleToken({
+        headers: { authorization: `Bearer ${accessToken}` },
+      } as never);
+
+      expect(googleToken).toBe('google-access-token');
+      provider.destroy();
+    });
+
+    it('removes server-held Google tokens when revoking an MCP refresh token', async () => {
+      const sessionStore = new MemorySessionStore();
+      const provider = new OAuthProvider({
+        issuer,
+        clientId,
+        clientSecret,
+        jwtSecret,
+        stateSecret,
+        allowedRedirectUris,
+        accessTokenTtl: 3600,
+        refreshTokenTtl: 86400,
+        sessionStore,
+      });
+      const revokeApp = express();
+      revokeApp.use(express.urlencoded({ extended: true }));
+      revokeApp.use(provider.createRouter());
+      await sessionStore.set('refresh:refresh-token-id', {
+        userId: 'user:test-client:revoked',
+        clientId,
+        scope: 'sheets:read',
+        expiresAt: Date.now() + 86_400_000,
+      });
+      await sessionStore.set('google_tokens:user:test-client:revoked', {
+        accessToken: 'google-access-token',
+        refreshToken: 'google-refresh-token',
+      });
+
+      const response = await requestApp(revokeApp, {
+        method: 'POST',
+        path: '/oauth/revoke',
+        body: {
+          token: 'refresh-token-id',
+          client_id: clientId,
+          client_secret: clientSecret,
+        },
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      });
+
+      expect(response.status).toBe(200);
+      expect(await sessionStore.get('refresh:refresh-token-id')).toBeUndefined();
+      expect(await sessionStore.get('google_tokens:user:test-client:revoked')).toBeUndefined();
+      provider.destroy();
+    });
+  });
+
   describe('Scope Validation', () => {
     it('should accept valid scopes', async () => {
       const validScopes = ['sheets:read', 'sheets:write', 'sheets:admin'];
@@ -513,6 +596,39 @@ describe('OAuth Flow Integration Tests', () => {
 
         // Should accept (redirect to Google or show consent)
         expect([200, 302]).toContain(response.status);
+      }
+    });
+
+    it('redirects to Google with configured Google API scopes', async () => {
+      const validCodeChallenge = 'a'.repeat(43);
+      const previousScopeMode = process.env['OAUTH_SCOPE_MODE'];
+      process.env['OAUTH_SCOPE_MODE'] = 'standard';
+
+      try {
+        const response = await get('/oauth/authorize', {
+          client_id: clientId,
+          redirect_uri: validRedirectUri,
+          response_type: 'code',
+          scope: 'sheets:read',
+          code_challenge: validCodeChallenge,
+          code_challenge_method: 'S256',
+        });
+
+        expect(response.status).toBe(302);
+        const location = response.headers['location'];
+        expect(typeof location).toBe('string');
+        const redirectUrl = new URL(location as string);
+        const googleScopes = redirectUrl.searchParams.get('scope')?.split(' ') ?? [];
+        expect(googleScopes).toContain('https://www.googleapis.com/auth/spreadsheets');
+        expect(googleScopes).toContain('https://www.googleapis.com/auth/drive.file');
+        expect(googleScopes).not.toContain('openid');
+        expect(redirectUrl.searchParams.get('include_granted_scopes')).toBe('true');
+      } finally {
+        if (previousScopeMode === undefined) {
+          delete process.env['OAUTH_SCOPE_MODE'];
+        } else {
+          process.env['OAUTH_SCOPE_MODE'] = previousScopeMode;
+        }
       }
     });
 

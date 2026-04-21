@@ -110,6 +110,7 @@ describe('Composite Handler', () => {
             },
           }),
           clear: vi.fn().mockResolvedValue({ data: { clearedRange: 'Sheet1!A2:Z1000' } }),
+          batchGet: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
         },
         batchUpdate: vi.fn().mockResolvedValue({
           data: {
@@ -1472,24 +1473,27 @@ describe('Composite Handler', () => {
           ],
         },
       });
-      (mockSheetsApi.spreadsheets.values.get as any)
-        .mockResolvedValueOnce({
-          data: {
-            values: [
-              ['A', 'B'],
-              [1, 2],
-              [3, 4],
-            ],
-          },
-        })
-        .mockResolvedValueOnce({
-          data: {
-            values: [
-              ['C', 'D'],
-              [5, 6],
-            ],
-          },
-        });
+      (mockSheetsApi.spreadsheets.values.batchGet as any).mockResolvedValue({
+        data: {
+          valueRanges: [
+            {
+              range: 'Sheet1!A1:Z1000',
+              values: [
+                ['A', 'B'],
+                [1, 2],
+                [3, 4],
+              ],
+            },
+            {
+              range: 'Sheet2!A1:Z1000',
+              values: [
+                ['C', 'D'],
+                [5, 6],
+              ],
+            },
+          ],
+        },
+      });
 
       const result = await runWithRequestContext(requestContext, () =>
         handler.handle({

@@ -12,6 +12,7 @@ import {
   createOriginValidationMiddleware,
 } from './request-validation-middleware.js';
 import { registerHttpFoundationMiddleware as registerPackagedHttpFoundationMiddleware } from '../../packages/mcp-http/dist/middleware.js';
+import { MCP_PROTOCOL_VERSION } from '../constants/protocol.js';
 
 export function registerHttpFoundationMiddleware(params: {
   app: Application;
@@ -52,6 +53,7 @@ export function registerHttpFoundationMiddleware(params: {
     extractTrustedClientIp: extractTrustedClientIp as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     createHttpProtocolVersionMiddleware: createHttpProtocolVersionMiddleware as any,
+    mcpProtocolVersion: MCP_PROTOCOL_VERSION,
     log: logger,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);

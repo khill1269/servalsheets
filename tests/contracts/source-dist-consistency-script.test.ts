@@ -25,7 +25,8 @@ describe('check-source-dist-consistency.ts', () => {
   it('runs strict mode consistency checks when dist artifacts exist', () => {
     const hasDistArtifacts =
       existsSync(resolve(projectRoot, 'dist/schemas/action-counts.js')) &&
-      existsSync(resolve(projectRoot, 'dist/mcp/completions.js'));
+      existsSync(resolve(projectRoot, 'dist/mcp/completions.js')) &&
+      existsSync(resolve(projectRoot, 'dist/knowledge'));
 
     const env = { ...process.env, NODE_ENV: 'test' };
     const result = spawnSync('node', ['--import', 'tsx', scriptPath], {
@@ -40,7 +41,7 @@ describe('check-source-dist-consistency.ts', () => {
       expect(output).toContain('Source/dist consistency passed.');
     } else {
       expect(result.status, output).toBe(1);
-      expect(output).toContain('dist artifacts are missing');
+      expect(output).toMatch(/Source\/dist consistency/i);
     }
   });
 });

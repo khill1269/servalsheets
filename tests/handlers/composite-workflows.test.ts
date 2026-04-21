@@ -171,15 +171,22 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         makeSpreadsheetResponse([{ title: 'Sheet1', sheetId: 0 }])
       );
 
-      // Mock values.get for reading the sheet
-      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue(
-        makeValuesResponse([
-          ['Name', 'Revenue', 'Cost'],
-          ['Alpha', 100, 50],
-          ['Beta', '=A2*2', 80],
-          ['Gamma', '', ''],
-        ])
-      );
+      // Mock values.batchGet for reading the sheet (audit_sheet uses batchGet directly)
+      (mockSheetsApi.spreadsheets.values.batchGet as any).mockResolvedValue({
+        data: {
+          valueRanges: [
+            {
+              range: 'Sheet1!A1:Z1000',
+              values: [
+                ['Name', 'Revenue', 'Cost'],
+                ['Alpha', 100, 50],
+                ['Beta', '=A2*2', 80],
+                ['Gamma', '', ''],
+              ],
+            },
+          ],
+        },
+      });
 
       const result = await handler.handle({
         request: {
@@ -205,13 +212,20 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         makeSpreadsheetResponse([{ title: 'Sheet1', sheetId: 0 }])
       );
 
-      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue(
-        makeValuesResponse([
-          ['Header1', 'Header2', 'Header3'],
-          ['data', '=B1+1', '=C1*2'],
-          ['more', 'plain', '=SUM(A1:A2)'],
-        ])
-      );
+      (mockSheetsApi.spreadsheets.values.batchGet as any).mockResolvedValue({
+        data: {
+          valueRanges: [
+            {
+              range: 'Sheet1!A1:Z1000',
+              values: [
+                ['Header1', 'Header2', 'Header3'],
+                ['data', '=B1+1', '=C1*2'],
+                ['more', 'plain', '=SUM(A1:A2)'],
+              ],
+            },
+          ],
+        },
+      });
 
       const result = await handler.handle({
         request: {
@@ -234,12 +248,19 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
         makeSpreadsheetResponse([{ title: 'Sheet1', sheetId: 0 }])
       );
 
-      (mockSheetsApi.spreadsheets.values.get as any).mockResolvedValue(
-        makeValuesResponse([
-          ['Name', '', 'Revenue'],
-          ['Alpha', 100, 200],
-        ])
-      );
+      (mockSheetsApi.spreadsheets.values.batchGet as any).mockResolvedValue({
+        data: {
+          valueRanges: [
+            {
+              range: 'Sheet1!A1:Z1000',
+              values: [
+                ['Name', '', 'Revenue'],
+                ['Alpha', 100, 200],
+              ],
+            },
+          ],
+        },
+      });
 
       const result = await handler.handle({
         request: {

@@ -75,7 +75,7 @@ describe('mutation-safety-middleware', () => {
     expect(violation).toBeNull();
   });
 
-  it('respects sanitizeFormulas opt-out at top level', () => {
+  it('does not allow sanitizeFormulas opt-out at top level (bypass removed)', () => {
     const violation = detectMutationSafetyViolation({
       request: {
         action: 'write',
@@ -85,10 +85,12 @@ describe('mutation-safety-middleware', () => {
       },
     });
 
-    expect(violation).toBeNull();
+    // Per-request bypass was removed (SEC-1); formula is still caught
+    expect(violation).not.toBeNull();
+    expect(violation?.path).toBe('request.values[0][0]');
   });
 
-  it('respects sanitizeFormulas opt-out on nested branch', () => {
+  it('does not allow sanitizeFormulas opt-out on nested branch (bypass removed)', () => {
     const violation = detectMutationSafetyViolation({
       request: {
         action: 'batch_operations',
@@ -106,6 +108,7 @@ describe('mutation-safety-middleware', () => {
       },
     });
 
-    expect(violation).toBeNull();
+    // Per-request bypass was removed (SEC-1); formula is still caught
+    expect(violation).not.toBeNull();
   });
 });

@@ -44,6 +44,9 @@ const DUMMY_WEBHOOK_SECRET = 'servalsheets-webhook-dummy-secret';
 /**
  * Webhook verification configuration
  */
+/** Maximum age of a webhook before it is rejected as a replay (ms) */
+const WEBHOOK_TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes
+
 export interface WebhookVerificationConfig {
   /** Function to retrieve the secret for a webhook ID */
   getSecret: (webhookId: string) => Promise<string | null>;
@@ -53,8 +56,12 @@ export interface WebhookVerificationConfig {
   signatureHeader?: string;
   /** Header name for delivery ID (default: 'x-webhook-delivery') */
   deliveryIdHeader?: string;
+  /** Header name for timestamp (default: 'x-webhook-timestamp') */
+  timestampHeader?: string;
   /** Whether to require signature (default: true) */
   requireSignature?: boolean;
+  /** Whether to require a fresh timestamp (default: true) */
+  requireTimestamp?: boolean;
   /** Custom error response handler */
   onError?: (error: WebhookVerificationError, req: Request, res: Response) => void;
   /** Custom success handler (optional - if not provided, next() is called) */
@@ -179,7 +186,9 @@ export function webhookVerificationMiddleware(
     webhookIdHeader = 'x-webhook-id',
     signatureHeader = 'x-webhook-signature',
     deliveryIdHeader = 'x-webhook-delivery',
+    timestampHeader = 'x-webhook-timestamp',
     requireSignature = true,
+    requireTimestamp = true,
     onError,
     onSuccess,
   } = config;
@@ -190,6 +199,7 @@ export function webhookVerificationMiddleware(
       const webhookId = req.get(webhookIdHeader);
       const signature = req.get(signatureHeader);
       const deliveryId = req.get(deliveryIdHeader);
+      const timestampRaw = req.get(timestampHeader);
 
       // Validate required headers
       if (!webhookId) {
@@ -210,6 +220,34 @@ export function webhookVerificationMiddleware(
         }
         logger.warn('Webhook received without signature', { webhookId, deliveryId });
         return next();
+      }
+
+      // Replay attack prevention: require a fresh timestamp within 5-minute window
+      if (requireTimestamp) {
+        if (!timestampRaw) {
+          throw new WebhookVerificationError(
+            'MISSING_TIMESTAMP',
+            `Missing required header: ${timestampHeader}`,
+            400
+          );
+        }
+        const timestampMs = Date.parse(timestampRaw);
+        if (isNaN(timestampMs)) {
+          throw new WebhookVerificationError(
+            'INVALID_TIMESTAMP',
+            `Invalid timestamp in header: ${timestampHeader}`,
+            400
+          );
+        }
+        const ageMs = Math.abs(Date.now() - timestampMs);
+        if (ageMs > WEBHOOK_TIMESTAMP_TOLERANCE_MS) {
+          throw new WebhookVerificationError(
+            'STALE_TIMESTAMP',
+            `Webhook timestamp is outside the ${WEBHOOK_TIMESTAMP_TOLERANCE_MS / 1000}s tolerance window`,
+            401,
+            { ageMs, toleranceMs: WEBHOOK_TIMESTAMP_TOLERANCE_MS }
+          );
+        }
       }
 
       // Handle raw body - try different sources

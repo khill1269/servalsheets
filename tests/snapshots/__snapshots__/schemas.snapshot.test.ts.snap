@@ -30544,7 +30544,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             "on": {
               "description": "JOIN condition (e.g., \\"left.id = right.id\\")",
               "maxLength": 500,
-              "pattern": "^[a-zA-Z0-9_.\\\\s=<>!()'\\"]+$",
+              "pattern": "^[a-zA-Z0-9_\\\\.\\\\s=<>!]+$",
               "type": "string"
             },
             "right": {
@@ -30783,7 +30783,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             "select": {
               "description": "SELECT clause (default: *)",
               "maxLength": 500,
-              "pattern": "^[a-zA-Z0-9_*,\\\\s.()]+$",
+              "pattern": "^[a-zA-Z0-9_\\\\*,\\\\s\\\\.]+$",
               "type": "string"
             },
             "spreadsheetId": {

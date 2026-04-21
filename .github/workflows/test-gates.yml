@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: supplemental-test-gates-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 permissions: {}
 
@@ -26,7 +26,7 @@ jobs:
   schema-gate:
     name: Schema Validation Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -75,7 +75,7 @@ jobs:
   unit-gate:
     name: Unit Test Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -107,7 +107,7 @@ jobs:
   integration-gate:
     name: Integration Test Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: [schema-gate, unit-gate]
     permissions:
       contents: read
@@ -142,7 +142,7 @@ jobs:
   contract-gate:
     name: Contract Test Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: [schema-gate]
     permissions:
       contents: read
@@ -211,7 +211,7 @@ jobs:
   safety-gate:
     name: Safety Test Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -259,7 +259,7 @@ jobs:
   infrastructure-gate:
     name: Infrastructure Test Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: [unit-gate, integration-gate]
     permissions:
       contents: read

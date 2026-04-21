@@ -124,7 +124,7 @@ describe('Formula injection — nested key scanning', () => {
 // ── safety.sanitizeFormulas opt-out ─────────────────────────────────────────
 
 describe('Formula injection — safety bypass controls', () => {
-  it('respects safety.sanitizeFormulas=false at request level', () => {
+  it('does not allow safety.sanitizeFormulas=false bypass at request level (SEC-1: bypass removed)', () => {
     const args = {
       request: {
         action: 'write',
@@ -134,7 +134,7 @@ describe('Formula injection — safety bypass controls', () => {
       },
     };
     const v = detectMutationSafetyViolation(args);
-    expect(v).toBeNull();
+    expect(v).not.toBeNull();
   });
 
   it('does NOT allow passthrough via SERVAL_ALLOW_FORMULA_PASSTHROUGH in production', () => {

@@ -139,38 +139,34 @@ export async function handleBatchRead(
       return paginationPlan.error;
     }
 
-    const valueRanges: Array<{ range: string; values: ValuesArray }> = [];
+    await ha.sendProgress(
+      1,
+      2,
+      `Reading ${paginationPlan.rangesToFetch.length} ranges in current page`
+    );
 
-    for (let i = 0; i < paginationPlan.rangesToFetch.length; i++) {
-      const range = paginationPlan.rangesToFetch[i]!;
+    // Resolve all ranges in parallel then issue a single batchGet (mirrors the non-paginated path)
+    const resolvedRanges = await Promise.all(
+      paginationPlan.rangesToFetch.map((r) => resolveRangeToA1(ha, input.spreadsheetId, r))
+    );
 
-      await ha.sendProgress(
-        i + 1,
-        paginationPlan.totalRanges,
-        `Reading range ${i + 1}/${paginationPlan.rangesToFetch.length} in current page`
-      );
+    const batchResponse = await ha.api.spreadsheets.values.batchGet({
+      spreadsheetId: input.spreadsheetId,
+      ranges: resolvedRanges,
+      valueRenderOption: input.valueRenderOption,
+      majorDimension: input.majorDimension,
+      dateTimeRenderOption:
+        ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
+        (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
+      fields: 'valueRanges(range,majorDimension,values)',
+    });
 
-      const resolvedRange = await resolveRangeToA1(ha, input.spreadsheetId, range);
-      const dedupKey = `values:get:${input.spreadsheetId}:${resolvedRange}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
-
-      const response = await ha.deduplicatedApiCall(dedupKey, () =>
-        ha.api.spreadsheets.values.get({
-          spreadsheetId: input.spreadsheetId,
-          range: resolvedRange,
-          valueRenderOption: input.valueRenderOption,
-          majorDimension: input.majorDimension,
-          dateTimeRenderOption:
-            ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
-            (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
-          fields: 'range,majorDimension,values',
-        })
-      );
-
-      valueRanges.push({
-        range: response.data.range ?? resolvedRange,
-        values: (response.data.values ?? []) as ValuesArray,
-      });
-    }
+    const valueRanges: Array<{ range: string; values: ValuesArray }> = (
+      batchResponse.data.valueRanges ?? []
+    ).map((vr, i) => ({
+      range: vr.range ?? resolvedRanges[i] ?? '',
+      values: (vr.values ?? []) as ValuesArray,
+    }));
 
     const responseData: Record<string, unknown> = {
       valueRanges,
