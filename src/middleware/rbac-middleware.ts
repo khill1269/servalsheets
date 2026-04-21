@@ -131,6 +131,27 @@ function extractToolAndAction(req: Request): {
 }
 
 /**
+ * Extract A1 notation range from request args
+ */
+function extractRange(req: Request): string | null {
+  if (req.body && typeof req.body === 'object') {
+    const body = req.body as Record<string, unknown>;
+    if (body['params'] && typeof body['params'] === 'object') {
+      const params = body['params'] as Record<string, unknown>;
+      if (params['arguments'] && typeof params['arguments'] === 'object') {
+        const args = params['arguments'] as Record<string, unknown>;
+        if (typeof args['range'] === 'string') return args['range'];
+        if (args['request'] && typeof args['request'] === 'object') {
+          const request = args['request'] as Record<string, unknown>;
+          if (typeof request['range'] === 'string') return request['range'];
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Extract resource ID (spreadsheetId) from request
  */
 function extractResourceId(req: Request): string | null {
@@ -197,9 +218,10 @@ export function rbacMiddleware(
       return;
     }
 
-    // Extract tool, action, and resource
+    // Extract tool, action, resource, and range
     const { toolName, actionName } = extractToolAndAction(req);
     const resourceId = extractResourceId(req);
+    const range = extractRange(req);
 
     // Skip if not a tool call
     if (!toolName) {
@@ -215,6 +237,7 @@ export function rbacMiddleware(
         toolName,
         actionName: actionName || undefined,
         resourceId: resourceId || undefined,
+        range: range || undefined,
       });
 
       if (!result.allowed) {
@@ -223,6 +246,7 @@ export function rbacMiddleware(
           toolName,
           actionName,
           resourceId,
+          range,
           reason: result.reason,
         });
 
@@ -255,6 +279,7 @@ export function rbacMiddleware(
         toolName,
         actionName,
         resourceId,
+        range,
         permission: result.permission,
         matchedRules: result.matchedRules,
       };

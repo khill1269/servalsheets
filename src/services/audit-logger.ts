@@ -190,7 +190,8 @@ export class AuditLogger {
     this.logDir = options?.logDir ?? join(process.cwd(), 'audit-logs');
     this.currentDate = this.getCurrentDate();
     this.currentLogPath = this.getLogPath(this.currentDate);
-    this.retentionDays = options?.retentionDays ?? 90;
+    // CC7.3 / HIPAA §164.316(b)(2)(i): 7-year minimum retention = 2555 days
+    this.retentionDays = options?.retentionDays ?? 2555;
     this.sequenceNumber = 0;
     this.previousHash = '0'.repeat(64); // Genesis hash
     this.hmacSecret = options?.hmacSecret
@@ -230,8 +231,51 @@ export class AuditLogger {
       logger.warn('AUDIT_HMAC_SECRET not set in production — audit log integrity is ephemeral');
     }
 
+    // Load persisted cross-day chain state before reading the current log
+    await this.loadChainState();
     await this.loadLastSequenceNumber();
     await this.pruneExpiredLogs();
+  }
+
+  /**
+   * Persist the current chain tip (last hash + date) so daily rotation
+   * preserves continuity across day boundaries.
+   */
+  private async saveChainState(): Promise<void> {
+    const statePath = join(this.logDir, '.chain-state.json');
+    const state = {
+      date: this.currentDate,
+      previousHash: this.previousHash,
+      sequenceNumber: this.sequenceNumber,
+    };
+    await fs.writeFile(statePath, JSON.stringify(state), { mode: 0o600 });
+  }
+
+  /**
+   * Load the persisted cross-day chain tip.
+   * If the state file exists and is for a previous date, use its hash as
+   * the genesis for the current day (ensuring the chain spans day boundaries).
+   */
+  private async loadChainState(): Promise<void> {
+    const statePath = join(this.logDir, '.chain-state.json');
+    try {
+      const raw = await fs.readFile(statePath, 'utf-8');
+      const state = JSON.parse(raw) as {
+        date: string;
+        previousHash: string;
+        sequenceNumber: number;
+      };
+      if (state.date !== this.currentDate && typeof state.previousHash === 'string') {
+        // Different day — carry the last hash forward as the genesis for today
+        this.previousHash = state.previousHash;
+        logger.debug('Loaded cross-day chain state', {
+          fromDate: state.date,
+          toDate: this.currentDate,
+        });
+      }
+    } catch {
+      // No state file yet — genesis hash stays as zeros (expected on first run)
+    }
   }
 
   /**
@@ -314,6 +358,41 @@ export class AuditLogger {
   }
 
   /**
+   * Redact PII from an audit event before storage.
+   *
+   * When AUDIT_PII_REDACTION=true:
+   *   - Email addresses in userId / ipAddress / userAgent are hashed (SHA-256, first 16 hex chars)
+   *   - IP addresses are anonymised to /24 subnet (last octet zeroed)
+   *   - Raw email strings in nested fields are replaced with [REDACTED-EMAIL]
+   *
+   * The redaction is applied to a shallow clone so the original object is unchanged.
+   */
+  private redactPii(event: AuditEvent): AuditEvent {
+    if (process.env['AUDIT_PII_REDACTION'] !== 'true') return event;
+
+    const redactEmail = (value: string): string => {
+      if (!value.includes('@')) return value;
+      const hash = createHmac('sha256', this.hmacSecret).update(value).digest('hex').slice(0, 16);
+      return `[REDACTED:${hash}]`;
+    };
+
+    const anonymiseIp = (ip: string): string => {
+      const v4 = ip.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/);
+      if (v4) return `${v4[1]}.0`;
+      const v6 = ip.match(/^([0-9a-f:]{3,}):[\da-f]+$/i);
+      if (v6) return `${v6[1]}:0`;
+      return ip;
+    };
+
+    return {
+      ...event,
+      userId: redactEmail(event.userId),
+      ipAddress: event.ipAddress ? anonymiseIp(event.ipAddress) : event.ipAddress,
+      userAgent: event.userAgent ? '[REDACTED]' : event.userAgent,
+    };
+  }
+
+  /**
    * Generic audit event logging
    */
   private async logEvent(event: AuditEvent): Promise<void> {
@@ -325,8 +404,11 @@ export class AuditLogger {
       await this.rotateLog(currentDate);
     }
 
+    // Redact PII before writing (GDPR Article 5 data minimisation)
+    const redacted = this.redactPii(event);
+
     // Create signed entry
-    const entry = this.createSignedEntry(event);
+    const entry = this.createSignedEntry(redacted);
 
     // Append to log file (atomic, append-only)
     await this.appendToLog(entry);
@@ -425,6 +507,8 @@ export class AuditLogger {
       try {
         // Append with O_APPEND flag (atomic at filesystem level)
         await fs.appendFile(this.currentLogPath, line, { flag: 'a', mode: 0o640 });
+        // Persist cross-day chain tip so rotation preserves continuity
+        await this.saveChainState();
       } catch (error) {
         logger.error('Failed to write audit log', {
           error,
@@ -731,6 +815,110 @@ export class AuditLogger {
     } catch (error) {
       logger.error('Failed to verify audit log integrity', { error });
       return false;
+    }
+  }
+
+  /**
+   * Verify the full cross-day hash chain across all log files in date order.
+   * Returns { valid, filesChecked, entriesChecked, firstViolation? }.
+   * Genesis hash for the oldest file is assumed to be '0'.repeat(64).
+   */
+  async verifyAllLogs(options?: { startDate?: string; endDate?: string }): Promise<{
+    valid: boolean;
+    filesChecked: number;
+    entriesChecked: number;
+    firstViolation?: { file: string; sequenceNumber: number; reason: string };
+  }> {
+    await this.initialization;
+    let filesChecked = 0;
+    let entriesChecked = 0;
+    let chainHash = '0'.repeat(64);
+
+    try {
+      const entries = await fs.readdir(this.logDir, { withFileTypes: true });
+      const logFiles = entries
+        .filter((e) => e.isFile() && /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(e.name))
+        .map((e) => e.name)
+        .filter((name) => {
+          const date = name.slice(0, 10);
+          if (options?.startDate && date < options.startDate) return false;
+          if (options?.endDate && date > options.endDate) return false;
+          return true;
+        })
+        .sort(); // ascending date order
+
+      for (const fileName of logFiles) {
+        const filePath = join(this.logDir, fileName);
+        let content: string;
+        try {
+          content = await fs.readFile(filePath, 'utf-8');
+        } catch {
+          continue; // Skip unreadable files
+        }
+
+        const lines = content.trim().split('\n').filter(Boolean);
+        for (const line of lines) {
+          let entry: SignedAuditEntry;
+          try {
+            entry = this.parseLogEntry(line);
+          } catch {
+            return {
+              valid: false,
+              filesChecked,
+              entriesChecked,
+              firstViolation: { file: fileName, sequenceNumber: -1, reason: 'Parse error' },
+            };
+          }
+
+          if (entry.previousHash !== chainHash) {
+            return {
+              valid: false,
+              filesChecked,
+              entriesChecked,
+              firstViolation: {
+                file: fileName,
+                sequenceNumber: entry.sequenceNumber,
+                reason: `previousHash mismatch (expected ${chainHash.slice(0, 8)}…, got ${entry.previousHash.slice(0, 8)}…)`,
+              },
+            };
+          }
+
+          const hmac = createHmac('sha256', this.hmacSecret);
+          hmac.update(String(entry.sequenceNumber));
+          hmac.update(JSON.stringify(entry.event));
+          hmac.update(entry.previousHash);
+          const computed = hmac.digest('hex');
+
+          if (entry.hash !== computed) {
+            return {
+              valid: false,
+              filesChecked,
+              entriesChecked,
+              firstViolation: {
+                file: fileName,
+                sequenceNumber: entry.sequenceNumber,
+                reason: 'HMAC hash mismatch',
+              },
+            };
+          }
+
+          chainHash = entry.hash;
+          entriesChecked++;
+        }
+
+        filesChecked++;
+      }
+
+      logger.info('Full audit log chain verified', { filesChecked, entriesChecked });
+      return { valid: true, filesChecked, entriesChecked };
+    } catch (error) {
+      logger.error('Failed to verify full audit log chain', { error });
+      return {
+        valid: false,
+        filesChecked,
+        entriesChecked,
+        firstViolation: { file: '', sequenceNumber: -1, reason: String(error) },
+      };
     }
   }
 }

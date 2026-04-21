@@ -771,6 +771,8 @@ export const SheetsSessionOutputSchema = z.object({
 });
 
 export type SheetsSessionOutput = z.infer<typeof SheetsSessionOutputSchema>;
+/** Alias for handler files */
+export type SessionOutput = SheetsSessionOutput;
 
 // ============================================================================
 // TOOL ANNOTATIONS

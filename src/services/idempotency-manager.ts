@@ -122,6 +122,7 @@ export class IdempotencyManager {
 
   /** Load previously persisted keys from disk, evicting any that have expired. */
   private loadFromDisk(): void {
+    if (!IDEMPOTENCY_STORE_PATH) return;
     const storePath = sanitizeTokenStorePath(IDEMPOTENCY_STORE_PATH);
     try {
       if (!fs.existsSync(storePath)) return;

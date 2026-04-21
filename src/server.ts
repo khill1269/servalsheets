@@ -67,6 +67,7 @@ import { buildServerStdioToolRuntime } from './server/build-server-stdio-tool-ru
 import { shutdownStdioServer } from './server/shutdown-stdio-server.js';
 import { startStdioRuntime } from './server/start-stdio-runtime.js';
 import { recordStartupPhase } from './startup/startup-profiler.js';
+import { initializeRootsManager } from './mcp/roots-manager.js';
 
 export interface ServalSheetsServerOptions {
   name?: string;
@@ -120,6 +121,8 @@ export class ServalSheetsServer {
     await recordStartupPhase('finalize_post_connect', async () => {
       await this.preparedRuntime!.finalizePostConnect();
     });
+
+    await initializeRootsManager(this._server as import('./mcp/roots-manager.js').RootsCapable);
   });
 
   // Cached handler map (rebuilt only when handlers change)

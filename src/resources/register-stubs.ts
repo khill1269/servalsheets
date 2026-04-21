@@ -1,10 +1,10 @@
 /**
  * register-stubs.ts
  *
- * Provides register*Resources() functions for resource stub files that contain
+ * Provides register*Resources() functions for resource shim files that contain
  * only a const export (no get*Resources() or register*Resources() functions).
  *
- * These stubs exist as typed constants used elsewhere in the codebase.
+ * These shims exist as typed constants used elsewhere in the codebase.
  * The actual resource text content and MCP registration logic lives here.
  */
 

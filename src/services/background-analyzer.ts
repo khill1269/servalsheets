@@ -162,18 +162,72 @@ export class BackgroundAnalyzer {
   }
 
   /**
-   * Perform quick quality check for background monitoring
-   * Returns baseline quality score - use sheets_analyze for comprehensive analysis
+   * Perform quick quality check for background monitoring.
+   * Reads the affected range with FORMULA render option to detect error cells (#REF!, #N/A, etc.)
+   * and computes a quality score based on error cell ratio.
    */
   private async performQuickQualityCheck(
     sheetsApi: sheets_v4.Sheets,
     spreadsheetId: string,
     range: string
   ): Promise<number> {
-    // Lightweight background monitoring check
-    // For detailed quality analysis, use sheets_analyze comprehensive action
     logger.debug('Quick quality check for background monitoring', { spreadsheetId, range });
-    return 85; // Baseline quality score
+
+    try {
+      const response = await sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: 'FORMULA',
+        fields: 'values',
+      });
+
+      const values = response.data.values;
+      if (!values || values.length === 0) {
+        return 100; // Empty range — no quality issues
+      }
+
+      const errorPatterns = /^#(REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|NULL!)/;
+      let totalCells = 0;
+      let errorCells = 0;
+      let emptyCells = 0;
+
+      for (const row of values) {
+        for (const cell of row) {
+          totalCells++;
+          const cellStr = String(cell ?? '');
+          if (cellStr === '' || cellStr === null) {
+            emptyCells++;
+          } else if (errorPatterns.test(cellStr)) {
+            errorCells++;
+          }
+        }
+      }
+
+      if (totalCells === 0) return 100;
+
+      // Score: start at 100, deduct 3pts per error cell (max -60), 0.5pt per empty cell (max -20)
+      const errorPenalty = Math.min(60, errorCells * 3);
+      const emptyPenalty = Math.min(20, emptyCells * 0.5);
+      const score = Math.max(0, 100 - errorPenalty - emptyPenalty);
+
+      logger.debug('Quick quality check result', {
+        spreadsheetId,
+        range,
+        totalCells,
+        errorCells,
+        emptyCells,
+        score,
+      });
+
+      return Math.round(score);
+    } catch (err) {
+      logger.debug('Quick quality check failed — returning baseline', {
+        spreadsheetId,
+        range,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return 85; // Fallback baseline
+    }
   }
 
   /**

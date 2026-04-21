@@ -109,6 +109,8 @@ export interface UserProfile {
 export class UserProfileManager {
   private profiles = new Map<string, UserProfile>();
   private storageDir: string;
+  // In-memory frequency counter for workflow pattern detection (resets per process)
+  private workflowObservations = new Map<string, number>();
 
   constructor(storageDir = process.env['PROFILE_STORAGE_DIR'] || DEFAULT_PROFILE_STORAGE_DIR) {
     this.storageDir = storageDir;
@@ -252,6 +254,33 @@ export class UserProfileManager {
     }
 
     await this.saveProfile(profile);
+  }
+
+  /**
+   * Observe a workflow pattern and persist it once it's been seen 2+ times.
+   * Uses in-memory frequency tracking to filter one-off sequences.
+   * @param userId - profile to update
+   * @param workflow - sequence string, e.g. "data.write → format.set_format → analyze.scout"
+   */
+  async learnWorkflowPattern(userId: string, workflow: string): Promise<void> {
+    const key = `${userId}:${workflow}`;
+    const count = (this.workflowObservations.get(key) ?? 0) + 1;
+    this.workflowObservations.set(key, count);
+
+    if (count < 2) return; // Only persist patterns seen 2+ times
+
+    const profile = await this.loadProfile(userId);
+    if (profile.learnings.commonWorkflows.includes(workflow)) return;
+
+    profile.learnings.commonWorkflows.push(workflow);
+
+    // Keep up to 30 patterns, remove oldest when full
+    if (profile.learnings.commonWorkflows.length > 30) {
+      profile.learnings.commonWorkflows = profile.learnings.commonWorkflows.slice(-30);
+    }
+
+    await this.saveProfile(profile);
+    logger.debug('Learned new workflow pattern', { userId, workflow });
   }
 
   /**

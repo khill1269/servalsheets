@@ -1180,7 +1180,9 @@ function createToolCallHandler(
 
                 // Execute handler - pass extra context for MCP-native tools
                 // Write lock: serialize mutations per spreadsheetId (reads bypass)
-                const normalizedArgs = normalizeToolArgs(args);
+                // Pass tool.name so normalizeToolArgs can apply action-rename aliases
+                // (see src/schemas/action-aliases.ts).
+                const normalizedArgs = normalizeToolArgs(args, tool.name);
 
                 // Extract verbosity from input args and record on request context
                 // for pipeline-level verbosity filtering in tool-response.ts

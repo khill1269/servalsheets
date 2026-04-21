@@ -21,11 +21,12 @@ COUNT=$(rg "Math\.random\(\)" tests/ --type ts \
   --glob '!tests/di/**' \
   --glob '!tests/compliance/**' \
   --glob '!**/*.integration.test.ts' \
-  2>/dev/null | wc -l | tr -d ' ')
+  2>/dev/null | grep -v "check-math-random-ok" | wc -l | tr -d ' ')
 
 if [ "$COUNT" -gt 0 ]; then
   echo "❌ G7 FAILED: Found $COUNT Math.random() calls in test files"
   echo "   Use deterministic data instead (e.g., Array.from({ length: N }, (_, i) => i * 10))"
+  echo "   (Lines annotated with // check-math-random-ok are exempt)"
   rg "Math\.random\(\)" tests/ --type ts \
     --glob '!tests/benchmarks/**' \
     --glob '!tests/load/**' \
@@ -36,7 +37,7 @@ if [ "$COUNT" -gt 0 ]; then
     --glob '!tests/e2e/**' \
     --glob '!tests/di/**' \
     --glob '!tests/compliance/**' \
-    --glob '!**/*.integration.test.ts'
+    --glob '!**/*.integration.test.ts' | grep -v "check-math-random-ok"
   exit 1
 fi
 

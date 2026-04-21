@@ -26,6 +26,7 @@ jobs:
   wait-for-ci:
     name: Wait for CI
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: github.event.inputs.skip_ci_wait != 'true'
     steps:
       - name: Wait for CI Required check
@@ -39,6 +40,7 @@ jobs:
   pre-deploy:
     name: Build verification
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [wait-for-ci]
     if: always() && (needs.wait-for-ci.result == 'success' || needs.wait-for-ci.result == 'skipped')
     steps:
@@ -53,8 +55,12 @@ jobs:
       - name: Install and build
         run: |
           npm ci --ignore-scripts
+<<<<<<< HEAD
           npm run build -w packages/serval-core
-          node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
+=======
+          npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+>>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
+          NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
           npm run generate:metadata
 
       - name: Verify dist artifacts exist
@@ -75,6 +81,7 @@ jobs:
   deploy:
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [pre-deploy]
     environment: production
     steps:
@@ -89,8 +96,12 @@ jobs:
       - name: Build dist
         run: |
           npm ci --ignore-scripts
+<<<<<<< HEAD
           npm run build -w packages/serval-core
-          node --max-old-space-size=4096 $(which tsc) -p tsconfig.docker.json
+=======
+          npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+>>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
+          NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
           npm run generate:metadata
 
       - uses: superfly/flyctl-actions/setup-flyctl@63da3ecc5e2793b98a3f2519b3d75d4f4c11cec2 # master
@@ -102,12 +113,16 @@ jobs:
 
       - name: Post-deploy smoke test
         id: smoke
+<<<<<<< HEAD
         continue-on-error: true
+=======
+        continue-on-error: true    # capture outcome; rollback step checks SMOKE_FAILED
+>>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
         run: |
           echo "Waiting for deployment to stabilize..."
           sleep 15
 
-          # Health check
+          # Health check (primary gate)
           HTTP_CODE=$(curl -sf -o /dev/null -w '%{http_code}' https://servalsheets.fly.dev/health/ready || echo "000")
           if [ "$HTTP_CODE" != "200" ]; then
             echo "❌ Health check failed: HTTP $HTTP_CODE"
@@ -129,10 +144,11 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Rollback on smoke failure
-        if: env.SMOKE_FAILED == 'true'
+        if: steps.smoke.outcome == 'failure'
         run: |
-          echo "❌ Smoke test failed — rolling back to previous release..."
+          echo "⚠️ Smoke test failed — rolling back to previous release..."
           flyctl releases rollback --yes
+          echo "::error::Deployment rolled back due to failing health check. Investigate the failed deployment."
           exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

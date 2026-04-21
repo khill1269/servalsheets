@@ -42,3 +42,9 @@ export {
   createSamlProviderFromEnv,
   type SamlProviderConfig,
 } from './saml-provider.js';
+
+export {
+  OidcProvider,
+  createOidcProviderFromEnv,
+  type OidcProviderConfig,
+} from './oidc-provider.js';

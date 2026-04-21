@@ -36,6 +36,7 @@ import { GenericRestConnector } from './rest-generic.js';
 import { SecEdgarConnector } from './sec-edgar-connector.js';
 import { WorldBankConnector } from './world-bank-connector.js';
 import { OpenFigiConnector } from './openfigi-connector.js';
+import { getPluginLoader, type ConnectorPlugin } from './plugin-api.js';
 
 // ============================================================================
 // Persistent Configuration Store
@@ -905,6 +906,40 @@ export class ConnectorManager {
     this.quotaManager.configure(connector.id, limits.requestsPerMinute);
 
     logger.info('Connector registered', { id: connector.id, name: connector.name });
+  }
+
+  /**
+   * Register a connector plugin. The plugin's factory is called with empty
+   * credentials immediately to produce a connector instance, then `configure()`
+   * must be called separately to supply real credentials.
+   */
+  registerPlugin(plugin: ConnectorPlugin): void {
+    const connector = plugin.factory({
+      type: plugin.manifest.authType === 'none' ? 'none' : 'api_key',
+    });
+    this.register(connector);
+    logger.info('Connector plugin registered', {
+      id: plugin.manifest.id,
+      version: plugin.manifest.version,
+    });
+  }
+
+  /**
+   * Load all plugin packages listed in SERVAL_CONNECTOR_PLUGINS env var and
+   * register each one. Safe to call at startup — failures are logged, not thrown.
+   */
+  async loadPluginsFromEnv(): Promise<void> {
+    const loaded = await getPluginLoader().loadFromEnv();
+    for (const { plugin } of loaded) {
+      try {
+        this.registerPlugin(plugin);
+      } catch (err) {
+        logger.warn('Failed to register connector plugin', {
+          id: plugin.manifest.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
   }
 
   hasConnector(connectorId: string): boolean {

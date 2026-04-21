@@ -96,6 +96,10 @@ get_budget_override() {
     "src/services/cache-invalidation-graph.ts") echo 900 ;;
     # composite-operations.ts: 835 lines — CSV/XLSX import, dedup, smart-append
     "src/services/composite-operations.ts")     echo 950 ;;
+    # audit-logger.ts: 948 lines — structured audit trail with sinks
+    "src/services/audit-logger.ts")             echo 1050 ;;
+    # rbac-manager.ts: 842 lines — role-based access control
+    "src/services/rbac-manager.ts")             echo 950 ;;
     # agent-engine.ts: now a thin re-export facade (~75 lines) — no budget override needed
     # batching-system.ts: 1028 lines — intent → batchUpdate compiler
     "src/services/batching-system.ts")      echo 1150 ;;

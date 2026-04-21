@@ -389,6 +389,9 @@ export async function handleBatchRead(
   let valueRanges: sheets_v4.Schema$ValueRange[];
 
   if (useParallel) {
+    const totalMerged = mergeResult.mergedRanges.length;
+    let completedMerged = 0;
+
     const tasks = mergeResult.mergedRanges.map((merged, i) => ({
       id: `batch-read-merged-${i}`,
       fn: async () => {
@@ -405,15 +408,16 @@ export async function handleBatchRead(
             fields: 'range,values',
           })
         );
+        completedMerged++;
+        void ha.sendProgress(
+          completedMerged,
+          totalMerged,
+          `batch_read: fetched ${completedMerged}/${totalMerged} range chunks`
+        );
         return { mergedData: res.data, merged };
       },
       priority: 1,
     }));
-
-    if (env['ENABLE_GRANULAR_PROGRESS']) {
-      // Note: ParallelExecutor.executeAllSuccessful() doesn't accept onProgress callback
-      // Progress reporting would need to be added via sendProgress() call separately if needed
-    }
 
     const results = await ha.context.parallelExecutor!.executeAllSuccessful(tasks);
 

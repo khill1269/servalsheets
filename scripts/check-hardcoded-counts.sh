@@ -28,8 +28,8 @@ if [ ! -f "dist/schemas/action-counts.js" ]; then
 fi
 
 # Extract source of truth from action-counts.ts
-SOURCE_TOOL_COUNT=$(node -e "const {TOOL_COUNT} = require('./dist/schemas/action-counts.js'); console.log(TOOL_COUNT);")
-SOURCE_ACTION_COUNT=$(node -e "const {ACTION_COUNT} = require('./dist/schemas/action-counts.js'); console.log(ACTION_COUNT);")
+SOURCE_TOOL_COUNT=$(node --input-type=module -e "import { TOOL_COUNT } from './dist/schemas/action-counts.js'; console.log(TOOL_COUNT);")
+SOURCE_ACTION_COUNT=$(node --input-type=module -e "import { ACTION_COUNT } from './dist/schemas/action-counts.js'; console.log(ACTION_COUNT);")
 
 echo "Source of truth: $SOURCE_TOOL_COUNT tools, $SOURCE_ACTION_COUNT actions"
 echo ""

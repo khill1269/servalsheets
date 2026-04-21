@@ -6,9 +6,13 @@
 ## Live State & Session Context
 
 Live project state (auto-generated): @.serval/state.md
-Session notes (decisions, next steps): @.serval/session-notes.md
-Codebase deep context (all tools, MCP, API patterns): @docs/development/CODEBASE_CONTEXT.md
-Feature roadmap (P4 differentiators): @docs/development/FEATURE_PLAN.md
+
+**Load on demand — do NOT auto-load these large files:**
+
+- Session notes (20KB): `.serval/session-notes.md` — read only the section matching current task
+- Codebase context (80KB+): `docs/development/CODEBASE_CONTEXT.md` — load only handler/service section matching current module
+- Feature roadmap (40KB+): `docs/development/FEATURE_PLAN.md` — load only the section for current feature
+- Dispatch map (JSON): `.serval/routing-map.json` — query by `tool.action` key (e.g. `sheets_data.read`)
 
 ## Project Overview
 
@@ -164,6 +168,10 @@ ServalSheets-specific imports. The package layer must remain product-agnostic.
 - `src/handlers/*` — 25 tool handlers (13 extend BaseHandler, 12 standalone)
 - `src/schemas/*` — Zod schemas (validation source of truth)
 - `tests/contracts/*` — Contract tests (schema guarantees)
+- `src/services/event-bus.ts` — Event bus (memory/Kafka/Pub-Sub/SNS) — `EVENT_BUS_BACKEND`
+- `src/connectors/plugin-api.ts` — Third-party connector plugins — `SERVAL_CONNECTOR_PLUGINS`
+- `src/security/oidc-provider.ts` — OIDC PKCE SSO — `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`
+- `packages/serval-sdk/` — `@serval/sdk` typed client (namespaced MCP access)
 
 ## Code Patterns
 
@@ -289,9 +297,6 @@ Configured in `.claude/hooks.json`:
 - ESLint may OOM in low-memory environments (~3GB heap needed) — use `verify:safe`
 - Silent fallback checker: 0 false positives (all annotated with inline comments)
 
-## Further Reading
+## Security Features (quick ref)
 
-- Architecture & directory structure: `docs/development/ARCHITECTURE.md`
-- Complete rules with examples: `docs/development/CLAUDE_CODE_RULES.md`
-- Current build status: `docs/development/PROJECT_STATUS.md`
-- Source of truth reference: `docs/development/SOURCE_OF_TRUTH.md`
+RFC 7591 DCR (GET/PUT/DELETE `/oauth/register/:id`), RFC 8707 Resource Indicators (`aud` binding), SAML 2.0 SSO (`src/security/saml-provider.ts`), OIDC PKCE SSO (`src/security/oidc-provider.ts`), range-level RBAC (`src/services/rbac-manager.ts`), cross-day hash-chain audit (`src/services/audit-logger.ts`, `AUDIT_PII_REDACTION=true`). Further reading: `docs/development/ARCHITECTURE.md` · `docs/development/CLAUDE_CODE_RULES.md` · `docs/development/PROJECT_STATUS.md`

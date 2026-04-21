@@ -31,6 +31,19 @@ export interface ToolSurfaceAuthPolicy {
   note?: string;
 }
 
+/**
+ * Declares which MCP content audiences receive tool response content.
+ * Per MCP 2025-11-25: success responses target 'assistant' only;
+ * error responses target both 'user' and 'assistant' so the user sees the failure.
+ * This mirrors the runtime behaviour in tool-response.ts (ASSISTANT_AUDIENCE /
+ * USER_AND_ASSISTANT_AUDIENCE) and is exposed here for documentation and
+ * discovery tooling.
+ */
+export interface ToolAudiencePolicy {
+  onSuccess: ['assistant'];
+  onError: ['user', 'assistant'];
+}
+
 export interface ToolSurfaceMetadata {
   tier?: ToolTierMeta['tier'];
   group?: ToolTierMeta['group'];
@@ -39,6 +52,8 @@ export interface ToolSurfaceMetadata {
   requiredScopes?: ToolScopeRequirement;
   availability?: Record<string, unknown>;
   authPolicy: ToolSurfaceAuthPolicy;
+  /** MCP content audience policy — matches runtime annotations in tool-response.ts */
+  audiencePolicy?: ToolAudiencePolicy;
 }
 
 const EMPTY_ACTION_LIST: readonly string[] = [];
@@ -241,6 +256,67 @@ export const TOOL_AGENCY_HINTS: Record<string, ToolAgencyHint> = {
   sheets_compute: {
     level: 'direct',
     reason: 'Stateless computation — same input always produces same output',
+  },
+  sheets_data: {
+    level: 'direct',
+    reason: 'Atomic CRUD operations on cell ranges — single-call reads, writes, appends',
+  },
+  sheets_core: {
+    level: 'direct',
+    reason: 'Workbook and sheet management — single-call create, list, copy, delete',
+  },
+  sheets_format: {
+    level: 'direct',
+    reason: 'Cell formatting — single-call apply; batch_format for multi-range in one call',
+  },
+  sheets_dimensions: {
+    level: 'direct',
+    reason: 'Row/column operations — single-call insert, resize, hide, sort',
+  },
+  sheets_visualize: {
+    level: 'orchestrated',
+    reason: 'Chart/pivot workflows benefit from suggest -> create -> update iteration',
+  },
+  sheets_advanced: {
+    level: 'direct',
+    reason: 'Named ranges, protected ranges, tables — single-call management operations',
+  },
+  sheets_collaborate: {
+    level: 'orchestrated',
+    reason:
+      'Approval and version workflows require multi-step create -> review -> resolve sequences',
+  },
+  sheets_history: {
+    level: 'orchestrated',
+    reason: 'Revision workflows benefit from list -> diff -> restore sequencing',
+  },
+  sheets_quality: {
+    level: 'orchestrated',
+    reason: 'Validate -> detect conflicts -> resolve requires sequential analysis before mutation',
+  },
+  sheets_templates: {
+    level: 'orchestrated',
+    reason: 'Template workflows chain preview -> instantiate -> customize',
+  },
+  sheets_webhook: {
+    level: 'orchestrated',
+    reason: 'Subscription lifecycle: subscribe -> verify -> receive -> unsubscribe',
+  },
+  sheets_bigquery: {
+    level: 'orchestrated',
+    reason: 'BigQuery flows chain connect -> query/export/import with optional scheduling',
+  },
+  sheets_appsscript: {
+    level: 'orchestrated',
+    reason: 'Script lifecycle: create -> update_content -> deploy -> run requires sequencing',
+  },
+  sheets_federation: {
+    level: 'orchestrated',
+    reason: 'Remote MCP server calls may chain discover -> execute across multiple servers',
+  },
+  sheets_connectors: {
+    level: 'orchestrated',
+    reason: 'Connector workflows chain discover -> configure -> query -> subscribe',
   },
 };
 

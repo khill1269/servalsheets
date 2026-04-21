@@ -50,7 +50,7 @@ export interface ToolCallExecutionDependencies {
     parent?: SpanContext
   ) => Promise<T>;
   checkRateLimit?: (principalId: string) => RateLimitResult;
-  normalizeArgs?: (args: Record<string, unknown>) => Record<string, unknown>;
+  normalizeArgs?: (args: Record<string, unknown>, toolName?: string) => Record<string, unknown>;
   detectMutationSafety?: (
     normalizedArgs: Record<string, unknown>
   ) => MutationSafetyViolation | null;
@@ -226,7 +226,9 @@ export async function executeTracedToolCall(
           return buildRateLimitedResponse(rateCheck.retryAfterMs);
         }
 
-        const normalizedArgs = normalizeArgs(input.args);
+        // Pass tool.name so normalizeToolArgs can apply action-rename aliases
+        // (see src/schemas/action-aliases.ts).
+        const normalizedArgs = normalizeArgs(input.args, input.tool.name);
         const mutationSafetyViolation = detectMutationSafety(normalizedArgs);
         if (mutationSafetyViolation) {
           return buildMutationSafetyResponse(mutationSafetyViolation);

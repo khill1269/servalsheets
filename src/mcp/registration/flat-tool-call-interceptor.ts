@@ -1,13 +1,141 @@
 import { logger } from '../../utils/logger.js';
+import { COMPOUND_TOOL_NAMES, routeFlatToolCall } from './flat-tool-routing.js';
 
 /**
  * Flat Tool Call Interceptor
  *
- * Intercepts MCP tools/call requests to support both:
- * 1. Compound tool calls (standard MCP): { tool: 'sheets_data_read', input: {...} }
- * 2. Flat tool calls (Claude Desktop): { tool: 'read', input: {...} } with tool name resolution
+ * Intercepts MCP tools/call requests to support three invocation forms:
+ *   1. Compound (canonical):      { name: 'sheets_data',       arguments: { action: 'read', ... } }
+ *   2. Flat full-path tool name:  { name: 'sheets_data_read',  arguments: { ... } }
+ *   3. Short alias:               { name: 'data',              arguments: { action: 'read', ... } }
+ *
+ * Form (2) is the form advertised by `buildFlatToolListEntries` in tools-list-compat.ts
+ * when SERVAL_TOOL_MODE=flat, so we MUST dispatch it back to the compound handler via
+ * `routeFlatToolCall` — previously this was not wired and caused 19 "handler is not a
+ * function" errors across sheets_data_write / sheets_composite_setup_sheet / etc.
+ *
+ * Wired by wrapping the existing tools/call handler in _requestHandlers so resolution
+ * happens before the McpServer's internal tool dispatch.
  */
 
+// Maps short-form aliases (like `data`, `bq`, `viz`) → canonical compound names.
+// These are NOT in the flat-tool registry because they have no action suffix.
+const SHORT_ALIAS_TO_COMPOUND: Record<string, string> = {
+  advanced: 'sheets_advanced',
+  agent: 'sheets_agent',
+  analyze: 'sheets_analyze',
+  appsscript: 'sheets_appsscript',
+  script: 'sheets_appsscript',
+  auth: 'sheets_auth',
+  bigquery: 'sheets_bigquery',
+  bq: 'sheets_bigquery',
+  collaborate: 'sheets_collaborate',
+  collab: 'sheets_collaborate',
+  composite: 'sheets_composite',
+  compute: 'sheets_compute',
+  confirm: 'sheets_confirm',
+  connectors: 'sheets_connectors',
+  connector: 'sheets_connectors', // common singular typo (see log: sheets_connector_list_connectors)
+  core: 'sheets_core',
+  data: 'sheets_data',
+  dependencies: 'sheets_dependencies',
+  deps: 'sheets_dependencies',
+  dimensions: 'sheets_dimensions',
+  dim: 'sheets_dimensions',
+  federation: 'sheets_federation',
+  fix: 'sheets_fix',
+  format: 'sheets_format',
+  history: 'sheets_history',
+  quality: 'sheets_quality',
+  session: 'sheets_session',
+  templates: 'sheets_templates',
+  template: 'sheets_templates',
+  transaction: 'sheets_transaction',
+  tx: 'sheets_transaction',
+  visualize: 'sheets_visualize',
+  viz: 'sheets_visualize',
+  webhook: 'sheets_webhook',
+};
+
+function resolveShortAlias(name: string): string | null {
+  return SHORT_ALIAS_TO_COMPOUND[name] ?? null;
+}
+
+/**
+ * Register the flat tool call interceptor by wrapping the existing tools/call handler
+ * stored in the MCP SDK's internal _requestHandlers map.
+ *
+ * Must be called AFTER all tools are registered so the canonical handler is in place.
+ */
+export function registerFlatToolCallInterceptor(mcpServer: {
+  server?: {
+    _requestHandlers?: Map<string, (req: unknown, extra: unknown) => unknown>;
+  };
+}): void {
+  const handlers = mcpServer.server?._requestHandlers;
+  if (!handlers) {
+    logger.warn('[FlatToolInterceptor] _requestHandlers not accessible — skipping registration');
+    return;
+  }
+
+  const original = handlers.get('tools/call');
+  if (!original) {
+    logger.warn('[FlatToolInterceptor] No tools/call handler found — skipping registration');
+    return;
+  }
+
+  handlers.set('tools/call', (request: unknown, extra: unknown) => {
+    const req = request as {
+      params?: { name?: string; arguments?: Record<string, unknown> };
+    };
+    const name = req?.params?.name;
+
+    if (typeof name === 'string' && req.params) {
+      // Fast path: compound name — no rewrite needed.
+      if (!COMPOUND_TOOL_NAMES.has(name)) {
+        // Branch 1: sheets_<domain>_<action> — full flat name advertised by flat mode.
+        if (name.startsWith('sheets_')) {
+          const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+          const routed = routeFlatToolCall(name, args);
+          if (routed) {
+            logger.debug('[FlatToolInterceptor] Resolved flat tool name', {
+              from: name,
+              to: routed.compoundToolName,
+              action: routed.normalizedArgs['action'],
+            });
+            req.params.name = routed.compoundToolName;
+            req.params.arguments = routed.normalizedArgs;
+          } else {
+            // Known prefix, unknown action — loud structured error instead of
+            // a naked "handler is not a function" TypeError from the SDK.
+            logger.error('[FlatToolInterceptor] Unroutable flat tool name', {
+              name,
+              code: 'FLAT_ROUTE_MISS',
+              hint: 'Name starts with sheets_ but is not a compound tool and not in the flat registry. Run npm run schema:commit to regenerate the registry if a new action was recently added.',
+            });
+          }
+        }
+        // Branch 2: short alias (e.g. `data`, `viz`).
+        else {
+          const canonical = resolveShortAlias(name);
+          if (canonical) {
+            logger.debug('[FlatToolInterceptor] Resolved short alias', {
+              from: name,
+              to: canonical,
+            });
+            req.params.name = canonical;
+          }
+        }
+      }
+    }
+
+    return original(request, extra);
+  });
+
+  logger.debug('[FlatToolInterceptor] Registered — wrapping tools/call handler');
+}
+
+// Kept for any external callers that use the factory form.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createFlatToolCallInterceptor(_toolHandlers: Map<string, any>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,61 +143,21 @@ export function createFlatToolCallInterceptor(_toolHandlers: Map<string, any>) {
     if (request.method === 'tools/call') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { params } = request as any;
-      const { tool: requestedTool, input } = params;
-
-      // Check if it's a flat tool call (no underscore, not a compound name)
-      const isFlat = !requestedTool.includes('_');
-
-      if (isFlat) {
-        // Resolve flat tool name to compound handler
-        // Example: 'read' -> 'sheets_data_read'
-        const resolved = resolveFlattTool(requestedTool, input);
-        if (resolved) {
-          logger.debug('Flat tool call resolved', { from: requestedTool, to: resolved });
-          // Rewrite request
-          params.tool = resolved;
+      const name = params?.name as string | undefined;
+      if (name && !COMPOUND_TOOL_NAMES.has(name)) {
+        if (name.startsWith('sheets_')) {
+          const args = (params.arguments ?? {}) as Record<string, unknown>;
+          const routed = routeFlatToolCall(name, args);
+          if (routed) {
+            params.name = routed.compoundToolName;
+            params.arguments = routed.normalizedArgs;
+          }
+        } else {
+          const canonical = resolveShortAlias(name);
+          if (canonical) params.name = canonical;
         }
       }
     }
-
     return request;
   };
-}
-
-/**
- * Resolve flat tool name to compound handler
- * Logic: scan registered handlers to find matching action
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function resolveFlattTool(flatName: string, input: Record<string, any>): string | null {
-  // If input has 'action' field, use that to resolve
-  if (input?.['action']) {
-    // Map: sheets_auth_status, sheets_session_get_context, etc.
-    // Input has action='status' -> resolve to 'sheets_auth_status'
-    return `sheets_auth_${input['action']}`;
-  }
-
-  // Fallback: try common mappings
-  const mappings: Record<string, string> = {
-    discover: 'sheets_analyze_discover_action',
-    read: 'sheets_data_read',
-    write: 'sheets_data_write',
-    clear: 'sheets_data_clear',
-  };
-
-  return mappings[flatName] || null;
-}
-
-/**
- * Register the flat tool call interceptor on an MCP server instance.
- * Wraps the server's tools/call handler to resolve flat tool names.
- */
-export function registerFlatToolCallInterceptor(_server: {
-  setRequestHandler?: (...args: unknown[]) => void;
-}): void {
-  // The interceptor is a middleware pattern — for now this is a no-op registration
-  // point since the actual interception is wired in the STDIO transport's
-  // request handler. This function exists so tool-handlers.ts can call it
-  // without a missing-export crash.
-  logger.debug('[FlatToolInterceptor] Registered on server');
 }

@@ -602,7 +602,30 @@ export class SessionContextManager {
 
     this.state.lastActivityAt = Date.now();
     this.persistState();
+
+    // Fire-and-forget: detect workflow patterns for cross-session learning
+    if (this.currentUserId) {
+      void this.detectAndLearnWorkflow(this.currentUserId);
+    }
+
     return id;
+  }
+
+  /**
+   * Extract the last 3 tool.action steps from session history and persist the
+   * sequence as a workflow pattern in the user profile (fire-and-forget).
+   */
+  private detectAndLearnWorkflow(userId: string): Promise<void> {
+    const recent = this.state.operationHistory.slice(0, 3);
+    if (recent.length < 3) return Promise.resolve();
+
+    // Build sequence oldest-first: history is newest-first
+    const steps = [...recent].reverse().map((op) => `${op.tool}.${op.action}`);
+    const workflow = steps.join(' → ');
+
+    return this.profileManager.learnWorkflowPattern(userId, workflow).catch((err) => {
+      logger.debug('Workflow pattern learning failed', { error: String(err) });
+    });
   }
 
   /**

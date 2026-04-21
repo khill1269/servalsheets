@@ -8,6 +8,12 @@
  * - HTTP: For web-based integrations
  */
 
+// CRITICAL: install stdout guard BEFORE any other import so it intercepts
+// banners, early console.* calls, or subprocess leaks that would corrupt
+// the stdio JSON-RPC frame. No-op outside stdio mode or when STDIO_GUARD=0.
+import { installStdioGuard } from './utils/stdio-guard.js';
+installStdioGuard();
+
 // Load environment variables from .env file (silently to avoid MCP JSON parsing errors)
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';

@@ -10,6 +10,7 @@ import type { drive_v3, driveactivity_v2, sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import type { GoogleApiClient } from './google-api.js';
 import { NotFoundError } from '../core/errors.js';
+import { executeWithRetry } from '../utils/retry.js';
 
 export interface TimelineEntry {
   revisionId: string;
@@ -421,7 +422,10 @@ async function exportRevisionAsCsv(
         }
       )._options?.auth;
       if (oauth2Client?.request) {
-        const result = await oauth2Client.request({ url: csvUrl, responseType: 'text' });
+        const result = await executeWithRetry(
+          (_signal) => oauth2Client.request({ url: csvUrl, responseType: 'text' }),
+          { maxRetries: 3 }
+        );
         return {
           data: typeof result.data === 'string' ? result.data : null,
           isHistorical: true,
@@ -446,7 +450,12 @@ async function exportRevisionAsCsv(
       data: typeof response.data === 'string' ? response.data : null,
       isHistorical: false,
     };
-  } catch {
+  } catch (error) {
+    logger.error('revision-timeline: failed to export revision CSV', {
+      fileId,
+      revisionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return { data: null, isHistorical: false };
   }
 }

@@ -26,6 +26,7 @@ jobs:
   schema-gate:
     name: Schema Validation Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -42,11 +43,18 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run schema tests
-        run: npm test -- --run tests/schemas
+        run: npx vitest run tests/schemas
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Check schema snapshots
-        run: npm test -- --run tests/snapshots
+        run: npx vitest run tests/snapshots
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Validate tool schemas
         run: |
@@ -67,6 +75,7 @@ jobs:
   unit-gate:
     name: Unit Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -83,8 +92,13 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run unit tests
-        run: npm test -- --run tests/unit tests/core
+        run: npx vitest run tests/unit tests/core
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Coverage ownership note
         run: echo "Coverage is enforced by the CI coverage job on the full test suite; this gate only verifies the unit/core slice."
@@ -93,6 +107,7 @@ jobs:
   integration-gate:
     name: Integration Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [schema-gate, unit-gate]
     permissions:
       contents: read
@@ -110,16 +125,24 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run integration tests
-        run: npm test -- --run tests/integration tests/services
+        run: npx vitest run tests/integration tests/services
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Run compliance tests
-        run: npm test -- --run tests/compliance
+        run: npx vitest run tests/compliance
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
   # Gate 4: Contract Tests
   contract-gate:
     name: Contract Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [schema-gate]
     permissions:
       contents: read
@@ -148,10 +171,14 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run contract tests
-        run: npm test -- --run tests/contracts
+        run: npx vitest run tests/contracts
         env:
           REDIS_URL: redis://localhost:6379
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Check for breaking changes
         run: |
@@ -184,6 +211,7 @@ jobs:
   safety-gate:
     name: Safety Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -200,8 +228,13 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run safety tests
-        run: npm test -- --run tests/safety
+        run: npx vitest run tests/safety
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Verify destructive operation guards
         run: |
@@ -226,6 +259,7 @@ jobs:
   infrastructure-gate:
     name: Infrastructure Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [unit-gate, integration-gate]
     permissions:
       contents: read
@@ -243,11 +277,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run infrastructure tests
-        run: npm test -- --run tests/live-api/infrastructure.test.ts
+        run: npx vitest run tests/live-api/infrastructure.test.ts
         env:
           TEST_REAL_API: 'false'
           TEST_SPREADSHEET_ID: 'mock-spreadsheet-id'
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Validate test helpers
         run: |
@@ -258,6 +296,7 @@ jobs:
   all-gates-passed:
     name: All Test Gates Passed
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: {}
     needs:
       - schema-gate
@@ -284,6 +323,7 @@ jobs:
   live-api-gate:
     name: Live API Test Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
@@ -302,6 +342,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Check live API credentials
         id: check-creds
         run: |
@@ -313,11 +356,12 @@ jobs:
 
       - name: Run live API tests
         if: steps.check-creds.outputs.has_credentials == 'true'
-        run: npm test -- --run tests/live-api/tools
+        run: npx vitest run tests/live-api/tools
         env:
           TEST_REAL_API: ${{ secrets.TEST_REAL_API }}
           TEST_SPREADSHEET_ID: ${{ secrets.TEST_SPREADSHEET_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          NODE_OPTIONS: '--max-old-space-size=4096'
         continue-on-error: true
 
       - name: Skip live API tests
