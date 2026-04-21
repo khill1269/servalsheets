@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       pages_enabled: ${{ steps.check-pages.outputs.enabled }}
+      built: ${{ steps.build.outputs.built }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -41,10 +42,22 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      # `--if-present` makes this a no-op when `docs:site` isn't defined in
+      # package.json yet (the script is added by an in-flight branch). The
+      # `built` output below tells downstream steps whether artifacts exist.
       - name: Build docs
-        run: npm run docs:site
+        id: build
+        run: |
+          npm run docs:site --if-present
+          if [ -d docs/.vitepress/dist ]; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::docs:site script not defined or produced no output; skipping deploy."
+          fi
 
       - name: Check GitHub Pages availability
+        if: steps.build.outputs.built == 'true'
         id: check-pages
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
@@ -65,25 +78,29 @@ jobs:
             }
 
       - name: Setup Pages
-        if: steps.check-pages.outputs.enabled == 'true'
+        if: steps.build.outputs.built == 'true' && steps.check-pages.outputs.enabled == 'true'
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Upload artifact
-        if: steps.check-pages.outputs.enabled == 'true'
+        if: steps.build.outputs.built == 'true' && steps.check-pages.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: docs/.vitepress/dist
 
       - name: Summarize skipped deployment
-        if: steps.check-pages.outputs.enabled != 'true'
+        if: steps.build.outputs.built != 'true' || steps.check-pages.outputs.enabled != 'true'
         run: |
           echo "## Deploy Docs" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Docs site build completed." >> "$GITHUB_STEP_SUMMARY"
-          echo "- GitHub Pages is not enabled for this repository, so deployment was skipped." >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.build.outputs.built }}" != "true" ]; then
+            echo "- Docs site build was skipped (docs:site script not defined yet)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Docs site build completed." >> "$GITHUB_STEP_SUMMARY"
+            echo "- GitHub Pages is not enabled for this repository, so deployment was skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   deploy:
-    if: needs.build.outputs.pages_enabled == 'true'
+    if: needs.build.outputs.built == 'true' && needs.build.outputs.pages_enabled == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

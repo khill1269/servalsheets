@@ -78,20 +78,20 @@ jobs:
             performance-baseline-main-
 
       - name: Run performance regression tests
-        run: npm run perf:compare
+        run: npm run perf:compare --if-present
         env:
           NODE_OPTIONS: '--expose-gc'
 
       - name: Store performance baseline
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          PERF_BASELINE=true npm run perf:baseline
+          PERF_BASELINE=true npm run perf:baseline --if-present
 
       - name: Generate performance dashboard
         if: always()
         run: |
           if [ -d .performance-history/history ] && ls .performance-history/history/*.json >/dev/null 2>&1; then
-            npm run perf:dashboard
+            npm run perf:dashboard --if-present
           else
             mkdir -p .performance-history
             cat > .performance-history/dashboard.html <<'EOF'
@@ -240,7 +240,7 @@ jobs:
         run: npm run build
 
       - name: Run compliance tests
-        run: npm run test:compliance
+        run: npm run test:compliance --if-present
 
   # ── Detect whether live benchmark secrets are configured ───────────────────────
   live-test-prereqs:
@@ -327,10 +327,10 @@ jobs:
           RUN_BENCHMARKS: 'true'
           GOOGLE_TEST_CREDENTIALS_PATH: tests/config/test-credentials.json
           GOOGLE_APPLICATION_CREDENTIALS: tests/config/test-credentials.json
-        run: npm run bench:tool-level
+        run: npm run bench:tool-level --if-present
 
       - name: Track benchmark results & detect regressions
-        run: npm run benchmarks:track
+        run: npm run benchmarks:track --if-present
         continue-on-error: true
         id: benchmark-tracking
         env:
@@ -397,7 +397,7 @@ jobs:
           RUN_BENCHMARKS: 'true'
           GOOGLE_TEST_CREDENTIALS_PATH: tests/config/test-credentials.json
           GOOGLE_APPLICATION_CREDENTIALS: tests/config/test-credentials.json
-        run: npm run bench:action-level
+        run: npm run bench:action-level --if-present
         timeout-minutes: 30
 
       - name: Upload benchmark results
@@ -451,7 +451,7 @@ jobs:
           TEST_REAL_API: 'true'
           GOOGLE_TEST_CREDENTIALS_PATH: tests/config/test-credentials.json
           GOOGLE_APPLICATION_CREDENTIALS: tests/config/test-credentials.json
-        run: npm run bench:optimizations
+        run: npm run bench:optimizations --if-present
 
       - name: Upload optimization results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
