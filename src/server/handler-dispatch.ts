@@ -7,6 +7,9 @@ import { toolStageManager } from '../mcp/registration/tool-stage-manager.js';
 import { createToolHandlerMap, buildToolResponse } from '../mcp/registration/tool-handlers.js';
 import { executeRoutedToolCall } from '../mcp/routed-tool-execution.js';
 import { startKeepalive } from '../utils/keepalive.js';
+import { checkRateLimit } from '../middleware/rate-limit-middleware.js';
+import { detectMutationSafetyViolation } from '../middleware/mutation-safety-middleware.js';
+import { getSessionContext } from '../services/session-context.js';
 
 type ServerToolHandler = (args: unknown, extra?: unknown) => Promise<unknown>;
 type ServerToolHandlerMap = Record<string, ServerToolHandler>;
@@ -32,6 +35,9 @@ export type DispatchServerToolCallResult =
 
 export interface DispatchServerToolCallDependencies {
   executeRoutedToolCall?: typeof executeRoutedToolCall;
+  checkRateLimitFn?: typeof checkRateLimit;
+  detectMutationSafetyViolationFn?: typeof detectMutationSafetyViolation;
+  getSessionContextFn?: typeof getSessionContext;
 }
 
 export async function dispatchServerToolCall(
@@ -120,6 +126,47 @@ export async function dispatchServerToolCall(
     metadataCache,
   };
 
+  // C9: Rate limit check (parity with HTTP path in tool-handlers.ts)
+  const rateLimitFn = dependencies.checkRateLimitFn ?? checkRateLimit;
+  const rateCheck = rateLimitFn(params.costTrackingTenantId);
+  if (!rateCheck.allowed) {
+    return {
+      kind: 'error',
+      response: buildToolResponse({
+        response: {
+          success: false,
+          error: {
+            code: 'RATE_LIMITED',
+            message: 'Rate limit exceeded. Please slow down your requests.',
+            retryable: true,
+            retryAfterMs: rateCheck.retryAfterMs,
+          },
+        },
+      }),
+      handlerMap,
+    };
+  }
+
+  // C9: Mutation safety check (parity with HTTP path in tool-handlers.ts)
+  const mutationSafetyFn = dependencies.detectMutationSafetyViolationFn ?? detectMutationSafetyViolation;
+  const mutationViolation = mutationSafetyFn(rawArgs);
+  if (mutationViolation) {
+    return {
+      kind: 'error',
+      response: buildToolResponse({
+        response: {
+          success: false,
+          error: {
+            code: 'FORMULA_INJECTION_BLOCKED',
+            message: `Dangerous formula detected at ${mutationViolation.path}: ${mutationViolation.preview}`,
+            retryable: false,
+          },
+        },
+      }),
+      handlerMap,
+    };
+  }
+
   const keepalive = startKeepalive({
     operationName: toolName,
     debug: process.env['DEBUG_KEEPALIVE'] === 'true',
@@ -134,6 +181,25 @@ export async function dispatchServerToolCall(
       sessionContext: context.sessionContext,
       localExecute: () => handler(args, { ...extra, context: perRequestContext }),
     });
+
+    // C7: autoRecord (parity with HTTP path in tool-execution-side-effects.ts)
+    try {
+      const getSessionContextFn = dependencies.getSessionContextFn ?? getSessionContext;
+      const sessionCtx = getSessionContextFn();
+      if (sessionCtx?.getPreferences().autoRecord) {
+        const resultData = result as { response?: { spreadsheetId?: string } } | undefined;
+        sessionCtx.recordOperation({
+          tool: toolName,
+          action: rawAction ?? 'unknown',
+          spreadsheetId: resultData?.response?.spreadsheetId ?? '',
+          description: `${toolName}.${rawAction ?? 'unknown'} completed successfully`,
+          undoable: false,
+        });
+      }
+    } catch {
+      // autoRecord is non-critical — never block tool execution.
+    }
+
     return { kind: 'result', result, handlerMap };
   } finally {
     keepalive.stop();

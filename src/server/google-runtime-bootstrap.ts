@@ -9,6 +9,7 @@ import { type GoogleApiClient } from '../services/google-api.js';
 import { SchedulerService, type ScheduledJob } from '../services/scheduler.js';
 import { initializeWebhookBootstrap } from '../startup/webhook-bootstrap.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
+import { getSessionContext } from '../services/session-context.js';
 import { createInitializedGoogleHandlerBundle } from './google-handler-bundle.js';
 import { createHandlerRuntimeBridge } from './handler-runtime-bridge.js';
 
@@ -56,6 +57,9 @@ export async function initializeServerGoogleRuntime(
       duckdbEngine,
       scheduler,
       taskStore: options.taskStore,
+      // C8: Inject sessionContext so STDIO session-wired actions have access
+      // (HTTP path injects per-session context; STDIO uses the global singleton)
+      sessionContext: getSessionContext(),
       ...createHandlerRuntimeBridge({
         server: options.mcpServer,
         createSamplingServer: createTaskAwareSamplingServer,
