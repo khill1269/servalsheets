@@ -1,4 +1,5 @@
 import { logger } from '../../utils/logger.js';
+import { getEffectiveToolMode } from '../../config/constants.js';
 import { COMPOUND_TOOL_NAMES, routeFlatToolCall } from './flat-tool-routing.js';
 
 /**
@@ -71,17 +72,24 @@ export function registerFlatToolCallInterceptor(mcpServer: {
   server?: {
     _requestHandlers?: Map<string, (req: unknown, extra: unknown) => unknown>;
   };
-}): void {
+}): boolean {
+  if (getEffectiveToolMode() !== 'flat') {
+    logger.debug('[FlatToolInterceptor] Skipped — bundled tool mode active');
+    return false;
+  }
+
   const handlers = mcpServer.server?._requestHandlers;
   if (!handlers) {
-    logger.warn('[FlatToolInterceptor] _requestHandlers not accessible — skipping registration');
-    return;
+    throw new Error(
+      '[FlatToolInterceptor] Cannot register flat tools/call routing: MCP SDK _requestHandlers map is not accessible'
+    );
   }
 
   const original = handlers.get('tools/call');
   if (!original) {
-    logger.warn('[FlatToolInterceptor] No tools/call handler found — skipping registration');
-    return;
+    throw new Error(
+      '[FlatToolInterceptor] Cannot register flat tools/call routing: MCP SDK tools/call handler is not registered'
+    );
   }
 
   handlers.set('tools/call', (request: unknown, extra: unknown) => {
@@ -133,6 +141,7 @@ export function registerFlatToolCallInterceptor(mcpServer: {
   });
 
   logger.debug('[FlatToolInterceptor] Registered — wrapping tools/call handler');
+  return true;
 }
 
 // Kept for any external callers that use the factory form.
