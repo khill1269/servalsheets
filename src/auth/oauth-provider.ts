@@ -1264,6 +1264,30 @@ export class OAuthProvider {
       }
 
       if (userIdToClear) {
+        // Attempt to revoke the upstream Google token before clearing local
+        // storage. Use a short timeout and swallow errors — user intent to
+        // revoke matters more than a single failed network call. Local deletion
+        // always proceeds regardless of Google-side outcome (Fix 2).
+        const googleTokenData = (await this.sessionStore.get(
+          `google_tokens:${userIdToClear}`
+        )) as unknown as GoogleTokenData | undefined;
+        const googleRefreshToken =
+          googleTokenData?.refreshToken ?? googleTokenData?.googleRefreshToken;
+        if (googleRefreshToken) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3_000);
+            await fetch(
+              `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(googleRefreshToken)}`,
+              { method: 'POST', signal: controller.signal }
+            ).finally(() => clearTimeout(timeout));
+          } catch (revokeErr) {
+            logger.warn('Google token revoke call failed (local revocation will still proceed)', {
+              userId: userIdToClear,
+              error: revokeErr instanceof Error ? revokeErr.message : String(revokeErr),
+            });
+          }
+        }
         await this.sessionStore.delete(`google_tokens:${userIdToClear}`);
       }
 
@@ -1442,6 +1466,33 @@ export class OAuthProvider {
         const autoConsent = process.env['OAUTH_DCR_AUTO_CONSENT'] === 'true';
         if (autoConsent) {
           await this.grantDcrConsent(clientId, clientData.client_name, redirect_uris as string[]);
+          // Emit a tamper-evident audit record for every auto-consented DCR
+          // registration. This gives ops teams a hash-chain audit trail to
+          // detect unexpected client registrations (Fix 3).
+          try {
+            const { getAuditLogger } = await import('../services/audit-logger.js');
+            await getAuditLogger().logAuthentication({
+              action: 'oauth_grant',
+              userId: 'system:dcr-auto-consent',
+              ipAddress: req.ip ?? 'unknown',
+              requestId: clientId,
+              resource: { type: 'config' },
+              outcome: 'success',
+              method: 'oauth',
+              metadata: {
+                clientId,
+                clientName: clientData.client_name,
+                redirectUris: redirect_uris,
+                requestTime: new Date().toISOString(),
+                remoteIP: req.ip ?? 'unknown',
+              },
+            });
+          } catch (auditErr) {
+            logger.warn('DCR auto-consent audit log failed (registration will still proceed)', {
+              clientId,
+              error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+            });
+          }
         }
 
         logger.info('Dynamic client registered', {

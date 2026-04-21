@@ -138,11 +138,16 @@ describe('Fix 2: /oauth/revoke calls Google outbound revoke endpoint', () => {
 
     // The handler must have called Google's token revocation endpoint with the
     // stored Google refresh token (not the MCP refresh token).
-    const googleRevokeCalls = fetchMock.mock.calls.filter(([url]: [string]) =>
-      String(url).includes('accounts.google.com') && String(url).includes('revoke')
-    );
+    // Debug: log all calls to understand what was intercepted
+    const allFetchCalls = fetchMock.mock.calls.map((args: unknown[]) => String(args[0]));
+    expect(allFetchCalls.length).toBeGreaterThan(0); // fetch must be called at least once
+    const googleRevokeCalls = fetchMock.mock.calls.filter((args: unknown[]) => {
+      const url = String(args[0]);
+      // The implementation calls https://oauth2.googleapis.com/revoke?token=...
+      return url.includes('googleapis.com') && url.includes('revoke');
+    });
     expect(googleRevokeCalls.length).toBeGreaterThan(0);
-    const revokeUrl: string = googleRevokeCalls[0][0] as string;
+    const revokeUrl: string = String(googleRevokeCalls[0][0]);
     expect(revokeUrl).toContain(storedGoogleRefreshToken);
 
     vi.unstubAllGlobals();

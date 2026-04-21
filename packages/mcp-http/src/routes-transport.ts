@@ -339,8 +339,11 @@ export function registerHttpTransportRoutes<
       const bearerToken = req.headers.authorization?.startsWith('Bearer ')
         ? req.headers.authorization.slice(7)
         : undefined;
+      // When enableOAuth=false (ADC / single-user mode), pass undefined so the
+      // Google client uses Application Default Credentials — never pass the raw
+      // MCP bearer token as a Google credential (P0 security fix).
       const googleToken =
-        enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : bearerToken;
+        enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : undefined;
       const sessionOwnerToken = bearerToken ?? googleToken;
 
       const userId = sessionOwnerToken
@@ -624,8 +627,12 @@ export function registerHttpTransportRoutes<
 
     const authHeader = req.headers.authorization;
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+    // When enableOAuth=true, resolve the Google token from the OAuth provider.
+    // When enableOAuth=false (single-user / ADC mode), pass undefined so the
+    // Google client uses Application Default Credentials — never pass the raw
+    // MCP bearer token as a Google credential (P0 security fix).
     const googleToken =
-      enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : bearerToken;
+      enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : undefined;
     const sessionOwnerToken = bearerToken ?? googleToken;
     const userId = sessionOwnerToken
       ? `google:${createHash('sha256').update(sessionOwnerToken).digest('hex').substring(0, 16)}`
