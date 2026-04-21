@@ -1,5 +1,15 @@
 // Probe: BUG #4 (sanitize undefined in fixableVia.params) and BUG #5 (no remote fallback when remote disabled)
 
+// Probes import the dist bundle which transitively calls `getEnv()`. When the
+// developer shell exports `NODE_ENV=production` (common footgun) the env
+// validator throws because `DATA_DIR` defaults to /tmp. Force a test env if
+// the caller didn't set one — the probe doesn't need production semantics.
+process.env.NODE_ENV ??= 'test';
+if (process.env.NODE_ENV === 'production') {
+  // Caller intentionally set production; treat as test to avoid env throw.
+  process.env.NODE_ENV = 'test';
+}
+
 import { suggestFix } from '../dist/services/error-fix-suggester.js';
 
 console.log('--- BUG #4: sanitize undefined params ---');

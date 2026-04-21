@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-const { getRemoteToolClient } = vi.hoisted(() => ({
+const { getRemoteToolClient, isRemoteMcpExecutorToolEnabled } = vi.hoisted(() => ({
   getRemoteToolClient: vi.fn(),
+  // Default to `true` so the six "falls back to the hosted executor after
+  // local failure" tests exercise the remote-fallback path. The sync gate
+  // added by the BUG #5 fix (src/mcp/routed-tool-execution.ts:152) short-
+  // circuits when this returns false, which is the correct production
+  // behavior when the remote executor isn't configured.
+  isRemoteMcpExecutorToolEnabled: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
   getRemoteToolClient,
+  isRemoteMcpExecutorToolEnabled,
 }));
 
 import { createRequestContext } from '../../src/utils/request-context.js';
