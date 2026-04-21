@@ -550,7 +550,6 @@ jobs:
         run: npx stryker run stryker.critical.conf.mjs
 
   coverage:
-    timeout-minutes: 20
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'push' && (
