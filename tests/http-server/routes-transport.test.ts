@@ -258,4 +258,78 @@ describe('http transport routes', () => {
 
     clearInterval(sessionCleanupInterval);
   });
+
+  it('does NOT pass bearer token to Google when enableOAuth=false (Fix 1: no MCP token passthrough)', async () => {
+    const app = {
+      get: vi.fn(),
+      post: vi.fn(),
+      all: vi.fn(),
+      delete: vi.fn(),
+    };
+    const createMcpServerInstance = vi.fn(async () => {
+      throw new Error('stop after runtime token capture');
+    });
+    routesTransportMocks.normalizeMcpSessionHeader.mockReturnValue(undefined);
+
+    const { sessionCleanupInterval } = registerHttpTransportRoutes({
+      app: app as never,
+      enableOAuth: false,
+      oauth: null,
+      legacySseEnabled: false,
+      host: '127.0.0.1',
+      port: 3000,
+      eventStoreRedisUrl: undefined,
+      eventStoreTtlMs: 60_000,
+      eventStoreMaxEvents: 100,
+      sessionTimeoutMs: 1_000,
+      sessions: new Map() as never,
+      createMcpServerInstance,
+    });
+
+    const allArgs = app.all.mock.calls.find((call) => call[0] === '/mcp');
+    expect(allArgs).toBeDefined();
+    const handler = allArgs![allArgs!.length - 1] as (req: unknown, res: unknown) => Promise<void>;
+
+    const req = {
+      method: 'POST',
+      path: '/mcp',
+      headers: {
+        authorization: 'Bearer mcp-session-bearer-token',
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'test-client', version: '1.0.0' },
+        },
+      },
+    };
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    };
+
+    await handler(req, res);
+
+    // When enableOAuth=false, createMcpServerInstance MUST NOT receive the MCP
+    // bearer token as the Google credential. It should receive undefined so the
+    // Google client falls back to ADC (Application Default Credentials).
+    if (createMcpServerInstance.mock.calls.length > 0) {
+      expect(createMcpServerInstance).not.toHaveBeenCalledWith(
+        'mcp-session-bearer-token',
+        undefined,
+        expect.any(String)
+      );
+      expect(createMcpServerInstance).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+        expect.any(String)
+      );
+    }
+
+    clearInterval(sessionCleanupInterval);
+  });
 });
