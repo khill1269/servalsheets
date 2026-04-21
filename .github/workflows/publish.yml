@@ -16,6 +16,7 @@ jobs:
   publish:
     name: Publish Package
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write # Required for uploading SBOM to GitHub release
       id-token: write # Required for npm provenance + cosign keyless signing

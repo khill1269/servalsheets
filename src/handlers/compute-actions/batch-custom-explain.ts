@@ -125,7 +125,7 @@ export async function handleBatchCompute(
 
       const subInput: SheetsComputeInput = parsedSubInput.data;
       // Recursively call the appropriate handler based on action type
-      const handler = await import('../compute.js').then((m) => m.ComputeHandler);
+      const { ComputeHandler: handler } = await import('../compute.js');
       const computeHandler = new handler(access.sheetsApi, {
         samplingServer: access.samplingServer,
         duckdbEngine: access.duckdbEngine,

@@ -36,6 +36,7 @@ jobs:
   build-dashboard:
     name: Build Dashboard
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       ready: ${{ steps.verify-results.outputs.ready }}
 
@@ -134,6 +135,7 @@ jobs:
     needs: build-dashboard
     if: needs.build-dashboard.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     environment:
       name: github-pages

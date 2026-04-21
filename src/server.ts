@@ -339,14 +339,11 @@ export class ServalSheetsServer {
     return this.toolRuntime.registerResources();
   }
 
-  ensureResourcesRegistered(): Promise<void> {
+  async ensureResourcesRegistered(): Promise<void> {
     if (!this.resourcesRegistered) {
-      return this.registerResources().then(() => {
-        this.resourcesRegistered = true;
-      });
+      await this.registerResources();
+      this.resourcesRegistered = true;
     }
-
-    return Promise.resolve();
   }
 
   /**

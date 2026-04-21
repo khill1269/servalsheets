@@ -105,7 +105,7 @@ export class DiffEngine {
     const queue = new PQueue({ concurrency });
 
     // Parallelize data fetching for all sheets with concurrency limit
-    const sheets: SheetState[] = await Promise.all(
+    const sheetResults = await Promise.all(
       (response.data.sheets ?? []).map((sheet) =>
         queue.add(async () => {
           const props = sheet.properties;
@@ -179,7 +179,8 @@ export class DiffEngine {
           return sheetState;
         })
       )
-    ).then((results) => results.filter((s): s is SheetState => s !== null));
+    );
+    const sheets: SheetState[] = sheetResults.filter((s): s is SheetState => s !== null);
 
     // Compute overall checksum from sheet metadata
     const stateString = JSON.stringify(

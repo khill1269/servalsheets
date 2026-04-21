@@ -1,4 +1,4 @@
-import type { Application } from 'express';
+import type { Application, Request, Response, RequestHandler } from 'express';
 import { responseRedactionMiddleware } from '../middleware/redaction.js';
 import { getRequestRecorder } from '../services/request-recorder.js';
 import { getEnv } from '../config/env.js';
@@ -11,7 +11,11 @@ import {
   createHttpsEnforcementMiddleware,
   createOriginValidationMiddleware,
 } from './request-validation-middleware.js';
-import { registerHttpFoundationMiddleware as registerPackagedHttpFoundationMiddleware } from '../../packages/mcp-http/dist/middleware.js';
+import {
+  registerHttpFoundationMiddleware as registerPackagedHttpFoundationMiddleware,
+  type HttpVersionSelection,
+  type HttpRequestRecorderLike,
+} from '../../packages/mcp-http/dist/middleware.js';
 
 export function registerHttpFoundationMiddleware(params: {
   app: Application;
@@ -34,25 +38,18 @@ export function registerHttpFoundationMiddleware(params: {
     extraAllowedHosts:
       process.env['SERVAL_ALLOWED_HOSTS']?.split(',').map((host) => host.trim().toLowerCase()) ??
       [],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createResponseRedactionMiddleware: responseRedactionMiddleware as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getRequestRecorder: getRequestRecorder as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    extractVersionFromRequest: extractVersionFromRequest as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    addDeprecationHeaders: addDeprecationHeaders as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createHttpsEnforcementMiddleware: createHttpsEnforcementMiddleware as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createOriginValidationMiddleware: createOriginValidationMiddleware as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createHostValidationMiddleware: createHostValidationMiddleware as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    extractTrustedClientIp: extractTrustedClientIp as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createHttpProtocolVersionMiddleware: createHttpProtocolVersionMiddleware as any,
+    createResponseRedactionMiddleware: responseRedactionMiddleware as () => RequestHandler,
+    getRequestRecorder: getRequestRecorder as () => HttpRequestRecorderLike,
+    extractVersionFromRequest: extractVersionFromRequest as (req: Request) => HttpVersionSelection,
+    addDeprecationHeaders: addDeprecationHeaders as (
+      res: Response,
+      v: HttpVersionSelection
+    ) => void,
+    createHttpsEnforcementMiddleware,
+    createOriginValidationMiddleware,
+    createHostValidationMiddleware,
+    extractTrustedClientIp: (req: Request) => extractTrustedClientIp(req),
+    createHttpProtocolVersionMiddleware,
     log: logger,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 }
