@@ -174,11 +174,17 @@ jobs:
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
+      - name: Generate metadata
+        run: npm run generate:metadata
+
       - name: Run contract tests
         run: npx vitest run tests/contracts
         env:
           REDIS_URL: redis://localhost:6379
           NODE_OPTIONS: '--max-old-space-size=4096'
+          RATE_LIMIT_PER_MINUTE: '100000'
+          RATE_LIMIT_PER_HOUR: '1000000'
+          RATE_LIMIT_BURST: '100000'
 
       - name: Check for breaking changes
         run: |

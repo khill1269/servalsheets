@@ -204,6 +204,7 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "optionalDependencies": {
+    "@esbuild/darwin-arm64": "^0.28.0",
     "@oxc-parser/binding-darwin-arm64": "^0.127.0",
     "@oxc-resolver/binding-darwin-arm64": "^11.19.1",
     "@rollup/rollup-darwin-arm64": "^4.60.2",
