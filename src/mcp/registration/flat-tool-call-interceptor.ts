@@ -1,6 +1,7 @@
 import { logger } from '../../utils/logger.js';
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { COMPOUND_TOOL_NAMES, routeFlatToolCall } from './flat-tool-routing.js';
+import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
 
 /**
  * Flat Tool Call Interceptor
@@ -99,6 +100,44 @@ export function registerFlatToolCallInterceptor(mcpServer: {
     const name = req?.params?.name;
 
     if (typeof name === 'string' && req.params) {
+      // Special case: sheets_discover is advertised by tools-list-compat.ts
+      // (buildDiscoverToolEntry) but not registered as an SDK tool, so the
+      // SDK's tools/call dispatcher would 404 it. Dispatch directly here.
+      if (name === 'sheets_discover') {
+        const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+        try {
+          const result = handleDiscover(args as unknown as DiscoverInput);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            structuredContent: result as unknown as Record<string, unknown>,
+          };
+        } catch (error) {
+          logger.error('[FlatToolInterceptor] sheets_discover dispatch failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: false,
+                    error: {
+                      code: 'INTERNAL_ERROR',
+                      message:
+                        error instanceof Error ? error.message : 'sheets_discover failed',
+                    },
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
       // Fast path: compound name — no rewrite needed.
       if (!COMPOUND_TOOL_NAMES.has(name)) {
         // Branch 1: sheets_<domain>_<action> — full flat name advertised by flat mode.

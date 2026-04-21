@@ -16,6 +16,29 @@ export interface SuggestedFix {
 }
 
 /**
+ * Strip `undefined` values from a params object.
+ *
+ * The fixableVia schema (src/schemas/shared.ts ~line 1180) requires each
+ * value to be `string | number | boolean | array | record | null`. When
+ * upstream params don't include `spreadsheetId`, expressions like
+ * `params?.['spreadsheetId'] as string` evaluate to `undefined`, which
+ * then fails output validation (BUG #4).
+ *
+ * This helper runs once at the return boundary so every suggester branch
+ * is protected without per-branch edits.
+ */
+function sanitizeSuggestedParams(
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
  * Suggest a fix for a given error code and context.
  *
  * @param errorCode - The error code from the error response
@@ -26,6 +49,18 @@ export interface SuggestedFix {
  * @returns A SuggestedFix object with tool/action/params/explanation, or null if no fix applies
  */
 export function suggestFix(
+  errorCode: string,
+  errorMessage: string,
+  toolName?: string,
+  action?: string,
+  params?: Record<string, unknown>
+): SuggestedFix | null {
+  const fix = suggestFixInternal(errorCode, errorMessage, toolName, action, params);
+  if (!fix) return null;
+  return { ...fix, params: sanitizeSuggestedParams(fix.params) };
+}
+
+function suggestFixInternal(
   errorCode: string,
   errorMessage: string,
   toolName?: string,

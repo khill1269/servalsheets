@@ -66,14 +66,18 @@ export const COMPOUND_TOOL_NAMES: ReadonlySet<string> = new Set([
  * Route a flat tool call to the compound handler.
  *
  * Takes the flat tool name and raw args, injects the action field,
- * and returns the compound tool name + normalized args ready for
- * the existing handler pipeline.
+ * and wraps in the canonical `{ request: {...} }` envelope so the
+ * MCP SDK's registered-schema validation (which runs BEFORE runTool
+ * and therefore BEFORE normalizeToolArgs) accepts it. Every compound
+ * tool's inputSchema is `z.object({ request: z.discriminatedUnion(...) })`
+ * — raw flat args are rejected with `"request: expected object, received
+ * undefined"`. See `src/schemas/auth.ts:122` and peers.
  *
  * @example
  *   routeFlatToolCall('sheets_data_read', { spreadsheetId: '...', range: 'A1:B10' })
  *   // Returns: {
  *   //   compoundToolName: 'sheets_data',
- *   //   normalizedArgs: { action: 'read', spreadsheetId: '...', range: 'A1:B10' }
+ *   //   normalizedArgs: { request: { action: 'read', spreadsheetId: '...', range: 'A1:B10' } }
  *   // }
  */
 export function routeFlatToolCall(
@@ -88,12 +92,14 @@ export function routeFlatToolCall(
 
   const { parentTool, action } = parsed;
 
-  // Inject the action field into the args.
-  // The existing normalizeToolArgs() in tool-arg-normalization.ts will
-  // then wrap this into { request: { action, ...params } } as needed.
+  // Wrap the flat args in the canonical envelope. normalizeToolArgs()
+  // in tool-arg-normalization.ts is idempotent and preserves an existing
+  // `request` key, so downstream stays correct.
   const normalizedArgs: Record<string, unknown> = {
-    ...args,
-    action,
+    request: {
+      ...args,
+      action,
+    },
   };
 
   logger.debug('Flat tool routed', {

@@ -30,6 +30,7 @@ import {
 import { getToolDiscoveryHint, getActionCostEstimates } from './tool-discovery-hints.js';
 import { getFlatToolRegistry, type FlatToolDefinition } from './flat-tool-registry.js';
 import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
+import { buildFlatInputSchemaForAction } from './flat-input-schemas.js';
 import { getToolSurfaceMetadata } from '../tool-surface-metadata.js';
 import { getOutputSchemaForTool, clearOutputSchemaCache } from './output-schema-registry.js';
 
@@ -784,44 +785,57 @@ function buildFlatToolListEntries(
     .map((flat: FlatToolDefinition) => {
       const actionKey = `${flat.parentTool}.${flat.action}`;
 
-      // Always-loaded tools get detailed per-action schemas
+      // Schema resolution order (BUG #3, BUG #6):
+      //   1. Hand-tuned ALWAYS_LOADED_SCHEMAS overrides (bootstrap-critical tools)
+      //   2. Per-action schema derived from the compound Zod discriminated union
+      //      via buildFlatInputSchemaForAction() — keeps flat surface in sync
+      //      with the authoritative compound schema automatically
+      //   3. Generic fallback {spreadsheetId, optional range, optional values}
+      //      — only when derivation fails (unknown Zod structure, missing action)
       const detailedSchema = ALWAYS_LOADED_SCHEMAS[actionKey];
       let inputSchema: Record<string, unknown>;
 
       if (detailedSchema) {
         inputSchema = detailedSchema;
       } else {
-        // Deferred tools get a minimal schema — the LLM discovers them via
-        // sheets_discover/tool_search, and actual validation runs in the compound handler.
-        inputSchema = {
-          type: 'object',
-          properties: {
-            spreadsheetId: {
-              type: 'string',
-              description: 'The Google Sheets spreadsheet ID',
+        const derived = buildFlatInputSchemaForAction(flat.parentTool, flat.action);
+        if (derived) {
+          inputSchema = derived;
+        } else {
+          // Generic fallback — compound-schema derivation failed.
+          // Runtime validation in the compound handler will catch missing params.
+          inputSchema = {
+            type: 'object',
+            properties: {
+              spreadsheetId: {
+                type: 'string',
+                description: 'The Google Sheets spreadsheet ID',
+              },
             },
-          },
-        };
-
-        // Add common fields based on the action's domain
-        if (
-          flat.parentTool === 'sheets_data' ||
-          flat.parentTool === 'sheets_format' ||
-          flat.parentTool === 'sheets_dimensions'
-        ) {
-          (inputSchema['properties'] as Record<string, unknown>)['range'] = {
-            type: 'string',
-            description: 'A1 notation range (e.g., Sheet1!A1:D10)',
           };
-        }
 
-        // For write-type actions, add values
-        if (flat.action === 'write' || flat.action === 'append' || flat.action === 'batch_write') {
-          (inputSchema['properties'] as Record<string, unknown>)['values'] = {
-            type: 'array',
-            description: 'Array of row arrays to write',
-            items: { type: 'array' },
-          };
+          if (
+            flat.parentTool === 'sheets_data' ||
+            flat.parentTool === 'sheets_format' ||
+            flat.parentTool === 'sheets_dimensions'
+          ) {
+            (inputSchema['properties'] as Record<string, unknown>)['range'] = {
+              type: 'string',
+              description: 'A1 notation range (e.g., Sheet1!A1:D10)',
+            };
+          }
+
+          if (
+            flat.action === 'write' ||
+            flat.action === 'append' ||
+            flat.action === 'batch_write'
+          ) {
+            (inputSchema['properties'] as Record<string, unknown>)['values'] = {
+              type: 'array',
+              description: 'Array of row arrays to write',
+              items: { type: 'array' },
+            };
+          }
         }
       }
 

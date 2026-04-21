@@ -2,7 +2,10 @@ import { FederationHandler } from '../handlers/federation.js';
 import type { SheetsFederationInput } from '../schemas/federation.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { SessionContextManager } from '../services/session-context.js';
-import { getRemoteToolClient } from '../services/remote-mcp-tool-client.js';
+import {
+  getRemoteToolClient,
+  isRemoteMcpExecutorToolEnabled,
+} from '../services/remote-mcp-tool-client.js';
 import { SheetsFederationInputSchemaLegacy } from './registration/tool-handler-map.js';
 import { parseForHandler } from './registration/tool-arg-normalization.js';
 import { dispatchToolCall, getToolRoutePolicy, type ToolTransport } from './tool-routing.js';
@@ -129,9 +132,36 @@ function createHostedRemoteExecutor<T>({
     return undefined; // OK: Explicit empty
   }
 
+  // BUG #5 fix: only return a remote executor when the remote MCP executor is
+  // actually configured and enabled for this tool. Previously we always
+  // returned a closure for any tool with a declared `remoteTransport`, which
+  // caused `dispatchToolCall` to treat `prefer_local` tools (e.g.
+  // `sheets_analyze`, `sheets_agent`) as hybrid-routable. When local execution
+  // threw for any reason, the dispatcher would fail over to this executor,
+  // which then threw `SERVICE_NOT_ENABLED` ("Remote MCP executor is not
+  // configured") — burying the original local error and misleading the LLM.
+  //
+  // By returning `undefined` when remote isn't enabled, `dispatchToolCall`
+  // runs local-only and lets the real local error propagate.
+  //
+  // Defensive: `isRemoteMcpExecutorToolEnabled` reads env via `getEnv()` which
+  // can throw if env validation fails. A throw here would crash the tool
+  // dispatch; treat "unable to determine" as "not enabled".
+  let remoteEnabled = false;
+  try {
+    remoteEnabled = isRemoteMcpExecutorToolEnabled(toolName);
+  } catch {
+    remoteEnabled = false;
+  }
+  if (!remoteEnabled) {
+    return undefined; // OK: no remote configured, stay local-only
+  }
+
   return async () => {
     const client = await getRemoteToolClient(toolName);
     if (!client) {
+      // Defensive: config changed between the sync check above and this async
+      // resolution (e.g., reconfigured at runtime). Throw with a clear cause.
       throw new ServiceError(
         `Remote MCP executor is not configured or enabled for tool "${toolName}".`,
         'SERVICE_NOT_ENABLED',
