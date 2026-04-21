@@ -542,6 +542,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Build workspace packages (needed for @serval/core imports in mutation targets)
+        run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
+
       - name: Run critical-path regression suite
         run: >
           npx vitest run
