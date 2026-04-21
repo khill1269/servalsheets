@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-  # Fast checks — single Node version (Node 22 compat tested in test-fast matrix)
+  # Fast checks — Node 22 (Node 20 compat tested in the test-fast matrix)
   quick-checks:
     name: Quick Checks
     runs-on: ubuntu-latest
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -564,6 +564,8 @@ jobs:
 
       - name: Run coverage tracking suite
         run: npm run test:coverage:tracking
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Generate coverage summary
         id: coverage

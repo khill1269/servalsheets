@@ -168,6 +168,7 @@ jobs:
         run: npm test -- --run tests/contracts
         env:
           REDIS_URL: redis://localhost:6379
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Check for breaking changes
         run: |
