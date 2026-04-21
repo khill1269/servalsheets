@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { env } from '../config/env.js';
+import { getEnv } from '../config/env.js';
 import { getWebhookManager, getWebhookQueue } from '../services/index.js';
 import { logger } from '../utils/logger.js';
 import {
@@ -30,7 +30,7 @@ export function registerHttpWebhookRoutes(
   options: RegisterHttpWebhookRoutesOptions = {}
 ): void {
   registerPackagedHttpWebhookRoutes(app, {
-    webhookMaxAttempts: options.webhookMaxAttempts ?? Number(env['WEBHOOK_MAX_ATTEMPTS'] || 3),
+    webhookMaxAttempts: options.webhookMaxAttempts ?? Number(getEnv()['WEBHOOK_MAX_ATTEMPTS'] || 3),
     getWebhookManager: options.getWebhookManager ?? getWebhookManager,
     getWebhookQueue: options.getWebhookQueue ?? getWebhookQueue,
     loadFormulaCallbackModule:

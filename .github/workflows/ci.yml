@@ -98,6 +98,9 @@ jobs:
       - name: Copy runtime assets to dist/
         run: node scripts/copy-runtime-assets.mjs
 
+      - name: Check packages/mcp-http dist parity
+        run: npm run check:source-dist
+
       - name: Generate metadata
         run: npm run generate:metadata
 

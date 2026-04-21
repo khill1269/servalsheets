@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { existsSync, accessSync, constants as fsConstants, readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { runPreflightChecks } from '../../src/startup/preflight-validation.js';
 
 // Store original env
@@ -17,6 +18,11 @@ vi.mock('fs', () => ({
   accessSync: vi.fn(),
   readFileSync: vi.fn(),
   constants: { W_OK: 2 },
+}));
+
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
+  access: vi.fn(),
 }));
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -57,6 +63,7 @@ describe('Pre-Flight Validation', () => {
     delete process.env['STATE_SECRET'];
     delete process.env['REDIS_URL'];
     vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ engines: { node: '>=20.0.0' } }));
+    vi.mocked(readFile).mockResolvedValue(JSON.stringify({ engines: { node: '>=20.0.0' } }) as unknown as Buffer);
   });
 
   afterEach(() => {
@@ -158,7 +165,7 @@ describe('Pre-Flight Validation', () => {
     it('should fail when package.json requires a newer Node major', async () => {
       vi.mocked(existsSync).mockReturnValue(true);
       vi.mocked(accessSync).mockImplementation(() => {});
-      vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ engines: { node: '>=999.0.0' } }));
+      vi.mocked(readFile).mockResolvedValue(JSON.stringify({ engines: { node: '>=999.0.0' } }) as unknown as Buffer);
 
       const result = await runPreflightChecks();
 

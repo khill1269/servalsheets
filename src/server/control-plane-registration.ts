@@ -4,6 +4,12 @@ import type { LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import type { TaskStoreAdapter } from '../core/index.js';
 import { handleLoggingSetLevel } from '../handlers/logging.js';
 import { logger as baseLogger } from '../utils/logger.js';
+import {
+  completeAction,
+  completeRangeContextAware,
+  completeSpreadsheetId,
+  TOOL_ACTIONS,
+} from '../mcp/completions.js';
 
 export function registerServerTaskCancelHandler(params: {
   taskStore: TaskStoreAdapter;
@@ -71,5 +77,89 @@ export function registerServerLoggingSetLevelHandler(params: {
     log.info('Logging handler registered (logging/setLevel)');
   } catch (error) {
     log.error('Failed to register logging handler', { error });
+  }
+}
+
+/**
+ * Wire the completion/complete request handler for tool-argument autocompletion.
+ *
+ * The MCP SDK auto-registers completion/complete for prompt arguments declared
+ * with completable(). Tool-argument completions (spreadsheetId, range, action)
+ * require a custom handler registered via server.server.setRequestHandler().
+ *
+ * Ref type: ServalSheets uses a custom "ref/tool" ref type (non-standard
+ * extension beyond the SDK's ref/prompt and ref/resource).
+ */
+export function registerToolCompletionHandler(params: {
+  server: McpServer;
+  log?: typeof baseLogger;
+}): void {
+  const { server, log = baseLogger } = params;
+
+  try {
+    // We use a loose schema to intercept all completion/complete requests,
+    // including the custom ref/tool type not defined in the SDK's schema.
+    // The SDK's CompleteRequestSchema only accepts ref/prompt and ref/resource.
+    const looseCompleteSchema = {
+      safeParse: (data: unknown) => ({ success: true, data }),
+    } as unknown as Parameters<typeof server.server.setRequestHandler>[0];
+
+    server.server.setRequestHandler(
+      looseCompleteSchema,
+      async (request: unknown): Promise<{ completion: { values: string[]; hasMore: boolean; total?: number } }> => {
+        const req = request as {
+          method?: string;
+          params?: {
+            ref?: { type?: string; name?: string };
+            argument?: { name?: string; value?: string };
+          };
+        };
+
+        // Only handle completion/complete requests
+        if (req.method !== 'completion/complete') {
+          return { completion: { values: [], hasMore: false } };
+        }
+
+        const ref = req.params?.ref;
+        const arg = req.params?.argument;
+        const partial = arg?.value ?? '';
+
+        // Handle ref/tool — ServalSheets custom extension for tool-argument completions
+        if (ref?.type === 'ref/tool') {
+          const toolName = ref.name ?? '';
+          const argName = arg?.name ?? '';
+
+          if (argName === 'action') {
+            // completeAction returns [] for empty partial (defensive guard in
+            // generated code).  When no partial is given return all actions.
+            const values = partial
+              ? completeAction(toolName, partial)
+              : (TOOL_ACTIONS[toolName] ?? []);
+            return { completion: { values, hasMore: false } };
+          }
+
+          if (argName === 'spreadsheetId') {
+            const values = completeSpreadsheetId(partial);
+            return { completion: { values, hasMore: false } };
+          }
+
+          if (argName === 'range' || argName === 'ranges') {
+            const values = completeRangeContextAware(partial);
+            return { completion: { values, hasMore: false } };
+          }
+
+          // Unknown argument for a known tool — return empty
+          return { completion: { values: [], hasMore: false } };
+        }
+
+        // For non-tool refs (ref/prompt, ref/resource) return empty —
+        // the SDK handles those via its own completion pipeline.
+        return { completion: { values: [], hasMore: false } };
+      }
+    );
+
+    log.info('Tool-argument completion handler registered (completion/complete)');
+  } catch (error) {
+    log.error('Failed to register tool completion handler', { error });
   }
 }

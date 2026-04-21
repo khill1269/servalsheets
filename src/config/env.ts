@@ -404,7 +404,7 @@ export function getOtlpExportConfig(): {
   exporterType: string;
   honeycombApiKey: string | undefined;
 } {
-  const e = env;
+  const e = getEnv();
   const endpoint =
     ((e as Record<string, unknown>)['OTEL_JAEGER_ENDPOINT'] as string) ??
     ((e as Record<string, unknown>)['OTEL_ZIPKIN_ENDPOINT'] as string) ??
@@ -533,9 +533,16 @@ export function resetEnvForTest(): void {
   env = undefined as unknown as Env;
 }
 
-// Module Initialization (MUST be last — triggers env validation on import)
-
-/**
- * Get validated environment on module load
- */
-export let env: Env = validateEnv();
+// Module Initialization
+//
+// env is populated lazily on first getEnv() call rather than at import time.
+// This prevents process.exit(1) from firing before the MCP server can emit a
+// structured error to the client.  Callers that import `env` directly (e.g.
+// rate-limit-middleware, routes-webhooks, oauth-provider) all access it inside
+// function bodies that run after server startup, so the value will be set by
+// the time they read it.
+//
+// IMPORTANT: never call getEnv() at module scope in files that import env.ts —
+// that re-introduces the eager-exit anti-pattern.  Use getEnv() inside
+// functions only.
+export let env: Env = undefined as unknown as Env;

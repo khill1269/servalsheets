@@ -4,6 +4,7 @@ import type { GoogleApiClient } from '../services/google-api.js';
 import { logger as baseLogger } from '../utils/logger.js';
 import { DEFER_SCHEMAS } from '../config/constants.js';
 import { getEnv } from '../config/env.js';
+import { registerToolCompletionHandler } from './control-plane-registration.js';
 import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
 import { registerServalSheetsResources } from '../mcp/registration/resource-registration.js';
 import { registerServalSheetsPrompts } from '../mcp/registration/prompt-registration.js';
@@ -110,8 +111,14 @@ export async function registerServerResources(params: {
   }
 }
 
-export function ensureServerCompletionsRegistered(log = baseLogger): void {
+export function ensureServerCompletionsRegistered(
+  log = baseLogger,
+  server?: McpServer
+): void {
   try {
+    if (server) {
+      registerToolCompletionHandler({ server, log });
+    }
     log.info('Completions capability registered (spreadsheetId + range autocompletion active)');
   } catch (error) {
     log.error('Failed to register completions', { error });

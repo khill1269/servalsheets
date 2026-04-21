@@ -188,7 +188,8 @@ export function buildServerStdioRuntimeDependencies(
     registerCompletions: (log) =>
       recordStartupPhaseSync('register_completions', () => {
         registerStdioCompletions({
-          ensureCompletionsRegistered: ensureServerCompletionsRegistered,
+          ensureCompletionsRegistered: (l) =>
+            ensureServerCompletionsRegistered(l as typeof baseLogger, input.mcpServer as McpServer),
           log: log as typeof baseLogger,
         });
       }),

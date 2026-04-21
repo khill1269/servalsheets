@@ -249,6 +249,21 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
   ],
 };
 
+/**
+ * Lazy accessor for TOOL_ICONS.
+ *
+ * Returns the same singleton reference as TOOL_ICONS but wrapped in a
+ * function so callers in test/import contexts that don't need icons skip
+ * any future cost of materializing the map (e.g. if the constant is ever
+ * moved to a dynamic import).
+ *
+ * Current implementation: returns the module-level constant directly.
+ * Callers should prefer getToolIcons() over TOOL_ICONS for forward-compat.
+ */
+export function getToolIcons(): Record<string, Icon[]> {
+  return TOOL_ICONS;
+}
+
 // ============================================================================
 // EXECUTION / TASK SUPPORT
 // ============================================================================

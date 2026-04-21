@@ -13,7 +13,8 @@
  * 6. Port availability (HTTP mode only)
  */
 
-import { existsSync, accessSync, constants as fsConstants, readFileSync } from 'fs';
+import { existsSync, accessSync, constants as fsConstants } from 'fs';
+import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { get as httpsGet } from 'https';
@@ -94,11 +95,10 @@ async function checkBuildArtifacts(): Promise<PreflightResult> {
  * Check 2: Node.js Version
  * Verifies Node.js version meets the package.json engine requirement
  */
-function getRequiredNodeVersion(): string {
+async function getRequiredNodeVersion(): Promise<string> {
   try {
-    const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8')) as {
-      engines?: { node?: string };
-    };
+    const raw = await readFile(join(projectRoot, 'package.json'), 'utf-8');
+    const pkg = JSON.parse(raw) as { engines?: { node?: string } };
     if (pkg.engines?.node) {
       return pkg.engines.node;
     }
@@ -113,7 +113,7 @@ async function checkNodeVersion(): Promise<PreflightResult> {
   const current = process.version; // e.g., "v20.11.0"
   const versionParts = current.slice(1).split('.');
   const currentMajor = parseInt(versionParts[0] || '0', 10);
-  const required = getRequiredNodeVersion();
+  const required = await getRequiredNodeVersion();
   const requiredMajor = parseInt(required.match(/>=\s*(\d+)/)?.[1] || '20', 10);
 
   if (currentMajor < requiredMajor) {
