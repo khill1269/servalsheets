@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -77,7 +77,7 @@ RUN echo "Export verification passed: key functions found in compiled output"
 # that prune removes. Larger image but reliable at runtime.
 
 # ── Runtime stage ──────────────────────────────────────────────
-FROM public.ecr.aws/docker/library/node:20-alpine
+FROM public.ecr.aws/docker/library/node:25-alpine
 
 WORKDIR /app
 
