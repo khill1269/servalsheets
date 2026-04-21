@@ -14,6 +14,18 @@ Production-grade Google Sheets MCP Server with 25 tools, 409 actions, safety rai
 
 ## What's New (Post-v2.0.0, 2026-02-17 → Present)
 
+🔧 **2026-04-21 Flat-Tool Wire Hardening**
+
+- ✅ **Flat→envelope arg shape fix**: flat tools (`sheets_data_read`, etc.) now correctly route through the dispatcher envelope — closes BUG #1.
+- ✅ **`sheets_discover` dispatch wired** — catalog tool is now callable (was advertised-but-404) — closes BUG #2.
+- ✅ **Flat inputSchemas carry action-specific required params** — `spreadsheetId` / `range` / `sheetName` no longer silently dropped on flat calls — closes BUG #3/#6.
+- ✅ **`sheets_advanced.list_named_functions` output validation** — response builder no longer trips Zod output guard — closes BUG #4.
+- ✅ **`sheets_analyze.analyze_data` remote-executor gating** — stops falsely rejecting in single-process mode — closes BUG #5.
+- ✅ **Regression probes pinned**: `probe-flat-schemas.mjs` (7/7) + `probe-bug4-5.mjs` (5/5) now run against real `dist/`.
+- ✅ **Startup hardening**: `src/config/env.ts` throws instead of `process.exit`, preflight async checks parallelized, planner catalog deferred out of module load.
+- ✅ **MCP UX**: `sheet_tab` resource, structured error `_hints`, `semanticSearch` readiness signals.
+- ✅ **CI**: `test-gates.yml` hardened, `esbuild` optionalDep pin.
+
 🧠 **LLM Intelligence Sprint, Advanced Compute & Production Hardening**
 
 - ✅ **Chain-of-Thought Hints**: `_hints` layer on every `sheets_data.read` response — data shape, PK detection, formula opportunities, risk level, next-phase routing

@@ -3,12 +3,20 @@
 > Persistent backlog of planned work. Updated across sessions.
 > For session-level context (what just happened, decisions), see `.serval/session-notes.md`.
 
-## Active Phase: P18 — Decomposition & Refinement Execution
+## Active Phase: P20 — Flat-Tool Wire Hardening (2026-04-21)
+
+Goal: Close the flat-tool adapter gap identified during the 2026-04-21 E2E session — six live wire bugs that scored "clean" against the compound-tool validation gates because those gates do not traverse the flat-tool projection. Add five small contract probes so the gap does not reopen.
+
+**Current baseline (2026-04-21): 25 tools, 409 actions, typecheck green, `check:drift` / `validate:alignment` / `validate:compliance` (0 errors) / `check:mutation-actions` / `check:integration-wiring` / `check:silent-fallbacks` / `check:source-dist` all green. BUG #3/#6 probe 7/7, BUG #4/#5 probe 5/5.**
+
+Canonical reference: [docs/audits/regression-audit-2026-04-21.md](./docs/audits/regression-audit-2026-04-21.md). Remediation backlog: [docs/remediation/source-truth-compliance-remediation-tasks-2026-04-21.md](./docs/remediation/source-truth-compliance-remediation-tasks-2026-04-21.md).
+
+## Completed Phase: P18 — Decomposition & Refinement Execution
 
 Goal: Execute the post-readiness backlog focused on maintainability decomposition and targeted refinement work while keeping verification gates green.
 
-**Current baseline (2026-03-03, latest): 25 tools, 407 actions, `test:fast` green, 0 TS errors, MCP protocol suites green, `audit:coverage` green (1207/1207). Pre-next-phase blockers closed.**
-**Phase handoff**: P19 readiness exit criteria are satisfied; P18 backlog execution is now active.
+**Baseline (2026-03-03): 25 tools, 407 actions, `test:fast` green, 0 TS errors, MCP protocol suites green, `audit:coverage` green (1207/1207).**
+**Phase handoff**: P19 readiness exit criteria satisfied; P18 backlog executed.
 
 ### P18 Immediate TODO (Kickoff)
 
