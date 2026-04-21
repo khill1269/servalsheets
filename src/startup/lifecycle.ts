@@ -25,6 +25,14 @@ import {
 } from '../utils/connection-health.js';
 import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
+import {
+  startAuditRateLimiterCleanup,
+  stopAuditRateLimiterCleanup,
+} from '../middleware/audit-middleware.js';
+import {
+  startWriteLockCleanup,
+  stopWriteLockCleanup,
+} from '../middleware/write-lock-middleware.js';
 import { getBatchEfficiencyStats } from '../utils/batch-efficiency.js';
 import { getWebhookManager, getWebhookWorker } from '../services/index.js';
 import { serverStartupDuration } from '../observability/metrics.js';
@@ -368,6 +376,15 @@ export async function startBackgroundTasks(options?: {
   cacheManager.startCleanupTask();
   logger.info('Cache cleanup task started');
 
+  // Start middleware background timers. Previously these were module-load
+  // setIntervals (unref'd) in audit-middleware.ts and write-lock-middleware.ts;
+  // moving them here makes the timer lifecycle observable at the process
+  // boundary and guarantees they don't run inside tests or one-shot scripts
+  // that only import the middleware for its types/functions.
+  startAuditRateLimiterCleanup();
+  startWriteLockCleanup();
+  logger.info('Middleware cleanup timers started');
+
   // Register shutdown callbacks
   onShutdown(async () => {
     logger.debug('Shutting down tracer...');
@@ -390,6 +407,12 @@ export async function startBackgroundTasks(options?: {
       totalSize: `${(stats.totalSize / 1024 / 1024).toFixed(2)}MB`,
       hitRate: `${stats.hitRate.toFixed(1)}%`,
     });
+  });
+
+  onShutdown(async () => {
+    logger.debug('Stopping middleware cleanup timers...');
+    stopAuditRateLimiterCleanup();
+    stopWriteLockCleanup();
   });
 
   onShutdown(async () => {

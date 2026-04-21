@@ -30,6 +30,8 @@ export {
   withWriteLock,
   cleanupIdleLocks,
   getWriteLockStats,
+  startWriteLockCleanup,
+  stopWriteLockCleanup,
 } from './write-lock-middleware.js';
 
 // Mutation safety — formula injection scanner applied to all mutation payloads

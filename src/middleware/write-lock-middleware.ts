@@ -275,9 +275,40 @@ export function cleanupIdleLocks(): void {
   }
 }
 
-// Run cleanup every 5 minutes (unref so it doesn't keep the process alive)
-const cleanupInterval = setInterval(cleanupIdleLocks, LOCK_CLEANUP_MS);
-cleanupInterval.unref();
+/**
+ * Periodic idle-lock cleanup timer.
+ *
+ * Previously a module-load `setInterval` (unref'd). That meant any test or
+ * one-shot script that imported this module started a real timer the
+ * instant the file was loaded, even if no write-lock was ever acquired.
+ * The lifecycle was invisible to tests and could not be deterministically
+ * stopped before a graceful shutdown.
+ *
+ * Now wired explicitly from `src/startup/lifecycle.ts:startBackgroundTasks`
+ * via the idempotent `start*` / `stop*` pair below.
+ */
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start the idle-lock cleanup timer. Idempotent: calling while the timer
+ * is already running is a no-op.
+ */
+export function startWriteLockCleanup(): void {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(cleanupIdleLocks, LOCK_CLEANUP_MS);
+  // unref so the timer alone cannot keep the process alive
+  cleanupInterval.unref?.();
+}
+
+/**
+ * Stop the idle-lock cleanup timer. Safe to call when the timer was never
+ * started (no-op).
+ */
+export function stopWriteLockCleanup(): void {
+  if (!cleanupInterval) return;
+  clearInterval(cleanupInterval);
+  cleanupInterval = null;
+}
 
 /**
  * Get current write lock statistics (for diagnostics).

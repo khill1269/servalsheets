@@ -149,9 +149,42 @@ class AuditRateLimiter {
 // Module-level singleton
 const auditRateLimiter = new AuditRateLimiter();
 
-// Prune expired windows every 5 minutes (unref'd to not prevent exit)
-const pruneInterval = setInterval(() => auditRateLimiter.prune(), 5 * 60_000);
-pruneInterval.unref?.();
+/**
+ * Prune the AuditRateLimiter windows every 5 minutes.
+ *
+ * Previously this was a module-load `setInterval` (unref'd). That meant any
+ * process, including `vitest` runs and one-shot CLI scripts, started a real
+ * timer the instant this file was imported — even when audit logging was
+ * never exercised. The lifecycle was invisible to tests and there was no
+ * clean way to guarantee the timer stopped before a graceful shutdown.
+ *
+ * This is now an explicit `start()` / `stop()` pair wired from
+ * `src/startup/lifecycle.ts:startBackgroundTasks`, with both functions
+ * idempotent and safe to call from any startup path.
+ */
+const PRUNE_INTERVAL_MS = 5 * 60_000;
+let pruneInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start the periodic prune timer for the audit rate-limiter windows.
+ * Idempotent: a second call while the timer is already running is a no-op.
+ */
+export function startAuditRateLimiterCleanup(): void {
+  if (pruneInterval) return;
+  pruneInterval = setInterval(() => auditRateLimiter.prune(), PRUNE_INTERVAL_MS);
+  // unref so the timer alone cannot keep the process alive
+  pruneInterval.unref?.();
+}
+
+/**
+ * Stop the periodic prune timer. Safe to call when the timer was never
+ * started (no-op).
+ */
+export function stopAuditRateLimiterCleanup(): void {
+  if (!pruneInterval) return;
+  clearInterval(pruneInterval);
+  pruneInterval = null;
+}
 
 /**
  * Tool actions that trigger audit logging.
