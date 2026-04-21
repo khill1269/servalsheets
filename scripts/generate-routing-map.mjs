@@ -108,16 +108,29 @@ function main() {
     },
   };
 
-  // Load MUTATION_ACTIONS from audit-middleware if it exists
-  const auditMiddlewarePath = join(ROOT, 'src/middleware/audit-middleware.ts');
-  if (existsSync(auditMiddlewarePath)) {
-    const auditContent = readFileSync(auditMiddlewarePath, 'utf8');
-    const mutationMatch = auditContent.match(/MUTATION_ACTIONS\s*=\s*new\s*Set(?:<[^>]+>)?\s*\(\s*\[([^\]]+)\]/s);
+  // Load mutation action names from the canonical shared constants file.
+  // (Both audit-middleware.ts and write-lock-middleware.ts derive their
+  // MUTATION_ACTIONS Sets from this single source, so reading it directly is
+  // authoritative — no risk of picking up a stale or partial inline copy.)
+  const mutationConstantsPath = join(
+    ROOT,
+    'src/middleware/mutation-actions.constants.ts'
+  );
+  if (existsSync(mutationConstantsPath)) {
+    const constantsContent = readFileSync(mutationConstantsPath, 'utf8');
+    const mutationMatch = constantsContent.match(
+      /MUTATION_ACTION_NAMES[\s\S]*?=\s*\[([\s\S]*?)\]\s*as\s+const/
+    );
     if (mutationMatch) {
-      routingMap.mutations = mutationMatch[1]
-        .split(',')
-        .map(s => s.trim().replace(/['"]/g, ''))
-        .filter(Boolean);
+      // Extract every single-quoted literal directly. This is robust against
+      // section comments like `// sheets_data — direct data writes` preceding
+      // a value: a prior split-on-comma approach dropped the first value after
+      // each section header because the comment line and the value ended up
+      // in the same segment, and the segment then started with `//` so the
+      // comment-filter pass stripped the value along with the comment.
+      routingMap.mutations = Array.from(mutationMatch[1].matchAll(/'([^']+)'/g)).map(
+        (m) => m[1]
+      );
     }
   }
 

@@ -2,10 +2,18 @@
 /**
  * CI Check: Mutation Action Alignment
  *
- * Validates that MUTATION_ACTIONS and FORCE_WRITE_ACTIONS in the
- * write-lock middleware are consistent with:
- *   1. MUTATION_ACTIONS in audit-middleware (must be identical)
- *   2. Cache invalidation graph (mutations must have invalidation rules)
+ * Validates that:
+ *   1. Both `src/middleware/audit-middleware.ts` and
+ *      `src/middleware/write-lock-middleware.ts` derive their `MUTATION_ACTIONS`
+ *      Set from the canonical `MUTATION_ACTION_NAMES` tuple in
+ *      `src/middleware/mutation-actions.constants.ts` (no inline literals).
+ *   2. `FORCE_WRITE_ACTIONS` in write-lock-middleware does not overlap with the
+ *      canonical mutation list.
+ *   3. The cache invalidation graph has rules for all declared mutations.
+ *
+ * Before the de-duplication refactor, Check 1 compared two independently-declared
+ * inline Set literals for equality. Drift is now impossible by construction,
+ * so Check 1 now verifies both files continue to derive from the shared source.
  *
  * Usage: node scripts/check-mutation-actions.mjs
  * Exit code 0 = aligned, 1 = misaligned (CI gate failure)
@@ -41,6 +49,42 @@ function extractSetEntries(filePath, setName) {
   return new Set(entries);
 }
 
+/**
+ * Extract the canonical MUTATION_ACTION_NAMES tuple from the shared constants file.
+ */
+function extractCanonicalMutationNames() {
+  const src = readFileSync(
+    resolve(ROOT, 'src/middleware/mutation-actions.constants.ts'),
+    'utf8'
+  );
+  const match = src.match(
+    /export const MUTATION_ACTION_NAMES[\s\S]*?=\s*\[([\s\S]*?)\]\s*as\s+const/
+  );
+  if (!match) {
+    console.error(
+      '  ❌ Could not find MUTATION_ACTION_NAMES in src/middleware/mutation-actions.constants.ts'
+    );
+    process.exit(1);
+  }
+  const entries = [];
+  for (const m of match[1].matchAll(/'([^']+)'/g)) {
+    entries.push(m[1]);
+  }
+  return new Set(entries);
+}
+
+/**
+ * Verify that a middleware file derives its MUTATION_ACTIONS Set from the
+ * shared canonical names list (not from a local inline array).
+ */
+function derivesFromCanonical(filePath) {
+  const src = readFileSync(resolve(ROOT, filePath), 'utf8');
+  return (
+    src.includes('MUTATION_ACTION_NAMES') &&
+    /new Set[^(]*\(\s*MUTATION_ACTION_NAMES\s*\)/.test(src)
+  );
+}
+
 function extractCacheInvalidationMutations(filePath) {
   const src = readFileSync(resolve(ROOT, filePath), 'utf8');
   const mutations = new Set();
@@ -68,49 +112,51 @@ console.log('══════════════════════�
 console.log('  Mutation Action Alignment Check');
 console.log('═══════════════════════════════════════════════════════\n');
 
-const writeLockMutations = extractSetEntries(
-  'src/middleware/write-lock-middleware.ts',
-  'MUTATION_ACTIONS'
-);
+const canonicalMutations = extractCanonicalMutationNames();
 const writeLockForce = extractSetEntries(
   'src/middleware/write-lock-middleware.ts',
   'FORCE_WRITE_ACTIONS'
 );
-const auditMutations = extractSetEntries(
-  'src/middleware/audit-middleware.ts',
-  'MUTATION_ACTIONS'
-);
 
-console.log(`  Write-lock MUTATION_ACTIONS:  ${writeLockMutations.size} entries`);
-console.log(`  Write-lock FORCE_WRITE:       ${writeLockForce.size} entries`);
-console.log(`  Audit MUTATION_ACTIONS:        ${auditMutations.size} entries`);
+console.log(`  Canonical MUTATION_ACTION_NAMES: ${canonicalMutations.size} entries`);
+console.log(`  Write-lock FORCE_WRITE:           ${writeLockForce.size} entries`);
 
 let failures = 0;
 
-// Check 1: write-lock and audit sets must be identical
-const inWriteNotAudit = [...writeLockMutations].filter((a) => !auditMutations.has(a));
-const inAuditNotWrite = [...auditMutations].filter((a) => !writeLockMutations.has(a));
+// Check 1: both middleware files must derive from the canonical names list,
+// not declare their own inline literals (which is how drift used to creep in).
+const auditDerives = derivesFromCanonical('src/middleware/audit-middleware.ts');
+const writeLockDerives = derivesFromCanonical('src/middleware/write-lock-middleware.ts');
 
-if (inWriteNotAudit.length > 0 || inAuditNotWrite.length > 0) {
-  console.log('\n❌ Check 1: write-lock ↔ audit MUTATION_ACTIONS mismatch');
-  if (inWriteNotAudit.length > 0) {
-    console.log(`   In write-lock but NOT audit: ${inWriteNotAudit.join(', ')}`);
+if (!auditDerives || !writeLockDerives) {
+  console.log('\n❌ Check 1: middleware no longer derives from MUTATION_ACTION_NAMES');
+  if (!auditDerives) {
+    console.log(
+      '   src/middleware/audit-middleware.ts is missing `new Set<...>(MUTATION_ACTION_NAMES)`'
+    );
   }
-  if (inAuditNotWrite.length > 0) {
-    console.log(`   In audit but NOT write-lock: ${inAuditNotWrite.join(', ')}`);
+  if (!writeLockDerives) {
+    console.log(
+      '   src/middleware/write-lock-middleware.ts is missing `new Set<string>(MUTATION_ACTION_NAMES)`'
+    );
   }
+  console.log(
+    '   Restoring an inline literal would re-open the ISSUE-231 drift class.'
+  );
   failures++;
 } else {
-  console.log('\n✅ Check 1: write-lock ↔ audit MUTATION_ACTIONS are identical');
+  console.log(
+    '\n✅ Check 1: both middleware files derive MUTATION_ACTIONS from the canonical list'
+  );
 }
 
-// Check 2: no overlap between MUTATION_ACTIONS and FORCE_WRITE_ACTIONS
-const overlap = [...writeLockMutations].filter((a) => writeLockForce.has(a));
+// Check 2: no overlap between canonical mutations and FORCE_WRITE_ACTIONS
+const overlap = [...canonicalMutations].filter((a) => writeLockForce.has(a));
 if (overlap.length > 0) {
-  console.log(`\n❌ Check 2: overlap between MUTATION_ACTIONS and FORCE_WRITE: ${overlap.join(', ')}`);
+  console.log(`\n❌ Check 2: overlap between MUTATION_ACTION_NAMES and FORCE_WRITE: ${overlap.join(', ')}`);
   failures++;
 } else {
-  console.log('✅ Check 2: no overlap between MUTATION_ACTIONS and FORCE_WRITE_ACTIONS');
+  console.log('✅ Check 2: no overlap between MUTATION_ACTION_NAMES and FORCE_WRITE_ACTIONS');
 }
 
 // Check 3: cache invalidation graph covers all declared mutations
@@ -119,7 +165,7 @@ const cacheMutations = extractCacheInvalidationMutations(
 );
 console.log(`\n  Cache invalidation mutations: ${cacheMutations.size} entries`);
 
-const allDeclared = new Set([...writeLockMutations, ...writeLockForce]);
+const allDeclared = new Set([...canonicalMutations, ...writeLockForce]);
 const missingCacheRules = [...allDeclared].filter((a) => !cacheMutations.has(a));
 // Filter out actions that are mutations but don't touch spreadsheet data directly
 // (e.g. transaction management, webhook ops, auth ops)

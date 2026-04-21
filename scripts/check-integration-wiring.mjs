@@ -19,11 +19,13 @@ function ensureExists(path, message, issues) {
 }
 
 function extractStringSet(source, exportName) {
-  const pattern = new RegExp(
+  // Matches legacy inline form: `export const NAME = new Set<...>([ 'a', 'b' ]);`
+  // Kept for any remaining inline literal Sets in other files.
+  const inlinePattern = new RegExp(
     `export const ${exportName} = new Set(?:<[^>]+>)?\\(\\[([\\s\\S]*?)\\]\\);`,
     'm'
   );
-  const match = source.match(pattern);
+  const match = source.match(inlinePattern);
   if (!match?.[1]) {
     return null;
   }
@@ -34,6 +36,35 @@ function extractStringSet(source, exportName) {
     values.push(entry[1] ?? entry[2]);
   }
   return values;
+}
+
+/**
+ * Extract the canonical mutation action names from the shared constants file.
+ * This is the single source of truth both middleware files derive from.
+ */
+function extractMutationActionNames() {
+  const src = read('src/middleware/mutation-actions.constants.ts');
+  const pattern = /export const MUTATION_ACTION_NAMES[\s\S]*?=\s*\[([\s\S]*?)\]\s*as\s+const/;
+  const match = src.match(pattern);
+  if (!match?.[1]) {
+    return null;
+  }
+  const values = [];
+  for (const entry of match[1].matchAll(/'([^']+)'|"([^"]+)"/g)) {
+    values.push(entry[1] ?? entry[2]);
+  }
+  return values;
+}
+
+/**
+ * Verify that a middleware file derives its MUTATION_ACTIONS Set from the
+ * shared canonical names list (not from a local inline array).
+ */
+function usesSharedMutationActionNames(source) {
+  return (
+    source.includes('MUTATION_ACTION_NAMES') &&
+    /new Set[^(]*\(\s*MUTATION_ACTION_NAMES\s*\)/.test(source)
+  );
 }
 
 function hasDependency(packageJson, dependencyName) {
@@ -223,32 +254,45 @@ ensureExists(
 
 // ISSUE-231 / Class-2 regression guard: MUTATION_ACTIONS must use current canonical action names.
 // These are the names that WERE stale and caused audit events to never fire.
-// If any of these checks fail after a rename, you need to update audit-middleware.ts too.
+// As of the de-duplication refactor, the canonical names live in
+// `src/middleware/mutation-actions.constants.ts:MUTATION_ACTION_NAMES`. Both
+// middleware files derive their Sets from this single source, so drift between
+// them is impossible by construction. The two checks below verify:
+//   (1) the canonical list still contains the previously-stale action names
+//   (2) both middleware files actually derive from the shared list (no
+//       sneaky inline literal that would re-introduce drift)
 const EXPECTED_MUTATION_ACTIONS = ['write', 'append', 'clear', 'bulk_update', 'find_replace'];
-for (const actionName of EXPECTED_MUTATION_ACTIONS) {
-  if (!auditMiddleware.includes(`'${actionName}'`) && !auditMiddleware.includes(`"${actionName}"`)) {
-    issues.push(
-      `MUTATION_ACTIONS in audit-middleware.ts is missing expected action '${actionName}'. ` +
-        'Action may have been renamed without updating the middleware. See ISSUE-231.'
-    );
+const canonicalMutationActionNames = extractMutationActionNames();
+if (!canonicalMutationActionNames) {
+  issues.push(
+    'Unable to parse MUTATION_ACTION_NAMES from src/middleware/mutation-actions.constants.ts. ' +
+      'Has the canonical mutation-actions list been moved or renamed?'
+  );
+} else {
+  for (const actionName of EXPECTED_MUTATION_ACTIONS) {
+    if (!canonicalMutationActionNames.includes(actionName)) {
+      issues.push(
+        `MUTATION_ACTION_NAMES in src/middleware/mutation-actions.constants.ts is missing ` +
+          `expected action '${actionName}'. Action may have been renamed without updating the ` +
+          'canonical list. See ISSUE-231.'
+      );
+    }
   }
 }
 
-const auditMutationActions = extractStringSet(auditMiddleware, 'MUTATION_ACTIONS');
-const writeLockMutationActions = extractStringSet(writeLockMiddleware, 'MUTATION_ACTIONS');
-if (!auditMutationActions || !writeLockMutationActions) {
-  issues.push('Unable to parse MUTATION_ACTIONS from audit or write-lock middleware.');
-} else {
-  const auditOnly = auditMutationActions.filter((action) => !writeLockMutationActions.includes(action));
-  const writeLockOnly = writeLockMutationActions.filter((action) => !auditMutationActions.includes(action));
-
-  if (auditOnly.length > 0 || writeLockOnly.length > 0) {
-    issues.push(
-      'MUTATION_ACTIONS drift between audit-middleware.ts and write-lock-middleware.ts. ' +
-        `Audit-only: ${auditOnly.join(', ') || 'none'}; ` +
-        `write-lock-only: ${writeLockOnly.join(', ') || 'none'}.`
-    );
-  }
+if (!usesSharedMutationActionNames(auditMiddleware)) {
+  issues.push(
+    'src/middleware/audit-middleware.ts no longer derives MUTATION_ACTIONS from ' +
+      'MUTATION_ACTION_NAMES. Re-introducing an inline literal would re-open the ISSUE-231 ' +
+      'drift class. Restore `new Set<...>(MUTATION_ACTION_NAMES)`.'
+  );
+}
+if (!usesSharedMutationActionNames(writeLockMiddleware)) {
+  issues.push(
+    'src/middleware/write-lock-middleware.ts no longer derives MUTATION_ACTIONS from ' +
+      'MUTATION_ACTION_NAMES. Re-introducing an inline literal would re-open the ISSUE-231 ' +
+      'drift class. Restore `new Set<string>(MUTATION_ACTION_NAMES)`.'
+  );
 }
 
 // ISSUE-223 regression guard: embedded-oauth.ts must not contain a real-looking credential.

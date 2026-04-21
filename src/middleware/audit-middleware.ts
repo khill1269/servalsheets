@@ -64,6 +64,7 @@ import type {
 } from '../services/audit-logger.js';
 import { getRequestContext } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
+import { MUTATION_ACTION_NAMES } from './mutation-actions.constants.js';
 
 /**
  * Sliding-window rate limiter for audit log writes.
@@ -154,93 +155,16 @@ pruneInterval.unref?.();
 
 /**
  * Tool actions that trigger audit logging.
- * Names must match the actual action keys dispatched by handler switch statements.
+ *
+ * Derived from the canonical {@link MUTATION_ACTION_NAMES} list so that audit
+ * coverage and the per-spreadsheet write-lock set in
+ * `src/middleware/write-lock-middleware.ts` cannot drift apart.
+ *
+ * @see src/middleware/mutation-actions.constants.ts
  */
-export const MUTATION_ACTIONS = new Set<MutationEvent['action']>([
-  // sheets_data — direct data writes
-  'write',
-  'append',
-  'clear',
-  'batch_write',
-  'batch_clear',
-  'cross_write',
-  'import_csv',
-  'import_xlsx',
-  'smart_append',
-  'smart_fill',
-  // sheets_fix — mutating fixes
-  'clean',
-  'standardize_formats',
-  'fill_missing',
-  // sheets_composite — bulk write operations
-  'bulk_update',
-  'deduplicate',
-  'setup_sheet',
-  'import_and_format',
-  'clone_structure',
-  'generate_sheet',
-  'generate_template',
-  'batch_operations',
-  'data_pipeline',
-  'instantiate_template',
-  'migrate_spreadsheet',
-  'cut_paste',
-  'copy_paste',
-  'find_replace',
-  'merge_cells',
-  'unmerge_cells',
-  'set_hyperlink',
-  'clear_hyperlink',
-  'add_note',
-  'clear_note',
-
-  // sheets_dimensions — structural changes
-  'delete_sheet',
-  'batch_delete_sheets',
-  'clear_sheet',
-  'insert',
-  'delete',
-  'move',
-  'resize',
-  'hide',
-  'show',
-  'freeze',
-  'group',
-  'ungroup',
-  'trim_whitespace',
-  'text_to_columns',
-  'randomize_range',
-  'set_basic_filter',
-  'clear_basic_filter',
-  'sort_range',
-  'create_filter_view',
-  'update_filter_view',
-  'delete_filter_view',
-  'create_slicer',
-  'update_slicer',
-  'delete_slicer',
-  'auto_fill',
-
-  // sheets_format — formatting mutations
-  'set_format',
-  'set_background',
-  'set_text_format',
-  'set_number_format',
-  'set_alignment',
-  'set_borders',
-  'clear_format',
-  'apply_preset',
-  'batch_format',
-  'set_data_validation',
-  'clear_data_validation',
-  'add_conditional_format_rule',
-  'rule_add_conditional_format',
-  'rule_update_conditional_format',
-  'rule_delete_conditional_format',
-  'set_rich_text',
-  'sparkline_add',
-  'sparkline_clear',
-]);
+export const MUTATION_ACTIONS: ReadonlySet<MutationEvent['action']> = new Set<
+  MutationEvent['action']
+>(MUTATION_ACTION_NAMES);
 
 const PERMISSION_ACTIONS = new Set<PermissionEvent['action']>([
   // sheets_collaborate — actual dispatch names
