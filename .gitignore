@@ -305,7 +305,6 @@ docs/research/*.html
 *.tar.gz
 src/test_perm_check.ts
 tests/fixtures/watch-test/
-manifest.json
 
 # Audit artifacts (local-only)
 module_inventory.md

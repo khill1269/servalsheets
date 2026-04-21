@@ -1,0 +1,214 @@
+{
+  "manifest_version": "0.3",
+  "name": "servalsheets",
+  "display_name": "ServalSheets",
+  "version": "2.0.0",
+  "description": "Production-grade Google Sheets MCP server with 25 tools and 409 actions",
+  "long_description": "ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 409 actions. Features OAuth 2.1, MCP sampling, elicitation, tasks, and advanced data operations.",
+  "keywords": [
+    "google-sheets",
+    "spreadsheet",
+    "mcp",
+    "ai",
+    "automation",
+    "data"
+  ],
+  "support": "https://github.com/khill1269/servalsheets/issues",
+  "documentation": "https://servalsheets.dev",
+  "homepage": "https://servalsheets.dev",
+  "author": {
+    "name": "Thomas Lee Cahill",
+    "url": "https://github.com/khill1269"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khill1269/servalsheets.git"
+  },
+  "license": "MIT",
+  "icon": "assets/servalsheets-logo-512.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/cli.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/cli.js"
+      ],
+      "env": {
+        "LOG_LEVEL": "${user_config.LOG_LEVEL}",
+        "OAUTH_CLIENT_ID": "${user_config.OAUTH_CLIENT_ID}",
+        "OAUTH_CLIENT_SECRET": "${user_config.OAUTH_CLIENT_SECRET}",
+        "OAUTH_REDIRECT_URI": "${user_config.OAUTH_REDIRECT_URI}",
+        "GOOGLE_TOKEN_STORE_PATH": "${user_config.GOOGLE_TOKEN_STORE_PATH}",
+        "ENCRYPTION_KEY": "${user_config.ENCRYPTION_KEY}",
+        "OAUTH_SCOPE_MODE": "${user_config.OAUTH_SCOPE_MODE}"
+      }
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=20.0.0"
+    }
+  },
+  "privacy_policies": [
+    "https://servalsheets.dev/privacy"
+  ],
+  "user_config": {
+    "LOG_LEVEL": {
+      "type": "string",
+      "title": "Log Level",
+      "description": "Log verbosity (error, warn, info, debug).",
+      "default": "info",
+      "required": false
+    },
+    "OAUTH_CLIENT_ID": {
+      "type": "string",
+      "title": "OAuth Client ID",
+      "description": "Google desktop-app OAuth client ID. Required for this self-hosted release unless your packaging step injects bundled credentials.",
+      "required": true
+    },
+    "OAUTH_CLIENT_SECRET": {
+      "type": "string",
+      "title": "OAuth Client Secret",
+      "description": "Google desktop-app OAuth client secret. Required for this self-hosted release unless your packaging step injects bundled credentials.",
+      "sensitive": true,
+      "required": true
+    },
+    "OAUTH_REDIRECT_URI": {
+      "type": "string",
+      "title": "OAuth Redirect URI",
+      "description": "Redirect URI for the local OAuth flow.",
+      "default": "http://localhost:3000/callback",
+      "required": false
+    },
+    "GOOGLE_TOKEN_STORE_PATH": {
+      "type": "string",
+      "title": "Token Store Path",
+      "description": "Path to the encrypted OAuth token store file.",
+      "default": "${HOME}${/}.config${/}servalsheets${/}tokens.enc",
+      "required": false
+    },
+    "ENCRYPTION_KEY": {
+      "type": "string",
+      "title": "Token Store Encryption Key",
+      "description": "64-character hex key used to encrypt stored OAuth tokens.",
+      "sensitive": true,
+      "required": false
+    },
+    "OAUTH_SCOPE_MODE": {
+      "type": "string",
+      "title": "OAuth Scope Mode",
+      "description": "Requested Google OAuth scope set (`full` or `minimal`).",
+      "default": "full",
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "sheets_advanced",
+      "description": "advanced operations (31 actions)"
+    },
+    {
+      "name": "sheets_agent",
+      "description": "agent operations (8 actions)"
+    },
+    {
+      "name": "sheets_analyze",
+      "description": "analyze operations (26 actions)"
+    },
+    {
+      "name": "sheets_appsscript",
+      "description": "appsscript operations (19 actions)"
+    },
+    {
+      "name": "sheets_auth",
+      "description": "auth operations (5 actions)"
+    },
+    {
+      "name": "sheets_bigquery",
+      "description": "bigquery operations (17 actions)"
+    },
+    {
+      "name": "sheets_collaborate",
+      "description": "collaborate operations (41 actions)"
+    },
+    {
+      "name": "sheets_composite",
+      "description": "composite operations (21 actions)"
+    },
+    {
+      "name": "sheets_compute",
+      "description": "compute operations (16 actions)"
+    },
+    {
+      "name": "sheets_confirm",
+      "description": "confirm operations (5 actions)"
+    },
+    {
+      "name": "sheets_connectors",
+      "description": "connectors operations (10 actions)"
+    },
+    {
+      "name": "sheets_core",
+      "description": "core operations (21 actions)"
+    },
+    {
+      "name": "sheets_data",
+      "description": "data operations (25 actions)"
+    },
+    {
+      "name": "sheets_dependencies",
+      "description": "dependencies operations (10 actions)"
+    },
+    {
+      "name": "sheets_dimensions",
+      "description": "dimensions operations (30 actions)"
+    },
+    {
+      "name": "sheets_federation",
+      "description": "federation operations (4 actions)"
+    },
+    {
+      "name": "sheets_fix",
+      "description": "fix operations (6 actions)"
+    },
+    {
+      "name": "sheets_format",
+      "description": "format operations (25 actions)"
+    },
+    {
+      "name": "sheets_history",
+      "description": "history operations (10 actions)"
+    },
+    {
+      "name": "sheets_quality",
+      "description": "quality operations (4 actions)"
+    },
+    {
+      "name": "sheets_session",
+      "description": "session operations (32 actions)"
+    },
+    {
+      "name": "sheets_templates",
+      "description": "templates operations (8 actions)"
+    },
+    {
+      "name": "sheets_transaction",
+      "description": "transaction operations (6 actions)"
+    },
+    {
+      "name": "sheets_visualize",
+      "description": "visualize operations (18 actions)"
+    },
+    {
+      "name": "sheets_webhook",
+      "description": "webhook operations (11 actions)"
+    }
+  ]
+}
