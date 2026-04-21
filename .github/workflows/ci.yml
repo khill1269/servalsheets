@@ -38,7 +38,15 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: npm ci
+          command: npm ci --ignore-scripts
+
+      - name: Diagnostics
+        run: |
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "Disk: $(df -h . | tail -1)"
+          echo "RAM: $(free -m | awk '/Mem:/{print $2"M total, "$7"M free"}')"
+          echo "Packages: $(ls node_modules | wc -l) directories"
 
       - name: Setup Turbo cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -519,6 +527,7 @@ jobs:
         startsWith(github.ref_name, 'fix/')
       ))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       issues: write
