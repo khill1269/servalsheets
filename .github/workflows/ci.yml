@@ -32,12 +32,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-<<<<<<< HEAD
-      - name: Install dependencies
-        # --ignore-scripts prevents prepare→build→tsc from running during install.
-        # The explicit build steps below handle compilation.
-        run: npm ci --ignore-scripts
-=======
       - name: Install dependencies with retry
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
@@ -45,7 +39,6 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm ci --ignore-scripts
->>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
 
       - name: Diagnostics
         run: |

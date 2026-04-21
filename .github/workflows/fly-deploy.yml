@@ -55,11 +55,7 @@ jobs:
       - name: Install and build
         run: |
           npm ci --ignore-scripts
-<<<<<<< HEAD
-          npm run build -w packages/serval-core
-=======
           npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
->>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
           NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
           npm run generate:metadata
 
@@ -96,11 +92,7 @@ jobs:
       - name: Build dist
         run: |
           npm ci --ignore-scripts
-<<<<<<< HEAD
-          npm run build -w packages/serval-core
-=======
           npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
->>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
           NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/tsc -p tsconfig.docker.json
           npm run generate:metadata
 
@@ -113,11 +105,7 @@ jobs:
 
       - name: Post-deploy smoke test
         id: smoke
-<<<<<<< HEAD
-        continue-on-error: true
-=======
-        continue-on-error: true    # capture outcome; rollback step checks SMOKE_FAILED
->>>>>>> origin/claude/audit-ci-deps-deployment-Xf5h5
+        continue-on-error: true    # capture outcome; rollback step checks steps.smoke.outcome
         run: |
           echo "Waiting for deployment to stabilize..."
           sleep 15

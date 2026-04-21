@@ -35,6 +35,48 @@
 | **Review By** | 2026-07-20 |
 | **Owner** | @khill1269 |
 
+### SE-003: esbuild dev-server vulnerability (dev-only)
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-67mh-4wv8-2f99 |
+| **Severity** | Moderate |
+| **Package** | `esbuild` |
+| **Root Cause** | esbuild dev server can be exploited by malicious websites to read responses; no upstream fix without major version bump |
+| **Mitigation** | Dev dependency only — not present in production bundle; only exposed during local development |
+| **Resolution Path** | Wait for esbuild to release a patched version |
+| **Created** | 2026-04-21 |
+| **Review By** | 2026-07-21 |
+| **Owner** | @khill1269 |
+
+### SE-004: smol-toml DoS via commented TOML lines (dev-only)
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-v3rj-xjv7-4jmq |
+| **Severity** | Moderate |
+| **Package** | `smol-toml` (via `markdownlint-cli2`) |
+| **Root Cause** | DoS via TOML documents with thousands of consecutive commented lines; `markdownlint-cli2@0.22.0` ships `smol-toml` without fix |
+| **Mitigation** | Dev linting tool only — not in production; input is trusted developer-authored config files |
+| **Resolution Path** | Wait for `markdownlint-cli2` to upgrade `smol-toml` |
+| **Created** | 2026-04-21 |
+| **Review By** | 2026-07-21 |
+| **Owner** | @khill1269 |
+
+### SE-005: Vite path traversal in optimized deps (dev-only)
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-4w7w-66w2-5vf9 |
+| **Severity** | Moderate |
+| **Package** | `vite` (also affects `vitepress`) |
+| **Root Cause** | Path traversal in optimized deps `.map` file handling in Vite dev server; no fix without breaking upgrade |
+| **Mitigation** | Dev dependency only — Vite dev server not exposed in production; used only for docs build and UI development |
+| **Resolution Path** | Wait for Vite to release a patched version |
+| **Created** | 2026-04-21 |
+| **Review By** | 2026-07-21 |
+| **Owner** | @khill1269 |
+
 ## Resolved Exceptions
 
 _None yet._
