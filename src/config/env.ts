@@ -232,8 +232,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
       : String(result.error);
     const message = `Environment validation failed:\n  ${errors}`;
     logger.error(message);
-    if (throwOnError) throw new Error(message);
-    process.exit(1);
+    throw new Error(message);
   }
 
   const env = result.data;
@@ -245,8 +244,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
     if (env['DATA_DIR']?.startsWith('/tmp')) {
       const message = 'DATA_DIR must point to persistent storage in production (not /tmp)';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     // Profile storage directory must be persistent if set
@@ -254,8 +252,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
       const message =
         'PROFILE_STORAGE_DIR must point to persistent storage in production (not /tmp)';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     // If checkpoints are enabled, directory must be persistent
@@ -263,8 +260,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
       const message =
         'CHECKPOINT_DIR must point to persistent storage when checkpoints are enabled in production (not /tmp)';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     // Google credentials must be present (bypass allowed in test/preflight-skip mode)
@@ -275,8 +271,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
       const message =
         'Production requires Google credentials (GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, or OAuth config)';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     // OTEL must be configured for distributed tracing
@@ -290,8 +285,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
     if (env['TENANT_ISOLATION_REQUIRED'] && env['SESSION_STORE_TYPE'] === 'memory') {
       const message = 'Tenant isolation requires Redis (SESSION_STORE_TYPE=redis with REDIS_URL)';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     // Sampling consent must be handled for multi-tenant deployments
@@ -307,8 +301,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
   if (env['SESSION_STORE_TYPE'] === 'redis' && !env['REDIS_URL']) {
     const message = 'SESSION_STORE_TYPE=redis requires REDIS_URL to be set';
     logger.error(message);
-    if (throwOnError) throw new Error(message);
-    process.exit(1);
+    throw new Error(message);
   }
 
   // OTEL Validation
@@ -317,29 +310,25 @@ export function validateEnv(throwOnError: boolean = false): Env {
     if (!env['OTEL_EXPORTER_TYPE']) {
       const message = 'OTEL_ENABLED requires OTEL_EXPORTER_TYPE (jaeger|zipkin|honeycomb)';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     if (env['OTEL_EXPORTER_TYPE'] === 'jaeger' && !env['OTEL_JAEGER_ENDPOINT']) {
       const message = 'OTEL_EXPORTER_TYPE=jaeger requires OTEL_JAEGER_ENDPOINT';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     if (env['OTEL_EXPORTER_TYPE'] === 'zipkin' && !env['OTEL_ZIPKIN_ENDPOINT']) {
       const message = 'OTEL_EXPORTER_TYPE=zipkin requires OTEL_ZIPKIN_ENDPOINT';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
 
     if (env['OTEL_EXPORTER_TYPE'] === 'honeycomb' && !env['OTEL_HONEYCOMB_API_KEY']) {
       const message = 'OTEL_EXPORTER_TYPE=honeycomb requires OTEL_HONEYCOMB_API_KEY';
       logger.error(message);
-      if (throwOnError) throw new Error(message);
-      process.exit(1);
+      throw new Error(message);
     }
   }
 
@@ -348,8 +337,7 @@ export function validateEnv(throwOnError: boolean = false): Env {
   if (env['BILLING_ENABLED'] && !env['STRIPE_SECRET_KEY']) {
     const message = 'BILLING_ENABLED requires STRIPE_SECRET_KEY';
     logger.error(message);
-    if (throwOnError) throw new Error(message);
-    process.exit(1);
+    throw new Error(message);
   }
 
   return env;

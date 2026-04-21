@@ -476,5 +476,28 @@ import {
   registerToolInputSchemas,
 } from '../../services/agent-engine.js';
 
-registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));
-registerPlannerToolCatalog(buildPlannerToolCatalog(TOOL_DEFINITIONS));
+let plannerCatalogInitialized = false;
+
+/**
+ * Initialize the planner tool catalog + input schema registry.
+ *
+ * Idempotent: safe to call multiple times — first successful call wins.
+ * Exported so explicit callers (startup lifecycle, tests) can force
+ * initialization after env validation has been confirmed, decoupling
+ * catalog construction from module-load side effects.
+ *
+ * Also invoked at import time (below) so existing consumers keep working;
+ * any thrown error (e.g. env validation failure inside buildPlannerToolCatalog)
+ * propagates through the ESM loader to cli.js's IIFE try/catch, which
+ * surfaces the failure as a FATAL banner on stderr instead of a silent exit.
+ */
+export function initializePlannerCatalog(): void {
+  if (plannerCatalogInitialized) return;
+  registerToolInputSchemas(
+    new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const))
+  );
+  registerPlannerToolCatalog(buildPlannerToolCatalog(TOOL_DEFINITIONS));
+  plannerCatalogInitialized = true;
+}
+
+initializePlannerCatalog();

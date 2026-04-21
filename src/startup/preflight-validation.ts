@@ -509,12 +509,16 @@ export async function runPreflightChecks(): Promise<PreflightResults> {
   ];
 
   const startTime = Date.now();
-  const results: Array<PreflightCheck & { result: PreflightResult }> = [];
 
-  for (const check of checks) {
+  // Run all checks in parallel. Sync checks complete instantly; async checks
+  // (module resolution, Google API reachability) get their I/O overlapped
+  // instead of serialized — typical savings ~50-200ms, up to 5s when the
+  // Google API reachability check times out.
+  const runCheck = async (
+    check: PreflightCheck
+  ): Promise<PreflightCheck & { result: PreflightResult }> => {
     try {
       const result = await check.check();
-      results.push({ ...check, result });
 
       if (!result.passed) {
         if (check.critical) {
@@ -533,8 +537,9 @@ export async function runPreflightChecks(): Promise<PreflightResults> {
       } else {
         logger.debug(`Pre-flight check passed: ${check.name}`, { details: result.details });
       }
+
+      return { ...check, result };
     } catch (error) {
-      // Check threw an exception
       const errorResult: PreflightResult = {
         passed: false,
         message: `Check threw exception: ${error instanceof Error ? error.message : String(error)}`,
@@ -542,14 +547,16 @@ export async function runPreflightChecks(): Promise<PreflightResults> {
         details: { error: error instanceof Error ? error.stack : String(error) },
       };
 
-      results.push({ ...check, result: errorResult });
-
       logger.error(`Pre-flight check exception: ${check.name}`, {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
+
+      return { ...check, result: errorResult };
     }
-  }
+  };
+
+  const results = await Promise.all(checks.map(runCheck));
 
   const duration = Date.now() - startTime;
 
