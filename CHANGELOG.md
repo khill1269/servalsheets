@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - 2026-04-21
+
+### Fixed — Flat-Tool-Surface Bugs (E2E Session)
+
+Six bugs surfaced during a natural-language E2E session against a live Google Sheet. All six live in the flat-tool adapter that projects the 25 compound tools / 409 actions into ~396 per-action MCP tools for LLM clients, or in post-dispatch helpers downstream of it. None of the 25 compound handlers or schemas were touched.
+
+- **BUG #1** (`src/mcp/registration/flat-tool-routing.ts`): flat call envelope shape mismatch — normalized so flat calls route through the same envelope as bundled calls.
+- **BUG #2** (`src/mcp/registration/flat-tool-routing.ts`, `flat-tool-call-interceptor.ts`): `sheets_discover` was advertised on the flat surface but had no dispatch path; now routes through the standard flat-tool dispatcher.
+- **BUG #3 / #6** — new `src/mcp/registration/flat-input-schemas.ts`: derives per-action JSON Schema directly from the compound Zod discriminated union. Replaces the previous generic `{spreadsheetId, range?, values?}` fallback that ~380 deferred flat tools were using. `sheets_agent` flat schemas (`list_plans`, `plan`, `execute`, `get_status`) now advertise the correct required fields (`planId`/`description`) and no longer falsely require `spreadsheetId`.
+- **BUG #4** (`src/services/error-fix-suggester.ts`): `sanitizeSuggestedParams()` strips `undefined` values from `fixableVia.params` across all 30+ branches so structured error responses round-trip through `.strict()` Zod.
+- **BUG #5** (`src/mcp/routed-tool-execution.ts`): `createHostedRemoteExecutor` now gates on `isRemoteMcpExecutorToolEnabled` (with try/catch hardening since `getEnv()` can throw during env validation). `prefer_local` tools like `sheets_analyze` and `sheets_agent` no longer surface a misleading "Remote MCP executor is not configured" error when local execution fails; the real local error propagates.
+
+### Added — Session Improvements
+
+- `sheets:///{spreadsheetId}/sheets/{sheetName}` MCP resource template with context-aware completers (`src/mcp/registration/resource-registration.ts`).
+- Structured `_hints` block on failed tool responses with `errorCode`, `quickFix`, `nextStep` derived from the recovery playbook or `suggestedFix` payload (`src/mcp/registration/response-intelligence.ts`).
+- `semanticSearch` readiness in `sheets_auth.status` response (reports `available`, `apiKeyConfigured`, and a human-readable enablement description).
+- Regression probe scripts: `scripts/probe-flat-schemas.mjs` (7 cases, guards BUG #3/#6) and `scripts/probe-bug4-5.mjs` (5 cases, guards BUG #4/#5).
+
+### Changed — Startup Hardening
+
+- `src/config/env.ts` — 12 module-load `process.exit(1)` sites replaced with typed throws. The cli.ts IIFE try/catch now renders a FATAL banner on stderr instead of dead-silent exit.
+- `src/startup/preflight-validation.ts` — async preflight checks run in parallel via `Promise.allSettled` instead of sequentially.
+- `src/mcp/registration/tool-definitions.ts` — `registerToolInputSchemas` + `registerPlannerToolCatalog` wrapped in an idempotent `initializePlannerCatalog()` function (still called at import time for compatibility, but explicit callers can force initialization after env validation).
+
+### Docs
+
+- New `docs/audits/regression-audit-2026-04-21.md` — explains why existing validation gates (`check:drift`, `validate:alignment`, `validate:compliance`) scored "perfect" on the compound-tool layer while the flat-tool adapter regressed. Lists five small contract tests that close the gap.
+- Consolidated four root-level audit artifacts into `docs/audits/` with a reading-order README: `regression-audit` (canonical) → `source-truth-compliance-audit` (original) → `independent-reaudit` (verification pass refuting ~half of the original's P0/P1 findings) → `fix-plan-vs-audit-gap-report` (coverage matrix) → `modern-protocols-upgrade-recommendations` (forward-looking SEPs).
+
+### CI
+
+- `.github/workflows/test-gates.yml` — contract-test job now runs `npm run generate:metadata` before tests and raises rate-limit caps to 100k/min · 1M/hr · 100k burst so the repeated middleware invocations don't tip over test assertions.
+- `package.json` — added `@esbuild/darwin-arm64` to `optionalDependencies` alongside the other darwin-arm64 native bindings.
+
+---
+
 ## [2.0.0] - 2026-03-23
 
 **Enterprise Security, AI Integration, and Architecture Modernization Release**
@@ -16,6 +53,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 ### Security (Phase 1) — Enterprise Readiness
 
 #### Enterprise SSO / SAML 2.0 Integration
+
 - **New**: `SamlProvider` class (`src/auth/saml-provider.ts`, 342 lines)
   - Issuer token generation + verification with JWT scope distinction (`scope='sso'`)
   - Automatic SAML assertion validation, nameId extraction, sessionIndex preservation
@@ -27,6 +65,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Commit**: c3c9f9d
 
 #### Pluggable Secrets Provider
+
 - **New**: `SecretsProvider` interface with Env, Vault, AWS Secrets Manager backends
   - Env: Standard `process.env` fallback (existing behavior)
   - Vault: HashiCorp Vault HTTP client with lease renewal
@@ -36,6 +75,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 15 tests (factory selection, Vault lease renewal, AWS rotation, fallback chain)
 
 #### Mutation Safety Middleware (Formula Injection Blocking)
+
 - **New**: `MutationSafetyMiddleware` (`src/middleware/mutation-safety-middleware.ts`)
   - Pre-write validation: Detects formula injection in cell values (`^[=+@-]` patterns in untrusted data)
   - Quoted formula escaping: Automatically quotes suspicious formulas (`=SUM()` → `'=SUM()`)
@@ -45,6 +85,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 12 tests (detection, quoting, whitelist bypass)
 
 #### Rate Limiting per Principal
+
 - **Enhanced**: Per-user + per-API-key quota tracking (previously global)
   - Token extraction from Authorization header (`Bearer <token>`) or X-API-Key
   - Sliding window: Minute + hour windows with independent limits
@@ -54,6 +95,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 8 tests (quota exhaustion, header format, gradual degradation)
 
 #### Write-Lock Serialization for Mutations
+
 - **New**: `WriteLockManager` (LRU-based per-spreadsheet mutex)
   - Prevents concurrent mutations on same spreadsheet (writes serialize per sheetId)
   - Timeout: 30s per mutation (configurable via `WRITE_LOCK_TIMEOUT_MS`)
@@ -65,6 +107,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 ### Features (Phase 3) — AI Everywhere
 
 #### In-Cell AI Custom Function: =SERVAL()
+
 - **New**: `sheets_appsscript.install_serval_function` action
   - Installs `=SERVAL(prompt, context)` custom function in user's Apps Script project
   - Function delegates to HTTP endpoint (`POST /execute-serval-function`)
@@ -78,6 +121,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 8 tests (function installation, cell evaluation, context injection, error handling)
 
 #### Cell-Level Citations in AI Analysis
+
 - **New**: Analysis responses include `_citations` array
   - Each finding references source cells: `{ cell: "B5", value: 42, confidence: 0.95 }`
   - Enables click-through navigation to data origin in Claude UI
@@ -87,6 +131,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 6 tests (citation generation, accuracy, coverage, UI navigation)
 
 #### Scheduled Intelligence Engine
+
 - **New**: `ScheduledIntelligence` class (`src/services/scheduled-intelligence.ts`)
   - Recurring analysis via cron expressions or specific times
   - Webhook delivery of analysis results (email, Slack, custom endpoint)
@@ -102,6 +147,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 14 tests (cron scheduling, webhook delivery, result caching, error handling)
 
 #### Finance Connectors (SEC EDGAR, World Bank, OpenFIGI)
+
 - **New**: `sheets_connectors` extended with 3 financial data sources
 - **SEC EDGAR**: Historical financial statements, 10-K filings, quarterly reports
   - Config: `EDGAR_API_URL` (default: sec.gov/cgi-bin/browse-edgar)
@@ -119,6 +165,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 18 tests (ticker resolution, filing search, indicator lookup, error handling)
 
 #### Workspace Connectors (Gmail, Drive, Docs, Web Search)
+
 - **New**: `sheets_connectors` extended with 4 workspace data sources
 - **Gmail**: Search emails, extract attachments, forward to sheet
   - Action: `query` with search filter (`from:`, `subject:`, `has:attachment`)
@@ -136,6 +183,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 16 tests (email search, file listing, doc extraction, search ranking)
 
 #### Semantic Search Across Content
+
 - **New**: `sheets_analyze.semantic_search` action
   - Vector search via Voyage AI embeddings (cosine similarity ranking)
   - In-memory LRU index (20 spreadsheet limit, auto-evict oldest)
@@ -148,6 +196,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Commit**: 116cd22
 
 #### Global MCP Response Verbosity Optimization
+
 - **New**: Global response size targets per transport
   - STDIO: 4KB target (ultra-compact); HTTP: 8KB target (balanced); LLM API: 16KB target (full detail)
   - Auto-selector: Examines `HandlerContext.transport` and applies tier
@@ -160,10 +209,12 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 ### Architecture (Phase 4) — Enterprise Scale
 
 #### TOOL_MANIFEST.ts — Machine-Readable Tool Registry
+
 - **New**: `src/constants/tool-manifest.ts` (auto-generated)
   - Single source of truth for tool descriptions, actions, auth requirements
   - Exported: `TOOL_MANIFEST: Record<ToolName, ToolDefinition>`
   - Schema:
+
     ```typescript
     {
       name: "sheets_data",
@@ -177,15 +228,18 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
       limits: { maxCellsPerRequest: 100000, ... }
     }
     ```
+
   - Use cases: Tool discovery UI, LLM instruction generation, capability matrix
   - Generated by: `npm run schema:commit` (updated alongside action counts)
 - **Tests**: 4 tests (manifest completeness, action count parity, auth coverage)
 
 #### ARCHITECTURE_MAP.ts — Directory Dependency Map
+
 - **New**: `src/constants/architecture-map.ts` (manual, version-controlled)
   - Layer-by-layer dependency declarations
   - Prevents circular dependencies via `dependency-cruiser`
   - Example entry:
+
     ```typescript
     {
       module: "services/google-api.ts",
@@ -195,11 +249,13 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
       importedBy: ["handlers/", "services/composite-operations.ts"]
     }
     ```
+
   - CI validation: `npm run check:architecture` ensures no cycles, respects layer boundaries
 - **Layers**: infrastructure (utils, config) → services (google-api, cache) → handlers (tool logic) → mcp (protocol)
 - **Tests**: 6 tests (cycle detection, layer boundaries, completeness)
 
 #### Zero-Copy ArrayBuffer Transfer for Worker Threads
+
 - **New**: `sendBufferToWorker()` + `receiveBufferFromWorker()` helpers
   - Sends large datasets to worker threads without copying
   - Transferable: ArrayBuffer + typed arrays (Uint8Array, Float64Array, etc.)
@@ -207,14 +263,17 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
   - Memory: Reduces peak by 50% on large transfers (eliminates duplication)
 - **Integration**: `src/workers/duckdb-worker.ts`, `src/workers/python-worker.ts`
 - **Example**:
+
   ```typescript
   // Main thread
   const buffer = new ArrayBuffer(1_000_000);
   await sendBufferToWorker(worker, 'process', buffer, [buffer]); // Transfer, not copy
   ```
+
 - **Tests**: 8 tests (transfer ownership, buffer validity post-transfer, type safety, large payloads)
 
 #### Stateless Mode (STATELESS_MODE) for Kubernetes
+
 - **New**: `STATELESS_MODE=true` disables all persistent state
   - Session storage: In-memory only (no Redis persistence)
   - Caching: TTL-only, no cross-instance sharing
@@ -226,7 +285,9 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
 - **Tests**: 5 tests (storage bypass, cache isolation, graceful degradation)
 
 #### Privacy Mode STDIO Banner
+
 - **New**: On startup with STDIO transport, banner printed to stderr
+
   ```
   ╔════════════════════════════════════════╗
   ║ ServalSheets MCP Server v2.0.0         ║
@@ -237,6 +298,7 @@ This major release introduces production-grade enterprise security (SAML 2.0, pl
   ║ Use only with authenticated sessions   ║
   ╚════════════════════════════════════════╝
   ```
+
   - Reminds user that STDIO trusts the local process
   - Disables with `PRIVACY_BANNER=false`
   - Color-coded: green (info), yellow (warning), red (critical)

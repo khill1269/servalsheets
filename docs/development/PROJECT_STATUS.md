@@ -1,7 +1,7 @@
 ---
 title: Project Status
 category: development
-last_updated: 2026-04-02
+last_updated: 2026-04-21
 description: Current build status and verification results
 version: 2.0.0
 tags: [development, status]
@@ -9,23 +9,26 @@ tags: [development, status]
 
 # ServalSheets - Project Status
 
-**Last Updated:** 2026-04-02
+**Last Updated:** 2026-04-21
 
 ## Build Status: ✅ PASSING
 
-All verification checks are currently passing.
+All verification checks are currently passing on the 2026-04-21 working tree. Recent session (2026-04-21) closed six flat-tool-surface bugs and updated the audit trail — see [regression-audit-2026-04-21.md](../audits/regression-audit-2026-04-21.md) for how they surfaced and why they escaped the existing gates.
 
-### Verification Results
+### Verification Results (2026-04-21)
 
-| Check            | Status          | Command                          |
-| ---------------- | --------------- | -------------------------------- |
-| TypeScript       | ✅ Pass         | `npm run typecheck`              |
-| Linting          | ✅ Pass         | `npm run lint`                   |
-| Tests            | ✅ Pass         | `npm run test`                   |
-| Metadata Drift   | ✅ Pass         | `npm run check:drift`            |
-| Release Audit    | ✅ Pass         | `npm run release:audit`          |
-| Silent Fallbacks | ✅ Pass (13 FP) | `npm run check:silent-fallbacks` |
-| Placeholders     | ✅ None         | `npm run check:placeholders`     |
+| Check                  | Status      | Command                           |
+| ---------------------- | ----------- | --------------------------------- |
+| TypeScript             | ✅ Pass     | `npx tsc --noEmit`                |
+| Metadata Drift         | ✅ Pass     | `npm run check:drift`             |
+| Schema-Handler Align   | ✅ Pass     | `npm run validate:alignment`      |
+| MCP Compliance         | ✅ 0 errors | `npm run validate:compliance`     |
+| Mutation Actions       | ✅ Pass     | `npm run check:mutation-actions`  |
+| Integration Wiring     | ✅ Pass     | `npm run check:integration-wiring`|
+| Silent Fallbacks       | ✅ Pass     | `npm run check:silent-fallbacks`  |
+| Source/Dist Consistency| ✅ Pass     | `npm run check:source-dist`       |
+| BUG #3/#6 probe        | ✅ 7/7      | `node scripts/probe-flat-schemas.mjs`  |
+| BUG #4/#5 probe        | ✅ 5/5      | `node scripts/probe-bug4-5.mjs`        |
 
 ### Current Metrics
 
