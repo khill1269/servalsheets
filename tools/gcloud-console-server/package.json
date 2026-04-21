@@ -25,6 +25,9 @@
   ],
   "license": "MIT",
   "main": "dist/index.js",
+  "overrides": {
+    "@tootallnate/once": "^3.0.1"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc && node dist/index.js",
