@@ -135,20 +135,35 @@ const serverOptions: ServalSheetsServerOptions = buildCliServerOptions(cliOption
     // Use enhanced error system for actionable messages
     const enhancedError = enhanceStartupError(error);
 
-    console.error('\n❌ FATAL: ServalSheets failed to start\n');
-    console.error(`Error: ${enhancedError.message}\n`);
-
+    // CRITICAL: write to stderr (NOT stdout). In stdio transport mode, stdout
+    // is reserved exclusively for framed JSON-RPC messages. Writing the human
+    // banner via process.stderr.write keeps stdout clean even if the transport
+    // has already opened by the time we reach this catch (e.g. failure during
+    // startTransport's handshake). console.error also writes to stderr, but
+    // we go through process.stderr.write directly to make the channel choice
+    // explicit and to assemble the full message in a single write — avoiding
+    // any race with the structured logger.error call below that could
+    // interleave bytes in some terminals.
+    const banner: string[] = [
+      '',
+      '❌ FATAL: ServalSheets failed to start',
+      '',
+      `Error: ${enhancedError.message}`,
+    ];
     if (enhancedError.resolution) {
-      console.error(`💡 Fix: ${enhancedError.resolution}\n`);
+      banner.push('', `💡 Fix: ${enhancedError.resolution}`);
     }
-
     if (enhancedError.resolutionSteps && enhancedError.resolutionSteps.length > 0) {
-      console.error('Steps to resolve:');
-      enhancedError.resolutionSteps.forEach((step) => console.error(`  ${step}`));
-      console.error('');
+      banner.push('', 'Steps to resolve:');
+      for (const step of enhancedError.resolutionSteps) {
+        banner.push(`  ${step}`);
+      }
     }
+    banner.push('', '');
+    process.stderr.write(banner.join('\n'));
 
-    // Structured logging for debugging
+    // Structured logging for debugging — also goes to stderr (or to the
+    // configured log sink), and is the machine-readable source of truth.
     logger.error('Failed to start ServalSheets server', {
       error: enhancedError,
       stack: error instanceof Error ? error.stack : undefined,

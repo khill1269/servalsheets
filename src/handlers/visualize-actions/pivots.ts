@@ -18,6 +18,7 @@ import {
   type GridRangeInput,
 } from '../../utils/google-sheets-helpers.js';
 import { createSnapshotIfNeeded, requestSafetyConfirmation } from '../../utils/safety-helpers.js';
+import { logger } from '../../utils/logger.js';
 
 interface PivotsDeps {
   sheetsApi: sheets_v4.Sheets;
@@ -538,7 +539,15 @@ async function getCurrentPivotTable(
       }
     }
     return null;
-  } catch {
+  } catch (err) {
+    // Best-effort lookup: if the spreadsheet fetch or traversal fails we
+    // fall through to "no existing pivot" so the caller can proceed with
+    // its normal path. Log at debug so the failure is still observable.
+    logger.debug('getCurrentPivotTable lookup failed; assuming no existing pivot', {
+      spreadsheetId,
+      sheetId,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
