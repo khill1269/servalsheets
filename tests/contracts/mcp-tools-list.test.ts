@@ -7,7 +7,7 @@ function createMockServer() {
     | ((
         request: { params?: Record<string, unknown> },
         extra?: Record<string, unknown>
-      ) => Promise<{ tools: Record<string, unknown>[] }>)
+      ) => Promise<{ tools: Record<string, unknown>[]; nextCursor?: string }>)
     | undefined;
 
   const server = {
@@ -101,6 +101,58 @@ describe('MCP tools/list runtime ownership', () => {
     expect(metadata['access']).toMatchObject({
       authenticated: false,
       filteredBy: 'authentication',
+    });
+  });
+
+  it('paginates the flat tools/list surface with an opaque cursor', async () => {
+    vi.doMock('../../src/config/constants.js', async () => {
+      const actual = await vi.importActual<typeof import('../../src/config/constants.js')>(
+        '../../src/config/constants.js'
+      );
+      return {
+        ...actual,
+        getEffectiveToolMode: () => 'flat' as const,
+      };
+    });
+
+    const mock = createMockServer();
+    const { registerToolsListCompatibilityHandler } =
+      await import('../../src/mcp/registration/tools-list-compat.js');
+    registerToolsListCompatibilityHandler(mock.server);
+
+    const firstPage = await mock.getHandler()({ params: {} });
+    expect(firstPage.tools.length).toBeLessThanOrEqual(100);
+    expect(firstPage.tools[0]['name']).toBe('sheets_discover');
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    const secondPage = await mock.getHandler()({ params: { cursor: firstPage.nextCursor } });
+    expect(secondPage.tools.length).toBeGreaterThan(0);
+    expect(secondPage.tools.every((tool) => tool['name'] !== 'sheets_discover')).toBe(true);
+
+    const firstPageNames = new Set(firstPage.tools.map((tool) => String(tool['name'])));
+    expect(secondPage.tools.some((tool) => firstPageNames.has(String(tool['name'])))).toBe(false);
+  });
+
+  it('rejects invalid flat tools/list cursors as invalid params', async () => {
+    vi.doMock('../../src/config/constants.js', async () => {
+      const actual = await vi.importActual<typeof import('../../src/config/constants.js')>(
+        '../../src/config/constants.js'
+      );
+      return {
+        ...actual,
+        getEffectiveToolMode: () => 'flat' as const,
+      };
+    });
+
+    const mock = createMockServer();
+    const { registerToolsListCompatibilityHandler } =
+      await import('../../src/mcp/registration/tools-list-compat.js');
+    registerToolsListCompatibilityHandler(mock.server);
+
+    await expect(
+      mock.getHandler()({ params: { cursor: 'not-a-valid-cursor' } })
+    ).rejects.toMatchObject({
+      code: -32602,
     });
   });
 

@@ -6,7 +6,7 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { z } from '../../lib/schema.js';
 import { DEFER_SCHEMAS, getEffectiveToolMode } from '../../config/constants.js';
 import { getEnv } from '../../config/env.js';
@@ -34,6 +34,7 @@ import { getToolSurfaceMetadata } from '../tool-surface-metadata.js';
 import { getOutputSchemaForTool, clearOutputSchemaCache } from './output-schema-registry.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
+const FLAT_TOOLS_PAGE_SIZE = 100;
 const ACTIVE_TOOL_DEFINITION_MAP = new Map(
   ACTIVE_TOOL_DEFINITIONS.map((tool) => [tool.name, tool] as const)
 );
@@ -53,6 +54,10 @@ interface RequestAwareAccessFilter {
   hiddenTools: Set<string>;
   allowedActionsByTool: Map<string, ReadonlySet<string>>;
   accessMetadataByTool: Map<string, Record<string, unknown>>;
+}
+
+interface ToolsListCursor {
+  offset: number;
 }
 
 /**
@@ -140,6 +145,47 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function encodeToolsListCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ offset } satisfies ToolsListCursor), 'utf8').toString(
+    'base64url'
+  );
+}
+
+function decodeToolsListCursor(cursor: unknown): number {
+  if (cursor === undefined || cursor === null) {
+    return 0;
+  }
+
+  if (typeof cursor !== 'string' || cursor.length === 0) {
+    throw new McpError(ErrorCode.InvalidParams, 'tools/list cursor must be a non-empty string');
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as unknown;
+    const record = asRecord(decoded);
+    const offset = record?.['offset'];
+    if (typeof offset === 'number' && Number.isInteger(offset) && offset >= 0) {
+      return offset;
+    }
+  } catch {
+    // Fall through to the standard InvalidParams error below.
+  }
+
+  throw new McpError(ErrorCode.InvalidParams, 'tools/list cursor is invalid or expired');
+}
+
+function paginateToolsListEntries(
+  entries: Record<string, unknown>[],
+  cursor: unknown
+): { tools: Record<string, unknown>[]; nextCursor: string | undefined } {
+  const offset = decodeToolsListCursor(cursor);
+  const page = entries.slice(offset, offset + FLAT_TOOLS_PAGE_SIZE);
+  const nextOffset = offset + page.length;
+  const nextCursor = nextOffset < entries.length ? encodeToolsListCursor(nextOffset) : undefined;
+
+  return { tools: page, nextCursor };
 }
 
 function getSingleHeaderValue(
@@ -847,10 +893,7 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
 
   protocolServer.setRequestHandler(
     ListToolsRequestSchema,
-    async (_request: z.infer<typeof ListToolsRequestSchema>, extra?: ToolsListRequestExtra) => {
-      // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤25 tools)
-      // cursor is intentionally ignored — single-page response for ≤25 tools
-
+    async (request: z.infer<typeof ListToolsRequestSchema>, extra?: ToolsListRequestExtra) => {
       const effectiveMode = getEffectiveToolMode();
       const bundledTools = getBundledToolsForList();
       const accessFilter =
@@ -869,16 +912,22 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
       if (effectiveMode === 'flat') {
         const flatEntries = buildFlatToolListEntries(accessFilter);
         const discoverEntry = buildDiscoverToolEntry();
+        const page = paginateToolsListEntries(
+          [discoverEntry, ...flatEntries],
+          request.params?.cursor
+        );
 
         logger.info('tools/list serving flat mode', {
           totalTools: flatEntries.length + 1,
-          alwaysLoaded: flatEntries.filter((t) => !t['x-defer-loading']).length + 1,
-          deferred: flatEntries.filter((t) => t['x-defer-loading']).length,
+          pageTools: page.tools.length,
+          hasNextPage: page.nextCursor !== undefined,
+          alwaysLoaded: page.tools.filter((t) => !t['x-defer-loading']).length,
+          deferred: page.tools.filter((t) => t['x-defer-loading']).length,
         });
 
         return {
-          tools: [discoverEntry, ...flatEntries],
-          nextCursor: undefined,
+          tools: page.tools,
+          nextCursor: page.nextCursor,
         };
       }
 
