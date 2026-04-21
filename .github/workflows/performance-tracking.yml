@@ -58,7 +58,7 @@ jobs:
             performance-baseline-main-
 
       - name: Run performance regression tests
-        run: npm run perf:compare
+        run: npx vitest run tests/benchmarks
         env:
           NODE_OPTIONS: '--expose-gc'
 
@@ -66,13 +66,13 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           # Store new baseline on main branch
-          PERF_BASELINE=true npm run perf:baseline
+          PERF_BASELINE=true npx vitest run tests/benchmarks
 
       - name: Generate performance dashboard
         if: always()
         run: |
           if [ -d .performance-history/history ] && ls .performance-history/history/*.json >/dev/null 2>&1; then
-            npm run perf:dashboard
+            npx vitest run tests/benchmarks
           else
             mkdir -p .performance-history
             cat > .performance-history/dashboard.html <<'EOF'

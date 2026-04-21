@@ -68,7 +68,6 @@ audit-logs
 audit-output
 
 # ─── Scripts not needed in container ─────────────────────────────────────────
-scripts
 add-on
 examples
 sdks
