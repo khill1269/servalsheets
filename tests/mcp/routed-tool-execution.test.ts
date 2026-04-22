@@ -1,9 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { federationHandle, getRemoteToolClient } = vi.hoisted(() => ({
-  federationHandle: vi.fn(),
-  getRemoteToolClient: vi.fn(),
-}));
+const { federationHandle, getRemoteToolClient, isRemoteMcpExecutorToolEnabled } = vi.hoisted(
+  () => ({
+    federationHandle: vi.fn(),
+    getRemoteToolClient: vi.fn(),
+    // BUG #5 (src/mcp/routed-tool-execution.ts:150-158) guards hosted failover
+    // behind `isRemoteMcpExecutorToolEnabled(toolName)`. Without this mock the
+    // import resolves to `undefined` at runtime, the guarded try/catch treats
+    // the throw as "not enabled", and failover is skipped entirely — so the
+    // local handler's thrown error propagates and every failover assertion
+    // below fails. Default to `true` so the opt-in cases below still exercise
+    // the hosted path.
+    isRemoteMcpExecutorToolEnabled: vi.fn(() => true),
+  })
+);
 
 vi.mock('../../src/handlers/federation.js', () => ({
   FederationHandler: class FederationHandler {
@@ -13,6 +23,7 @@ vi.mock('../../src/handlers/federation.js', () => ({
 
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
   getRemoteToolClient,
+  isRemoteMcpExecutorToolEnabled,
 }));
 
 import { executeRoutedToolCall } from '../../src/mcp/routed-tool-execution.js';
@@ -21,6 +32,11 @@ describe('executeRoutedToolCall', () => {
   beforeEach(() => {
     federationHandle.mockReset();
     getRemoteToolClient.mockReset();
+    // mockClear (not mockReset) so the default `() => true` implementation
+    // from vi.hoisted() survives across tests; mockReset would wipe it and
+    // reintroduce the CI regression (hosted failover skipped, local throw
+    // propagates).
+    isRemoteMcpExecutorToolEnabled.mockClear();
   });
 
   it('routes sheets_federation through the remote executor', async () => {

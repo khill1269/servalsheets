@@ -5,13 +5,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const httpTransportFailoverMocks = vi.hoisted(() => {
   const remoteToolCall = vi.fn();
-  const getRemoteToolClient = vi.fn(async (toolName?: string) => {
+  // Mirrors the real logic in src/services/remote-mcp-tool-client.ts so that
+  // the BUG #5 guard in src/mcp/routed-tool-execution.ts:150-158 behaves
+  // consistently with the test's env setup (MCP_REMOTE_EXECUTOR_URL +
+  // MCP_REMOTE_EXECUTOR_TOOLS). Without a mock for this export the guard
+  // treats the import as undefined → not enabled → no failover → the test's
+  // thrown local error propagates and the assertions fail.
+  const isToolEnabled = (toolName?: string): boolean => {
+    if (!toolName || !process.env['MCP_REMOTE_EXECUTOR_URL']) {
+      return false;
+    }
     const allowlist = (process.env['MCP_REMOTE_EXECUTOR_TOOLS'] ?? '')
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
-
-    if (!process.env['MCP_REMOTE_EXECUTOR_URL'] || !toolName || !allowlist.includes(toolName)) {
+    return allowlist.includes(toolName);
+  };
+  const isRemoteMcpExecutorToolEnabled = vi.fn((toolName: string) => isToolEnabled(toolName));
+  const getRemoteToolClient = vi.fn(async (toolName?: string) => {
+    if (!isToolEnabled(toolName)) {
       return null;
     }
 
@@ -23,6 +35,7 @@ const httpTransportFailoverMocks = vi.hoisted(() => {
   return {
     remoteToolCall,
     getRemoteToolClient,
+    isRemoteMcpExecutorToolEnabled,
     resetRemoteToolClient: vi.fn(async () => undefined),
   };
 });
@@ -50,6 +63,7 @@ const httpTransportFailoverGoogleClientMocks = vi.hoisted(() => ({
 
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
   getRemoteToolClient: httpTransportFailoverMocks.getRemoteToolClient,
+  isRemoteMcpExecutorToolEnabled: httpTransportFailoverMocks.isRemoteMcpExecutorToolEnabled,
   resetRemoteToolClient: httpTransportFailoverMocks.resetRemoteToolClient,
 }));
 
@@ -191,6 +205,7 @@ describe.skipIf(!canListenLocalhost)('HTTP transport hosted failover', () => {
   afterEach(async () => {
     httpTransportFailoverMocks.remoteToolCall.mockReset();
     httpTransportFailoverMocks.getRemoteToolClient.mockClear();
+    httpTransportFailoverMocks.isRemoteMcpExecutorToolEnabled.mockClear();
     httpTransportFailoverMocks.resetRemoteToolClient.mockClear();
     httpTransportFailoverGoogleClientMocks.createTokenBackedGoogleClient.mockClear();
     delete process.env['MCP_REMOTE_EXECUTOR_URL'];

@@ -97,11 +97,17 @@ describe('flat tool call interceptor runtime registry', () => {
       { requestId: 'flat-runtime-test' }
     );
 
+    // Post–BUG #1 fix, routeFlatToolCall wraps flat args in the canonical
+    // `{ request: { ... } }` envelope (see src/mcp/registration/flat-tool-routing.ts:95-103).
+    // Compound handlers' schemas validate `request: z.discriminatedUnion(...)`
+    // and reject bare args, so this envelope is load-bearing.
     expect(compoundHandler).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'read',
-        spreadsheetId: 'spreadsheet-123',
-        range: 'A1:B4',
+        request: expect.objectContaining({
+          action: 'read',
+          spreadsheetId: 'spreadsheet-123',
+          range: 'A1:B4',
+        }),
       }),
       { requestId: 'flat-runtime-test' }
     );
