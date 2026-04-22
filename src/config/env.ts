@@ -73,7 +73,15 @@ const CircuitBreakerSchema: z.ZodType<CircuitBreakerConfig> = z.object({
 
 const RedisSchema = z.object({
   SESSION_STORE_TYPE: SessionStoreTypeSchema,
-  REDIS_URL: RedisUrlSchema.optional(),
+  // Treat empty string as unset — smoke tests and container runtimes sometimes
+  // pass through `REDIS_URL=` to explicitly opt out of Redis. Without this
+  // preprocess, Zod tests the empty string against the regex and fails,
+  // which `enhanceStartupError` then rewrites as a misleading "Cannot connect
+  // to Redis server" banner.
+  REDIS_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    RedisUrlSchema.optional()
+  ),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_TLS: StrictBooleanSchema,
   REDIS_KEY_PREFIX: z.string().default('serval:'),
@@ -116,6 +124,11 @@ export const EnvSchema = z
     // Logging
     LOG_LEVEL: LogLevelSchema,
     LOG_FORMAT: z.enum(['json', 'pretty']).default('json'),
+    // Per-tool debug tracing (dev only): set DEBUG_TOOL=sheets_data to enable debug logs for that tool.
+    // Combine with DEBUG_ACTION=read to filter to a single action. DEBUG_VERBOSE=true includes payloads.
+    DEBUG_TOOL: z.string().optional(),
+    DEBUG_ACTION: z.string().optional(),
+    DEBUG_VERBOSE: StrictBooleanSchema.default(false),
 
     // Feature Flags
     ENABLE_REQUEST_MERGING: StrictBooleanSchema.default(true),
