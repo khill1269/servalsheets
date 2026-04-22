@@ -78,10 +78,7 @@ const RedisSchema = z.object({
   // preprocess, Zod tests the empty string against the regex and fails,
   // which `enhanceStartupError` then rewrites as a misleading "Cannot connect
   // to Redis server" banner.
-  REDIS_URL: z.preprocess(
-    (value) => (value === '' ? undefined : value),
-    RedisUrlSchema.optional()
-  ),
+  REDIS_URL: z.preprocess((value) => (value === '' ? undefined : value), RedisUrlSchema.optional()),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_TLS: StrictBooleanSchema,
   REDIS_KEY_PREFIX: z.string().default('serval:'),
