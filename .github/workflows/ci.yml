@@ -798,8 +798,11 @@ jobs:
           const needs = JSON.parse(process.env.NEEDS_JSON);
           // Jobs that may be skipped without failing CI
           const allowedSkipped = new Set(['mutation-testing', 'security']);
-          // Jobs that may fail without failing CI
-          const optionalFailures = new Set(['mutation-testing']);
+          // Jobs whose failure or cancellation does NOT fail CI (e.g. mutation-testing
+          // is informational; a long-running mutant pass that times out should not
+          // block merges since the dry-run + critical regression suite already gate
+          // correctness in test-fast).
+          const optionalNonSuccess = new Set(['mutation-testing']);
           // Jobs that MUST succeed (never allowed to skip)
           const requiredJobs = new Set([
             'quick-checks', 'test-fast', 'snapshot-tests',
@@ -816,7 +819,9 @@ jobs:
               continue;
             }
             if (result.result === 'skipped' && allowedSkipped.has(job)) continue;
-            if (result.result === 'failure' && optionalFailures.has(job)) continue;
+            // Tolerate failure OR cancellation (e.g. job timeout) for optional jobs.
+            if ((result.result === 'failure' || result.result === 'cancelled') &&
+                optionalNonSuccess.has(job)) continue;
             failures.push(`${job}=${result.result}`);
           }
 
