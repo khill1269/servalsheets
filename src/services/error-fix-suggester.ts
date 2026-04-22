@@ -27,9 +27,7 @@ export interface SuggestedFix {
  * This helper runs once at the return boundary so every suggester branch
  * is protected without per-branch edits.
  */
-function sanitizeSuggestedParams(
-  params: Record<string, unknown>
-): Record<string, unknown> {
+function sanitizeSuggestedParams(params: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined) continue;

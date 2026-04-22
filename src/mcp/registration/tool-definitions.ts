@@ -493,9 +493,7 @@ let plannerCatalogInitialized = false;
  */
 export function initializePlannerCatalog(): void {
   if (plannerCatalogInitialized) return;
-  registerToolInputSchemas(
-    new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const))
-  );
+  registerToolInputSchemas(new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.inputSchema] as const)));
   registerPlannerToolCatalog(buildPlannerToolCatalog(TOOL_DEFINITIONS));
   plannerCatalogInitialized = true;
 }
