@@ -32,7 +32,11 @@ const config = {
   ignorePatterns: [
     'dist',
     'node_modules',
-    'src/generated/**',
+    // Do NOT ignore `src/generated/**`: `src/schemas/annotations.ts` re-exports
+    // from `../generated/annotations.js`, and omitting it from the sandbox makes
+    // every test file that imports from `src/schemas/*` fail collection with
+    // "Cannot find module '../generated/annotations.js'", which Stryker surfaces
+    // as the misleading "No tests were found" error.
     'scripts/**',
     'docs/**',
   ],
