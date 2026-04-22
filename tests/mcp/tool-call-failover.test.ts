@@ -7,12 +7,20 @@ import { resetEnvForTest } from '../../src/config/env.js';
 import type { GoogleApiClient } from '../../src/services/google-api.js';
 import { resetSessionContext } from '../../src/services/session-context.js';
 
-const { getRemoteToolClient } = vi.hoisted(() => ({
+const { getRemoteToolClient, isRemoteMcpExecutorToolEnabled } = vi.hoisted(() => ({
   getRemoteToolClient: vi.fn(),
+  // BUG #5 fix (src/mcp/routed-tool-execution.ts:150-158) guards hosted
+  // failover behind `isRemoteMcpExecutorToolEnabled(toolName)`. The previous
+  // mock only stubbed `getRemoteToolClient`, leaving this flag undefined → the
+  // production code's try/catch treated it as "not enabled" and skipped
+  // failover, causing the local error to propagate. Mock it as enabled so
+  // these tests actually exercise the failover path they're asserting.
+  isRemoteMcpExecutorToolEnabled: vi.fn(() => true),
 }));
 
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
   getRemoteToolClient,
+  isRemoteMcpExecutorToolEnabled,
 }));
 
 import { registerServalSheetsTools } from '../../src/mcp/registration/tool-handlers.js';

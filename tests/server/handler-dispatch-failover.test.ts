@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const { getRemoteToolClient } = vi.hoisted(() => ({
+const { getRemoteToolClient, isRemoteMcpExecutorToolEnabled } = vi.hoisted(() => ({
   getRemoteToolClient: vi.fn(),
+  // Match the guard added for BUG #5 in src/mcp/routed-tool-execution.ts:150-158
+  // — hosted failover is skipped unless this flag is true for the tool.
+  isRemoteMcpExecutorToolEnabled: vi.fn(() => true),
 }));
 
 vi.mock('../../src/services/remote-mcp-tool-client.js', () => ({
   getRemoteToolClient,
+  isRemoteMcpExecutorToolEnabled,
 }));
 
 import { dispatchServerToolCall } from '../../src/server/handler-dispatch.js';
