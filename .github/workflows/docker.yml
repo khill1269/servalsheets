@@ -1,12 +1,23 @@
 name: Docker Build & Push
 
 on:
+  # Docker builds currently fail on ARM64 QEMU emulation due to
+  # @esbuild/linux-arm64 optional-binary resolution. Until the Dockerfile
+  # is fixed to resolve platform-specific binaries inside the buildkit
+  # container, only build on version tags (intentional releases) and PRs
+  # that touch Docker-related files. See docker.yml history / issue log.
   push:
-    branches: [main]
     tags:
       - 'v*.*.*'
   pull_request:
     branches: [main]
+    paths:
+      - 'deployment/docker/**'
+      - 'Dockerfile*'
+      - '.github/workflows/docker.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch: {}
 
 permissions: {}
 

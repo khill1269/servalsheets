@@ -5,8 +5,13 @@
 name: Fly Deploy
 
 on:
+  # Deploy only on version tags — not every main push — so failing Fly
+  # deploys don't drown CI signal on feature merges. Tag a release
+  # (`git tag v2.0.1 && git push --tags`) to cut a production deploy.
+  # Manual dispatch remains available for emergency deploys.
   push:
-    branches: [main]
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       skip_ci_wait:
