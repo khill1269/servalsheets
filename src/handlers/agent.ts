@@ -1,7 +1,8 @@
 import { ErrorCodes } from './error-codes.js';
 import { assertNever } from '../utils/type-utils.js';
 import type { SheetsAgentInput, SheetsAgentOutput } from '../schemas/agent.js';
-import { HandlerLoadError } from '../core/errors.js';
+import type { ErrorDetail } from '../schemas/shared.js';
+import { HandlerLoadError, ServalError } from '../core/errors.js';
 import {
   compilePlanAI,
   executePlan,
@@ -428,6 +429,24 @@ export class AgentHandler {
           assertNever(req);
       }
     } catch (error) {
+      // Preserve structured ServalError codes (NOT_FOUND, VALIDATION_ERROR, etc.)
+      // rather than collapsing everything to INTERNAL_ERROR. This was the
+      // 2026-04-21 shape-drift regression where `rollback` on a missing plan
+      // surfaced as INTERNAL_ERROR instead of the NOT_FOUND that callers expect.
+      //
+      // Cast pattern matches `src/handlers/base.ts:634-636`: @serval/core's
+      // ErrorCode is `CoreErrorCode | (string & {})` (open enum) while our
+      // schema's ErrorDetail['code'] is a closed enum — at runtime the code
+      // is always a valid member, so the cast through `unknown` is safe.
+      if (error instanceof ServalError) {
+        const detail = (error as unknown as { toErrorDetail: () => ErrorDetail }).toErrorDetail();
+        return {
+          response: {
+            success: false,
+            error: detail,
+          },
+        };
+      }
       return {
         response: {
           success: false,

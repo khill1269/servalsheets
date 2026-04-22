@@ -29,6 +29,18 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
     handler = new FederationHandler();
   });
 
+  // sheets_federation error shape, per src/schemas/federation.ts:103-114 —
+  //   { success: false, action, remoteServer?, error: string, errorDetail?: ErrorDetail }
+  // `error` is a human-readable string for backwards compatibility; the
+  // structured {code, message, retryable, ...} lives in `errorDetail`. Tests
+  // assert against both: the top-level string is non-empty, and if errorDetail
+  // is present its code is a string.
+  type FederationErrorShape = {
+    success: false;
+    error: string;
+    errorDetail?: { code: string; message: string; retryable?: boolean };
+  };
+
   describe('list_servers', () => {
     it('should return an array (empty if no servers configured, error if federation disabled)', async () => {
       const result = await handler.handle({
@@ -41,9 +53,12 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
         // Federation disabled — expect structured error response, not an exception
         expect(result.response.success).toBe(false);
         if (!result.response.success) {
-          const errorResp = result.response as { error: { code: string; message: string } };
-          expect(typeof errorResp.error.message).toBe('string');
-          expect(errorResp.error.message.length).toBeGreaterThan(0);
+          const errResp = result.response as FederationErrorShape;
+          expect(typeof errResp.error).toBe('string');
+          expect(errResp.error.length).toBeGreaterThan(0);
+          if (errResp.errorDetail) {
+            expect(typeof errResp.errorDetail.code).toBe('string');
+          }
         }
       } else {
         // Federation enabled — may be empty array if no servers configured
@@ -75,11 +90,12 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
       expect(typeof result.response.success).toBe('boolean');
 
       if (!result.response.success) {
-        const errorResp = result.response as { error: { code: string; message: string } };
-        expect(typeof errorResp.error.code).toBe('string');
-        expect(typeof errorResp.error.message).toBe('string');
-        // Should have error detail, not just empty fields
-        expect(errorResp.error.message.length).toBeGreaterThan(0);
+        const errResp = result.response as FederationErrorShape;
+        expect(typeof errResp.error).toBe('string');
+        expect(errResp.error.length).toBeGreaterThan(0);
+        if (errResp.errorDetail) {
+          expect(typeof errResp.errorDetail.code).toBe('string');
+        }
       }
     });
 
@@ -98,9 +114,11 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
 
       // Should return structured error, not throw
       expect(result.response.success).toBe(false);
-      expect(typeof (result.response as { error?: { message: string } }).error?.message).toBe(
-        'string'
-      );
+      if (!result.response.success) {
+        const errResp = result.response as FederationErrorShape;
+        expect(typeof errResp.error).toBe('string');
+        expect(errResp.error.length).toBeGreaterThan(0);
+      }
     });
   });
 

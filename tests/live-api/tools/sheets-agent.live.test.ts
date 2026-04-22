@@ -36,8 +36,10 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
   describe('list_plans', () => {
     it('should return an array of plans (may be empty)', async () => {
       const result = await handler.handle({
-        action: 'list_plans',
-        limit: 10,
+        request: {
+          action: 'list_plans',
+          limit: 10,
+        },
       });
 
       expect(result.response.success).toBe(true);
@@ -48,8 +50,10 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
 
     it('should respect limit parameter', async () => {
       const result = await handler.handle({
-        action: 'list_plans',
-        limit: 2,
+        request: {
+          action: 'list_plans',
+          limit: 2,
+        },
       });
 
       expect(result.response.success).toBe(true);
@@ -63,8 +67,10 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
   describe('get_status', () => {
     it('should return NOT_FOUND for a non-existent planId', async () => {
       const result = await handler.handle({
-        action: 'get_status',
-        planId: 'non-existent-plan-id-live-test',
+        request: {
+          action: 'get_status',
+          planId: 'non-existent-plan-id-live-test',
+        },
       });
 
       expect(result.response.success).toBe(false);
@@ -77,14 +83,20 @@ describe.skipIf(!runLiveTests)('sheets_agent Live API Tests', () => {
   describe('rollback', () => {
     it('should return NOT_FOUND for a non-existent planId', async () => {
       const result = await handler.handle({
-        action: 'rollback',
-        planId: 'non-existent-plan-id-live-test',
-        checkpointId: 'non-existent-checkpoint',
+        request: {
+          action: 'rollback',
+          planId: 'non-existent-plan-id-live-test',
+          checkpointId: 'non-existent-checkpoint',
+        },
       });
 
-      // rollback returns success: false with NOT_FOUND or similar when plan doesn't exist
-      // Either success or failure is acceptable — what matters is it doesn't throw
+      // rollback returns success: false with NOT_FOUND or similar when plan doesn't exist.
+      // What matters is it doesn't throw — the catch at agent.ts:430 now uses
+      // toErrorDetail() so ServalError subclasses surface their real code.
       expect(typeof result.response.success).toBe('boolean');
+      if (!result.response.success) {
+        expect((result.response as { error: { code: string } }).error.code).toBe('NOT_FOUND');
+      }
     });
   });
 
