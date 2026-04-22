@@ -1,0 +1,162 @@
+name: Nightly Live API
+
+# Purpose
+# -------
+# Run the full live-api correctness tier against the real Google Sheets API
+# every night. This is the tier excluded from PR gates (it takes 30-45 min
+# and consumes multiple 60/min quota windows) but essential for catching
+# shape-drift and schema-alignment regressions early.
+#
+# PR gating uses `test:live:smoke` (see ci.yml) — a 5-minute, quota-safe
+# subset. Nightly is the safety net for everything smoke can't afford.
+#
+# Trigger
+# -------
+#   - schedule: 07:00 UTC daily (02:00 ET / 23:00 PT — after US teams log off)
+#   - workflow_dispatch: manual run-on-demand
+#
+# Secrets required
+# ----------------
+#   - TEST_REAL_API              = 'true'
+#   - TEST_SPREADSHEET_ID        = <sheet ID dedicated to CI — NOT a prod doc>
+#   - GOOGLE_OAUTH_CLIENT_ID
+#   - GOOGLE_OAUTH_CLIENT_SECRET
+#   - GOOGLE_OAUTH_REFRESH_TOKEN = long-lived refresh token for the CI sheet
+#
+# Failure policy
+# --------------
+# Nightly failures open a GitHub issue via `actions/github-script`. The
+# team triages in the morning; nightly runs do NOT block main.
+
+on:
+  schedule:
+    # 07:00 UTC daily
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      spreadsheet_id:
+        description: 'Override TEST_SPREADSHEET_ID (optional)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nightly-live-api
+  cancel-in-progress: false
+
+jobs:
+  live-api-nightly:
+    name: Nightly Live API (Full 409-Action Matrix)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # Static config
+      NODE_ENV: test
+      OAUTH_AUTO_OPEN_BROWSER: 'false'
+      OAUTH_USE_CALLBACK_SERVER: 'false'
+      SERVAL_STAGED_REGISTRATION: 'false'
+      # Live config from secrets
+      TEST_REAL_API: 'true'
+      TEST_SPREADSHEET_ID: ${{ github.event.inputs.spreadsheet_id || secrets.TEST_SPREADSHEET_ID }}
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm ci --ignore-scripts
+
+      - name: Guard — live secrets present
+        # If secrets are missing (fork PR, misconfigured environment), fail
+        # early with a clear message rather than 409 silent-skips later.
+        run: |
+          missing=()
+          [ -z "$TEST_SPREADSHEET_ID" ] && missing+=(TEST_SPREADSHEET_ID)
+          [ -z "$GOOGLE_OAUTH_CLIENT_ID" ] && missing+=(GOOGLE_OAUTH_CLIENT_ID)
+          [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ] && missing+=(GOOGLE_OAUTH_CLIENT_SECRET)
+          [ -z "$GOOGLE_OAUTH_REFRESH_TOKEN" ] && missing+=(GOOGLE_OAUTH_REFRESH_TOKEN)
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+          echo "All live-api secrets present."
+
+      - name: Build (dist/ is required by some live tests)
+        run: npm run build
+
+      - name: Run nightly live-api suite
+        id: live
+        run: |
+          mkdir -p .tmp
+          set +e
+          npm run test:live:nightly -- --reporter=verbose 2>&1 | tee .tmp/live-nightly.log
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          # Parse pass/fail summary for the issue body + step summary
+          tail -40 .tmp/live-nightly.log >> "$GITHUB_STEP_SUMMARY" || true
+          exit $status
+        continue-on-error: true
+
+      - name: Upload live-api log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: live-nightly-log
+          path: .tmp/live-nightly.log
+          retention-days: 14
+
+      - name: Open issue on failure
+        if: steps.live.outputs.status != '0'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try {
+              log = fs.readFileSync('.tmp/live-nightly.log', 'utf-8');
+            } catch {}
+            const tail = log.split('\n').slice(-80).join('\n');
+            const title = `Nightly live-api failed on ${new Date().toISOString().slice(0, 10)}`;
+            const body = [
+              `**Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `**Commit:** ${context.sha}`,
+              ``,
+              `## Last 80 lines of output`,
+              '```',
+              tail,
+              '```',
+              ``,
+              `Filed automatically by \`.github/workflows/nightly-live-api.yml\`. Close when resolved.`,
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['nightly-failure', 'live-api'],
+            });
+
+      - name: Propagate failure to workflow status
+        if: steps.live.outputs.status != '0'
+        run: |
+          echo "::error::Nightly live-api failed. See artifact + auto-filed issue."
+          exit 1
