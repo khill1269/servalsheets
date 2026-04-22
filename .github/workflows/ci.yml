@@ -526,11 +526,14 @@ jobs:
 
   mutation-testing:
     name: Mutation Testing (Critical Paths)
-    # Only run on main/release pushes to save runner minutes (~30 min per run)
+    # Only run on main/release pushes to save runner minutes (~60 min per run with concurrency=2)
     if: github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref_name, 'release/'))
     runs-on: ubuntu-latest
     needs: [test-fast]
-    timeout-minutes: 45
+    # Run 24769965358 timed out at 45 min after testing 786/2166 mutants at
+    # concurrency=1. Bumped Stryker concurrency to 2 (halves wall time) and
+    # raised CI timeout to 90 min for safety margin on slower runners.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code

@@ -12,7 +12,13 @@ const config = {
   tsconfigFile: 'tsconfig.json',
   reporters: ['clear-text', 'progress'],
   timeoutMS: 30000,
-  concurrency: 1,
+  // concurrency=2: previous run hit the 45-min CI timeout at 786/2166 mutants
+  // (~118 min projected at concurrency=1). Two parallel Stryker workers each
+  // run vitest with maxWorkers=1 (see vitest.config.stryker-critical.ts), so
+  // total RAM stays well under the 16GB ubuntu-latest runner budget while
+  // halving wall time. Each worker gets its own sandbox, so python/duckdb
+  // subprocess workers don't conflict.
+  concurrency: 2,
   disableTypeChecks: true,
   thresholds: {
     high: 80,
