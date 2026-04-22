@@ -221,7 +221,11 @@ export type Env = z.infer<typeof EnvSchema>;
 
 // Validation & Export
 
-export function validateEnv(throwOnError: boolean = false): Env {
+// The `_throwOnError` parameter is preserved for call-site compatibility (tests
+// pass `true`); the function now always throws on validation failure, so the
+// argument is intentionally unused. Underscore prefix satisfies eslint
+// @typescript-eslint/no-unused-vars without breaking existing callers.
+export function validateEnv(_throwOnError: boolean = false): Env {
   const result = EnvSchema.safeParse(process.env);
 
   if (!result.success) {
