@@ -15,6 +15,21 @@ import { NotFoundError, ServiceError } from './errors.js';
 
 export type TaskStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
 
+/**
+ * Default polling interval (ms) suggested to clients for tasks/get.
+ *
+ * Exposed publicly so the tool-response layer can include the same value
+ * in taskHints and so clients relying on the contract (poll every N ms)
+ * have a single source of truth.
+ *
+ * 2000 ms is chosen to balance:
+ *   - Client-side responsiveness (2s UI update cadence feels live)
+ *   - Server-side load (30 polls/minute/task is modest)
+ *   - Google Sheets API quota headroom (polling tasks/get is a local no-op,
+ *     so the bound is really "how often is it worth waking the client up").
+ */
+export const DEFAULT_TASK_POLL_INTERVAL_MS = 2000;
+
 export interface Task {
   taskId: string;
   status: TaskStatus;
@@ -22,7 +37,12 @@ export interface Task {
   createdAt: string; // ISO 8601
   lastUpdatedAt: string; // ISO 8601
   ttl: number; // milliseconds
-  pollInterval?: number; // milliseconds
+  /**
+   * Suggested client polling interval for tasks/get, in milliseconds.
+   * Always populated by createTask() — never undefined in practice.
+   * See DEFAULT_TASK_POLL_INTERVAL_MS for the default.
+   */
+  pollInterval?: number;
 }
 
 export interface TaskResult {
@@ -158,7 +178,7 @@ export class InMemoryTaskStore implements TaskStore {
       createdAt: now,
       lastUpdatedAt: now,
       ttl,
-      pollInterval: 5000, // Suggest 5 second polling
+      pollInterval: DEFAULT_TASK_POLL_INTERVAL_MS,
     };
 
     this.tasks.set(taskId, task);
@@ -510,7 +530,7 @@ export class RedisTaskStore implements TaskStore {
       createdAt: now,
       lastUpdatedAt: now,
       ttl,
-      pollInterval: 5000,
+      pollInterval: DEFAULT_TASK_POLL_INTERVAL_MS,
     };
 
     // Store as Redis hash
@@ -521,7 +541,7 @@ export class RedisTaskStore implements TaskStore {
       createdAt: task.createdAt,
       lastUpdatedAt: task.lastUpdatedAt,
       ttl: task.ttl.toString(),
-      pollInterval: task.pollInterval?.toString() ?? '5000',
+      pollInterval: task.pollInterval?.toString() ?? String(DEFAULT_TASK_POLL_INTERVAL_MS),
     });
 
     // Set expiration (convert ms to seconds)
