@@ -66,6 +66,23 @@ interface PreparedBatchRequest {
 /**
  * Transaction Manager - Handles multi-operation transactions with atomicity
  */
+/**
+ * Non-batchable action registry — actions that cannot be merged into a
+ * single Google Sheets batchUpdate request. Kept local to this file (not
+ * imported from src/generated/annotations.ts) so that TransactionManager
+ * doesn't cross the services→generated layer boundary enforced by
+ * .dependency-cruiser.cjs. Keep in sync with the `batchable: false` entries
+ * in src/generated/annotations.ts.
+ */
+const NON_BATCHABLE_ACTIONS: ReadonlySet<string> = new Set([
+  'sheets_data.add_note',
+  'sheets_data.set_hyperlink',
+  'sheets_advanced.set_metadata',
+  'sheets_collaborate.comment_add',
+  'sheets_collaborate.share_add',
+  'sheets_visualize.chart_create',
+]);
+
 export class TransactionManager {
   private config: Required<Omit<TransactionConfig, 'googleClient' | 'walDir'>>;
   private googleClient?: TransactionConfig['googleClient'];
