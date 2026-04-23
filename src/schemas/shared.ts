@@ -1144,23 +1144,25 @@ export const SemanticRangeQuerySchema = z.object({
  * - Object with semantic key: { semantic: { sheet: "Sheet1", column: "Name" } }
  * - Object with grid key: { grid: { sheetId, startRowIndex, ... } }
  */
-export const RangeInputSchema = z.preprocess(
-  (val) => {
-    // Transform plain strings to { a1: string } format
-    if (typeof val === 'string') {
-      return { a1: val };
-    }
-    return val;
-  },
-  z.union([
-    z.object({ a1: A1NotationSchema }),
-    z.object({ namedRange: z.string() }),
-    z.object({ semantic: SemanticRangeQuerySchema }),
-    z.object({ grid: GridRangeSchema }),
-  ])
-).describe(
-  "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
-);
+export const RangeInputSchema = z
+  .preprocess(
+    (val) => {
+      // Transform plain strings to { a1: string } format
+      if (typeof val === 'string') {
+        return { a1: val };
+      }
+      return val;
+    },
+    z.union([
+      z.object({ a1: A1NotationSchema }),
+      z.object({ namedRange: z.string() }),
+      z.object({ semantic: SemanticRangeQuerySchema }),
+      z.object({ grid: GridRangeSchema }),
+    ])
+  )
+  .describe(
+    "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
+  );
 
 // ============================================================================
 // RESPONSE SCHEMAS

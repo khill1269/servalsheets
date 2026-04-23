@@ -393,10 +393,7 @@ export class TransactionManager {
 
       // Post-coalesce savings: operations -> coalesced sub-requests (within the
       // single batchUpdate API call). Reflects real request-count reduction.
-      const apiCallsSaved = Math.max(
-        0,
-        transaction.operations.length - coalescedRequestCount
-      );
+      const apiCallsSaved = Math.max(0, transaction.operations.length - coalescedRequestCount);
       this.stats.apiCallsSaved += apiCallsSaved;
 
       const result: CommitResult = {
@@ -1010,20 +1007,12 @@ export class TransactionManager {
     const spansConnect = (aStart: number, aEnd: number, bStart: number, bEnd: number): boolean =>
       aStart <= bEnd && bStart <= aEnd;
 
-    const mergeable = (
-      a: sheets_v4.Schema$GridRange,
-      b: sheets_v4.Schema$GridRange
-    ): boolean => {
+    const mergeable = (a: sheets_v4.Schema$GridRange, b: sheets_v4.Schema$GridRange): boolean => {
       if (a.sheetId !== b.sheetId) return false;
       if (!isBounded(a) || !isBounded(b)) return false;
       return (
         spansConnect(a.startRowIndex!, a.endRowIndex!, b.startRowIndex!, b.endRowIndex!) &&
-        spansConnect(
-          a.startColumnIndex!,
-          a.endColumnIndex!,
-          b.startColumnIndex!,
-          b.endColumnIndex!
-        )
+        spansConnect(a.startColumnIndex!, a.endColumnIndex!, b.startColumnIndex!, b.endColumnIndex!)
       );
     };
 

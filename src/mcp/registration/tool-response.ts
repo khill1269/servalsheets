@@ -75,20 +75,13 @@ function getOptionalBoolean(value: unknown): boolean | undefined {
 const POLL_CONTRACT_SUFFIX = `Poll via tasks/get every ${DEFAULT_TASK_POLL_INTERVAL_MS}ms; default 2s.`;
 
 const LONG_RUNNING_ACTIONS: Record<string, string> = {
-  'sheets_bigquery.export_to_bigquery':
-    `BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
-  'sheets_bigquery.import_from_bigquery':
-    `BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
-  'sheets_appsscript.run':
-    `Apps Script execution has unbounded duration. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
-  'sheets_composite.export_large_dataset':
-    `Large dataset export streams data in chunks. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
-  'sheets_history.timeline':
-    `Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
-  'sheets_federation.call_remote':
-    `Remote MCP server calls have network latency. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
-  'sheets_analyze.comprehensive':
-    `Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_bigquery.export_to_bigquery': `BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_bigquery.import_from_bigquery': `BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_appsscript.run': `Apps Script execution has unbounded duration. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_composite.export_large_dataset': `Large dataset export streams data in chunks. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_history.timeline': `Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_federation.call_remote': `Remote MCP server calls have network latency. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_analyze.comprehensive': `Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
 };
 
 /** Execution time threshold (ms) above which we suggest tasks/call even for non-listed actions */

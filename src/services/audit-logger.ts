@@ -209,9 +209,7 @@ export class AuditLogger {
 
     // GDPR/HIPAA: warn when PII redaction is explicitly disabled (opt-out path)
     if (process.env['AUDIT_PII_REDACTION'] === 'false') {
-      logger.warn(
-        'AUDIT_PII_REDACTION is disabled — sensitive audit fields will NOT be redacted',
-      );
+      logger.warn('AUDIT_PII_REDACTION is disabled — sensitive audit fields will NOT be redacted');
     }
 
     // Ensure log state and retention are applied before first write/integrity check.
