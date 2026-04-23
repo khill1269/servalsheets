@@ -483,17 +483,21 @@ describe('TransactionManager', () => {
       // Assert
       expect(result.success).toBe(true);
       expect(result.apiCallsMade).toBe(1); // Single batch request
-      expect(result.apiCallsSaved).toBe(4); // 5 operations - 1 batch call = 4 saves
+      // Adjacent A1 + A2 writes coalesce into one updateCells sub-request, so
+      // the 5 queued operations produce 4 sub-requests after coalescing:
+      //   coalesced[write A1+A2], format A1:A2, add_sheet, delete_sheet = 4
+      // apiCallsSaved counts operations - post-coalesce sub-requests = 5 - 4 = 1.
+      expect(result.apiCallsSaved).toBe(1);
       expect(result.operationResults.length).toBe(5);
 
       // Verify batchUpdate was called once
       expect(mockGoogleClient.sheets.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
 
-      // Verify request structure
+      // Verify request structure (post-coalesce sub-request count)
       const batchCall = mockGoogleClient.sheets.spreadsheets.batchUpdate.mock.calls[0][0];
       expect(batchCall.spreadsheetId).toBe('test-sheet-123');
       expect(batchCall.requestBody.requests).toBeDefined();
-      expect(batchCall.requestBody.requests.length).toBe(5);
+      expect(batchCall.requestBody.requests.length).toBe(4);
     });
 
     it('should normalize {a1} range objects into populated updateCells requests', async () => {
@@ -699,11 +703,14 @@ describe('TransactionManager', () => {
         params: { range: 'A1', values: [[1]] },
       });
       transaction.status = 'pending';
+      // Use distant range (Z100) so coalescing can't merge these two writes
+      // into a single sub-request — we need two distinct sub-requests to
+      // simulate partial failure semantics.
       await transactionManager.queue(txnId, {
         type: 'values_write',
         tool: 'sheets_data',
         action: 'write',
-        params: { range: 'A2', values: [[2]] },
+        params: { range: 'Z100', values: [[2]] },
       });
 
       // Mock partial success - only 1 reply for 2 operations
