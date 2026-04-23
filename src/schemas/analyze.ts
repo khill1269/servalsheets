@@ -261,7 +261,7 @@ const ComprehensiveActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('comprehensive')
     .describe(
-      '⚠️ Use intent="quick" instead of quickScan; use depth="full" instead of forceFullData (both legacy params emit warnings). Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls'
+      'DEPRECATED: Use intent="quick" instead of quickScan; use depth="full" instead of forceFullData (both legacy params emit warnings). Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls'
     ),
   range: RangeInputSchema.optional().describe('Range to analyze'),
 
