@@ -246,15 +246,38 @@ export function parseFlatToolName(flatName: string): { parentTool: string; actio
 
 /**
  * Build a description for a flat tool from its annotation.
+ *
+ * Priority order (within a 200-char cap for token efficiency):
+ *   1. whenToUse — primary guidance (always kept; truncated if it alone exceeds cap)
+ *   2. first commonMistakes entry — appended as "Pitfall: <mistake>" when there is room;
+ *      otherwise partially appended up to the cap so LLMs still see the top foot-gun.
+ *   3. fallback when whenToUse is missing: humanized action name + parent tool domain
  */
 function buildFlatDescription(parentTool: string, action: string): string {
   const key = `${parentTool}.${action}`;
-  const annotation = (ACTION_ANNOTATIONS as Record<string, { whenToUse?: string }>)[key];
+  const annotation = (
+    ACTION_ANNOTATIONS as Record<string, { whenToUse?: string; commonMistakes?: string[] }>
+  )[key];
+
+  const MAX = 200;
 
   if (annotation?.whenToUse) {
-    // Truncate to ~200 chars for token efficiency
-    const desc = annotation.whenToUse;
-    return desc.length > 200 ? `${desc.slice(0, 197)}...` : desc;
+    const whenToUse = annotation.whenToUse;
+    const firstMistake = annotation.commonMistakes?.[0];
+
+    // whenToUse alone already exceeds MAX → truncate whenToUse and drop the pitfall.
+    if (whenToUse.length >= MAX - 12) {
+      return whenToUse.length > MAX ? `${whenToUse.slice(0, MAX - 3)}...` : whenToUse;
+    }
+
+    if (firstMistake) {
+      const combined = `${whenToUse} Pitfall: ${firstMistake}.`;
+      if (combined.length <= MAX) return combined;
+      // Pitfall overflows — truncate the pitfall portion so the prefix survives.
+      return `${combined.slice(0, MAX - 3)}...`;
+    }
+
+    return whenToUse;
   }
 
   // Fallback: humanize the action name
