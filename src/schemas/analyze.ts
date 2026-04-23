@@ -217,7 +217,7 @@ const CommonFieldsSchema = z.object({
     .optional()
     .default('standard')
     .describe(
-      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+      'Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)'
     ),
   sheetId: SheetIdSchema.optional().describe('Sheet ID for analysis'),
 });
