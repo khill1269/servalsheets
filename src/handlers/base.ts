@@ -38,6 +38,7 @@ import {
 } from '../utils/response-enhancer.js';
 import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
 import { suggestFix } from '../services/error-fix-suggester.js';
+import { ERROR_RECOVERY_MAP } from '../core/error-recovery-map.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
@@ -626,6 +627,25 @@ export abstract class BaseHandler<TInput, TOutput> {
           }
         } catch {
           // Non-blocking: suggester failure must not affect error reporting
+        }
+
+        // Backfill suggestedFix + fixableVia from the static ERROR_RECOVERY_MAP for any
+        // ErrorCode (covers all 89 codes in ErrorCodeSchema). Upstream sources
+        // (enhanceError, pattern learner, suggestFix) take precedence when they set fields.
+        const recovery = ERROR_RECOVERY_MAP[detail.code as keyof typeof ERROR_RECOVERY_MAP];
+        if (recovery) {
+          if (!enriched.suggestedFix) {
+            enriched = { ...enriched, suggestedFix: recovery.hint };
+          }
+          if (!enriched.fixableVia && recovery.fixableVia) {
+            enriched = {
+              ...enriched,
+              fixableVia: {
+                tool: recovery.fixableVia.tool,
+                action: recovery.fixableVia.action,
+              },
+            };
+          }
         }
 
         return enriched;
