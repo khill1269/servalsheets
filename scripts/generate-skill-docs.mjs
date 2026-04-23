@@ -91,11 +91,7 @@ function renderToolTable(counts, titles) {
   const rows = Object.entries(counts)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([tool, n]) => `| \`${tool}\` | ${n} | ${titles[tool] ?? ''} |`);
-  return [
-    '| Tool | Actions | Title |',
-    '|------|---------|-------|',
-    ...rows,
-  ].join('\n');
+  return ['| Tool | Actions | Title |', '|------|---------|-------|', ...rows].join('\n');
 }
 
 /**
@@ -106,10 +102,7 @@ function renderToolTable(counts, titles) {
 function replaceSection(src, section, newBody) {
   const begin = `<!-- BEGIN:AUTOGEN ${section} -->`;
   const end = `<!-- END:AUTOGEN ${section} -->`;
-  const pattern = new RegExp(
-    `${escapeRegex(begin)}[\\s\\S]*?${escapeRegex(end)}`,
-    'g',
-  );
+  const pattern = new RegExp(`${escapeRegex(begin)}[\\s\\S]*?${escapeRegex(end)}`, 'g');
   if (!pattern.test(src)) return { src, replaced: false };
   const replacement = `${begin}\n${newBody}\n${end}`;
   return { src: src.replace(pattern, replacement), replaced: true };

@@ -40,7 +40,6 @@ const ROOT = resolve(__dirname, '..');
 const KNOWN_MISSING = new Map([
   // All 171 previously-missing rules have been wired to cache-invalidation-graph.ts
   // (follow-up to e544e19d). This allowlist is now empty — any NEW drift will fail the gate.
-
 ]);
 
 // ---------------------------------------------------------------------------
@@ -48,9 +47,7 @@ const KNOWN_MISSING = new Map([
 // ---------------------------------------------------------------------------
 function loadToolActions() {
   const src = readFileSync(resolve(ROOT, 'src/generated/completions.ts'), 'utf8');
-  const blockMatch = src.match(
-    /export const TOOL_ACTIONS[^=]*=\s*\{([\s\S]*?)\n\};/
-  );
+  const blockMatch = src.match(/export const TOOL_ACTIONS[^=]*=\s*\{([\s\S]*?)\n\};/);
   if (!blockMatch) {
     console.error('  error: Could not find TOOL_ACTIONS export in src/generated/completions.ts');
     process.exit(1);
@@ -112,7 +109,9 @@ if (missing.length === 0) {
   process.exit(0);
 }
 
-console.log(`  result: FAIL — ${missing.length} tool.action pair(s) have no cache-invalidation rule:\n`);
+console.log(
+  `  result: FAIL — ${missing.length} tool.action pair(s) have no cache-invalidation rule:\n`
+);
 console.log('    key');
 console.log('    -----------------------------------------------');
 for (const key of missing.sort()) {
@@ -122,7 +121,9 @@ console.log('\n  To fix:');
 console.log('    1. Add a rule to buildInvalidationRules() in');
 console.log('       src/services/cache-invalidation-graph.ts. Use');
 console.log('       { invalidates: [] } for read-only actions, or a pattern like');
-console.log("       { invalidates: ['values:*'] } / { invalidates: ['metadata:*'] } for mutations.");
+console.log(
+  "       { invalidates: ['values:*'] } / { invalidates: ['metadata:*'] } for mutations."
+);
 console.log('    2. If an action is legitimately out of scope, add it to KNOWN_MISSING');
 console.log('       in this script with a justification.');
 console.log('\n=======================================================');
