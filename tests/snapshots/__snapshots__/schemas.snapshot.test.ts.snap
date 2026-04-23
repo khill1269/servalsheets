@@ -13807,7 +13807,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
           "properties": {
             "action": {
               "const": "comprehensive",
-              "description": "⚠️ Use intent=\\"quick\\" instead of quickScan; use depth=\\"full\\" instead of forceFullData (both legacy params emit warnings). Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls",
+              "description": "DEPRECATED: Use intent=\\"quick\\" instead of quickScan; use depth=\\"full\\" instead of forceFullData (both legacy params emit warnings). Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls",
               "type": "string"
             },
             "context": {
