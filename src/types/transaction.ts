@@ -303,6 +303,23 @@ export interface Transaction {
 
   /** Metadata */
   metadata?: Record<string, unknown>;
+
+  /**
+   * Warnings collected during queue() — e.g. when a non-batchable action was
+   * queued, surfaced upfront so LLM callers see the signal before commit.
+   * Populated from ActionAnnotation.batchable === false.
+   */
+  warnings?: TransactionWarning[];
+}
+
+/**
+ * Queue-time warning (non-fatal advisory) attached to a Transaction.
+ */
+export interface TransactionWarning {
+  /** Action that triggered the warning (e.g. "sheets_visualize.chart_create") */
+  action: string;
+  /** Human-readable reason the LLM can surface or log. */
+  reason: string;
 }
 
 /**
