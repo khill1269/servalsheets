@@ -20,7 +20,6 @@ import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
 import type { sheets_v4 } from 'googleapis';
-import { ACTION_ANNOTATIONS } from '../generated/annotations.js';
 import {
   buildA1Notation,
   buildGridRangeInput,
@@ -244,12 +243,11 @@ export class TransactionManager {
     transaction.operations.push(queuedOp);
     transaction.status = 'queued';
 
-    // Upfront batchable check — consult ACTION_ANNOTATIONS and attach a warning
+    // Upfront batchable check — consult NON_BATCHABLE_ACTIONS and attach a warning
     // (non-throwing) when the action is flagged batchable: false. The hard stop
     // still happens at mergeToBatchRequest if the op can't be converted. This
     // warning lets LLM clients detect the issue before commit.
     const annotationKey = `${operation.tool}.${operation.action}`;
-    const annotation = ACTION_ANNOTATIONS[annotationKey];
     if (NON_BATCHABLE_ACTIONS.has(annotationKey)) {
       if (!transaction.warnings) transaction.warnings = [];
       transaction.warnings.push({
