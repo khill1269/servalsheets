@@ -34,7 +34,7 @@ export const ERROR_RECOVERY_MAP: Record<ErrorCode, ErrorRecovery> = {
     hint: 'Request shape violates JSON-RPC. Verify method, params, and id fields match the MCP spec.',
   },
   METHOD_NOT_FOUND: {
-    hint: 'Unknown MCP method or tool. Call tools/list to see available tools.',
+    hint: 'Unknown MCP method or tool. Query the tool discovery endpoint to see available tools.',
   },
   INVALID_PARAMS: {
     hint: 'Validate required fields and types against the tool schema; check A1 range format.',
@@ -254,7 +254,7 @@ export const ERROR_RECOVERY_MAP: Record<ErrorCode, ErrorRecovery> = {
     hint: 'Requested resource does not exist. Verify ID/name via the relevant list action.',
   },
   NOT_IMPLEMENTED: {
-    hint: 'Requested action is currently unavailable. Check tools/list for available actions.',
+    hint: 'Requested action is currently unavailable. Check the tool discovery endpoint for available actions.',
   },
   HANDLER_LOAD_ERROR: {
     hint: 'Tool handler failed to load. Check server logs; restart if persistent.',
@@ -349,7 +349,7 @@ export const ERROR_RECOVERY_MAP: Record<ErrorCode, ErrorRecovery> = {
 
   // --- Connectors ---
   INVALID_ACTION: {
-    hint: 'Action name is not valid for this tool. Call tools/list for supported actions.',
+    hint: 'Action name is not valid for this tool. Query the tool discovery endpoint for supported actions.',
   },
   CONNECTOR_ERROR: {
     hint: 'Third-party connector failed. Inspect connector logs and retry; reconfigure if persistent.',
