@@ -12,7 +12,7 @@
  * 6. Compliance Reports
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import { AuditLogger } from '../../src/services/audit-logger.js';
 import { AuditMiddleware, createAuditMiddleware } from '../../src/middleware/audit-middleware.js';
 import { promises as fs } from 'fs';
@@ -20,6 +20,23 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomBytes } from 'crypto';
 import { runWithRequestContext, createRequestContext } from '../../src/utils/request-context.js';
+
+// These compliance tests were written against the original opt-in redaction default
+// (AUDIT_PII_REDACTION=true to enable). The default is now opt-out (redact unless
+// explicitly set to 'false') for GDPR/HIPAA safety. To keep these tests asserting
+// the raw W5 capture fields, explicitly disable redaction for this suite.
+let __priorPiiRedaction: string | undefined;
+beforeAll(() => {
+  __priorPiiRedaction = process.env['AUDIT_PII_REDACTION'];
+  process.env['AUDIT_PII_REDACTION'] = 'false';
+});
+afterAll(() => {
+  if (__priorPiiRedaction === undefined) {
+    delete process.env['AUDIT_PII_REDACTION'];
+  } else {
+    process.env['AUDIT_PII_REDACTION'] = __priorPiiRedaction;
+  }
+});
 
 describe('Audit Logger - W5 Format Compliance', () => {
   let auditLogger: AuditLogger;

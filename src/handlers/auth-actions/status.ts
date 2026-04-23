@@ -39,6 +39,29 @@ type ReadinessSummary = {
   missingConfig?: string[];
 };
 
+type CapabilitiesSummary = {
+  elicitation: boolean;
+  sampling: boolean;
+  completions: boolean;
+  resources: boolean;
+};
+
+/**
+ * Derive first-class MCP capability flags from the readiness summary.
+ *
+ * completions/resources are always true because the server advertises them
+ * statically via createServerCapabilities() in src/mcp/features-2025-11-25.ts.
+ * elicitation/sampling reflect live client-capability detection.
+ */
+function deriveCapabilities(readiness: ReadinessSummary): CapabilitiesSummary {
+  return {
+    elicitation: readiness.elicitation.supported,
+    sampling: readiness.sampling.available,
+    completions: true,
+    resources: true,
+  };
+}
+
 type StatusGuidance = {
   message: string;
   blockingIssues: Array<{ code: string; message: string; resolution?: string }>;
@@ -261,6 +284,7 @@ export async function handleStatus(
         authenticated: true,
         authType,
         readiness,
+        capabilities: deriveCapabilities(readiness),
         blockingIssues: guidance.blockingIssues,
         recommendedNextAction: guidance.recommendedNextAction,
         recommendedPrompt: guidance.recommendedPrompt,
@@ -298,6 +322,7 @@ export async function handleStatus(
       authenticated,
       authType,
       readiness,
+      capabilities: deriveCapabilities(readiness),
       blockingIssues: guidance.blockingIssues,
       recommendedNextAction: guidance.recommendedNextAction,
       recommendedPrompt: guidance.recommendedPrompt,
@@ -338,6 +363,7 @@ export async function handleStatus(
     authenticated: false,
     authType: configured ? 'oauth' : 'unconfigured',
     readiness,
+    capabilities: deriveCapabilities(readiness),
     blockingIssues: guidance.blockingIssues,
     recommendedNextAction: guidance.recommendedNextAction,
     recommendedPrompt: guidance.recommendedPrompt,

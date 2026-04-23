@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import net from 'node:net';
-import { RedisTaskStore } from '../../src/core/task-store.js';
+import { RedisTaskStore, DEFAULT_TASK_POLL_INTERVAL_MS } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
 import { waitFor } from '../helpers/wait-for.js';
 
@@ -93,7 +93,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       expect(task.taskId).toMatch(/^task_[0-9a-f-]+$/);
       expect(task.status).toBe('working');
       expect(task.ttl).toBe(3600000); // 1 hour
-      expect(task.pollInterval).toBe(5000);
+      expect(task.pollInterval).toBe(DEFAULT_TASK_POLL_INTERVAL_MS);
       expect(task.createdAt).toBeDefined();
       expect(task.lastUpdatedAt).toBeDefined();
     });

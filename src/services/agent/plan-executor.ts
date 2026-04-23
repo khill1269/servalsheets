@@ -878,17 +878,77 @@ export async function executePlan(
   }
 
   if (dryRun) {
-    // Preview execution without actual tool calls
+    // Preview execution without actual tool calls.
+    //
+    // We still run each step's params through its Zod input schema so the
+    // dry-run catches shape/type bugs that would otherwise surface only at
+    // real execution. Failed steps return success:false with the full Zod
+    // issue list — we do NOT short-circuit after the first failure so the
+    // caller sees every problem at once.
     const now = new Date().toISOString();
-    const previewResults: StepResult[] = plan.steps.map((step) => ({
-      stepId: step.stepId,
-      success: true,
-      result: { dryRunPreview: true, action: step.action },
-      startedAt: now,
-      completedAt: now,
-    }));
+    const schemas = getToolInputSchemas();
+    const previewResults: StepResult[] = plan.steps.map((step) => {
+      if (step.type === 'inject_cross_sheet_lookup' || step.tool === '__internal__') {
+        return {
+          stepId: step.stepId,
+          success: true,
+          result: { dryRunPreview: true, action: step.action },
+          startedAt: now,
+          completedAt: now,
+        };
+      }
 
-    plan.status = 'completed';
+      const inputSchema = schemas.get(step.tool);
+      if (!inputSchema) {
+        return {
+          stepId: step.stepId,
+          success: true,
+          result: { dryRunPreview: true, action: step.action },
+          startedAt: now,
+          completedAt: now,
+        };
+      }
+
+      const params = getEffectiveStepParams(step, plan);
+      const parseResult = inputSchema.safeParse({
+        request: { action: step.action, ...params },
+      });
+
+      if (parseResult.success) {
+        return {
+          stepId: step.stepId,
+          success: true,
+          result: { dryRunPreview: true, action: step.action },
+          startedAt: now,
+          completedAt: now,
+        };
+      }
+
+      // Keep the full Zod issue list on the result so the caller can show
+      // every problem at once, not just the first.
+      return {
+        stepId: step.stepId,
+        success: false,
+        result: {
+          dryRunPreview: true,
+          action: step.action,
+          error: 'VALIDATION_ERROR',
+          issues: parseResult.error.issues.map((issue) => ({
+            path: issue.path.filter((p): p is string | number => typeof p !== 'symbol'),
+            message: issue.message,
+            code: issue.code,
+          })),
+        },
+        error: `Dry-run validation failed for ${step.tool}.${step.action}`,
+        startedAt: now,
+        completedAt: now,
+      };
+    });
+
+    // If any step failed validation, mark the plan as paused so the caller
+    // can see it didn't fully succeed, even in preview mode.
+    const anyFailure = previewResults.some((r) => !r.success);
+    plan.status = anyFailure ? 'paused' : 'completed';
     plan.results = previewResults;
     plan.updatedAt = now;
     planStore.set(planId, plan);

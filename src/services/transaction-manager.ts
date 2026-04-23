@@ -66,6 +66,23 @@ interface PreparedBatchRequest {
 /**
  * Transaction Manager - Handles multi-operation transactions with atomicity
  */
+/**
+ * Non-batchable action registry — actions that cannot be merged into a
+ * single Google Sheets batchUpdate request. Kept local to this file (not
+ * imported from src/generated/annotations.ts) so that TransactionManager
+ * doesn't cross the services→generated layer boundary enforced by
+ * .dependency-cruiser.cjs. Keep in sync with the `batchable: false` entries
+ * in src/generated/annotations.ts.
+ */
+const NON_BATCHABLE_ACTIONS: ReadonlySet<string> = new Set([
+  'sheets_data.add_note',
+  'sheets_data.set_hyperlink',
+  'sheets_advanced.set_metadata',
+  'sheets_collaborate.comment_add',
+  'sheets_collaborate.share_add',
+  'sheets_visualize.chart_create',
+]);
+
 export class TransactionManager {
   private config: Required<Omit<TransactionConfig, 'googleClient' | 'walDir'>>;
   private googleClient?: TransactionConfig['googleClient'];
@@ -243,6 +260,19 @@ export class TransactionManager {
     transaction.operations.push(queuedOp);
     transaction.status = 'queued';
 
+    // Upfront batchable check — consult NON_BATCHABLE_ACTIONS and attach a warning
+    // (non-throwing) when the action is flagged batchable: false. The hard stop
+    // still happens at mergeToBatchRequest if the op can't be converted. This
+    // warning lets LLM clients detect the issue before commit.
+    const annotationKey = `${operation.tool}.${operation.action}`;
+    if (NON_BATCHABLE_ACTIONS.has(annotationKey)) {
+      if (!transaction.warnings) transaction.warnings = [];
+      transaction.warnings.push({
+        action: annotationKey,
+        reason: 'non-batchable — will be called directly after commit',
+      });
+    }
+
     await this.prepareQueuedOperation(transaction, queuedOp);
 
     await this.emitEvent({
@@ -291,6 +321,21 @@ export class TransactionManager {
         this.preparedOperationEntries.get(transaction.id)
       );
 
+      // Coalesce consecutive overlapping/adjacent updateCells requests targeting
+      // the same sheet. Produces fewer, larger API sub-requests with last-write-
+      // wins semantics for overlapping cells. Non-updateCells entries are kept
+      // untouched and break coalesce groups.
+      const preCoalesceCount = preparedBatch.batchRequest.requests.length;
+      preparedBatch.batchRequest.requests = this.mergeAdjacentUpdates(
+        preparedBatch.batchRequest.requests
+      );
+      const coalescedRequestCount = preparedBatch.batchRequest.requests.length;
+      if (coalescedRequestCount < preCoalesceCount) {
+        this.log(
+          `Coalesced ${preCoalesceCount - coalescedRequestCount} updateCells sub-requests into merged ranges`
+        );
+      }
+
       // Capture pre-commit cell values for rollback (write operations only)
       if (transaction.snapshot) {
         await this.capturePreCommitValues(transaction, transaction.snapshot, sheetLookup);
@@ -301,6 +346,24 @@ export class TransactionManager {
         transaction.spreadsheetId,
         preparedBatch.batchRequest
       );
+
+      // Coalescing reduces sub-request count, so Google returns fewer replies
+      // than the original pre-coalesce `requestCounts` expects. Pad the replies
+      // array by duplicating the first reply of each coalesced group so every
+      // operation that contributed to a merged request still reports success.
+      // Correctness: batchUpdate is atomic — if any sub-request fails, Google
+      // rejects the whole batch; if it succeeds, every contributing op succeeded.
+      if (coalescedRequestCount < preCoalesceCount) {
+        const expectedReplyCount = preparedBatch.requestCounts.reduce((a, b) => a + b, 0);
+        const actualReplies = batchResponse.replies ?? [];
+        if (actualReplies.length < expectedReplyCount) {
+          const padded = [...actualReplies];
+          while (padded.length < expectedReplyCount) {
+            padded.push(actualReplies[0] ?? {});
+          }
+          batchResponse.replies = padded;
+        }
+      }
 
       // Process results
       const operationResults = this.processOperationResults(
@@ -328,7 +391,9 @@ export class TransactionManager {
       this.stats.successfulTransactions++;
       this.updateStats(transaction);
 
-      const apiCallsSaved = Math.max(0, transaction.operations.length - 1);
+      // Post-coalesce savings: operations -> coalesced sub-requests (within the
+      // single batchUpdate API call). Reflects real request-count reduction.
+      const apiCallsSaved = Math.max(0, transaction.operations.length - coalescedRequestCount);
       this.stats.apiCallsSaved += apiCallsSaved;
 
       const result: CommitResult = {
@@ -903,6 +968,148 @@ export class TransactionManager {
       },
       requestCounts,
     };
+  }
+
+  /**
+   * Coalesce consecutive updateCells requests targeting the same sheet into
+   * fewer, larger updateCells requests.
+   *
+   * Rules:
+   * - Only merges consecutive updateCells entries (no reordering across non-updateCells ops).
+   * - Same sheetId AND same `fields` mask.
+   * - Row/column ranges may overlap OR be adjacent — merged range is the union.
+   * - rows[] arrays are layered by range position; later entries overwrite earlier entries
+   *   for any overlapping cells (last-write-wins).
+   * - Unbounded ranges (missing start/end indices) are left untouched — safer to keep
+   *   those as distinct requests since unioning with a bounded range would be lossy.
+   *
+   * Non-updateCells requests (addSheet, deleteSheet, etc.) are preserved exactly
+   * in their original position and break merge groups — adjacent updateCells on
+   * either side of a non-updateCells request are NOT combined across it.
+   */
+  public mergeAdjacentUpdates(requests: BatchRequestEntry[]): BatchRequestEntry[] {
+    if (requests.length <= 1) return requests.slice();
+
+    interface UpdateCellsShape {
+      range: sheets_v4.Schema$GridRange;
+      rows?: sheets_v4.Schema$RowData[];
+      fields?: string;
+    }
+
+    const isBounded = (r: sheets_v4.Schema$GridRange): boolean =>
+      typeof r.startRowIndex === 'number' &&
+      typeof r.endRowIndex === 'number' &&
+      typeof r.startColumnIndex === 'number' &&
+      typeof r.endColumnIndex === 'number';
+
+    // Two bounded rectangles (same sheet) are mergeable when their row spans
+    // overlap OR touch AND their column spans overlap OR touch.
+    const spansConnect = (aStart: number, aEnd: number, bStart: number, bEnd: number): boolean =>
+      aStart <= bEnd && bStart <= aEnd;
+
+    const mergeable = (a: sheets_v4.Schema$GridRange, b: sheets_v4.Schema$GridRange): boolean => {
+      if (a.sheetId !== b.sheetId) return false;
+      if (!isBounded(a) || !isBounded(b)) return false;
+      return (
+        spansConnect(a.startRowIndex!, a.endRowIndex!, b.startRowIndex!, b.endRowIndex!) &&
+        spansConnect(a.startColumnIndex!, a.endColumnIndex!, b.startColumnIndex!, b.endColumnIndex!)
+      );
+    };
+
+    const unionRange = (
+      a: sheets_v4.Schema$GridRange,
+      b: sheets_v4.Schema$GridRange
+    ): sheets_v4.Schema$GridRange => ({
+      sheetId: a.sheetId,
+      startRowIndex: Math.min(a.startRowIndex!, b.startRowIndex!),
+      endRowIndex: Math.max(a.endRowIndex!, b.endRowIndex!),
+      startColumnIndex: Math.min(a.startColumnIndex!, b.startColumnIndex!),
+      endColumnIndex: Math.max(a.endColumnIndex!, b.endColumnIndex!),
+    });
+
+    // Paint rows from an updateCells entry into a dense buffer indexed by the
+    // union range. Later paints overwrite earlier ones at overlapping cells.
+    const paintInto = (
+      buffer: Array<Array<sheets_v4.Schema$CellData | undefined>>,
+      unionR: sheets_v4.Schema$GridRange,
+      entry: UpdateCellsShape
+    ): void => {
+      const entryRowStart = entry.range.startRowIndex!;
+      const entryColStart = entry.range.startColumnIndex!;
+      const rows = entry.rows ?? [];
+      rows.forEach((row, rowIdx) => {
+        const absoluteRow = entryRowStart + rowIdx;
+        const bufRow = absoluteRow - unionR.startRowIndex!;
+        if (bufRow < 0 || bufRow >= buffer.length) return;
+        const cells = row.values ?? [];
+        cells.forEach((cell, colIdx) => {
+          const absoluteCol = entryColStart + colIdx;
+          const bufCol = absoluteCol - unionR.startColumnIndex!;
+          if (bufCol < 0 || bufCol >= buffer[bufRow]!.length) return;
+          buffer[bufRow]![bufCol] = cell;
+        });
+      });
+    };
+
+    const result: BatchRequestEntry[] = [];
+    let i = 0;
+    while (i < requests.length) {
+      const current = requests[i]!;
+      // Not an updateCells request OR missing required fields — pass through.
+      const updateCells = current.updateCells as UpdateCellsShape | undefined;
+      if (!updateCells || !updateCells.range || !isBounded(updateCells.range)) {
+        result.push(current);
+        i++;
+        continue;
+      }
+
+      // Collect all consecutive mergeable updateCells entries.
+      const group: UpdateCellsShape[] = [updateCells];
+      let unionR: sheets_v4.Schema$GridRange = { ...updateCells.range };
+      const fields = updateCells.fields;
+      let j = i + 1;
+      while (j < requests.length) {
+        const next = requests[j]!;
+        const nextUpdate = next.updateCells as UpdateCellsShape | undefined;
+        if (!nextUpdate || !nextUpdate.range) break;
+        if (nextUpdate.fields !== fields) break;
+        if (!mergeable(unionR, nextUpdate.range)) break;
+        unionR = unionRange(unionR, nextUpdate.range);
+        group.push(nextUpdate);
+        j++;
+      }
+
+      if (group.length === 1) {
+        result.push(current);
+        i++;
+        continue;
+      }
+
+      // Build a union-sized row buffer and paint each group entry in order.
+      const rowCount = unionR.endRowIndex! - unionR.startRowIndex!;
+      const colCount = unionR.endColumnIndex! - unionR.startColumnIndex!;
+      const buffer: Array<Array<sheets_v4.Schema$CellData | undefined>> = Array.from(
+        { length: rowCount },
+        () => new Array(colCount).fill(undefined)
+      );
+      for (const entry of group) paintInto(buffer, unionR, entry);
+
+      const coalescedRows: sheets_v4.Schema$RowData[] = buffer.map((row) => ({
+        values: row.map((cell) => cell ?? {}),
+      }));
+
+      const coalesced: BatchRequestEntry = {
+        updateCells: {
+          range: unionR,
+          rows: coalescedRows,
+          ...(fields !== undefined ? { fields } : {}),
+        },
+      };
+      result.push(coalesced);
+      i = j;
+    }
+
+    return result;
   }
 
   /**

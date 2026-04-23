@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodTypeAny } from '../../lib/schema.js';
+import { DEFAULT_TASK_POLL_INTERVAL_MS } from '../../core/task-store.js';
 import { recordErrorCodeCompatibility } from '../../observability/metrics.js';
 import { getTemporaryResourceStore } from '../../resources/temporary-storage.js';
 import { getConcurrencyCoordinator } from '../../services/concurrency-coordinator.js';
@@ -66,41 +67,56 @@ function getOptionalBoolean(value: unknown): boolean | undefined {
 /**
  * P4: Known long-running action pairs that benefit from tasks/call routing.
  * Key: "toolName.actionName", Value: reason string for the taskHint.
+ *
+ * Each reason mentions the polling contract ("Poll via tasks/get every
+ * {DEFAULT_TASK_POLL_INTERVAL_MS}ms; default 2s") so LLM clients have a
+ * consistent expectation regardless of which long-running action they hit.
  */
+const POLL_CONTRACT_SUFFIX = `Poll via tasks/get every ${DEFAULT_TASK_POLL_INTERVAL_MS}ms; default 2s.`;
+
 const LONG_RUNNING_ACTIONS: Record<string, string> = {
-  'sheets_bigquery.export_to_bigquery':
-    'BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution.',
-  'sheets_bigquery.import_from_bigquery':
-    'BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution.',
-  'sheets_appsscript.run':
-    'Apps Script execution has unbounded duration. Use tasks/call for background execution.',
-  'sheets_composite.export_large_dataset':
-    'Large dataset export streams data in chunks. Use tasks/call for background execution.',
-  'sheets_history.timeline':
-    'Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution.',
-  'sheets_federation.call_remote':
-    'Remote MCP server calls have network latency. Use tasks/call for background execution.',
-  'sheets_analyze.comprehensive':
-    'Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution.',
+  'sheets_bigquery.export_to_bigquery': `BigQuery export can take 30-120s for large datasets. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_bigquery.import_from_bigquery': `BigQuery import can take 30-120s for large datasets. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_appsscript.run': `Apps Script execution has unbounded duration. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_composite.export_large_dataset': `Large dataset export streams data in chunks. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_history.timeline': `Revision timeline scans Drive API history and can take 15-60s. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_federation.call_remote': `Remote MCP server calls have network latency. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
+  'sheets_analyze.comprehensive': `Comprehensive analysis scans 43 feature categories. Use tasks/call for background execution. ${POLL_CONTRACT_SUFFIX}`,
 };
 
 /** Execution time threshold (ms) above which we suggest tasks/call even for non-listed actions */
 const TASK_ROUTING_THRESHOLD_MS = 10_000;
 
+/**
+ * Task hint surfaced in `_meta.taskHint` when an action should be routed
+ * through tasks/call. Always includes `pollInterval` (ms) so the client
+ * knows the recommended cadence for tasks/get without reading task
+ * metadata separately.
+ */
+interface TaskHint {
+  reason: string;
+  pollInterval: number;
+}
+
 function getTaskRoutingHint(
   toolName: string | undefined,
   actionName: string,
   executionTimeMs: number
-): string | undefined {
+): TaskHint | undefined {
   if (!toolName || !actionName) return undefined; // OK: Explicit empty
 
   const key = `${toolName}.${actionName}`;
-  const knownHint = LONG_RUNNING_ACTIONS[key];
-  if (knownHint) return knownHint;
+  const knownReason = LONG_RUNNING_ACTIONS[key];
+  if (knownReason) {
+    return { reason: knownReason, pollInterval: DEFAULT_TASK_POLL_INTERVAL_MS };
+  }
 
   // Dynamic hint: if any action took >10s, suggest tasks/call for next time
   if (executionTimeMs > TASK_ROUTING_THRESHOLD_MS) {
-    return `This operation took ${Math.round(executionTimeMs / 1000)}s. Consider using tasks/call for background execution on similar requests.`;
+    return {
+      reason: `This operation took ${Math.round(executionTimeMs / 1000)}s. Consider using tasks/call for background execution on similar requests. ${POLL_CONTRACT_SUFFIX}`,
+      pollInterval: DEFAULT_TASK_POLL_INTERVAL_MS,
+    };
   }
 
   return undefined; // OK: no task hint applicable for this action/timing
@@ -348,7 +364,9 @@ export function buildToolResponse(
           : {}),
       };
 
-      // P4: Inject taskHint for long-running operations so LLMs know to use tasks/call
+      // P4: Inject taskHint for long-running operations so LLMs know to use
+      // tasks/call. The object shape (reason + pollInterval) lets clients
+      // drive tasks/get without looking up task metadata separately.
       const rawAction = initialResponse['action'];
       const actionName = typeof rawAction === 'string' ? rawAction : '';
       const taskHint = getTaskRoutingHint(toolName, actionName, executionTimeMs);

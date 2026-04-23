@@ -4251,6 +4251,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_collaborate.share_add': {
     apiCalls: 1,
     idempotent: true,
+    batchable: false,
     whenToUse: 'Granting access to a user',
     commonMistakes: ['Requires Drive API scope — may need re-auth if only Sheets scope is active'],
     errorRecovery: {
@@ -4280,6 +4281,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_collaborate.comment_add': {
     apiCalls: 1,
     idempotent: false,
+    batchable: false,
     whenToUse: 'Adding a comment to a cell or range',
 
     errorRecovery: {
@@ -6217,6 +6219,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_data.add_note': {
     apiCalls: 1,
     idempotent: false,
+    batchable: false,
     whenToUse: 'Adding a note (comment) to a cell',
     whenNotToUse: 'For discussion threads — use sheets_collaborate.comment_add instead',
 
@@ -6292,6 +6295,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_data.set_hyperlink': {
     apiCalls: 1,
     idempotent: true,
+    batchable: false,
     whenToUse: 'Adding a hyperlink to a cell (URL, email, sheet reference, etc.)',
 
     errorRecovery: {
@@ -7277,6 +7281,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_advanced.set_metadata': {
     apiCalls: 1,
     idempotent: true,
+    batchable: false,
     whenToUse: 'Tagging cells/ranges with developer metadata for dynamic targeting',
 
     errorRecovery: {
@@ -7918,6 +7923,7 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
   'sheets_visualize.chart_create': {
     apiCalls: 1,
     idempotent: false,
+    batchable: false,
     whenToUse: 'Creating a new chart from data range',
     commonMistakes: ['Chart must be placed on a sheet — specify chartId or position'],
     errorRecovery: {
@@ -10601,6 +10607,13 @@ export const ACTION_ANNOTATIONS: Record<string, ActionAnnotation> = {
 export interface ActionAnnotation {
   apiCalls?: number;
   idempotent?: boolean;
+  /**
+   * Whether this action can be queued inside a sheets_transaction.commit batch.
+   * - undefined (default): batchable (safe to queue)
+   * - false: must be called directly via tool call after commit — attempting to
+   *   queue will throw at merge time; queue() also emits an upfront warning.
+   */
+  batchable?: boolean;
   batchAlternative?: string;
   prerequisites?: string[];
   commonMistakes?: string[];

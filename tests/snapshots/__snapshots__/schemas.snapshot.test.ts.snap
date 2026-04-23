@@ -468,7 +468,7 @@ exports[`Schema Snapshots > Input Schemas > BulkUpdateInputSchema should match s
     },
     "verbosity": {
       "default": "standard",
-      "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+      "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
       "enum": [
         "minimal",
         "standard",
@@ -763,7 +763,7 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -974,7 +974,7 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -1179,7 +1179,7 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -1358,7 +1358,7 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -4252,7 +4252,7 @@ exports[`Schema Snapshots > Input Schemas > DeduplicateInputSchema should match 
     },
     "verbosity": {
       "default": "standard",
-      "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+      "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
       "enum": [
         "minimal",
         "standard",
@@ -5344,7 +5344,7 @@ exports[`Schema Snapshots > Input Schemas > ImportCsvInputSchema should match sn
     },
     "verbosity": {
       "default": "standard",
-      "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+      "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
       "enum": [
         "minimal",
         "standard",
@@ -6325,7 +6325,8 @@ exports[`Schema Snapshots > Input Schemas > RangeInputSchema should match snapsh
       ],
       "type": "object"
     }
-  ]
+  ],
+  "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
 }"
 `;
 
@@ -6810,7 +6811,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7074,7 +7075,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7213,7 +7214,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7359,7 +7360,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7499,7 +7500,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7672,7 +7673,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7819,7 +7820,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -7959,7 +7960,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -8137,7 +8138,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -8277,7 +8278,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -8559,7 +8560,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -8853,7 +8854,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -8998,7 +8999,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -9150,7 +9151,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -9350,7 +9351,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -9506,7 +9507,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -9646,7 +9647,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -9936,7 +9937,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -10115,7 +10116,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -10256,7 +10257,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -10408,7 +10409,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -10678,7 +10679,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -10819,7 +10820,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -10965,7 +10966,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -11221,7 +11222,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -11371,7 +11372,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -11551,7 +11552,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -11822,7 +11823,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -12084,7 +12085,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -12346,7 +12347,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -12627,7 +12628,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should mat
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -12796,7 +12797,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -12939,7 +12940,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13076,7 +13077,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13217,7 +13218,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13354,7 +13355,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13487,7 +13488,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13632,7 +13633,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13768,7 +13769,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAgentInputSchema should match 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -13806,7 +13807,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
           "properties": {
             "action": {
               "const": "comprehensive",
-              "description": "Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls",
+              "description": "DEPRECATED: Use intent=\\"quick\\" instead of quickScan; use depth=\\"full\\" instead of forceFullData (both legacy params emit warnings). Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls",
               "type": "string"
             },
             "context": {
@@ -14078,7 +14079,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -14282,7 +14283,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -14460,7 +14461,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -14651,7 +14652,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -14830,7 +14831,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -15001,7 +15002,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -15188,7 +15189,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -15353,7 +15354,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -15520,7 +15521,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -15686,7 +15687,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -15851,7 +15852,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -16022,7 +16023,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -16175,7 +16176,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -16451,7 +16452,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -16583,7 +16584,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -16765,7 +16766,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -16956,7 +16957,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -17163,7 +17164,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -17349,7 +17350,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -17404,7 +17405,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -17462,7 +17463,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -21332,7 +21333,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -21489,7 +21490,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -21629,7 +21630,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -21764,7 +21765,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -21902,7 +21903,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22043,7 +22044,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22198,7 +22199,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22333,7 +22334,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22475,7 +22476,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22618,7 +22619,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22758,7 +22759,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -22909,7 +22910,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23049,7 +23050,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23188,7 +23189,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23327,7 +23328,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23470,7 +23471,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23618,7 +23619,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23763,7 +23764,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -23914,7 +23915,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24053,7 +24054,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24192,7 +24193,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24335,7 +24336,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24483,7 +24484,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24621,7 +24622,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24756,7 +24757,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -24894,7 +24895,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25033,7 +25034,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25182,7 +25183,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25331,7 +25332,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25497,7 +25498,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25638,7 +25639,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25777,7 +25778,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -25916,7 +25917,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26051,7 +26052,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26195,7 +26196,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26335,7 +26336,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26480,7 +26481,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26639,7 +26640,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26786,7 +26787,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -26935,7 +26936,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -27077,7 +27078,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -30349,7 +30350,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                         ],
                         "type": "object"
                       }
-                    ]
+                    ],
+                    "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                   }
                 },
                 "required": [
@@ -30532,7 +30534,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                       ],
                       "type": "object"
                     }
-                  ]
+                  ],
+                  "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                 }
               },
               "required": [
@@ -30670,7 +30673,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                       ],
                       "type": "object"
                     }
-                  ]
+                  ],
+                  "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                 }
               },
               "required": [
@@ -30952,7 +30956,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
             },
             "safety": {
               "additionalProperties": false,
@@ -31225,7 +31230,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
             },
             "safety": {
               "additionalProperties": false,
@@ -31493,7 +31499,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
             },
             "safety": {
               "additionalProperties": false,
@@ -31771,7 +31778,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
                   ],
                   "type": "object"
                 }
-              ]
+              ],
+              "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
             },
             "safety": {
               "additionalProperties": false,
@@ -37803,7 +37811,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
                     ],
                     "type": "object"
                   }
-                ]
+                ],
+                "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
               },
               "maxItems": 100,
               "minItems": 1,
@@ -38616,7 +38625,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
                     ],
                     "type": "object"
                   }
-                ]
+                ],
+                "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
               },
               "maxItems": 100,
               "minItems": 1,
@@ -43368,7 +43378,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -43539,7 +43549,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -43712,7 +43722,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -43886,7 +43896,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -44056,7 +44066,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -44223,7 +44233,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -44390,7 +44400,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -44557,7 +44567,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -44730,7 +44740,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -44898,7 +44908,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -45059,7 +45069,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -45407,7 +45417,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -45551,7 +45561,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -45695,7 +45705,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -47892,7 +47902,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -49020,7 +49030,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (summary only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -49685,7 +49695,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -49890,7 +49900,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -50109,7 +50119,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -50322,7 +50332,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -50494,7 +50504,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -50650,7 +50660,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match sn
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59558,7 +59568,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59591,7 +59601,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59617,7 +59627,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59647,7 +59657,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59678,7 +59688,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59719,7 +59729,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59750,7 +59760,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -59912,7 +59922,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -60071,7 +60081,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -60137,7 +60147,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -60632,7 +60642,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -60885,7 +60895,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61044,7 +61054,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61240,7 +61250,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61300,7 +61310,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61327,7 +61337,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61352,7 +61362,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61525,7 +61535,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61555,7 +61565,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61587,7 +61597,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61628,7 +61638,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61676,7 +61686,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61701,7 +61711,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61774,7 +61784,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61803,7 +61813,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61828,7 +61838,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61861,7 +61871,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61895,7 +61905,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61925,7 +61935,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61958,7 +61968,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -61984,7 +61994,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62016,7 +62026,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62057,7 +62067,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62087,7 +62097,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62113,7 +62123,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62142,7 +62152,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62168,7 +62178,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62227,7 +62237,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62261,7 +62271,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62292,7 +62302,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62324,7 +62334,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62426,7 +62436,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62550,7 +62560,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62581,7 +62591,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62610,7 +62620,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -62640,7 +62650,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63146,7 +63156,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63238,7 +63248,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63270,7 +63280,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63301,7 +63311,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63332,7 +63342,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63363,7 +63373,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
             },
             "verbosity": {
               "default": "standard",
-              "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
               "enum": [
                 "minimal",
                 "standard",
@@ -63787,7 +63797,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsVisualizeInputSchema should ma
                           ],
                           "type": "object"
                         }
-                      ]
+                      ],
+                      "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                     },
                     {
                       "description": "A1 notation range(s). For multiple ranges, use comma-separated: \\"Sheet1!A1:A10,Sheet1!D1:D10\\""
@@ -64776,7 +64787,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsVisualizeInputSchema should ma
                           ],
                           "type": "object"
                         }
-                      ]
+                      ],
+                      "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                     },
                     {
                       "description": "A1 notation range(s). For multiple ranges, use comma-separated: \\"Sheet1!A1:A10,Sheet1!D1:D10\\""
@@ -66229,7 +66241,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsVisualizeInputSchema should ma
                           ],
                           "type": "object"
                         }
-                      ]
+                      ],
+                      "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                     },
                     {
                       "description": "A1 notation range(s). For multiple ranges, use comma-separated: \\"Sheet1!A1:A10,Sheet1!D1:D10\\""
@@ -69089,7 +69102,7 @@ exports[`Schema Snapshots > Input Schemas > SmartAppendInputSchema should match 
     },
     "verbosity": {
       "default": "standard",
-      "description": "Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)",
+      "description": "Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)",
       "enum": [
         "minimal",
         "standard",
@@ -132350,7 +132363,8 @@ exports[`Schema Snapshots > Output Schemas > SheetsAnalyzeOutputSchema should ma
                                     ],
                                     "type": "object"
                                   }
-                                ]
+                                ],
+                                "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                               }
                             },
                             "required": [
@@ -134851,7 +134865,8 @@ exports[`Schema Snapshots > Output Schemas > SheetsAnalyzeOutputSchema should ma
                                 ],
                                 "type": "object"
                               }
-                            ]
+                            ],
+                            "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
                           },
                           "spreadsheetId": {
                             "type": "string"
@@ -139243,6 +139258,35 @@ exports[`Schema Snapshots > Output Schemas > SheetsAuthOutputSchema should match
                 "type": "object"
               },
               "type": "array"
+            },
+            "capabilities": {
+              "additionalProperties": false,
+              "description": "First-class MCP capability flags promoted from readiness for quick client branching.",
+              "properties": {
+                "completions": {
+                  "description": "True if the server exposes completion/complete for prompt and tool arguments.",
+                  "type": "boolean"
+                },
+                "elicitation": {
+                  "description": "True if the connected MCP client supports any form of elicitation (form or url).",
+                  "type": "boolean"
+                },
+                "resources": {
+                  "description": "True if the server supports resource subscriptions and listChanged notifications.",
+                  "type": "boolean"
+                },
+                "sampling": {
+                  "description": "True if server-side sampling is available (client sampling or LLM fallback).",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "elicitation",
+                "sampling",
+                "completions",
+                "resources"
+              ],
+              "type": "object"
             },
             "configured": {
               "description": "Whether the requested optional feature or auth dependency is configured",
@@ -172022,7 +172066,8 @@ exports[`Schema Snapshots > Shared Schemas > RangeInputSchema should match snaps
       ],
       "type": "object"
     }
-  ]
+  ],
+  "description": "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
 }"
 `;
 

@@ -334,7 +334,7 @@ const VerbositySchema = z
   .optional()
   .default('standard')
   .describe(
-    'Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    'Response verbosity: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)'
   );
 
 // ─── INPUT SCHEMAS ───

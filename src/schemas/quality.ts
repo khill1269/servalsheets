@@ -32,7 +32,7 @@ const CommonFieldsSchema = z.object({
     .optional()
     .default('standard')
     .describe(
-      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+      'Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)'
     ),
 });
 

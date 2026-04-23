@@ -1,0 +1,36 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`verbosity minimal vs standard token reduction > per-shape measurements match pinned snapshot shape (drift detector) 1`] = `
+[
+  {
+    "minimalTokens": 202,
+    "name": "sheets_core.get",
+    "standardTokens": 798,
+    "tokenReductionPctRounded": 75,
+  },
+  {
+    "minimalTokens": 390,
+    "name": "sheets_data.read",
+    "standardTokens": 517,
+    "tokenReductionPctRounded": 25,
+  },
+  {
+    "minimalTokens": 205,
+    "name": "sheets_analyze.comprehensive",
+    "standardTokens": 1728,
+    "tokenReductionPctRounded": 88,
+  },
+  {
+    "minimalTokens": 86,
+    "name": "sheets_session.get_context",
+    "standardTokens": 279,
+    "tokenReductionPctRounded": 69,
+  },
+  {
+    "minimalTokens": 235,
+    "name": "sheets_agent.plan",
+    "standardTokens": 530,
+    "tokenReductionPctRounded": 56,
+  },
+]
+`;

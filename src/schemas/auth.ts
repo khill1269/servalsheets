@@ -51,6 +51,26 @@ const ReadinessSchema = z.object({
   missingConfig: z.array(z.string()).optional(),
 });
 
+/**
+ * First-class MCP client/server capability surface.
+ * Promoted from readiness.* so LLM clients can branch on capability support
+ * without drilling into nested readiness metadata.
+ */
+const CapabilitiesSchema = z.object({
+  elicitation: z
+    .boolean()
+    .describe('True if the connected MCP client supports any form of elicitation (form or url).'),
+  sampling: z
+    .boolean()
+    .describe('True if server-side sampling is available (client sampling or LLM fallback).'),
+  completions: z
+    .boolean()
+    .describe('True if the server exposes completion/complete for prompt and tool arguments.'),
+  resources: z
+    .boolean()
+    .describe('True if the server supports resource subscriptions and listChanged notifications.'),
+});
+
 // INPUT SCHEMA: Discriminated union (5 actions)
 const StatusActionSchema = z.object({
   action: z.literal('status').describe('Check current authentication status'),
@@ -139,6 +159,9 @@ const AuthResponseSchema = z.discriminatedUnion('success', [
     message: z.string().optional(),
     instructions: z.array(z.string()).optional(),
     readiness: ReadinessSchema.optional(),
+    capabilities: CapabilitiesSchema.optional().describe(
+      'First-class MCP capability flags promoted from readiness for quick client branching.'
+    ),
     blockingIssues: z.array(BlockingIssueSchema).optional(),
     recommendedNextAction: z.string().optional(),
     recommendedPrompt: z.string().optional(),

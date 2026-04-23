@@ -217,7 +217,7 @@ const CommonFieldsSchema = z.object({
     .optional()
     .default('standard')
     .describe(
-      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+      'Response detail level: minimal (essential info only, measured 25-88% fewer tokens per response, mean ~62% across 5 shapes — see tests/benchmarks/verbosity-token-reduction.test.ts), standard (balanced), detailed (full metadata)'
     ),
   sheetId: SheetIdSchema.optional().describe('Sheet ID for analysis'),
 });
@@ -261,7 +261,7 @@ const ComprehensiveActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('comprehensive')
     .describe(
-      'Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls'
+      'DEPRECATED: Use intent="quick" instead of quickScan; use depth="full" instead of forceFullData (both legacy params emit warnings). Complete analysis replacing separate sheets_core + sheets_data + sheets_analyze calls'
     ),
   range: RangeInputSchema.optional().describe('Range to analyze'),
 
