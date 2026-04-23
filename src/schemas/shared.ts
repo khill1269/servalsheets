@@ -1158,6 +1158,8 @@ export const RangeInputSchema = z.preprocess(
     z.object({ semantic: SemanticRangeQuerySchema }),
     z.object({ grid: GridRangeSchema }),
   ])
+).describe(
+  "Range input. Accepts A1 string (auto-wrapped to {a1}), {a1:'Sheet1!A1:B10'}, {namedRange:'MyRange'}, {semantic:{sheet,column,rowStart?,rowEnd?}} (resilient to renames), or {grid:{sheetId,startRowIndex,...}}. Prefer namedRange or semantic for durability across schema changes."
 );
 
 // ============================================================================
