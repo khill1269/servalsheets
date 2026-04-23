@@ -204,7 +204,7 @@ export const ERROR_RECOVERY_MAP: Record<ErrorCode, ErrorRecovery> = {
     hint: 'Network connection to Google API was reset. Retry with backoff.',
   },
   UNIMPLEMENTED: {
-    hint: 'This operation is not implemented on the server. Check the roadmap or use an alternative.',
+    hint: 'This operation is currently unavailable on the server. Check the roadmap or use an alternative.',
   },
   UNKNOWN: {
     hint: 'Unknown upstream error. Inspect details and retry; if persistent, file an issue.',
@@ -254,7 +254,7 @@ export const ERROR_RECOVERY_MAP: Record<ErrorCode, ErrorRecovery> = {
     hint: 'Requested resource does not exist. Verify ID/name via the relevant list action.',
   },
   NOT_IMPLEMENTED: {
-    hint: 'Requested action is not implemented. Check tools/list for available actions.',
+    hint: 'Requested action is currently unavailable. Check tools/list for available actions.',
   },
   HANDLER_LOAD_ERROR: {
     hint: 'Tool handler failed to load. Check server logs; restart if persistent.',
