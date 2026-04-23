@@ -250,7 +250,7 @@ export class TransactionManager {
     // warning lets LLM clients detect the issue before commit.
     const annotationKey = `${operation.tool}.${operation.action}`;
     const annotation = ACTION_ANNOTATIONS[annotationKey];
-    if (annotation && annotation.batchable === false) {
+    if (NON_BATCHABLE_ACTIONS.has(annotationKey)) {
       if (!transaction.warnings) transaction.warnings = [];
       transaction.warnings.push({
         action: annotationKey,
