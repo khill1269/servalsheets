@@ -37,7 +37,6 @@ const ROOT = resolve(__dirname, '..');
 // When you wire a rule in src/services/cache-invalidation-graph.ts,
 // delete the matching entry below.
 // ---------------------------------------------------------------------------
-const DEFAULT_REASON = 'pre-existing gap at coverage-gate introduction';
 const KNOWN_MISSING = new Map([
   // All 171 previously-missing rules have been wired to cache-invalidation-graph.ts
   // (follow-up to e544e19d). This allowlist is now empty — any NEW drift will fail the gate.

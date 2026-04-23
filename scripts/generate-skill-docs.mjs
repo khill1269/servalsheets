@@ -19,7 +19,7 @@
  * dependency-free and compatible with either dist/ builds or pre-build state.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -137,7 +137,9 @@ async function rewriteFile(path, label, sections) {
     console.warn(`[skill:docs] ${label}: no AUTOGEN markers matched, nothing rewritten`);
     return;
   }
-  await writeFile(path, content, 'utf8');
+  const tmpPath = `${path}.tmp-${process.pid}-${Date.now()}`;
+  await writeFile(tmpPath, content, 'utf8');
+  await rename(tmpPath, path);
   console.log(`[skill:docs] ${label}: rewrote sections [${touched.join(', ')}]`);
 }
 
