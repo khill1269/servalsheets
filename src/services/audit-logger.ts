@@ -206,6 +206,14 @@ export class AuditLogger {
     this.writeQueue = Promise.resolve();
 
     this.ensureLogDirectory();
+
+    // GDPR/HIPAA: warn when PII redaction is explicitly disabled (opt-out path)
+    if (process.env['AUDIT_PII_REDACTION'] === 'false') {
+      logger.warn(
+        'AUDIT_PII_REDACTION is disabled — sensitive audit fields will NOT be redacted',
+      );
+    }
+
     // Ensure log state and retention are applied before first write/integrity check.
     this.initialization = this.initializeAuditState();
   }
@@ -360,7 +368,11 @@ export class AuditLogger {
   /**
    * Redact PII from an audit event before storage.
    *
-   * When AUDIT_PII_REDACTION=true:
+   * Default: REDACTION IS ACTIVE (opt-out model for GDPR/HIPAA compliance).
+   * Set AUDIT_PII_REDACTION=false to explicitly disable redaction (not recommended
+   * for production — AuditLogger emits a startup warning when disabled).
+   *
+   * When redaction is active:
    *   - Email addresses in userId / ipAddress / userAgent are hashed (SHA-256, first 16 hex chars)
    *   - IP addresses are anonymised to /24 subnet (last octet zeroed)
    *   - Raw email strings in nested fields are replaced with [REDACTED-EMAIL]
@@ -368,7 +380,7 @@ export class AuditLogger {
    * The redaction is applied to a shallow clone so the original object is unchanged.
    */
   private redactPii(event: AuditEvent): AuditEvent {
-    if (process.env['AUDIT_PII_REDACTION'] !== 'true') return event;
+    if (process.env['AUDIT_PII_REDACTION'] === 'false') return event;
 
     const redactEmail = (value: string): string => {
       if (!value.includes('@')) return value;
