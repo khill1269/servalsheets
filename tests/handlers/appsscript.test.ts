@@ -1511,7 +1511,8 @@ describe('SheetsAppsScriptHandler', () => {
       expect(result.response.error.code).toBe('PERMISSION_DENIED');
       expect(result.response.error.message).toContain('Insufficient OAuth permissions');
       expect(result.response.error.message).toContain('Insufficient Permission');
-      expect(result.response.error.retryable).toBe(true);
+      // retryable is false: scope errors require user re-auth, don't self-resolve
+      expect(result.response.error.retryable).toBe(false);
     });
 
     it('should handle 429 rate limit with Retry-After header', async () => {

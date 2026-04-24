@@ -11,7 +11,13 @@
  * - Centralized metrics collection
  */
 
+import fs from 'fs';
+import { resolve } from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { google, sheets_v4, drive_v3 } from 'googleapis';
+import type { OAuth2Client } from 'google-auth-library';
 import type { GaxiosResponse } from 'gaxios';
 import {
   loadTestCredentials,
@@ -68,12 +74,18 @@ export interface ApiStats {
  * - Quota tracking and reporting
  * - Integration with centralized metrics collector
  */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 export class LiveApiClient {
   private sheetsApi: sheets_v4.Sheets;
   private driveApi: drive_v3.Drive;
   private credentials: TestCredentials;
   private metrics: RequestMetrics[] = [];
   private options: Required<LiveApiClientOptions>;
+  private oauth2Client: OAuth2Client | null = null;
+  private credentialsFilePath: string | null = null;
+  private tokenRefreshPromise: Promise<void> | null = null;
 
   // Infrastructure components
   private rateLimiter: TestRateLimiter;
@@ -112,7 +124,19 @@ export class LiveApiClient {
         credentials.oauth.redirect_uri
       );
       oauth2Client.setCredentials(credentials.oauth.tokens);
+      this.oauth2Client = oauth2Client;
       auth = oauth2Client;
+
+      // Resolve the same credential file path priority used by loadTestCredentials
+      const explicitPath = process.env['GOOGLE_TEST_CREDENTIALS_PATH'];
+      if (explicitPath && existsSync(explicitPath)) {
+        this.credentialsFilePath = explicitPath;
+      } else {
+        const defaultConfigPath = resolve(__dirname, '../../../tests/config/test-credentials.json');
+        if (existsSync(defaultConfigPath)) {
+          this.credentialsFilePath = defaultConfigPath;
+        }
+      }
     } else {
       throw new Error(
         'No valid credentials found. Provide either serviceAccount or oauth credentials.'
@@ -121,6 +145,50 @@ export class LiveApiClient {
 
     this.sheetsApi = google.sheets({ version: 'v4', auth });
     this.driveApi = google.drive({ version: 'v3', auth });
+  }
+
+  private async ensureTokenFresh(): Promise<void> {
+    if (!this.oauth2Client) return;
+
+    const expiryDate = this.oauth2Client.credentials.expiry_date;
+    if (expiryDate && expiryDate - Date.now() >= 5 * 60 * 1000) return;
+
+    if (this.tokenRefreshPromise) return this.tokenRefreshPromise;
+
+    this.tokenRefreshPromise = this._doRefresh().finally(() => {
+      this.tokenRefreshPromise = null;
+    });
+    return this.tokenRefreshPromise;
+  }
+
+  private async _doRefresh(): Promise<void> {
+    if (!this.oauth2Client) return;
+    try {
+      const { credentials } = await this.oauth2Client.refreshAccessToken();
+      this.oauth2Client.setCredentials(credentials);
+
+      if (this.credentialsFilePath && this.credentials.oauth) {
+        const updated: TestCredentials = {
+          ...this.credentials,
+          oauth: {
+            ...this.credentials.oauth,
+            tokens: {
+              ...this.credentials.oauth.tokens,
+              access_token: credentials.access_token ?? this.credentials.oauth.tokens.access_token,
+              expiry_date: credentials.expiry_date ?? this.credentials.oauth.tokens.expiry_date,
+            },
+          },
+        };
+        fs.writeFileSync(this.credentialsFilePath, JSON.stringify(updated, null, 2), 'utf-8');
+        this.credentials = updated;
+      }
+
+      console.debug(
+        `OAuth token refreshed, new expiry: ${new Date(credentials.expiry_date ?? 0).toISOString()}`
+      );
+    } catch (error) {
+      console.warn('OAuth token refresh failed, proceeding with existing token:', error);
+    }
   }
 
   get sheets(): sheets_v4.Sheets {
@@ -211,6 +279,8 @@ export class LiveApiClient {
     fn: () => Promise<GaxiosResponse<T>>,
     retryOptions?: TestRetryOptions
   ): Promise<GaxiosResponse<T>> {
+    await this.ensureTokenFresh();
+
     const type = this.classifyOperation(method);
 
     // Acquire rate limit tokens if enabled

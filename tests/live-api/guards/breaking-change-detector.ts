@@ -586,3 +586,90 @@ export function registerServalContracts(): void {
     detector.registerContract(contract);
   }
 }
+
+// ---------------------------------------------------------------------------
+// CLI entry point
+// ---------------------------------------------------------------------------
+// Invoked directly by CI: npx tsx tests/live-api/guards/breaking-change-detector.ts [--update-baseline]
+// When --update-baseline is present the current snapshot is written as the
+// new baseline and the process exits 0 regardless of detected differences.
+
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
+
+const BASELINE_PATH = resolve(
+  new URL('.', import.meta.url).pathname,
+  'breaking-change-baseline.json'
+);
+
+/**
+ * Run the detector as a standalone CLI process.
+ *
+ * Exit codes:
+ *   0 — no breaking changes (or --update-baseline was passed)
+ *   1 — breaking changes detected
+ */
+async function main(): Promise<void> {
+  const updateBaseline = process.argv.includes('--update-baseline');
+
+  // Load baseline snapshot if it exists
+  let baseline: ResponseSnapshot | null = null;
+  if (existsSync(BASELINE_PATH)) {
+    try {
+      baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as ResponseSnapshot;
+    } catch {
+      console.warn(`[breaking-change-detector] Could not parse baseline at ${BASELINE_PATH}; treating as absent.`);
+    }
+  }
+
+  const detector = getBreakingChangeDetector();
+  registerServalContracts();
+
+  if (baseline) {
+    detector.storeSnapshot(baseline.contractName, baseline.data);
+  }
+
+  // When --update-baseline is passed, capture current contract schemas and write as new baseline.
+  if (updateBaseline) {
+    const contractsData = Object.fromEntries(
+      Object.values(SERVAL_CONTRACTS).map((c) => [
+        c.name,
+        { version: c.version, requiredFields: c.requiredFields, responseSchema: c.responseSchema },
+      ])
+    );
+    const freshSnapshot = detector.storeSnapshot('serval_baseline', contractsData);
+    writeFileSync(BASELINE_PATH, JSON.stringify(freshSnapshot, null, 2));
+    console.log(`Baseline updated: ${Object.keys(contractsData).length} contracts captured.`);
+    process.exit(0);
+  }
+
+  // Without --update-baseline, run the full check and report.
+  if (!baseline) {
+    console.log('[breaking-change-detector] No baseline found — nothing to compare. Run with --update-baseline to create one.');
+    process.exit(0);
+  }
+
+  const result = detector.checkAgainstSnapshots(baseline.contractName, baseline.data);
+
+  if (result.hasBreakingChanges) {
+    console.error(`[breaking-change-detector] Breaking changes detected: ${result.summary}`);
+    for (const change of result.changes.filter((c) => c.severity === 'error')) {
+      console.error(`  [ERROR] ${change.path}: ${change.message}`);
+    }
+    for (const change of result.changes.filter((c) => c.severity === 'warning')) {
+      console.warn(`  [WARN]  ${change.path}: ${change.message}`);
+    }
+    process.exit(1);
+  }
+
+  console.log(`[breaking-change-detector] ${result.summary}`);
+  process.exit(0);
+}
+
+// Run only when executed directly (not when imported as a module).
+if (process.argv[1] && process.argv[1].includes('breaking-change-detector')) {
+  main().catch((err: unknown) => {
+    console.error('[breaking-change-detector] Unexpected error:', err);
+    process.exit(1);
+  });
+}

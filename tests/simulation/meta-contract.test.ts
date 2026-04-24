@@ -303,8 +303,9 @@ describe('_meta contract — suggestedFix injection', () => {
 
     const resp = getResponse(result);
     const err = resp!['error'] as Record<string, unknown>;
-    if (err['suggestedFix']) {
-      const fix = err['suggestedFix'] as Record<string, unknown>;
+    // suggestedFix is a human-readable explanation string; fixableVia holds the structured action
+    if (err['fixableVia']) {
+      const fix = err['fixableVia'] as Record<string, unknown>;
       expect(typeof fix['tool']).toBe('string');
       expect(typeof fix['action']).toBe('string');
     }
@@ -323,8 +324,9 @@ describe('_meta contract — suggestedFix injection', () => {
 
     const resp = getResponse(result);
     const err = resp!['error'] as Record<string, unknown>;
-    if (err['suggestedFix']) {
-      const fix = err['suggestedFix'] as Record<string, unknown>;
+    // suggestedFix is a human-readable explanation string; fixableVia holds the structured action
+    if (err['fixableVia']) {
+      const fix = err['fixableVia'] as Record<string, unknown>;
       expect(typeof fix['tool']).toBe('string');
     }
   });

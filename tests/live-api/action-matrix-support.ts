@@ -88,6 +88,12 @@ export interface MatrixReportV2 {
   passRate: string;
   durationMs: number;
   results: MatrixActionResult[];
+  coverageSummary?: {
+    mcp_execute: number;
+    probe_only: number;
+    skip_external: number;
+    cascadeDowngraded: number;
+  };
 }
 
 type ModeRule = {
@@ -142,7 +148,7 @@ const EXISTING_RESOURCE_KEYS = new Set([
   'wizardId',
 ]);
 
-const READ_ONLY_ACTION_NAMES = new Set([
+export const READ_ONLY_ACTION_NAMES = new Set([
   'analyze_impact',
   'analyze_quality',
   'analyze_structure',
@@ -256,7 +262,7 @@ const DEFAULT_READ_ONLY_MCP_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> 
   retryTransportTimeout: true,
 };
 
-const DEFAULT_PROBE_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> = {
+export const DEFAULT_PROBE_EXECUTION_PROFILE: Readonly<MatrixExecutionProfile> = {
   quotaEstimate: { reads: 1, writes: 0 },
   baseDelayMs: 800,
   callTimeoutMs: 60_000,
@@ -856,7 +862,8 @@ export function materializeFixtureRequest(
 export function summarizeMatrixResults(
   results: MatrixActionResult[],
   generatedAt: string,
-  durationMs: number
+  durationMs: number,
+  cascadeDowngradedOriginalMcpExecute?: Set<string>
 ): MatrixReportV2 {
   const executed = results.filter((result) => result.mode === 'mcp_execute').length;
   const probed = results.filter((result) => result.mode === 'probe_only').length;
@@ -864,6 +871,13 @@ export function summarizeMatrixResults(
   const gatedResults = results.filter((result) => result.gated);
   const passed = gatedResults.filter((result) => result.success).length;
   const failed = gatedResults.filter((result) => !result.success).length;
+
+  const cascadeDowngraded = results.filter(
+    (result) =>
+      result.gated === true &&
+      result.mode === 'probe_only' &&
+      (cascadeDowngradedOriginalMcpExecute?.has(result.actionKey) ?? false)
+  ).length;
 
   return {
     schemaVersion: 2,
@@ -878,6 +892,12 @@ export function summarizeMatrixResults(
     passRate: gatedResults.length ? `${((passed / gatedResults.length) * 100).toFixed(1)}%` : 'N/A',
     durationMs,
     results,
+    coverageSummary: {
+      mcp_execute: executed,
+      probe_only: probed,
+      skip_external: skipped,
+      cascadeDowngraded,
+    },
   };
 }
 

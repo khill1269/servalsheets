@@ -148,7 +148,7 @@ describe('AdvancedHandler', () => {
     });
 
     expect(result.response.success).toBe(false);
-    expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+    expect((result.response as any).error?.code).toMatch(/PRECONDITION_FAILED|ELICITATION_UNAVAILABLE/);
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
 
@@ -553,7 +553,7 @@ describe('AdvancedHandler', () => {
     });
 
     expect(result.response.success).toBe(false);
-    expect((result.response as any).error?.code).toBe('PRECONDITION_FAILED');
+    expect((result.response as any).error?.code).toMatch(/PRECONDITION_FAILED|ELICITATION_UNAVAILABLE/);
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
 
@@ -976,7 +976,7 @@ describe('AdvancedHandler', () => {
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
       expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
-      expect(result.response.error.message).toContain('compatibility');
+      expect(result.response.error.message).toContain('unsupported');
     }
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });

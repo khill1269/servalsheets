@@ -17,11 +17,14 @@ describe('applyResponseIntelligence', () => {
     });
 
     const error = responseRecord['error'] as Record<string, unknown>;
-    // suggestedFix is now the full fix object {tool, action, params, explanation}
-    expect(typeof error['suggestedFix']).toBe('object');
-    expect(error['suggestedFix']).toEqual(
-      expect.objectContaining({ tool: 'sheets_auth', action: 'login' })
-    );
+    // AUDIT-2026-04-23 (Root B): suggestedFix must be a string per the
+    // Zod schema at src/schemas/shared.ts:1177 (z.string().optional()).
+    // Prior assertion required an object, which violated the output schema
+    // on every error response and made named_function actions fail output
+    // validation at the MCP wire boundary. The structured shape lives in
+    // fixableVia, which has its own object schema.
+    expect(typeof error['suggestedFix']).toBe('string');
+    expect(error['suggestedFix']).toBeTruthy();
     // fixableVia is the structured recovery action
     expect(error['fixableVia']).toEqual(
       expect.objectContaining({
@@ -29,6 +32,10 @@ describe('applyResponseIntelligence', () => {
         action: 'login',
       })
     );
+    // explanation is mirrored into fixableVia so LLM callers only reading
+    // fixableVia still see the human-readable hint.
+    const fixableVia = error['fixableVia'] as Record<string, unknown>;
+    expect(typeof fixableVia['explanation']).toBe('string');
   });
 
   it('adds data-aware suggestions and quality warnings from nested values', () => {
@@ -254,9 +261,10 @@ describe('applyResponseIntelligence', () => {
     expect(hints).toBeDefined();
     expect(hints['errorCode']).toBe('PERMISSION_DENIED');
     expect(hints['failedOp']).toBe('sheets_data.read');
-    // suggestedFix (object) and fixableVia (structured) should be on the error
+    // AUDIT-2026-04-23 (Root B): suggestedFix is a string (schema contract);
+    // structured recovery data lives in fixableVia.
     const error = responseRecord['error'] as Record<string, unknown>;
-    expect(typeof error['suggestedFix']).toBe('object');
+    expect(typeof error['suggestedFix']).toBe('string');
     expect(error['fixableVia']).toEqual(
       expect.objectContaining({ tool: 'sheets_auth', action: 'login' })
     );

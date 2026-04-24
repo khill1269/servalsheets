@@ -258,6 +258,16 @@ export class QuotaManager {
   }
 
   /**
+   * Returns true when quota pressure is high enough to warrant downgrading
+   * mcp_execute actions to probe_only for write-quota conservation.
+   * Thresholds: writePercentageUsed > 85 OR readPercentageUsed > 90.
+   */
+  shouldDowngrade(): boolean {
+    const state = this.getState();
+    return state.writePercentageUsed > 85 || state.readPercentageUsed > 90;
+  }
+
+  /**
    * Mark start of throttle period
    */
   enterThrottle(durationMs: number = 60000): void {

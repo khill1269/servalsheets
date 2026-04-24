@@ -250,10 +250,10 @@ describe('Flow D: Error responses → suggestedFix injected', () => {
 
       const error = response['error'] as Record<string, unknown>;
       if (tc.expectFix) {
-        expect(error['suggestedFix']).toBeDefined();
-        // suggestedFix is SuggestedFix { tool, action, params, explanation }
-        expect(typeof error['suggestedFix']).toBe('object');
-        const fix = error['suggestedFix'] as Record<string, unknown>;
+        // suggestedFix is a human-readable string (z.string().optional() in schema)
+        // fixableVia holds the structured { tool, action, params, explanation } object
+        expect(error['fixableVia']).toBeDefined();
+        const fix = error['fixableVia'] as Record<string, unknown>;
         expect(typeof fix['tool']).toBe('string');
         expect(typeof fix['action']).toBe('string');
         expect(typeof fix['explanation']).toBe('string');

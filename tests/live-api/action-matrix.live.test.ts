@@ -33,6 +33,8 @@ import {
   buildActionCapabilityIndex,
   materializeFixtureRequest,
   summarizeMatrixResults,
+  READ_ONLY_ACTION_NAMES,
+  DEFAULT_PROBE_EXECUTION_PROFILE,
   type ActionCapability,
   type MaterializeRequestOptions,
   type MatrixActionResult,
@@ -90,6 +92,8 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   let matrixCooldownUntil = 0;
   const results: MatrixActionResult[] = [];
   const startTime = Date.now();
+  let quotaCascadeActive = false;
+  const cascadeDowngradedKeys = new Set<string>();
 
   beforeAll(async () => {
     process.env['TEST_SKIP_SINGLETON_RESET'] = 'true';
@@ -116,7 +120,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
   afterAll(async () => {
     const generatedAt = new Date().toISOString();
-    const report = summarizeMatrixResults(results, generatedAt, Date.now() - startTime);
+    const report = summarizeMatrixResults(results, generatedAt, Date.now() - startTime, cascadeDowngradedKeys);
     const benchDir = path.resolve('tests/benchmarks');
     const timestamp = generatedAt.replace(/[:.]/g, '-');
 
@@ -195,10 +199,18 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
             const result = await executeFixture(fixture, capability);
             results.push(result);
+
+            if (!quotaCascadeActive && getQuotaManager().shouldDowngrade()) {
+              quotaCascadeActive = true;
+            }
+
             await applyInterActionDelay(capability);
 
-            expect(result.mode).toBe(capability.mode);
-            expect(result.assertionSource).toBe(capability.assertionSource);
+            const wasCascadeDowngraded = cascadeDowngradedKeys.has(capability.actionKey);
+            expect(result.mode).toBe(wasCascadeDowngraded ? 'probe_only' : capability.mode);
+            expect(result.assertionSource).toBe(
+              wasCascadeDowngraded ? 'google_probe' : capability.assertionSource
+            );
           },
           getFixtureTimeoutMs(capability)
         );
@@ -210,7 +222,8 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     const report = summarizeMatrixResults(
       results,
       new Date().toISOString(),
-      Date.now() - startTime
+      Date.now() - startTime,
+      cascadeDowngradedKeys
     );
 
     expect(results).toHaveLength(MATRIX_FIXTURES.length);
@@ -252,12 +265,35 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
       };
     }
 
-    await waitForExecutionSlot(capability);
+    // Quota cascade: downgrade mcp_execute → probe_only when quota is critically high,
+    // but only for write-consuming (non-read-only) actions that are not already probes.
+    let effectiveCapability = capability;
+    if (
+      quotaCascadeActive &&
+      capability.mode === 'mcp_execute' &&
+      !READ_ONLY_ACTION_NAMES.has(fixture.action)
+    ) {
+      console.log(
+        `[quota-cascade] downgraded ${fixture.tool}.${fixture.action} → probe_only`
+      );
+      cascadeDowngradedKeys.add(capability.actionKey);
+      effectiveCapability = {
+        ...capability,
+        mode: 'probe_only',
+        assertionSource: 'google_probe',
+        probeStrategy: capability.probeStrategy ?? 'spreadsheet_metadata',
+        executionProfile: DEFAULT_PROBE_EXECUTION_PROFILE,
+      };
+    }
+
+    await waitForExecutionSlot(effectiveCapability);
 
     // probe_only actions only do lightweight reads (spreadsheets.get / values.get) — no need
     // for a dedicated context. Using shared context cuts ~300 API calls and avoids quota spikes.
     const useSharedContext =
-      fixture.noSpreadsheet || capability.sharedExecution || capability.mode === 'probe_only';
+      fixture.noSpreadsheet ||
+      effectiveCapability.sharedExecution ||
+      effectiveCapability.mode === 'probe_only';
 
     let executionContext: MatrixExecutionContext;
     try {
@@ -266,8 +302,8 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         : await createExecutionContext(
             client,
             manager,
-            capability.actionKey.replace(/\W+/g, '-'),
-            capability.requiresSecondarySpreadsheet
+            effectiveCapability.actionKey.replace(/\W+/g, '-'),
+            effectiveCapability.requiresSecondarySpreadsheet
           );
     } catch (contextError) {
       // Context setup failed (e.g. quota exhausted) — record as a failure rather than throwing,
@@ -276,10 +312,10 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
       return {
         tool: fixture.tool,
         action: fixture.action,
-        actionKey: capability.actionKey,
-        mode: capability.mode,
-        assertionSource: capability.assertionSource,
-        reason: capability.reason,
+        actionKey: effectiveCapability.actionKey,
+        mode: effectiveCapability.mode,
+        assertionSource: effectiveCapability.assertionSource,
+        reason: effectiveCapability.reason,
         success: false,
         gated: true,
         latencyMs: 0,
@@ -291,9 +327,9 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     }
 
     try {
-      return capability.mode === 'mcp_execute'
-        ? await executeMcpAction(fixture, capability, executionContext)
-        : await executeProbe(fixture, capability, executionContext);
+      return effectiveCapability.mode === 'mcp_execute'
+        ? await executeMcpAction(fixture, effectiveCapability, executionContext)
+        : await executeProbe(fixture, effectiveCapability, executionContext);
     } finally {
       if (!useSharedContext) {
         await cleanupExecutionContext(manager, executionContext);

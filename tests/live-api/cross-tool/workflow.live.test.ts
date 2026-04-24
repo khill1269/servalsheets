@@ -323,6 +323,114 @@ describe.skipIf(skipTests)('Cross-Tool Workflow Tests', () => {
     }, 60000);
   });
 
+  describe('error recovery: missing spreadsheet', () => {
+    let ephemeralSpreadsheetId: string | null = null;
+
+    afterEach(async () => {
+      if (ephemeralSpreadsheetId) {
+        try {
+          await client.deleteSpreadsheet(ephemeralSpreadsheetId);
+        } catch {
+          // Already deleted or cleanup failed — ignore
+        }
+        ephemeralSpreadsheetId = null;
+      }
+    });
+
+    it('data.read on deleted spreadsheet returns NOT_FOUND, not a crash', async () => {
+      const testId = generateTestId('notfound');
+
+      // Create a fresh spreadsheet and write one row
+      const createResult = await client.createSpreadsheet(`NotFound_${testId}`);
+      ephemeralSpreadsheetId = createResult.spreadsheetId;
+
+      await applyQuotaDelay();
+
+      await client.writeData(ephemeralSpreadsheetId, 'Sheet1!A1', [['hello']]);
+
+      await applyQuotaDelay();
+
+      // Delete the spreadsheet via Drive API
+      await client.deleteSpreadsheet(ephemeralSpreadsheetId);
+      const deletedId = ephemeralSpreadsheetId;
+      ephemeralSpreadsheetId = null; // prevent afterEach double-delete
+
+      await applyQuotaDelay();
+
+      // Attempt to read from the now-deleted spreadsheet
+      let caughtError: unknown = null;
+      try {
+        await client.readData(deletedId, 'Sheet1!A1');
+      } catch (err) {
+        caughtError = err;
+      }
+
+      // Must have thrown — not silently returned
+      expect(caughtError).not.toBeNull();
+
+      // Google API returns 404 for deleted/nonexistent spreadsheets
+      const status =
+        (caughtError as { code?: number; status?: number })?.code ??
+        (caughtError as { code?: number; status?: number })?.status;
+      expect(status).toBe(404);
+    }, 60000);
+  });
+
+  describe('error recovery: mid-chain action failure', () => {
+    let midChainSpreadsheetId: string | null = null;
+
+    afterEach(async () => {
+      if (midChainSpreadsheetId) {
+        try {
+          await client.deleteSpreadsheet(midChainSpreadsheetId);
+        } catch {
+          // Ignore cleanup errors
+        }
+        midChainSpreadsheetId = null;
+      }
+    });
+
+    it('invalid range write does not corrupt subsequent reads on same spreadsheet', async () => {
+      const testId = generateTestId('midchain');
+
+      // Create spreadsheet and write seed data
+      const createResult = await client.createSpreadsheet(`MidChain_${testId}`);
+      midChainSpreadsheetId = createResult.spreadsheetId;
+      const spreadsheetId = midChainSpreadsheetId;
+
+      await applyQuotaDelay();
+
+      await client.writeData(spreadsheetId, 'Sheet1!A1:B2', [
+        ['foo', 'bar'],
+        ['baz', 'qux'],
+      ]);
+
+      await applyQuotaDelay();
+
+      // Attempt a write with an intentionally invalid range
+      let writeError: unknown = null;
+      try {
+        await client.writeData(spreadsheetId, 'INVALID!ZZZ9999999:AAA0', [['bad']]);
+      } catch (err) {
+        writeError = err;
+      }
+
+      // The write must have failed with a 4xx status
+      expect(writeError).not.toBeNull();
+      const writeStatus =
+        (writeError as { code?: number; status?: number })?.code ??
+        (writeError as { code?: number; status?: number })?.status;
+      expect([400, 404]).toContain(writeStatus);
+
+      await applyQuotaDelay();
+
+      // A valid read on the same spreadsheet must still succeed — server state not corrupted
+      const readResult = await client.readData(spreadsheetId, 'Sheet1!A1:B2');
+      expect(readResult.values).toBeDefined();
+      expect(readResult.values[0]).toEqual(['foo', 'bar']);
+    }, 60000);
+  });
+
   describe('Cleanup Workflow', () => {
     it('should properly clean up resources after test', async () => {
       const testId = generateTestId('cleanup');
