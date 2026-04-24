@@ -426,12 +426,12 @@ export function getOtlpExportConfig(): {
 }
 
 export function getCircuitBreakerConfig(): CircuitBreakerConfig {
-  const e = getEnv();
-  return {
-    failureThreshold: e['CIRCUIT_BREAKER_FAILURE_THRESHOLD'],
-    successThreshold: e['CIRCUIT_BREAKER_SUCCESS_THRESHOLD'],
-    timeout: e['CIRCUIT_BREAKER_TIMEOUT_MS'],
-  };
+  const {
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: failureThreshold,
+    CIRCUIT_BREAKER_SUCCESS_THRESHOLD: successThreshold,
+    CIRCUIT_BREAKER_TIMEOUT_MS: timeout,
+  } = getEnv();
+  return { failureThreshold, successThreshold, timeout };
 }
 
 export function getApiSpecificCircuitBreakerConfig(api: string): CircuitBreakerConfig {

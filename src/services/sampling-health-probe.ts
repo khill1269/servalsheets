@@ -54,12 +54,8 @@ export const PROBE_TIMEOUT_MS = 6_000; // Probe itself times out at 6s
 let cache: SamplingHealth | null = null;
 let inflight: Promise<SamplingHealth> | null = null;
 
-function now(): number {
-  return Date.now();
-}
-
 function cacheFresh(entry: SamplingHealth | null): entry is SamplingHealth {
-  return entry !== null && typeof entry.cachedUntil === 'number' && entry.cachedUntil > now();
+  return entry !== null && typeof entry.cachedUntil === 'number' && entry.cachedUntil > Date.now();
 }
 
 /**
@@ -206,8 +202,8 @@ export async function getSamplingHealth(): Promise<SamplingHealth> {
     let result: SamplingHealth = {
       ...fresh,
       consecutiveFailures,
-      lastProbedAt: now(),
-      cachedUntil: now() + PROBE_TTL_MS,
+      lastProbedAt: Date.now(),
+      cachedUntil: Date.now() + PROBE_TTL_MS,
     };
 
     // Circuit breaker: if we've been failing for a while, advertise
