@@ -145,7 +145,14 @@ export async function handleRun(
     body.devMode = req.devMode;
   }
 
-  const runTarget = req.deploymentId!;
+  const runTarget = req.devMode ? req.scriptId : req.deploymentId;
+  if (!runTarget) {
+    return access.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message: 'run requires deploymentId unless devMode:true. When devMode:true, scriptId is used as the run target.',
+      retryable: false,
+    });
+  }
 
   activeRunExecutions++;
 
@@ -185,6 +192,30 @@ export async function handleRun(
           throw error;
         }
       } else {
+        // AUDIT-2026-04-23 (artifact bug #22): translate a 404 against a
+        // caller-supplied deploymentId into a structured error explaining
+        // the HEAD-vs-runnable deployment distinction. Google's 404 alone
+        // doesn't hint at the required manifest + version + deploy flow.
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (!req.devMode && req.deploymentId && /404|NOT_FOUND|not found/i.test(errMsg)) {
+          return access.error({
+            code: ErrorCodes.NOT_FOUND,
+            message:
+              `Deployment "${req.deploymentId}" was not found or is not runnable via scripts.run. ` +
+              `HEAD deployments (the default entry returned by create/list_deployments when no ` +
+              `explicit version has been published) are NOT runnable via the Apps Script API. ` +
+              `You must create a real API Executable deployment first.`,
+            retryable: false,
+            suggestedFix:
+              `Workflow to make deploymentId runnable: ` +
+              `1) update_content to include an appsscript.json manifest with ` +
+              `executionApi.access set to MYSELF (or DOMAIN/ANYONE as needed); ` +
+              `2) create_version to freeze a numbered version; ` +
+              `3) deploy with deploymentType: 'EXECUTION_API' + versionNumber; ` +
+              `4) use the returned deploymentId to run. For ad-hoc testing of the latest ` +
+              `code without deploying, use devMode: true (requires scriptId, not deploymentId).`,
+          });
+        }
         throw error;
       }
     }

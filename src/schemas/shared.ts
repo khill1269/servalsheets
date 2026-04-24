@@ -988,6 +988,12 @@ export const SafetyOptionsSchema = z.object({
     .describe(
       'When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.'
     ),
+  confirmed: z
+    .boolean()
+    .optional()
+    .describe(
+      'Pre-approval bypass for destructive operations when the MCP client does not support interactive elicitation. Pass true after reviewing the operation details out-of-band. Equivalent to answering "Yes, proceed" to the elicitation prompt. Has no effect on non-destructive operations.'
+    ),
 });
 
 // ============================================================================
@@ -1154,10 +1160,12 @@ export const RangeInputSchema = z
       return val;
     },
     z.union([
-      z.object({ a1: A1NotationSchema }),
-      z.object({ namedRange: z.string() }),
-      z.object({ semantic: SemanticRangeQuerySchema }),
-      z.object({ grid: GridRangeSchema }),
+      z.object({ a1: A1NotationSchema }).describe('A1 notation range, e.g. "Sheet1!A1:D10"'),
+      z.object({ namedRange: z.string() }).describe('Named range identifier, e.g. "SalesData"'),
+      z.object({ semantic: SemanticRangeQuerySchema }).describe('Natural language range description'),
+      z.object({ grid: GridRangeSchema }).describe(
+        'Grid coordinate range: { sheetId: number, startRowIndex?: number (0-based), endRowIndex?: number (exclusive), startColumnIndex?: number (0-based), endColumnIndex?: number (exclusive) }'
+      ),
     ])
   )
   .describe(
@@ -1178,9 +1186,16 @@ export const ErrorDetailSchema = z.object({
     .describe('Error details as key-value pairs with primitive or generic values'),
   retryable: z.boolean().optional().default(false),
   retryAfterMs: z.number().int().positive().optional(),
-  suggestedFix: z.string().optional(),
-  // BUG-8 fix: fixableVia is auto-injected by error-fix-suggester in BaseHandler.mapError()
-  // as a structured object. Previously missing from schema, causing output validation failures.
+  suggestedFix: z
+    .string()
+    .optional()
+    .describe(
+      'Human-readable fix hint. For the structured, LLM-executable shape use `fixableVia`.'
+    ),
+  // AUDIT-2026-04-23 (Root B): fixableVia is auto-injected by response-intelligence.ts
+  // alongside a string `suggestedFix` (the explanation). Prior code overwrote
+  // `suggestedFix` with an object, violating the declared output schema on every
+  // error response. Clients requiring the structured fix read `fixableVia`.
   fixableVia: z
     .object({
       tool: z.string().describe('Tool name to fix the issue'),
@@ -1199,6 +1214,10 @@ export const ErrorDetailSchema = z.object({
         )
         .optional()
         .describe('Suggested parameters for the fix action'),
+      explanation: z
+        .string()
+        .optional()
+        .describe('Same string as `suggestedFix`; duplicated here for callers that only read fixableVia'),
     })
     .optional()
     .describe('Structured fix suggestion with tool/action to resolve the error'),
