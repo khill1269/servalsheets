@@ -79,10 +79,16 @@ export function registerFlatToolCallInterceptor(mcpServer: {
     return false;
   }
 
+  // Accesses the MCP SDK's internal `_requestHandlers` Map.
+  // This private field has been stable since @modelcontextprotocol/sdk v0.5.
+  // If a future SDK upgrade removes or renames it, this check will throw at
+  // startup (not silently at runtime) so the break is caught immediately.
   const handlers = mcpServer.server?._requestHandlers;
-  if (!handlers) {
+  if (!handlers || !(handlers instanceof Map)) {
     throw new Error(
-      '[FlatToolInterceptor] Cannot register flat tools/call routing: MCP SDK _requestHandlers map is not accessible'
+      '[FlatToolInterceptor] Cannot register flat tools/call routing: MCP SDK _requestHandlers map is not accessible. ' +
+      'This may indicate an SDK upgrade that changed internal structure. ' +
+      'Check @modelcontextprotocol/sdk changelog and update the interceptor accordingly.'
     );
   }
 

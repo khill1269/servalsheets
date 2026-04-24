@@ -1541,6 +1541,8 @@ export interface ToolAnnotations {
   destructiveHint?: boolean;
   idempotentHint?: boolean;
   openWorldHint?: boolean;
+  /** MCP 2025-11-25: whether this tool emits/requires MCP tasks */
+  taskSupport?: 'forbidden' | 'optional' | 'required';
 }
 
 export interface ToolExecution {

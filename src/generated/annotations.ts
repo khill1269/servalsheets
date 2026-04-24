@@ -106,6 +106,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     destructiveHint: false, // Analysis only; no destructive actions
     idempotentHint: false, // Results may vary (sampling, AI analysis)
     openWorldHint: true, // MCP Sampling + Google API
+    taskSupport: 'optional' as const, // comprehensive action emits tasks for large spreadsheets
   },
   sheets_fix: {
     title: 'Auto-Fix Issues',
@@ -170,6 +171,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     destructiveHint: true, // call_remote can invoke destructive remote tools
     idempotentHint: false, // Remote tools may not be idempotent
     openWorldHint: true, // Calls external MCP servers
+    taskSupport: 'optional' as const, // call_remote emits task when remote call exceeds 5s threshold
   },
   sheets_compute: {
     title: 'Computation Engine',
@@ -191,6 +193,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     destructiveHint: true, // Multi-step operations can modify data
     idempotentHint: false, // Execution creates new state each time
     openWorldHint: true, // Orchestrates other tools that access Google APIs
+    taskSupport: 'optional' as const, // execute action supports dryRun via handler delegation; long plans may use tasks
   },
 };
 

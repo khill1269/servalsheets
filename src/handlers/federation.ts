@@ -25,6 +25,11 @@ import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { recordServerName } from '../mcp/completions.js';
+import type { TaskStoreAdapter } from '../core/task-store-adapter.js';
+
+// Emit a task when the remote call exceeds this threshold.
+// Fast calls complete synchronously (no API change); slow calls return a taskId.
+const FEDERATION_TASK_THRESHOLD_MS = 5000;
 
 function sanitizeFederationErrorMessage(message: string): string {
   // Drop multiline stack tail and redact common local filesystem path patterns.
@@ -63,13 +68,15 @@ function buildFederationError(
 export class FederationHandler {
   private circuitBreaker: CircuitBreaker;
   private sessionContext?: import('../services/session-context.js').SessionContextManager;
+  private taskStore?: TaskStoreAdapter;
 
   constructor(
-    _taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter,
+    taskStore?: TaskStoreAdapter,
     options?: {
       sessionContext?: import('../services/session-context.js').SessionContextManager;
     }
   ) {
+    this.taskStore = taskStore;
     this.sessionContext = options?.sessionContext;
     // 16-S3: Initialize circuit breaker for federation operations
     const circuitConfig = getCircuitBreakerConfig();
@@ -223,7 +230,75 @@ export class FederationHandler {
 
     await sendProgress(0, 100, `Connecting to remote server: ${serverName}...`);
 
-    // 16-S3: Wrap remote call with circuit breaker
+    // Emit a task when taskStore is available so long-running remote calls
+    // can be polled. Fast calls (<5s) complete synchronously and return the
+    // result directly (no API change). Slow calls return a taskId instead.
+    if (this.taskStore) {
+      const task = await this.taskStore.createTask(
+        { ttl: 3600000 },
+        'federation-call-remote',
+        {
+          method: 'tools/call',
+          params: {
+            name: 'sheets_federation',
+            arguments: { action: 'call_remote', serverName, toolName, toolInput },
+          },
+        }
+      );
+
+      const callPromise = this.circuitBreaker
+        .execute(async () => client.callRemoteTool(serverName, toolName, toolInput || {}))
+        .then(async (result) => {
+          await this.taskStore!.storeTaskResult(task.taskId, 'completed', {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+            isError: false,
+          });
+          return result;
+        })
+        .catch(async (err) => {
+          await this.taskStore!.storeTaskResult(task.taskId, 'failed', {
+            content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+            isError: true,
+          });
+          throw err;
+        });
+
+      const timeoutHandle = new Promise<'timeout'>((res) =>
+        setTimeout(() => res('timeout'), FEDERATION_TASK_THRESHOLD_MS)
+      );
+      const race = await Promise.race([callPromise.then((r) => ({ ok: true as const, result: r })), timeoutHandle]);
+
+      if (race === 'timeout') {
+        // Call is still running in background — return taskId for polling
+        logger.info('Federation call exceeded threshold, returning task handle', {
+          taskId: task.taskId, serverName, toolName,
+        });
+        return {
+          response: {
+            success: true,
+            action: 'call_remote',
+            remoteServer: serverName,
+            taskId: task.taskId,
+            data: `Remote call in progress — poll task ${task.taskId} via sheets_agent.get_status for result (estimated: 30–120s)`,
+          },
+        };
+      }
+
+      // Completed within threshold — fall through to normal return
+      void callPromise; // already resolved, prevent unhandled rejection
+      await sendProgress(100, 100, 'Remote call complete');
+      return {
+        response: {
+          success: true,
+          action: 'call_remote',
+          remoteServer: serverName,
+          taskId: task.taskId,
+          data: race.result,
+        },
+      };
+    }
+
+    // No taskStore — synchronous path (unchanged behavior)
     const result = await this.circuitBreaker.execute(async () => {
       return await client.callRemoteTool(serverName, toolName, toolInput || {});
     });

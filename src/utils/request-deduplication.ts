@@ -28,6 +28,7 @@
 import { createHash } from 'crypto';
 import { LRUCache } from 'lru-cache';
 import { logger } from './logger.js';
+import { getEnv } from '../config/env.js';
 
 interface PendingRequest<T> {
   promise: Promise<T>;
@@ -458,25 +459,21 @@ export class RequestDeduplicator {
 }
 
 /**
- * Parse environment variable as integer with validation
+ * Global deduplicator instance with result caching.
+ * Config sourced from Zod-validated env (getEnv) so invalid values are
+ * caught at startup rather than silently using wrong defaults at runtime.
  */
-function parseEnvInt(value: string | undefined, defaultValue: number): number {
-  if (!value) return defaultValue;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isNaN(parsed) || parsed < 0 ? defaultValue : parsed;
-}
-
-/**
- * Global deduplicator instance with result caching
- */
-export const requestDeduplicator = new RequestDeduplicator({
-  enabled: process.env['DEDUPLICATION_ENABLED'] !== 'false',
-  timeout: parseEnvInt(process.env['DEDUPLICATION_TIMEOUT'], 30000),
-  maxPendingRequests: parseEnvInt(process.env['DEDUPLICATION_MAX_PENDING'], 1000),
-  resultCacheEnabled: process.env['RESULT_CACHE_ENABLED'] !== 'false',
-  resultCacheTTL: parseEnvInt(process.env['RESULT_CACHE_TTL'], 300000), // 5 minutes - aligned with CACHE_TTL_* constants
-  resultCacheMaxSize: parseEnvInt(process.env['RESULT_CACHE_MAX_SIZE'], 1000),
-});
+export const requestDeduplicator = new RequestDeduplicator((() => {
+  const env = getEnv();
+  return {
+    enabled: env['DEDUPLICATION_ENABLED'],
+    timeout: env['DEDUPLICATION_TIMEOUT'],
+    maxPendingRequests: env['DEDUPLICATION_MAX_PENDING'],
+    resultCacheEnabled: env['RESULT_CACHE_ENABLED'],
+    resultCacheTTL: env['RESULT_CACHE_TTL'],
+    resultCacheMaxSize: env['RESULT_CACHE_MAX_SIZE'],
+  };
+})());
 
 /**
  * Helper: Create a request key from parameters

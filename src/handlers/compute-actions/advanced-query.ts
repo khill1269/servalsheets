@@ -14,6 +14,14 @@ import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/comp
 import type { ComputeHandlerAccess } from './internal.js';
 
 // ============================================================================
+// SQL input validation — module-level so V8 compiles each regex once.
+// DuckDB runs in-process; injection is a sandbox escape (read_csv_auto etc.)
+// ============================================================================
+const SAFE_SQL_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
+const SAFE_SQL_ON_CLAUSE = /^[a-zA-Z_][a-zA-Z0-9_.]*\s*=\s*[a-zA-Z_][a-zA-Z0-9_.]*$/;
+const SAFE_SQL_COLUMN = /^([a-zA-Z_][a-zA-Z0-9_]*\.)?[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+// ============================================================================
 // SQL Handlers (DuckDB)
 // ============================================================================
 
@@ -118,8 +126,56 @@ export async function handleSqlJoin(
     extractRangeA1(req.right.range)
   );
 
-  const select = req.select ?? '*';
-  const sql = `SELECT ${select} FROM "${req.left.alias}" ${req.joinType.toUpperCase()} JOIN "${req.right.alias}" ON ${req.on}`;
+  const validateAlias = (alias: string, side: string): string => {
+    if (!SAFE_SQL_IDENTIFIER.test(alias)) {
+      throw new ServiceError(
+        `sql_join: ${side} alias "${alias}" contains invalid characters. Use letters, digits, underscores, and dots only.`,
+        'VALIDATION_ERROR',
+        'compute',
+        false
+      );
+    }
+    return alias;
+  };
+
+  const leftAlias = validateAlias(req.left.alias, 'left');
+  const rightAlias = validateAlias(req.right.alias, 'right');
+
+  const rawOn = req.on.trim();
+  if (!SAFE_SQL_ON_CLAUSE.test(rawOn)) {
+    return {
+      response: {
+        success: false as const,
+        error: {
+          code: ErrorCodes.VALIDATION_ERROR,
+          message: `sql_join: ON clause "${rawOn}" must be in the form "table.col = table.col". Complex expressions are not allowed.`,
+          retryable: false,
+        },
+      },
+    };
+  }
+
+  const rawSelect = req.select?.trim() ?? '*';
+  if (rawSelect !== '*') {
+    // Allow comma-separated qualified identifiers: "alias.col, alias.col2" or plain "col"
+    const parts = rawSelect.split(',').map((p) => p.trim());
+    const invalid = parts.find((p) => !SAFE_SQL_COLUMN.test(p));
+    if (invalid) {
+      return {
+        response: {
+          success: false as const,
+          error: {
+            code: ErrorCodes.VALIDATION_ERROR,
+            message: `sql_join: SELECT column "${invalid}" contains invalid characters. Use qualified identifiers (table.column) or plain column names.`,
+            retryable: false,
+          },
+        },
+      };
+    }
+  }
+
+  const select = rawSelect;
+  const sql = `SELECT ${select} FROM "${leftAlias}" ${req.joinType.toUpperCase()} JOIN "${rightAlias}" ON ${rawOn}`;
 
   try {
     const result = await access.duckdbEngine.query({

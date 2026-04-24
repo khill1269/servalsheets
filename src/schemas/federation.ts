@@ -78,6 +78,8 @@ const FederationSuccessResponseSchema = z.object({
   remoteServer: z.string().optional(),
   /** Result data from remote call */
   data: z.unknown().optional(),
+  /** Task ID when call_remote exceeds the fast-path threshold and runs in background */
+  taskId: z.string().optional(),
   /** List of available tools on remote server */
   tools: z
     .array(
