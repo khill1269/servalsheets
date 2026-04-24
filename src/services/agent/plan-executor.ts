@@ -102,15 +102,82 @@ function extractScoutSheets(
 // Step param helpers
 // ============================================================================
 
+/**
+ * Step variable template pattern.
+ *
+ * Matches `{{steps[N].result.field.nested}}` where N is a step index and the
+ * dotted path is traversed into that step's `result` object at runtime. Also
+ * supports shorthand `{{steps[N].spreadsheetId}}` that resolves to common
+ * result fields directly.
+ *
+ * Emitted by the regex-fallback planner's bootstrap path (plan-compiler.ts
+ * O-2/O-4) so that downstream steps can reference the sheet created by an
+ * earlier step without the planner needing to know its ID up-front.
+ */
+const STEP_VAR_RE = /^\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}$/;
+
+function getNested(obj: unknown, path: string[]): unknown {
+  let current: unknown = obj;
+  for (const key of path) {
+    if (current == null || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+/**
+ * Resolve `{{steps[N].result.field}}` templates in a step's params against the
+ * plan's accumulated results. Returns a new params object; leaves non-template
+ * values untouched. Unresolvable templates are left as-is (validation will
+ * catch them) so the failure is observable rather than swallowed.
+ */
+export function resolveStepVariables(
+  params: Record<string, unknown>,
+  priorResults: ReadonlyArray<{ result?: unknown }>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string') {
+      const match = value.match(STEP_VAR_RE);
+      if (match) {
+        const stepIdx = Number(match[1]);
+        const priorStep = priorResults[stepIdx];
+        if (priorStep?.result !== undefined) {
+          const pathStr = match[2] ?? '';
+          // Tolerate both `result.spreadsheetId` (explicit) and `spreadsheetId`
+          // (shorthand that treats the result object as the root).
+          const pathParts = pathStr.startsWith('result.')
+            ? pathStr.slice('result.'.length).split('.')
+            : pathStr === 'result'
+              ? []
+              : pathStr.split('.');
+          const resolved = pathParts.length === 0
+            ? priorStep.result
+            : getNested(priorStep.result, pathParts);
+          out[key] = resolved ?? value; // Fall back to template string if unresolvable
+          continue;
+        }
+      }
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
 export function getEffectiveStepParams(
   step: ExecutionStep,
-  plan: Pick<PlanState, 'spreadsheetId'>
+  plan: Pick<PlanState, 'spreadsheetId' | 'results'>
 ): Record<string, unknown> {
+  // Resolve any {{steps[N].result.X}} templates against accumulated step results
+  // before falling back to plan.spreadsheetId. This makes bootstrap plans work
+  // end-to-end: step 0 creates a sheet, step 1+ reference it via the template.
+  const priorResults = plan.results ?? [];
+  const resolved = resolveStepVariables(step.params, priorResults);
   return {
-    ...(plan.spreadsheetId && step.params['spreadsheetId'] === undefined
+    ...(plan.spreadsheetId && resolved['spreadsheetId'] === undefined
       ? { spreadsheetId: plan.spreadsheetId }
       : {}),
-    ...step.params,
+    ...resolved,
   };
 }
 
@@ -234,7 +301,7 @@ export function buildRecoveryStep(errorDetail: ErrorDetail): ExecutionStep | nul
 
 function validateStepParamsAgainstSchema(
   step: ExecutionStep,
-  plan: Pick<PlanState, 'spreadsheetId'>
+  plan: Pick<PlanState, 'spreadsheetId' | 'results'>
 ): { params: Record<string, unknown>; errorDetail?: ErrorDetail } {
   const params = getEffectiveStepParams(step, plan);
 

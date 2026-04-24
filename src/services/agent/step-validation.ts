@@ -5,15 +5,41 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Step-variable template: {{steps[N].result.field}}.
+ * Emitted by the planner's regex fallback for zero-state bootstrap plans.
+ * Resolved by plan-executor.getEffectiveStepParams at runtime; at draft-
+ * validation time we pass these through so validation doesn't reject
+ * syntactically-valid placeholders that will become valid values later.
+ */
+const STEP_VAR_RE = /^\{\{\s*steps\[\d+\]\..+?\s*\}\}$/;
+function isStepVarTemplate(v: unknown): v is string {
+  return typeof v === 'string' && STEP_VAR_RE.test(v);
+}
+
+function stripStepVarTemplates(
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (isStepVarTemplate(v)) continue; // Skip — will be resolved at runtime
+    out[k] = v;
+  }
+  return out;
+}
+
 function getEffectiveStepParams(
   step: ExecutionStep,
   plan: Pick<PlanState, 'spreadsheetId'>
 ): Record<string, unknown> {
+  // Step-var templates are valid placeholders at draft time; strip them so the
+  // Zod schema doesn't reject them against e.g. spreadsheetId regex patterns.
+  const sanitized = stripStepVarTemplates(step.params);
   return {
-    ...(plan.spreadsheetId && step.params['spreadsheetId'] === undefined
+    ...(plan.spreadsheetId && sanitized['spreadsheetId'] === undefined
       ? { spreadsheetId: plan.spreadsheetId }
       : {}),
-    ...step.params,
+    ...sanitized,
   };
 }
 
