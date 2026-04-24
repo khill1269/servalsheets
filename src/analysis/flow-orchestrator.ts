@@ -56,8 +56,12 @@ export interface FlowStep {
   dependsOn: string[];
   /** Minimum confidence score to proceed without user input */
   minConfidence?: number;
-  /** If confidence is below threshold, what to do */
-  onLowConfidence?: 'elicit' | 'skip' | 'use_defaults';
+  /** If confidence is below threshold, what to do.
+   * Note: 'elicit' is intentionally not supported at the flow-orchestrator layer —
+   * the orchestrator runs server-side where an MCP elicitation round-trip is not
+   * available. Callers that want interactive clarification should use 'use_defaults'
+   * here and elicit in the analyze handler before invoking the orchestrator. */
+  onLowConfidence?: 'skip' | 'use_defaults';
   /** Estimated duration in ms */
   estimatedMs: number;
   /** Whether this step can be skipped */
@@ -359,7 +363,7 @@ export class FlowOrchestrator {
         params: baseParams,
         dependsOn: ['scout'],
         minConfidence: 30,
-        onLowConfidence: 'elicit',
+        onLowConfidence: 'use_defaults',
         estimatedMs: 3000,
         optional: false,
         mutating: false,
@@ -440,7 +444,7 @@ export class FlowOrchestrator {
         params: { ...baseParams, category: 'data_cleaning' },
         dependsOn: ['quality_check'],
         minConfidence: 50,
-        onLowConfidence: 'elicit',
+        onLowConfidence: 'use_defaults',
         estimatedMs: 500,
         optional: false,
         mutating: false,
@@ -478,7 +482,7 @@ export class FlowOrchestrator {
         params: baseParams,
         dependsOn: ['begin_transaction'],
         minConfidence: 65,
-        onLowConfidence: 'elicit',
+        onLowConfidence: 'use_defaults',
         estimatedMs: 2000,
         optional: false,
         mutating: true,
@@ -519,7 +523,7 @@ export class FlowOrchestrator {
         params: baseParams,
         dependsOn: [],
         minConfidence: 40,
-        onLowConfidence: 'elicit',
+        onLowConfidence: 'use_defaults',
         estimatedMs: 500,
         optional: false,
         mutating: false,
@@ -674,7 +678,7 @@ export class FlowOrchestrator {
         params: baseParams,
         dependsOn: ['detect_patterns'],
         minConfidence: 50,
-        onLowConfidence: 'elicit',
+        onLowConfidence: 'use_defaults',
         estimatedMs: 1500,
         optional: false,
         mutating: false,
