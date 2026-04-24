@@ -165,6 +165,15 @@ export const EnvSchema = z
     // Concurrency
     MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).default(10),
 
+    // Request deduplication + result cache — previously read raw from process.env
+    // in src/utils/request-deduplication.ts bypassing Zod validation.
+    DEDUPLICATION_ENABLED: StrictBooleanSchema.default(true),
+    DEDUPLICATION_TIMEOUT: z.coerce.number().int().min(100).default(30000),
+    DEDUPLICATION_MAX_PENDING: z.coerce.number().int().min(1).default(1000),
+    RESULT_CACHE_ENABLED: StrictBooleanSchema.default(true),
+    RESULT_CACHE_TTL: z.coerce.number().int().min(1000).default(300000),
+    RESULT_CACHE_MAX_SIZE: z.coerce.number().int().min(1).default(1000),
+
     // Request Merger
     REQUEST_MERGER_WINDOW_MS: z.coerce.number().int().min(1).default(50),
 
@@ -190,9 +199,20 @@ export const EnvSchema = z
     STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().int().min(1000).default(300000),
     STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().min(1).default(1000),
 
+    // Cache TTL overrides — defaults match the 300 000 ms alignment strategy in constants.ts.
+    // Spreadsheet metadata and cell values rarely need different TTLs in practice, but
+    // analysis results are expensive to compute and benefit from longer caching.
+    CACHE_TTL_SPREADSHEET_MS: z.coerce.number().int().min(1000).default(300000),
+    CACHE_TTL_VALUES_MS: z.coerce.number().int().min(1000).default(300000),
+    CACHE_TTL_ANALYSIS_MS: z.coerce.number().int().min(1000).default(300000),
+
     // Production Safety
     TENANT_ISOLATION_REQUIRED: StrictBooleanSchema.default(false),
     ENABLE_RBAC: StrictBooleanSchema.default(false),
+    // When true, RBAC check errors (e.g. Redis unavailable) deny the request
+    // instead of defaulting to allow. Set RBAC_STRICT=true in production
+    // when RBAC is the primary authorization layer.
+    RBAC_STRICT: StrictBooleanSchema.default(false),
     DATA_DIR: z.string().default('/tmp/servalsheets'),
     PROFILE_STORAGE_DIR: z.string().optional(),
     CHECKPOINT_DIR: z.string().optional(),

@@ -5,6 +5,7 @@
  */
 
 import path from 'path';
+import { getEnv } from './env.js';
 
 // ============================================================================
 // Cache TTLs (in milliseconds)
@@ -25,14 +26,27 @@ import path from 'path';
 //          CACHE_DEFAULT_TTL in cache-manager.ts also set to 300000ms
 // ============================================================================
 
-/** Cache TTL for spreadsheet metadata (5 minutes) - baseline for all cache TTLs */
-export const CACHE_TTL_SPREADSHEET = 300000;
+/** Cache TTL for spreadsheet metadata — overridable via CACHE_TTL_SPREADSHEET_MS env var */
+export const CACHE_TTL_SPREADSHEET = 300000; // default; prefer getCacheTtls() for runtime value
 
-/** Cache TTL for cell values (5 minutes) - aligned with spreadsheet metadata TTL for consistency */
-export const CACHE_TTL_VALUES = 300000;
+/** Cache TTL for cell values — overridable via CACHE_TTL_VALUES_MS env var */
+export const CACHE_TTL_VALUES = 300000; // default; prefer getCacheTtls() for runtime value
 
-/** Cache TTL for analysis results (5 minutes) - aligned with spreadsheet metadata TTL for consistency */
-export const CACHE_TTL_ANALYSIS = 300000;
+/** Cache TTL for analysis results — overridable via CACHE_TTL_ANALYSIS_MS env var */
+export const CACHE_TTL_ANALYSIS = 300000; // default; prefer getCacheTtls() for runtime value
+
+/**
+ * Returns per-category cache TTLs from Zod-validated env.
+ * Use this instead of the static constants when the caller runs after startup.
+ */
+export function getCacheTtls(): { spreadsheet: number; values: number; analysis: number } {
+  const e = getEnv();
+  return {
+    spreadsheet: e['CACHE_TTL_SPREADSHEET_MS'],
+    values: e['CACHE_TTL_VALUES_MS'],
+    analysis: e['CACHE_TTL_ANALYSIS_MS'],
+  };
+}
 
 /** Cache cleanup interval (5 minutes) - aligned with cache TTLs to avoid premature eviction */
 export const CACHE_CLEANUP_INTERVAL = 300000;

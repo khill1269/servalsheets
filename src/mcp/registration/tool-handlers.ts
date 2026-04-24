@@ -130,6 +130,7 @@ import {
 } from '../../utils/auth-guard.js';
 import { replaceAvailableToolNames } from '../tool-registry-state.js';
 import { ServiceError } from '../../core/errors.js';
+import { ErrorCodes } from '../../handlers/error-codes.js';
 import { buildToolResponse as buildNormalizedToolResponse } from './tool-response.js';
 
 // Wrap input schemas for legacy envelopes during validation.
@@ -1259,12 +1260,27 @@ function createToolCallHandler(
                       };
                     }
                   } catch (rbacError) {
-                    // RBAC check failed (e.g. storage not configured) — log and allow.
-                    // Default-allow matches RbacManager's no-role-assignment policy.
-                    logger.warn('RBAC check error — allowing request', {
+                    // RBAC check failed (e.g. storage not configured).
+                    // Default: allow (matches RbacManager's no-role-assignment policy).
+                    // Set RBAC_STRICT=true to deny on error instead (production RBAC deployments).
+                    const strict = getEnv()['RBAC_STRICT'];
+                    logger.warn(`RBAC check error — ${strict ? 'denying' : 'allowing'} request`, {
                       error: rbacError instanceof Error ? rbacError.message : String(rbacError),
                       toolName: tool.name,
+                      strict,
                     });
+                    if (strict) {
+                      return {
+                        response: {
+                          success: false,
+                          error: {
+                            code: ErrorCodes.PERMISSION_DENIED,
+                            message: 'RBAC authorization check failed. Access denied (RBAC_STRICT=true).',
+                            retryable: false,
+                          },
+                        },
+                      };
+                    }
                   }
 
                 const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);

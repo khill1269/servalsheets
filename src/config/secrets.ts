@@ -26,9 +26,12 @@ import { ConfigError } from '../core/errors.js';
  */
 export interface SecretsProvider {
   /**
-   * Retrieve a secret by key
-   * @param key Secret key/name (e.g., 'ANTHROPIC_API_KEY')
-   * @returns The secret value, or undefined if not found
+   * Retrieve a secret by key.
+   * @returns The secret value if found, undefined if the key does not exist.
+   * @throws ConfigError when the backend is reachable but returns an unexpected error.
+   *         This distinguishes "key not found" (undefined) from "backend failure"
+   *         (throw), so callers can retry on transient errors without silently
+   *         proceeding with a missing secret.
    */
   getSecret(key: string): Promise<string | undefined>;
 
@@ -114,15 +117,15 @@ export class VaultSecretsProvider implements SecretsProvider {
       const response = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
 
       if (response.status === 404) {
-        return undefined; // OK: Explicit empty — Secret not found — normal flow
+        return undefined; // OK: Explicit empty — key not found, normal flow
       }
       if (!response.ok) {
-        logger.error('Vault secret retrieval failed', {
-          key,
-          status: response.status,
-          statusText: response.statusText,
-        });
-        return undefined; // OK: Explicit empty
+        // Non-404 errors indicate a backend problem (auth failure, network issue,
+        // server error). Throw so callers can distinguish "missing" from "broken".
+        throw new ConfigError(
+          `Vault secret "${key}" retrieval failed: HTTP ${response.status} ${response.statusText}`,
+          key
+        );
       }
 
       const body = (await response.json()) as {
@@ -137,11 +140,17 @@ export class VaultSecretsProvider implements SecretsProvider {
       }
       return value;
     } catch (error) {
+      // Re-throw ConfigError (already correctly typed from above).
+      // For network/parse errors, wrap and throw so callers know the backend failed.
+      if (error instanceof ConfigError) throw error;
       logger.error('Vault request error', {
         key,
         error: error instanceof Error ? error.message : String(error),
       });
-      return undefined; // OK: Explicit empty
+      throw new ConfigError(
+        `Vault secret "${key}" request failed: ${error instanceof Error ? error.message : String(error)}`,
+        key
+      );
     }
   }
 
@@ -229,16 +238,21 @@ export class AwsSecretsManagerProvider implements SecretsProvider {
       }
       return value;
     } catch (error) {
-      // ResourceNotFoundException means the secret doesn't exist — not an error
+      // ResourceNotFoundException → key does not exist, normal flow
       if (error instanceof Error && error.name === 'ResourceNotFoundException') {
         return undefined; // OK: Explicit empty — secret does not exist in AWS
       }
+      // All other errors (auth failure, network, throttle) → throw so callers
+      // can distinguish "missing" from "backend broken".
       logger.error('AWS Secrets Manager retrieval failed', {
         key,
         region: this.region,
         error: error instanceof Error ? error.message : String(error),
       });
-      return undefined; // OK: Explicit empty — logged above, graceful degradation
+      throw new ConfigError(
+        `AWS Secrets Manager secret "${key}" retrieval failed: ${error instanceof Error ? error.message : String(error)}`,
+        key
+      );
     }
   }
 
@@ -274,13 +288,29 @@ export class CompositeSecretsProvider implements SecretsProvider {
   }
 
   async getSecret(key: string): Promise<string | undefined> {
+    let lastBackendError: unknown;
     for (const provider of this.providers) {
-      const secret = await provider.getSecret(key);
-      if (secret !== undefined) {
-        return secret;
+      try {
+        const secret = await provider.getSecret(key);
+        if (secret !== undefined) {
+          return secret;
+        }
+        // undefined = key not present in this provider; try next
+      } catch (err) {
+        // Backend failure (network, auth, server error) — record and try next
+        // provider in case a fallback (e.g. EnvSecretsProvider) can serve it.
+        lastBackendError = err;
+        logger.warn('SecretsProvider backend error in composite chain — trying next provider', {
+          key,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
-    return undefined; // OK: all providers exhausted — no secret found
+    if (lastBackendError !== undefined) {
+      // All providers tried; at least one had a backend error — surface it.
+      throw lastBackendError;
+    }
+    return undefined; // OK: all providers exhausted — key not found in any
   }
 
   async hasSecret(key: string): Promise<boolean> {
