@@ -5,7 +5,7 @@ Production-grade Google Sheets MCP Server with 25 tools, 409 actions, safety rai
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-8500%2B%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Tests](https://img.shields.io/badge/tests-11600%2B%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
 [![Coverage](https://img.shields.io/badge/coverage-CI%20reported-blue)](https://github.com/khill1269/servalsheets/actions/workflows/ci.yml)
 
 <p align="center">

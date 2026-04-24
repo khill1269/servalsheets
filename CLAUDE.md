@@ -169,57 +169,7 @@ LLM clients using ServalSheets MUST follow these patterns:
 **Rule:** Never move code from `src/http-server/` into `packages/mcp-http/` unless it has zero
 ServalSheets-specific imports. The package layer must remain product-agnostic.
 
-### 11. Schema Changes Also Require Snapshot Updates (Session 112–115)
-
-After editing `SafetyOptionsSchema`, `RangeInputSchema`, or any shared schema — the snapshot tests in `tests/snapshots/` will fail even after `check:drift` passes:
-
-```bash
-npx vitest run tests/snapshots -u   # update snapshots
-npm run verify:safe                  # then full verify
-```
-
-`check:drift` tracks action/tool counts; snapshot tests track full JSON schema shapes. Both must pass.
-
-### 12. `safety.confirmed` — Pre-approval bypass for elicitation (Session 112)
-
-For clients that don't support MCP Elicitation, destructive `sheets_advanced` operations (delete_named_range, delete_banding, delete_protected_range) return `ELICITATION_UNAVAILABLE`. The caller can bypass by re-calling with `safety.confirmed: true`:
-
-```typescript
-{ action: 'delete_named_range', namedRangeId: 'nr1', safety: { confirmed: true } }
-```
-
-`SafetyOptionsSchema` now has `confirmed: z.boolean().optional()`. The handler passes `skipIfElicitationUnavailable: req.safety?.confirmed === true` to `requestSafetyConfirmation()`.
-
-### 13. Error Source Inference — shared utility (Session 112–115)
-
-When classifying errors for `fixableVia` routing, use the canonical utility:
-
-```typescript
-import { inferErrorSource } from '../utils/infer-error-source.js';
-const source = inferErrorSource(error); // 'google_api' | 'ai_service' | 'validation' | 'auth' | undefined
-```
-
-`BaseHandler.mapError()` and `mapStandaloneError()` both use this. Do NOT inline the heuristic again — it was duplicated in two places and has been consolidated.
-
-### 14. `convertRangeInput` is gone — use `convertRangeInputAsync` (Session 115)
-
-The sync `convertRangeInput` private method was removed from `AnalyzeHandler`. All callers now use `convertRangeInputAsync(spreadsheetId, range)` which:
-
-- Handles `grid` branch via `convertGridRangeToA1`
-- Returns `{ notImplemented: true, reason }` for `semantic` (caller must emit `NOT_IMPLEMENTED`)
-- Handles `a1` and `namedRange` synchronously (same as before)
-
-Deps interfaces that used to accept `(range) => ConvertedRangeInput | undefined` now accept `(range) => Promise<ConvertedRangeInput | { notImplemented: true; reason: string } | undefined>`.
-
-### 15. `annotateAIGeneratedDraftPlan` backfill parameter (Session 115)
-
-The function now has a second parameter:
-
-```typescript
-annotateAIGeneratedDraftPlan(plan, backfillSentinels = false)
-```
-
-When `backfillSentinels: true`, each invalid step also gets `_requiredParams: string[]` listing the missing required fields. The plan-compiler passes `true` for regex-fallback plans. AI-generated plans don't need it (LLM fills params).
+**See `docs/development/ADVANCED_GOTCHAS.md` for gotchas 11–18** (snapshot updates, safety.confirmed bypass, inferErrorSource utility, convertRangeInputAsync migration, annotateAIGeneratedDraftPlan backfill param, server.json generation, RBAC_STRICT mode, sql_join injection guard).
 
 ## Key Files
 
@@ -240,47 +190,12 @@ When `backfillSentinels: true`, each invalid step also gets `_requiredParams: st
 
 ## Code Patterns
 
-### Layered Validation
+Response: `this.success('action', data)` (BaseHandler) · `{ response: { success: true, action, ...data } }` (standalone) · `this.mapError(error)` (both).
+Errors: `throw new SheetNotFoundError(...)` not `new Error(...)`.
+Imports: External → domain → types → config → services → utils → schemas → MCP.
+Naming: `handle{Action}` · `createMock{Type}` · `{src}To{target}` · `{Tool}{Action}Input`.
 
-```typescript
-fastValidateSpreadsheet(input); // 0.1ms pre-Zod
-const validated = Schema.parse(input); // Full Zod
-if (!result.response) throw new ResponseValidationError(); // Shape check
-```
-
-### Structured Errors
-
-```typescript
-// ✅ Typed: throw new SheetNotFoundError('...', { spreadsheetId, sheetName });
-// ❌ Generic: throw new Error('Sheet not found');
-```
-
-### Response Patterns
-
-```typescript
-// BaseHandler (13 handlers): return this.success('action', data, mutation);
-// Standalone (12 handlers):  return { response: { success: true, action, ...data } };
-// Error (both):              return { response: this.mapError(error) };
-```
-
-## Coding Style
-
-### Import Ordering
-
-```typescript
-// 1. Google APIs / external    2. Internal domain (base handler)
-// 3. Core types                4. Config
-// 5. Services                  6. Utils
-// 7. Schemas / types           8. MCP layer
-```
-
-### Naming Conventions
-
-- Handler methods: `private async handle{ActionName}(input): Promise<Response>`
-- Test mocks: `createMock{Type}()`
-- Converters: `{source}To{target}()`
-- Validators: `validate{Thing}()`
-- Types: `{Tool}{Action}Input`, `{Tool}Output`
+> Full patterns: `docs/development/CLAUDE_CODE_RULES.md`
 
 ## Adding a New Action
 
