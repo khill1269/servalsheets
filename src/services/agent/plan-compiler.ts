@@ -151,6 +151,34 @@ export function summarizePlanningContext(context?: string): string | undefined {
   return trimmed.length <= 2000 ? trimmed : `${trimmed.slice(0, 2000)}...`;
 }
 
+/**
+ * Extract a title for a bootstrap-created spreadsheet from a natural-language
+ * description. Prefers quoted strings, falls back to the first clause, caps
+ * length at 100 chars (Google's limit is longer but we want readable titles).
+ *
+ * Examples:
+ *   'Build a "Q2 Sales" dashboard'   → 'Q2 Sales'
+ *   'Create a sales tracker sheet'   → 'Sales Tracker'
+ *   ''                                → 'Untitled Spreadsheet'
+ */
+export function extractTitleFromDescription(description: string): string {
+  if (!description?.trim()) return 'Untitled Spreadsheet';
+
+  // Prefer explicit quoted title: "Q2 2026 Sales Performance"
+  const quoted = description.match(/["'"'']([^"'"'']{3,100})["'"'']/);
+  if (quoted?.[1]) return quoted[1].trim();
+
+  // Fall back to the first clause, stripped of bootstrap verbs
+  const rawFirstClause = description.split(/[.,:;—\n]/)[0] ?? description;
+  const firstClause = rawFirstClause
+    .replace(/^\s*(please\s+)?(create|build|make|set\s*up|spin\s*up|bootstrap|new)\s+(an?\s+|the\s+)?/i, '')
+    .replace(/\b(spreadsheet|sheet|workbook|from\s+scratch)\b/gi, '')
+    .trim();
+
+  const title = firstClause.length >= 3 ? firstClause : description.trim();
+  return title.slice(0, 100) || 'Untitled Spreadsheet';
+}
+
 export function buildPlanState(args: {
   planId: string;
   description: string;
@@ -469,16 +497,48 @@ export async function compilePlanAI(
   // Fall back to regex-based planning if AI failed
   if (!steps || steps.length === 0) {
     const parsedSteps = parseDescription(description).slice(0, maxSteps);
-    steps = parsedSteps.map((step, idx) => ({
-      stepId: `${planId}-step-${idx}`,
-      tool: step.tool,
-      action: step.action,
-      description: step.label,
-      params: {
-        ...(spreadsheetId && { spreadsheetId }),
-        ...(context && { context }),
-      },
-    }));
+
+    // O-2: Zero-state bootstrap — when the description asks for something to
+    // be created/built/new and no spreadsheetId is provided, prepend a
+    // sheets_core.create step so the plan is actually executable from zero.
+    // Without this, every subsequent step fails schema validation with
+    // "spreadsheetId: expected string, received undefined".
+    const needsBootstrap =
+      !spreadsheetId &&
+      /\b(create|new|build|bootstrap|set\s*up|spin\s*up|start\s*from\s*scratch)\b/i.test(description) &&
+      /\b(spreadsheet|sheet|workbook|dashboard|tracker|report)\b/i.test(description);
+
+    const bootstrapSteps: typeof parsedSteps = needsBootstrap
+      ? [{ tool: 'sheets_core', action: 'create', label: 'Create spreadsheet' }]
+      : [];
+
+    const allParsedSteps = [...bootstrapSteps, ...parsedSteps].slice(0, maxSteps);
+
+    steps = allParsedSteps.map((step, idx) => {
+      // O-5: Only put schema-valid keys into params. `context` and `description`
+      // are planning metadata and must NOT leak into handler input (they fail
+      // Zod validation with "Unrecognized keys: context").
+      const params: Record<string, unknown> = {};
+
+      // Bootstrap step: extract title from description; no spreadsheetId yet.
+      if (step.tool === 'sheets_core' && step.action === 'create') {
+        params['title'] = extractTitleFromDescription(description);
+      } else if (idx > 0 && needsBootstrap) {
+        // Downstream step of a bootstrap plan: reference the created sheet.
+        // Executor resolves `{{steps[0].result.spreadsheetId}}` at run time.
+        params['spreadsheetId'] = '{{steps[0].result.spreadsheetId}}';
+      } else if (spreadsheetId) {
+        params['spreadsheetId'] = spreadsheetId;
+      }
+
+      return {
+        stepId: `${planId}-step-${idx}`,
+        tool: step.tool,
+        action: step.action,
+        description: step.label,
+        params,
+      };
+    });
   }
 
   const plan = buildPlanState({
