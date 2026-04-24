@@ -394,7 +394,7 @@ export function shouldDeferResourceDiscovery(): boolean {
 }
 
 export function getPrefetchConfig(): { enabled: boolean } {
-  return { enabled: process.env['ENABLE_PREFETCHING'] === 'true' };
+  return { enabled: getEnv()['ENABLE_PREFETCH'] };
 }
 
 export function getOtlpExportConfig(): {

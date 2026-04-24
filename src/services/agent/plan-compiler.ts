@@ -452,12 +452,10 @@ export async function compilePlanAI(
 
   // Try AI-powered planning first
   let steps: ExecutionStep[] | undefined;
-  let usedAIPlan = false;
   try {
     const aiSteps = await aiParsePlan(description, spreadsheetId, context, maxSteps);
     if (aiSteps && aiSteps.length > 0) {
       steps = aiSteps;
-      usedAIPlan = true;
     }
   } catch (err) {
     logger.debug('AI plan compilation error', {
@@ -467,19 +465,26 @@ export async function compilePlanAI(
   }
 
   // Fall back to regex-based planning if AI failed
+  let usedRegexFallback = false;
   if (!steps || steps.length === 0) {
+    usedRegexFallback = true;
     const parsedSteps = parseDescription(description).slice(0, maxSteps);
     steps = parsedSteps.map((step, idx) => ({
       stepId: `${planId}-step-${idx}`,
       tool: step.tool,
       action: step.action,
-      description: step.label,
+      description: `${step.label} — from: "${description.slice(0, 120)}"`,
       params: {
         ...(spreadsheetId && { spreadsheetId }),
         ...(context && { context }),
+        _stepIntent: description,
       },
     }));
   }
+
+  const regexNote = usedRegexFallback
+    ? 'REGEX_FALLBACK: AI sampling unavailable — steps generated from keyword matching only. Steps marked invalid need explicit parameter values before execution.'
+    : undefined;
 
   const plan = buildPlanState({
     planId,
@@ -487,12 +492,13 @@ export async function compilePlanAI(
     steps,
     now,
     spreadsheetId,
-    planningContextSummary: summarizePlanningContext(context),
+    planningContextSummary: [summarizePlanningContext(context), regexNote]
+      .filter(Boolean)
+      .join(' | ') || undefined,
   });
 
-  if (usedAIPlan) {
-    annotateAIGeneratedDraftPlan(plan);
-  }
+  // Annotate all plans; for regex-fallback plans also backfill _requiredParams
+  annotateAIGeneratedDraftPlan(plan, usedRegexFallback);
 
   evictOldestPlan();
   planStore.set(planId, plan);

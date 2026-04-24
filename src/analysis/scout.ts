@@ -43,6 +43,8 @@ export interface QuickIndicators {
   hasVisualizations: boolean;
   /** Has data validation or protected ranges */
   hasDataQuality: boolean;
+  /** Has protected ranges */
+  hasProtection: boolean;
   /** Has multiple sheets */
   multiSheet: boolean;
   /** Recommended depth for full analysis */
@@ -275,6 +277,7 @@ export class Scout {
       hasDataQuality: structure
         ? structure.structure.conditionalFormats > 0 || structure.structure.protectedRanges > 0
         : false,
+      hasProtection: structure ? structure.structure.protectedRanges > 0 : false,
       multiSheet: metadata.sheets.length > 1,
       recommendedDepth,
     };
@@ -291,6 +294,7 @@ export class Scout {
       hasFormulas: false,
       hasVisualizations: false,
       hasDataQuality: false,
+      hasProtection: false,
       multiSheet: false,
       recommendedDepth: 'sample',
     };

@@ -234,7 +234,7 @@ export async function handleQueryNaturalLanguageAction(
       await assertSamplingConsent();
       samplingResult = await withSamplingTimeout(() => deps.server.createMessage(samplingRequest));
     } catch (samplingError) {
-      logger.error('MCP Sampling call failed for query_natural_language', {
+      logger.error('Sampling call failed for query_natural_language', {
         component: 'analyze-handler',
         action: 'query_natural_language',
         error: samplingError instanceof Error ? samplingError.message : String(samplingError),
@@ -244,10 +244,10 @@ export async function handleQueryNaturalLanguageAction(
         error: {
           code: ErrorCodes.FEATURE_UNAVAILABLE,
           message:
-            'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
+            'AI analysis service unavailable. This feature requires MCP Sampling support or an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
           retryable: false,
           suggestedFix:
-            'Ensure your MCP client supports the Sampling capability or provide an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
+            'Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY in your environment, or use an MCP client that supports the Sampling capability (MCP 2025-11-25+).',
         },
       };
     }

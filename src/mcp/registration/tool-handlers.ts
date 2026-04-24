@@ -55,6 +55,7 @@ import { getTraceAggregator } from '../../services/trace-aggregator.js';
 import { getCostTracker } from '../../services/cost-tracker.js';
 import { getAuditLogger } from '../../services/audit-logger.js';
 import { appendAuditLogRow } from '../../services/audit-log-sheet.js';
+import { emitSheetEvent, type SheetEventType } from '../../services/event-bus.js';
 import { getCacheInvalidationGraph } from '../../services/cache-invalidation-graph.js';
 import { createMetadataCache } from '../../services/metadata-cache.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
@@ -403,6 +404,19 @@ function resolveActionLogSpreadsheetId(
 
 function isActionLogMutation(action: string): boolean {
   return isLikelyMutationAction(action) || action === 'create' || action === 'copy';
+}
+
+function deriveSheetEventType(toolName: string, action: string): SheetEventType {
+  if (toolName === 'sheets_format') return 'sheet.format';
+  if (toolName === 'sheets_collaborate' && (action.includes('comment') || action.includes('note')))
+    return 'sheet.comment';
+  if (action.includes('share') || action.includes('permission')) return 'sheet.share';
+  if (action.includes('import') || toolName === 'sheets_bigquery') return 'sheet.import';
+  if (action.includes('export')) return 'sheet.export';
+  if (action === 'create' || action === 'add_sheet' || action === 'copy') return 'sheet.create';
+  if (action === 'delete' || action === 'delete_sheet' || action === 'remove_sheet')
+    return 'sheet.delete';
+  return 'sheet.write';
 }
 
 async function appendActionLogSheetRowIfEnabled(input: {
@@ -1465,6 +1479,32 @@ function createToolCallHandler(
             success: status === 'success',
           });
 
+          // Emit sheet change event to event bus for downstream consumers
+          if (status === 'success' && spreadsheetId && isActionLogMutation(action)) {
+            emitSheetEvent(deriveSheetEventType(tool.name, action), spreadsheetId, {
+              toolName: tool.name,
+              actionName: action,
+              actorId: principalId || undefined,
+            });
+          }
+
+          // Debug logging: enabled per-tool via DEBUG_TOOL / DEBUG_ACTION env vars
+          if (envConfig['DEBUG_TOOL'] === tool.name) {
+            const dbgAction = envConfig['DEBUG_ACTION'];
+            if (!dbgAction || dbgAction === action) {
+              logger.debug('tool-debug', {
+                tool: tool.name,
+                action,
+                status,
+                duration,
+                spreadsheetId,
+                requestId,
+                verbose: Boolean(envConfig['DEBUG_VERBOSE']),
+                result: envConfig['DEBUG_VERBOSE'] ? result : undefined,
+              });
+            }
+          }
+
           // Record range for context-aware completions
           if (status === 'success') {
             const reqObj = (args as Record<string, unknown>)['request'] as
@@ -1565,6 +1605,23 @@ function createToolCallHandler(
             });
           }
 
+          // Audit logging for compliance — mirrors the success path so that
+          // handler crashes and Zod edge-case failures have a complete trail.
+          if (getEnv()['ENABLE_AUDIT_LOGGING']) {
+            try {
+              void getAuditLogger().logToolCall({
+                tool: tool.name,
+                action,
+                userId: requestId || 'anonymous',
+                spreadsheetId: extractSpreadsheetId(args) || undefined,
+                outcome: 'failure',
+                duration,
+              });
+            } catch {
+              // Audit logging is non-critical — never block error handling
+            }
+          }
+
           await appendActionLogSheetRowIfEnabled({
             envConfig: getEnv(),
             googleClient,
@@ -1576,6 +1633,18 @@ function createToolCallHandler(
             duration,
             success: false,
           });
+
+          // Emit error event to event bus so downstream consumers (Kafka, SNS, etc.)
+          // can react to tool failures without polling logs.
+          const errorSpreadsheetId = extractSpreadsheetId(args);
+          if (errorSpreadsheetId) {
+            emitSheetEvent('sheet.error', errorSpreadsheetId, {
+              toolName: tool.name,
+              actionName: action,
+              actorId: principalId || undefined,
+              metadata: { errorCode, errorMessage },
+            });
+          }
 
           if (isGoogleAuthError(error)) {
             return buildToolResponse(convertGoogleAuthError(error));

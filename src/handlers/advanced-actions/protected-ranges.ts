@@ -218,19 +218,31 @@ export async function handleUpdateProtectedRangeAction(
     fields.push('range');
   }
 
-  await deps.sheetsApi.spreadsheets.batchUpdate({
-    spreadsheetId: req.spreadsheetId!,
-    requestBody: {
-      requests: [
-        {
-          updateProtectedRange: {
-            protectedRange: update,
-            fields: fields.join(','),
+  try {
+    await deps.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: req.spreadsheetId!,
+      requestBody: {
+        requests: [
+          {
+            updateProtectedRange: {
+              protectedRange: update,
+              fields: fields.join(','),
+            },
           },
-        },
-      ],
-    },
-  });
+        ],
+      },
+    });
+  } catch (apiError) {
+    const msg = apiError instanceof Error ? apiError.message : String(apiError);
+    return deps.error({
+      code: ErrorCodes.INVALID_REQUEST,
+      message: `Failed to update protected range ${req.protectedRangeId}: ${msg}`,
+      retryable: false,
+      details: { protectedRangeId: req.protectedRangeId },
+      suggestedFix:
+        'Verify the protectedRangeId exists and the fields being updated are valid. Use sheets_advanced.list_protected_ranges to inspect current protections.',
+    });
+  }
 
   return deps.success('update_protected_range', {});
 }
@@ -247,6 +259,7 @@ export async function handleDeleteProtectedRangeAction(
     server: deps.context.elicitationServer,
     operation: 'delete_protected_range',
     details: `Delete protected range (ID: ${req.protectedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove all protection settings. This action cannot be undone.`,
+    skipIfElicitationUnavailable: req.safety?.confirmed === true,
     context: {
       toolName: 'sheets_advanced',
       actionName: 'delete_protected_range',
@@ -257,11 +270,22 @@ export async function handleDeleteProtectedRangeAction(
   });
 
   if (!deleteConfirmation.confirmed) {
+    const isUnavailable = deleteConfirmation.outcome === 'unavailable';
+    // AUDIT-2026-04-23 (Root E): when elicitation is unavailable, emit the
+    // canonical ELICITATION_UNAVAILABLE code so response-intelligence +
+    // recovery-engine attach the structured `alternatives[]` (wizard_start,
+    // safety.confirmed bypass) + resolutionSteps[] from recovery-engine.ts
+    // ELICITATION_UNAVAILABLE block. Prior code emitted PRECONDITION_FAILED
+    // and the recovery information never reached the client.
     return deps.error({
-      code: ErrorCodes.PRECONDITION_FAILED,
-      message: deleteConfirmation.reason || 'User cancelled the operation',
+      code: isUnavailable ? ErrorCodes.ELICITATION_UNAVAILABLE : ErrorCodes.PRECONDITION_FAILED,
+      message: isUnavailable
+        ? `Interactive confirmation is unavailable for this client. Pass safety.confirmed: true to bypass, or use sheets_confirm.wizard_start. No destructive changes were made.`
+        : deleteConfirmation.reason || 'User cancelled the operation',
       retryable: false,
-      suggestedFix: 'Review the operation requirements and try again',
+      suggestedFix: isUnavailable
+        ? `Re-call delete_protected_range with safety.confirmed: true to pre-approve this destructive operation, or start an interactive wizard via sheets_confirm.wizard_start. As a last resort, remove the protection manually in Google Sheets: Data > Protect sheets and ranges, find protected range ID ${req.protectedRangeId}.`
+        : 'Review the operation requirements and try again',
     });
   }
 

@@ -110,6 +110,8 @@ export function analyzeTrends(values: unknown[][]): Array<{
       const value = row[col];
       if (typeof value === 'number') {
         numericColumns[col]!.push(value);
+      } else if (typeof value === 'string' && value !== '' && !isNaN(Number(value))) {
+        numericColumns[col]!.push(Number(value));
       }
     }
   }
@@ -177,11 +179,17 @@ export function detectAnomalies(values: unknown[][]): Array<{
 
   for (let col = 0; col < columnCount; col++) {
     const columnData = values
-      .map((row, idx) => ({ value: row[col], row: idx }))
-      .filter((v) => typeof v.value === 'number') as {
-      value: number;
-      row: number;
-    }[];
+      .map((row, idx) => {
+        const v = row[col];
+        const numeric =
+          typeof v === 'number'
+            ? v
+            : typeof v === 'string' && v !== '' && !isNaN(Number(v))
+              ? Number(v)
+              : null;
+        return { value: numeric, row: idx };
+      })
+      .filter((v): v is { value: number; row: number } => v.value !== null);
 
     if (columnData.length < 4) continue;
 
@@ -436,15 +444,21 @@ export function checkColumnQuality(
   consistency: number;
   issues: string[];
   uniqueRatio?: number;
+  isCategorical?: boolean;
 } {
   const totalCount = columnData.length;
-  const uniqueCount = new Set(columnData).size;
+  // Single pass: build frequency map — uniqueCount and topFrequency
+  // are both derived from it, eliminating a second O(n) scan.
+  const valueCounts = new Map<unknown, number>();
+  for (const v of columnData) valueCounts.set(v, (valueCounts.get(v) ?? 0) + 1);
+  const uniqueCount = valueCounts.size;
 
   const quality: {
     completeness: number;
     consistency: number;
     issues: string[];
     uniqueRatio?: number;
+    isCategorical?: boolean;
   } = {
     completeness: 100, // Already filtered empty values
     consistency: 100,
@@ -458,14 +472,37 @@ export function checkColumnQuality(
     quality.issues.push('Mixed data types detected');
   }
 
-  // Check for duplicates
+  // AUDIT-2026-04-23 (artifact bug #11): detect categorical columns and
+  // exempt them from the "high duplicate rate" flag. A string-typed
+  // column with cardinality ratio < 0.2 (fewer than 20% unique values)
+  // is almost certainly categorical — Region, Product, Tier, Lead Source
+  // — not a data-quality defect. Prior logic flagged every such column
+  // as having "high duplicate rate 80-95%", creating false positives on
+  // every real-world sales/CRM dataset.
+  //
+  // We still flag truly monotonic columns (>=95% of rows share one value
+  // AND cardinality > 1) since that's often a copy-paste error.
+  const uniqueRatio = totalCount === 0 ? 0 : uniqueCount / totalCount;
+  const isStringLike = dataType === 'string' || dataType === 'text';
+  const isCategorical = isStringLike && totalCount >= 5 && uniqueRatio < 0.2;
+  quality.isCategorical = isCategorical;
+
   const duplicateRatio = (totalCount - uniqueCount) / totalCount;
-  if (duplicateRatio > 0.5) {
+  if (isCategorical) {
+    // Only flag collapse-to-one cases, not healthy categorical spread.
+    const topFrequency = valueCounts.size > 0 ? Math.max(...valueCounts.values()) : 0;
+    if (topFrequency / totalCount >= 0.95 && uniqueCount > 1) {
+      quality.issues.push(
+        `Low cardinality: one value appears in ${((topFrequency / totalCount) * 100).toFixed(0)}% of rows`
+      );
+    }
+    // else: healthy categorical distribution — no issue raised.
+  } else if (duplicateRatio > 0.5) {
     quality.issues.push(`High duplicate rate: ${(duplicateRatio * 100).toFixed(0)}%`);
   }
 
   // Calculate unique ratio
-  quality.uniqueRatio = uniqueCount / totalCount;
+  quality.uniqueRatio = uniqueRatio;
 
   return quality;
 }
@@ -494,11 +531,14 @@ export function analyzeCorrelationsData(values: unknown[][]): Array<{
   const numericColumns: number[][] = Array.from({ length: columnCount }, () => []);
 
   // Single pass through all rows to extract numeric values
+  // Coerce numeric strings (Google Sheets API can return numbers as strings)
   for (const row of values) {
     for (let col = 0; col < columnCount; col++) {
       const value = row[col];
       if (typeof value === 'number') {
         numericColumns[col]!.push(value);
+      } else if (typeof value === 'string' && value !== '' && !isNaN(Number(value))) {
+        numericColumns[col]!.push(Number(value));
       }
     }
   }

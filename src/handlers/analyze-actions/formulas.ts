@@ -42,7 +42,10 @@ export async function handleAnalyzeFormulasAction(
       formattedValue?: string;
     }> = [];
 
-    const allRanges = metadata.sheets.map((s) => `'${s.title}'`);
+    const targetSheets = input.sheetId !== undefined
+      ? metadata.sheets.filter((s) => s.sheetId === input.sheetId)
+      : metadata.sheets;
+    const allRanges = targetSheets.map((s) => `'${s.title}'`);
     const batchResponse = await deps.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges: allRanges,

@@ -638,19 +638,31 @@ export class SheetsAppsScriptHandler extends BaseHandler<
             '4. Retry your request';
           retryable = false;
         } else if (
+          // AUDIT-2026-04-23 (artifact bug #24): also match "insufficient
+          // scope(s)" and specific scope URI patterns so scope-mismatch 403s
+          // classify as PERMISSION_DENIED (not transport/UNAVAILABLE that
+          // triggers a retry-in-60s playbook that will never self-resolve).
           errorMessage.includes('Insufficient Permission') ||
-          errorMessage.includes('permission')
+          errorMessage.includes('permission') ||
+          /insufficient[\s-]?scope/i.test(errorMessage) ||
+          /script\.metrics/i.test(errorMessage) ||
+          /missing.*scope/i.test(errorMessage)
         ) {
           // Missing OAuth scopes
           errorCode = 'PERMISSION_DENIED';
           errorMessage = `Insufficient OAuth permissions for Apps Script API. ${errorMessage}`;
+          const needsMetrics = /script\.metrics|getMetrics|metrics/i.test(errorMessage);
           resolution =
             'Required OAuth scopes: ' +
             'https://www.googleapis.com/auth/script.projects (manage projects), ' +
             'https://www.googleapis.com/auth/script.deployments (manage deployments), ' +
-            'https://www.googleapis.com/auth/script.processes (view execution logs). ' +
-            'Re-authenticate with sheets_auth to grant these scopes.';
-          retryable = true; // User can re-authenticate
+            'https://www.googleapis.com/auth/script.processes (view execution logs)' +
+            (needsMetrics
+              ? ', https://www.googleapis.com/auth/script.metrics (get_metrics action).'
+              : '.') +
+            ' Re-authenticate with sheets_auth to grant these scopes. ' +
+            'Note: waiting and retrying will NOT fix this — scopes must be re-granted via OAuth consent.';
+          retryable = false; // AUDIT-2026-04-23: was `true` — scope issues don't self-resolve; re-auth is user-initiated.
         }
       } else if (response.status === 400) {
         // Bad Request - invalid parameters

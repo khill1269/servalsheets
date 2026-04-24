@@ -84,22 +84,55 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
   }
 
   /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   * AUDIT-2026-04-23 (Root A full): async variant of convertRangeInput
+   * that handles the `grid` branch by translating GridRange → A1 using
+   * `convertGridRangeToA1`. The `semantic` branch returns a structured
+   * error marker (`{ notImplemented: true, reason }`) so callers can emit
+   * a proper NOT_IMPLEMENTED response instead of silently falling back.
+   *
+   * Callers that accept `range: GridRange` should use this variant.
+   * Pure-a1/namedRange callers can keep using `convertRangeInput`.
    */
-  private convertRangeInput(
+  protected async convertRangeInputAsync(
+    spreadsheetId: string,
     range:
       | { a1: string }
       | { namedRange: string }
       | { semantic: unknown }
       | { grid: unknown }
       | undefined
-  ): { a1?: string; sheetName?: string; range?: string } | undefined {
-    // OK: Explicit empty - no range provided
-    if (!range) return undefined; // OK: Explicit empty
+  ): Promise<
+    | { a1?: string; sheetName?: string; range?: string }
+    | { notImplemented: true; reason: string }
+    | undefined
+  > {
+    if (!range) return undefined;
     if ('a1' in range) return { a1: range.a1 };
     if ('namedRange' in range) return { a1: range.namedRange };
-    // OK: Explicit empty - semantic and grid ranges will be supported in Phase 2
-    return undefined; // OK: Explicit empty
+    if ('grid' in range) {
+      const grid = range.grid as {
+        sheetId?: number;
+        startRowIndex?: number;
+        endRowIndex?: number;
+        startColumnIndex?: number;
+        endColumnIndex?: number;
+      };
+      const a1 = await this.convertGridRangeToA1(spreadsheetId, grid);
+      if (a1) return { a1 };
+      return {
+        notImplemented: true,
+        reason:
+          'grid range could not be resolved — sheetId may not exist in the spreadsheet',
+      };
+    }
+    if ('semantic' in range) {
+      return {
+        notImplemented: true,
+        reason:
+          'semantic range resolution is not yet implemented. Use {a1: "..."}, {namedRange: "..."}, or {grid: {...}} instead.',
+      };
+    }
+    return undefined; // OK: Explicit empty — unknown union branch (defensive); upstream Zod validates the union
   }
 
   /**
@@ -161,6 +194,84 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
   }
 
   /**
+   * AUDIT-2026-04-23 (Root A partial, artifact bug #27): translate a
+   * `grid` range (Google GridRange shape) into an A1 string.
+   *
+   * Context: `convertRangeInput` accepts a 4-way polymorphic range union
+   * (a1 / namedRange / semantic / grid) but historically dropped the
+   * `grid` and `semantic` branches to `undefined`, silently falling
+   * back to workbook-wide reads. Top-level `sheetId` is already
+   * respected by each per-action handler, so the only remaining silent
+   * fallback is when a caller passes a `grid` object.
+   *
+   * This helper translates:
+   *   {grid: {sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex}}
+   * into:
+   *   "'SheetName'!A1:D10"   (with proper quoting)
+   *
+   * Half-open intervals per GridRange spec:
+   *   https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#GridRange
+   *
+   * `semantic` branch remains deferred (needs a semantic-range resolver
+   * that isn't yet wired) and will return null; callers must handle
+   * that with a structured NOT_IMPLEMENTED error.
+   */
+  protected async convertGridRangeToA1(
+    spreadsheetId: string,
+    grid: {
+      sheetId?: number;
+      startRowIndex?: number;
+      endRowIndex?: number;
+      startColumnIndex?: number;
+      endColumnIndex?: number;
+    }
+  ): Promise<string | null> {
+    const resolveSheetName = async (): Promise<string | null> => {
+      if (grid.sheetId === undefined) return null;
+      const meta = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties',
+      });
+      const match = meta.data.sheets?.find((s) => s.properties?.sheetId === grid.sheetId);
+      return match?.properties?.title ?? null;
+    };
+    const sheetName = await resolveSheetName();
+    if (!sheetName) return null;
+    const escaped = sheetName.replace(/'/g, "''");
+
+    const hasAnyIndex =
+      grid.startRowIndex !== undefined ||
+      grid.endRowIndex !== undefined ||
+      grid.startColumnIndex !== undefined ||
+      grid.endColumnIndex !== undefined;
+
+    if (!hasAnyIndex) {
+      return `'${escaped}'`; // whole sheet
+    }
+
+    const colLetter = (zeroBasedIdx: number): string => {
+      let n = zeroBasedIdx;
+      let s = '';
+      do {
+        s = String.fromCharCode(65 + (n % 26)) + s;
+        n = Math.floor(n / 26) - 1;
+      } while (n >= 0);
+      return s;
+    };
+
+    // GridRange uses 0-based inclusive start, 0-based exclusive end.
+    // A1 uses 1-based inclusive start + 1-based inclusive end.
+    const a1Start = `${
+      grid.startColumnIndex !== undefined ? colLetter(grid.startColumnIndex) : 'A'
+    }${grid.startRowIndex !== undefined ? grid.startRowIndex + 1 : ''}`;
+    const a1End = `${
+      grid.endColumnIndex !== undefined ? colLetter(grid.endColumnIndex - 1) : ''
+    }${grid.endRowIndex !== undefined ? grid.endRowIndex : ''}`;
+
+    return a1End ? `'${escaped}'!${a1Start}:${a1End}` : `'${escaped}'!${a1Start}`;
+  }
+
+  /**
    * Read data from spreadsheet.
    *
    * Uses metadata-driven range resolution when no range is specified:
@@ -183,9 +294,15 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
         const firstSheet = metaResponse.data.sheets?.[0];
         if (firstSheet?.properties?.gridProperties) {
           const { rowCount, columnCount } = firstSheet.properties.gridProperties;
-          // Cap at 10,000 rows × 100 columns to prevent runaway fetches
-          const maxRows = Math.min(rowCount ?? 1000, 10000);
-          const maxCols = Math.min(columnCount ?? 26, 100);
+          // AUDIT-2026-04-23 (finding N14): cap sourced from env so
+          // deployments can tune without a code change. Fallbacks preserve
+          // prior behavior (10,000 rows × 100 columns).
+          const envMaxRows = Number(process.env['ANALYZE_MAX_ROWS']);
+          const envMaxCols = Number(process.env['ANALYZE_MAX_COLS']);
+          const rowCap = Number.isFinite(envMaxRows) && envMaxRows > 0 ? envMaxRows : 10000;
+          const colCap = Number.isFinite(envMaxCols) && envMaxCols > 0 ? envMaxCols : 100;
+          const maxRows = Math.min(rowCount ?? 1000, rowCap);
+          const maxCols = Math.min(columnCount ?? 26, colCap);
           const colLetter = this.columnIndexToLetter(maxCols - 1);
           const sheetTitle = firstSheet.properties.title ?? 'Sheet1';
           const escapedTitle = sheetTitle.replace(/'/g, "''");
@@ -364,7 +481,8 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           response = await handleDetectPatternsAction(patternInput, {
             hasServer: !!this.context.server,
             samplingServer: this.context.samplingServer,
-            convertRangeInput: (range) => this.convertRangeInput(range),
+            convertRangeInput: (range) =>
+              this.convertRangeInputAsync(patternInput.spreadsheetId, range),
             resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
             readData: (spreadsheetId, range) => this.readData(spreadsheetId, range),
           });
@@ -375,6 +493,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           // Type assertion: refine() ensures spreadsheetId is present
           const structureInput = req as typeof req & {
             spreadsheetId: string;
+            sheetId?: number;
           };
           response = await handleAnalyzeStructureAction(structureInput, this.sheetsApi);
           break;
@@ -384,6 +503,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
           // Type assertion: refine() ensures spreadsheetId and range are present
           const qualityInput = req as typeof req & {
             spreadsheetId: string;
+            sheetId?: number;
             range:
               | { a1: string }
               | { namedRange: string }
@@ -391,9 +511,33 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
               | { grid: unknown };
           };
           response = await handleAnalyzeQualityAction(qualityInput, {
-            convertRangeInput: (range) => this.convertRangeInput(range),
+            convertRangeInput: (range) =>
+              this.convertRangeInputAsync(qualityInput.spreadsheetId, range),
             resolveAnalyzeRange: (range) => this.resolveAnalyzeRange(range),
-            readData: (spreadsheetId, range) => this.readData(spreadsheetId, range),
+            readData: async (spreadsheetId, range) => {
+              if (!range && qualityInput.sheetId !== undefined) {
+                const meta = await this.sheetsApi.spreadsheets.get({
+                  spreadsheetId,
+                  fields: 'sheets(properties(sheetId,title,gridProperties))',
+                });
+                const sheet = meta.data.sheets?.find(
+                  (s) => s.properties?.sheetId === qualityInput.sheetId
+                );
+                if (sheet?.properties?.title) {
+                  const { rowCount, columnCount } = sheet.properties.gridProperties ?? {};
+                  const envMaxRows = Number(process.env['ANALYZE_MAX_ROWS']);
+                  const envMaxCols = Number(process.env['ANALYZE_MAX_COLS']);
+                  const rowCap = Number.isFinite(envMaxRows) && envMaxRows > 0 ? envMaxRows : 10000;
+                  const colCap = Number.isFinite(envMaxCols) && envMaxCols > 0 ? envMaxCols : 100;
+                  const maxRows = Math.min(rowCount ?? 1000, rowCap);
+                  const maxCols = Math.min(columnCount ?? 26, colCap);
+                  const colLetter = this.columnIndexToLetter(maxCols - 1);
+                  const escaped = sheet.properties.title.replace(/'/g, "''");
+                  range = `'${escaped}'!A1:${colLetter}${maxRows}`;
+                }
+              }
+              return this.readData(spreadsheetId, range);
+            },
           });
           break;
         }
@@ -896,10 +1040,16 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     let resolvedRange: string | undefined;
 
     if ('range' in req && req.range) {
-      resolvedRange =
-        typeof req.range === 'string'
-          ? req.range
-          : this.resolveAnalyzeRange(this.convertRangeInput(req.range));
+      if (typeof req.range === 'string') {
+        resolvedRange = req.range;
+      } else {
+        const converted = await this.convertRangeInputAsync(req.spreadsheetId, req.range);
+        if (converted && !('notImplemented' in converted)) {
+          resolvedRange = this.resolveAnalyzeRange(converted);
+        }
+        // If notImplemented (semantic/grid branch unsupported), resolvedRange stays undefined
+        // → readData will use metadata-driven bounds (workbook-wide) as fallback context
+      }
       const data = await this.readData(req.spreadsheetId, resolvedRange);
       if (data.length > 0) {
         headers = data[0]?.map(String);

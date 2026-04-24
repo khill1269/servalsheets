@@ -11,6 +11,7 @@ import type { GoogleApiClient } from '../services/google-api.js';
 import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { getWriteLockStats } from '../middleware/write-lock-middleware.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { VERSION } from '../version.js';
 import type { SessionStore } from '../storage/session-store.js';
 
@@ -126,7 +127,15 @@ export class HealthService {
     checks.push(writeLockCheck);
     // Write lock stats are informational
 
-    // Check 6: Redis connectivity (when session store is Redis-backed)
+    // Check 6: Circuit breaker state
+    const cbCheck = this.checkCircuitBreakers();
+    checks.push(cbCheck);
+    if (cbCheck.status === 'error') overallStatus = 'unhealthy';
+    else if (cbCheck.status === 'degraded' && overallStatus === 'healthy') {
+      overallStatus = 'degraded';
+    }
+
+    // Check 7: Redis connectivity (when session store is Redis-backed)
     if (this.sessionStore) {
       const redisCheck = await this.checkRedis();
       checks.push(redisCheck);
@@ -328,6 +337,45 @@ export class HealthService {
       return {
         name: 'write_locks',
         status: 'ok', // Write lock stats failure is non-critical
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Check circuit breaker state across all registered breakers.
+   * An open breaker means quota/API saturation — mark readiness as degraded.
+   */
+  private checkCircuitBreakers(): HealthCheck {
+    try {
+      const stats = circuitBreakerRegistry.getAllStats();
+      const entries = Object.entries(stats) as Array<[string, Record<string, unknown>]>;
+      const open = entries.filter(([, s]) => s['state'] === 'open');
+      const halfOpen = entries.filter(([, s]) => s['state'] === 'half-open');
+      const status = open.length > 0 ? 'degraded' : 'ok';
+      return {
+        name: 'circuit_breakers',
+        status,
+        message:
+          open.length > 0
+            ? `${open.length} circuit breaker(s) open: ${open.map(([n]) => n).join(', ')}`
+            : entries.length === 0
+              ? 'No circuit breakers registered'
+              : `All ${entries.length} circuit breaker(s) closed`,
+        metadata: {
+          total: entries.length,
+          open: open.length,
+          halfOpen: halfOpen.length,
+          closed: entries.length - open.length - halfOpen.length,
+          breakers: Object.fromEntries(
+            entries.map(([name, s]) => [name, { state: s['state'], failures: s['failures'] }])
+          ),
+        },
+      };
+    } catch (error) {
+      return {
+        name: 'circuit_breakers',
+        status: 'ok', // CB stats failure is non-critical
         message: error instanceof Error ? error.message : String(error),
       };
     }

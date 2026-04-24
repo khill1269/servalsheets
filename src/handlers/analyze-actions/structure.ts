@@ -5,6 +5,7 @@ import { logger } from '../../utils/logger.js';
 
 type AnalyzeStructureRequest = {
   spreadsheetId: string;
+  sheetId?: number;
 };
 
 /**
@@ -24,7 +25,10 @@ export async function handleAnalyzeStructureAction(
         'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount))),namedRanges(namedRangeId,name,range)',
     });
 
-    const sheets = spreadsheet.data.sheets ?? [];
+    const allSheets = spreadsheet.data.sheets ?? [];
+    const sheets = input.sheetId !== undefined
+      ? allSheets.filter((s) => s.properties?.sheetId === input.sheetId)
+      : allSheets;
     const namedRanges = spreadsheet.data.namedRanges ?? [];
 
     const sheetTitleById = new Map<number, string>(

@@ -141,12 +141,42 @@ export async function handleUpdateContent(
         retryable: false,
       });
     }
-    for (const pattern of DENY_PATTERNS) {
-      if (pattern.test(f.source)) {
+    const PATTERN_NAMES = ['ScriptApp.newTrigger', 'PropertiesService.setProperty(SERVAL_HMAC_SECRET)'];
+    for (let i = 0; i < DENY_PATTERNS.length; i++) {
+      const pattern = DENY_PATTERNS[i];
+      if (pattern && pattern.test(f.source)) {
+        const patternName = PATTERN_NAMES[i] ?? 'restricted-pattern';
+        // AUDIT-2026-04-23 (artifact bug #20): surface the offending line
+        // number(s) and a 3-line code snippet so callers can find and fix
+        // the call without re-reading the whole file. Previously the error
+        // reported only the file + pattern name, leaving callers to grep.
+        const lines = f.source.split(/\r?\n/);
+        const offendingLineNumbers: number[] = [];
+        lines.forEach((line, idx) => {
+          if (pattern.test(line)) offendingLineNumbers.push(idx + 1);
+        });
+        const firstHit = offendingLineNumbers[0] ?? 1;
+        const contextStart = Math.max(1, firstHit - 1);
+        const contextEnd = Math.min(lines.length, firstHit + 1);
+        const snippet = lines
+          .slice(contextStart - 1, contextEnd)
+          .map((ln, idx) => `${contextStart + idx}: ${ln}`)
+          .join('\n');
         return access.error({
           code: ErrorCodes.VALIDATION_ERROR,
-          message: `File "${f.name}" references a restricted Apps Script API pattern`,
+          message:
+            `File "${f.name}" references a restricted Apps Script API pattern (${patternName}) ` +
+            `on line${offendingLineNumbers.length > 1 ? 's' : ''} ${offendingLineNumbers.join(', ')}.`,
           retryable: false,
+          details: {
+            blockedPattern: patternName,
+            matchedRegex: pattern.toString(),
+            offendingLines: offendingLineNumbers.join(','),
+            offendingSnippet: snippet,
+          },
+          suggestedFix:
+            `Remove or replace the "${patternName}" call at line ${firstHit} in "${f.name}". ` +
+            `Trigger registration and HMAC secrets must be managed outside update_content.`,
         });
       }
     }

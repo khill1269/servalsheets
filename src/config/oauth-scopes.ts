@@ -61,6 +61,10 @@ export const FULL_ACCESS_SCOPES = [
   'https://www.googleapis.com/auth/script.deployments',
   'https://www.googleapis.com/auth/script.processes',
   'https://www.googleapis.com/auth/script.external_request',
+  // AUDIT-2026-04-23 (artifact bug #28): required for
+  // sheets_appsscript.get_metrics which calls projects.getMetrics.
+  // Per https://developers.google.com/apps-script/api/reference/rest/v1/projects/getMetrics
+  'https://www.googleapis.com/auth/script.metrics',
 
   // Drive Labels (for sheets_collaborate.label_list, label_apply, label_remove)
   'https://www.googleapis.com/auth/drive.labels.readonly',
@@ -171,6 +175,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/script.processes': 'View Apps Script processes and executions',
   'https://www.googleapis.com/auth/script.external_request':
     'Allow Apps Script to make external HTTP requests',
+  'https://www.googleapis.com/auth/script.metrics':
+    'View execution metrics for your Apps Script projects (for sheets_appsscript.get_metrics)',
   'https://www.googleapis.com/auth/spreadsheets.readonly': 'View your Google Sheets spreadsheets',
   'https://www.googleapis.com/auth/drive.readonly': 'View your Google Drive files',
   'https://www.googleapis.com/auth/drive.labels.readonly':

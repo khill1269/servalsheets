@@ -359,10 +359,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         const exhaustiveCheck: string = action as string;
         return this.error({
           code: ErrorCodes.INVALID_PARAMS,
-          message: `Unknown action: ${exhaustiveCheck}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste, cross_read, cross_query, cross_write, cross_compare`,
+          message: `Unknown action: ${exhaustiveCheck}. Use sheets_analyze.discover to list available sheets_data actions.`,
           retryable: false,
-          suggestedFix:
-            'Check the parameter format and ensure all required parameters are provided',
+          suggestedFix: 'Call sheets_analyze action:"discover" with toolName:"sheets_data" to see all valid actions.',
         });
       }
     }

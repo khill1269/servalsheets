@@ -599,6 +599,38 @@ export class OAuthProvider {
   }
 
   /**
+   * Retrieves Google refresh token from OAuth session.
+   * Returns null if not present (e.g. short-lived access-only grants).
+   */
+  async getGoogleRefreshToken(req: express.Request): Promise<string | null | undefined> {
+    try {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+      const token = authHeader.slice(7);
+      let decoded: jwt.JwtPayload | string | null = null;
+      for (const secret of this.jwtSecrets) {
+        try {
+          decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
+          break;
+        } catch (_err) {
+          // Try next secret
+        }
+      }
+      if (!decoded || typeof decoded === 'string' || !decoded.sub) return null;
+      const googleTokenData = (await this.sessionStore.get(
+        `google_tokens:${decoded.sub}`
+      )) as GoogleTokenData | null;
+      if (!googleTokenData) return null;
+      return googleTokenData.refreshToken ?? googleTokenData.googleRefreshToken ?? null;
+    } catch (error) {
+      logger.error('Failed to retrieve Google refresh token', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Retrieves Google access token from OAuth session (MCP compatibility)
    * Returns null if not found or expired
    */
@@ -678,6 +710,59 @@ export class OAuthProvider {
     if (!isTestEnv) {
       router.use('/oauth', oauthLimiter);
     }
+
+    // AUDIT-2026-04-23 (finding N5): per-client_id rate limit on DCR
+    // management endpoints. The global oauthLimiter above keys on IP,
+    // which lets an attacker enumerate valid client IDs by varying the
+    // path while staying under the IP cap. Per-client limit makes
+    // enumeration visible: the attacker burns rate against each guessed
+    // client_id, so a legitimate client sees no interference but the
+    // scan is throttled after the first N requests per ID.
+    //
+    // Simple in-process sliding window (clientId → timestamps). Suitable
+    // for single-process deployments; multi-process + Redis should
+    // replace this with a shared counter.
+    const dcrPerClientWindowMs = 60 * 1000;
+    const dcrPerClientMax = 20; // 20 req/min/client_id across all methods
+    const dcrPerClientCounters = new Map<string, number[]>();
+    const dcrRateLimitByClientId = (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ): void => {
+      if (isTestEnv) return next();
+      const rawClientId = req.params['clientId'];
+      const clientId = Array.isArray(rawClientId) ? rawClientId[0] : rawClientId;
+      if (!clientId) return next(); // no clientId param → let the route handler 400
+      const now = Date.now();
+      const timestamps = dcrPerClientCounters.get(clientId) ?? [];
+      const fresh = timestamps.filter((t) => now - t < dcrPerClientWindowMs);
+      if (fresh.length >= dcrPerClientMax) {
+        logger.warn('DCR per-client rate limit exceeded', {
+          clientId,
+          ip: req.ip,
+          path: req.path,
+        });
+        res.status(429).json({
+          error: 'too_many_requests',
+          error_description:
+            'Too many requests for this client_id. Try again in 1 minute.',
+        });
+        return;
+      }
+      fresh.push(now);
+      dcrPerClientCounters.set(clientId, fresh);
+      // Periodic GC: prune entries whose window has fully expired.
+      if (dcrPerClientCounters.size > 10_000) {
+        for (const [k, ts] of dcrPerClientCounters) {
+          const alive = ts.filter((t) => now - t < dcrPerClientWindowMs);
+          if (alive.length === 0) dcrPerClientCounters.delete(k);
+          else dcrPerClientCounters.set(k, alive);
+        }
+      }
+      next();
+    };
+    router.use('/oauth/register/:clientId', dcrRateLimitByClientId);
 
     // OAuth 2.0 Authorization Server Metadata (RFC 8414)
     router.get('/.well-known/oauth-authorization-server', (_req, res) => {
@@ -949,10 +1034,19 @@ export class OAuthProvider {
           return;
         }
 
-        // Retrieve authorization state
-        const stateData = (await this.sessionStore.get(
-          `auth:${authCode}`
-        )) as unknown as StateData | null;
+        // AUDIT-2026-04-23 (finding N6): consume the state atomically.
+        // Previous code did get() then later delete(), which left a race
+        // window where two concurrent callback requests for the same
+        // authCode could both succeed (state fixation / replay). `consume`
+        // does an atomic GETDEL (Redis) or sync get+delete (in-memory).
+        // If the implementation doesn't expose consume, fall back to
+        // the legacy get-then-delete pattern.
+        const stateData = (this.sessionStore.consume
+          ? ((await this.sessionStore.consume(`auth:${authCode}`)) as StateData | undefined)
+          : ((await this.sessionStore.get(`auth:${authCode}`)) as unknown as StateData | null)) as
+          | StateData
+          | null
+          | undefined;
 
         if (!stateData) {
           res.status(400).json({

@@ -47,6 +47,68 @@ export async function handleScoutAction(
     });
     const scoutResult: ScoutResult = await scoutInstance.scout(input.spreadsheetId);
 
+    // AUDIT-2026-04-23 (artifact bug #15): fetch per-sheet flag data
+    // in one additional spreadsheets.get with a tight field mask. Prior
+    // code copied workbook-wide indicators (hasFormulas/hasCharts/hasProtection)
+    // onto every sheet, producing false positives like "hasCharts: true"
+    // on empty sheets and "hasFormulas: false" on sheets full of formulas.
+    // We read only the fields we need so this stays a single cheap call.
+    type PerSheetFlags = {
+      hasFormulas: boolean;
+      hasCharts: boolean;
+      hasProtectedRanges: boolean;
+      hasBasicFilter: boolean;
+      hasFilterViews: boolean;
+    };
+    const perSheetFlagsById = new Map<number, PerSheetFlags>();
+    try {
+      const probe = await deps.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields:
+          'sheets(properties(sheetId),charts(chartId),protectedRanges(protectedRangeId),basicFilter,filterViews,data(rowData(values(userEnteredValue(formulaValue)))))',
+        includeGridData: true,
+        // Narrow the range aggressively: one cell per sheet is enough
+        // to answer "does this sheet have at least one formula?" when
+        // combined with a separate spreadsheets.values.batchGet below.
+      });
+      for (const s of probe.data.sheets ?? []) {
+        const sheetId = s.properties?.sheetId;
+        if (sheetId === undefined || sheetId === null) continue;
+        const hasCharts = Array.isArray(s.charts) && s.charts.length > 0;
+        const hasProtectedRanges =
+          Array.isArray(s.protectedRanges) && s.protectedRanges.length > 0;
+        const hasBasicFilter = Boolean(s.basicFilter);
+        const hasFilterViews = Array.isArray(s.filterViews) && s.filterViews.length > 0;
+        // Formula probe: scan the narrow grid data we fetched for any formulaValue.
+        let hasFormulas = false;
+        for (const d of s.data ?? []) {
+          for (const row of d.rowData ?? []) {
+            for (const cell of row.values ?? []) {
+              if (cell?.userEnteredValue?.formulaValue) {
+                hasFormulas = true;
+                break;
+              }
+            }
+            if (hasFormulas) break;
+          }
+          if (hasFormulas) break;
+        }
+        perSheetFlagsById.set(sheetId, {
+          hasFormulas,
+          hasCharts,
+          hasProtectedRanges,
+          hasBasicFilter,
+          hasFilterViews,
+        });
+      }
+    } catch (err) {
+      // Best effort — if the per-sheet probe fails, fall back to the
+      // workbook-wide signal so we don't regress below prior behavior.
+      logger.warn('Scout per-sheet flag probe failed; falling back to workbook-wide indicators', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     const scoutSummary = {
       sizeCategory: scoutResult.indicators.sizeCategory,
       sheetCount: scoutResult.sheets.length,
@@ -70,24 +132,32 @@ export async function handleScoutAction(
           id: scoutResult.spreadsheetId,
           title: scoutResult.title,
         },
-        sheets: scoutResult.sheets.map((sheet) => ({
-          sheetId: sheet.sheetId,
-          title: sheet.title,
-          rowCount: sheet.rowCount,
-          columnCount: sheet.columnCount,
-          estimatedCells: sheet.estimatedCells,
-          columns: [],
-          flags: {
-            hasHeaders: true,
-            hasFormulas: scoutResult.indicators.hasFormulas,
-            hasCharts: scoutResult.indicators.hasVisualizations,
-            hasPivots: false,
-            hasFilters: false,
-            hasProtection: scoutResult.indicators.hasDataQuality,
-            isEmpty: sheet.rowCount <= 1,
-            isLarge: sheet.estimatedCells > 100000,
-          },
-        })),
+        sheets: scoutResult.sheets.map((sheet) => {
+          // AUDIT-2026-04-23 (artifact bug #15): prefer per-sheet probe
+          // result; fall back to workbook-wide indicators only when the
+          // probe failed for this specific sheetId.
+          const probed = perSheetFlagsById.get(sheet.sheetId);
+          return {
+            sheetId: sheet.sheetId,
+            title: sheet.title,
+            rowCount: sheet.rowCount,
+            columnCount: sheet.columnCount,
+            estimatedCells: sheet.estimatedCells,
+            columns: [],
+            flags: {
+              hasHeaders: sheet.rowCount > 0,
+              hasFormulas: probed ? probed.hasFormulas : scoutResult.indicators.hasFormulas,
+              hasCharts: probed ? probed.hasCharts : scoutResult.indicators.hasVisualizations,
+              hasPivots: false,
+              hasFilters: probed ? probed.hasBasicFilter || probed.hasFilterViews : false,
+              hasProtection: probed
+                ? probed.hasProtectedRanges
+                : scoutResult.indicators.hasProtection,
+              isEmpty: sheet.rowCount <= 1,
+              isLarge: sheet.estimatedCells > 100000,
+            },
+          };
+        }),
         totals: {
           sheets: scoutResult.sheets.length,
           rows: scoutResult.sheets.reduce((sum, s) => sum + s.rowCount, 0),

@@ -1766,7 +1766,13 @@ export const OPERATION_SCOPES: Record<
     description: 'List running processes',
   },
   'sheets_appsscript.get_metrics': {
-    required: ['https://www.googleapis.com/auth/script.projects'],
+    // AUDIT-2026-04-23 (artifact bug #28): projects.getMetrics requires
+    // the dedicated script.metrics scope per Google Apps Script API docs.
+    // https://developers.google.com/apps-script/api/reference/rest/v1/projects/getMetrics
+    required: [
+      'https://www.googleapis.com/auth/script.projects',
+      'https://www.googleapis.com/auth/script.metrics',
+    ],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Get execution metrics',
   },

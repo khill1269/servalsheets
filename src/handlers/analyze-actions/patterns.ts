@@ -17,7 +17,9 @@ interface ConvertedRangeInput {
 export interface DetectPatternsDeps {
   hasServer: boolean;
   samplingServer?: SamplingServer;
-  convertRangeInput: (range: DetectPatternsRequest['range']) => ConvertedRangeInput | undefined;
+  convertRangeInput: (
+    range: DetectPatternsRequest['range']
+  ) => Promise<ConvertedRangeInput | { notImplemented: true; reason: string } | undefined>;
   resolveAnalyzeRange: (range?: ConvertedRangeInput) => string | undefined;
   readData: (spreadsheetId: string, range?: string) => Promise<unknown[][]>;
 }
@@ -42,8 +44,18 @@ export async function handleDetectPatternsAction(
   }
 
   const startTime = Date.now();
-  const convertedPatternRange = deps.convertRangeInput(input.range);
-  const rangeStr = deps.resolveAnalyzeRange(convertedPatternRange);
+  const convertedResult = await deps.convertRangeInput(input.range);
+  if (convertedResult && 'notImplemented' in convertedResult) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCodes.NOT_IMPLEMENTED,
+        message: convertedResult.reason,
+        retryable: false,
+      },
+    };
+  }
+  const rangeStr = deps.resolveAnalyzeRange(convertedResult);
   const data = await deps.readData(input.spreadsheetId, rangeStr);
 
   if (data.length === 0) {
@@ -171,7 +183,12 @@ export async function handleDetectPatternsAction(
       },
       duration,
       aiInsight,
-      message: `Found ${anomalies.length} anomalies, ${trends.length} trends, ${correlations.length} correlations`,
+      message: [
+        `Found ${anomalies.length} anomalies, ${trends.length} trends, ${correlations.length} correlations`,
+        ...(anomalies.length === 0 ? ['No anomalies: z-score threshold 3.0 (values must be >3σ from column mean)'] : []),
+        ...(trends.length === 0 ? ['No trends: insufficient numeric data or slope < 0.1'] : []),
+        ...(correlations.length === 0 ? ['No correlations: no column pairs with |r| > 0.3'] : []),
+      ].join('. '),
     };
   } catch (error) {
     logger.error('Failed to detect patterns', {

@@ -233,7 +233,7 @@ export async function handleListDeployments(
       versionNumber: d.deploymentConfig?.versionNumber ?? undefined,
       deploymentConfig: d.deploymentConfig ?? undefined,
       entryPoints: d.entryPoints ?? undefined,
-      updateTime: d.updateTime ?? undefined,
+      updateTime: (d.updateTime && d.updateTime !== '1970-01-01T00:00:00Z') ? d.updateTime : undefined,
     })),
     nextPageToken: result.nextPageToken ?? undefined,
   });

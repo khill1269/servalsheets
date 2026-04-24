@@ -6,6 +6,7 @@ import type { GoogleApiClient } from '../../services/google-api.js';
 import type { AuthResponse } from '../../schemas/auth.js';
 import { connectorManager } from '../../resources/connectors-runtime.js';
 import { isLLMFallbackAvailable } from '../../services/llm-fallback.js';
+import { getSamplingHealth } from '../../services/sampling-health-probe.js';
 import { ErrorCodes } from '../error-codes.js';
 import { checkElicitationSupport } from '../../mcp/elicitation.js';
 
@@ -84,7 +85,7 @@ type StatusMeta = {
   warnings?: string[];
 };
 
-function getReadiness(
+async function getReadiness(
   googleClient: GoogleApiClient | null | undefined,
   auth: {
     configured: boolean;
@@ -92,7 +93,7 @@ function getReadiness(
     authType?: string;
     tokenValid?: boolean;
   }
-): ReadinessSummary {
+): Promise<ReadinessSummary> {
   const connectors = connectorManager.listConnectors().connectors;
   const healthyConnectors = connectors.filter((connector) => connector.healthy).length;
   const configuredConnectors = connectors.filter((connector) => connector.configured).length;
@@ -100,6 +101,12 @@ function getReadiness(
   const webhooksConfigured = Boolean(process.env['REDIS_URL']);
 
   const voyageApiKeyConfigured = Boolean(process.env['VOYAGE_API_KEY']);
+
+  // AUDIT-2026-04-23 (Root C partial): replace env-var-presence-only check
+  // with a real reachability probe. The probe is cached for 5 minutes so
+  // this call is cheap after the first warmup; we still surface the
+  // caller-visible availability with truthful semantics.
+  const samplingHealth = await getSamplingHealth();
 
   const missingConfig: string[] = [];
   if (!auth.configured) {
@@ -109,6 +116,13 @@ function getReadiness(
   }
   if (!llmFallbackAvailable) {
     missingConfig.push('ANTHROPIC_API_KEY or LLM_API_KEY not configured for AI fallback');
+  } else if (!samplingHealth.healthy) {
+    // Config exists but the probe failed — surface the reason.
+    missingConfig.push(
+      `Sampling probe failed (${samplingHealth.reason}${
+        samplingHealth.provider ? `, provider=${samplingHealth.provider}` : ''
+      }). auth.status.sampling.available reflects the probe result, not config presence.`
+    );
   }
   if (!webhooksConfigured) {
     missingConfig.push('REDIS_URL not configured for webhook delivery');
@@ -123,9 +137,17 @@ function getReadiness(
     },
     elicitation: checkElicitationSupport(undefined),
     sampling: {
+      // `configured` reflects env-var presence (backwards-compat with
+      // prior semantics — lets callers tell "never configured" apart
+      // from "configured but broken").
       configured: llmFallbackAvailable,
-      available: llmFallbackAvailable,
-      mode: llmFallbackAvailable ? 'llm_fallback' : 'unavailable',
+      // `available` now reflects the actual probe result. This is the
+      // field analyze handlers / LLM clients should read.
+      available: llmFallbackAvailable && samplingHealth.healthy,
+      mode:
+        llmFallbackAvailable && samplingHealth.healthy
+          ? 'llm_fallback'
+          : 'unavailable',
     },
     semanticSearch: {
       available: voyageApiKeyConfigured,
@@ -271,7 +293,7 @@ export async function handleStatus(
     const hasTokens = tokenStatus.hasAccessToken || tokenStatus.hasRefreshToken;
 
     if (authType === 'service_account' || authType === 'application_default') {
-      const readiness = getReadiness(googleClient, {
+      const readiness = await getReadiness(googleClient, {
         configured: true,
         authenticated: true,
         authType,
@@ -308,7 +330,7 @@ export async function handleStatus(
     }
 
     const authenticated = hasTokens && tokenValid;
-    const readiness = getReadiness(googleClient, {
+    const readiness = await getReadiness(googleClient, {
       configured: true,
       authenticated,
       authType,
@@ -351,7 +373,7 @@ export async function handleStatus(
     (credentials?.oauthClientId || process.env['OAUTH_CLIENT_ID']) &&
     (credentials?.oauthClientSecret || process.env['OAUTH_CLIENT_SECRET'])
   );
-  const readiness = getReadiness(googleClient, {
+  const readiness = await getReadiness(googleClient, {
     configured,
     authenticated: false,
     authType: configured ? 'oauth' : 'unconfigured',

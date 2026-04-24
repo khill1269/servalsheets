@@ -21,6 +21,14 @@ import { withKeepalive } from '../utils/keepalive.js';
 import { logger } from '../utils/logger.js';
 import { getEnv } from '../config/env.js';
 
+// AUDIT-2026-04-23 (finding N15): cache the env read once per module load
+// instead of reading on every queue() call. If runtime tuning is needed,
+// callers can restart or SIGHUP the server. Default of 100 is unchanged.
+const MAX_TRANSACTION_OPS: number = (() => {
+  const raw = Number(getEnv()['MAX_TRANSACTION_OPS']);
+  return Number.isFinite(raw) && raw > 0 ? raw : 100;
+})();
+
 export interface TransactionHandlerOptions {
   context?: HandlerContext;
 }
@@ -123,10 +131,14 @@ export class TransactionHandler {
             );
           }
 
-          // ISSUE-139: Hard cap on queued operations to prevent unbounded growth
-          const MAX_TRANSACTION_OPS = Number(getEnv()['MAX_TRANSACTION_OPS']) as number;
+          // ISSUE-139: Hard cap on queued operations to prevent unbounded growth.
+          // Uses module-cached MAX_TRANSACTION_OPS (see top-of-file).
+          // AUDIT-2026-04-23 (finding N20): dryRun queues must not fail the
+          // op-cap check, since a preview should never mutate or reject.
+          const dryRun =
+            (req as typeof req & { safety?: { dryRun?: boolean } }).safety?.dryRun === true;
           const preTx = transactionManager.getTransaction(req.transactionId);
-          if (preTx.operations.length >= MAX_TRANSACTION_OPS) {
+          if (!dryRun && preTx.operations.length >= MAX_TRANSACTION_OPS) {
             throw new ServiceError(
               `Transaction ${req.transactionId} has reached the maximum of ${MAX_TRANSACTION_OPS} operations. Commit or rollback before adding more.`,
               'OPERATION_LIMIT_EXCEEDED',

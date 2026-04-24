@@ -53,14 +53,14 @@ function namedFunctionsUnavailable(
 ): AdvancedResponse {
   return deps.error({
     code: ErrorCodes.FEATURE_UNAVAILABLE,
-    message: `The ${action} action is kept for compatibility, but Google Sheets named functions are not exposed consistently through the current Sheets API surface.`,
+    message: `Named functions (${action}) are permanently unsupported — Google Sheets does not expose named function management via the public Sheets API v4. Retrying will always return this error.`,
     category: 'client',
     severity: 'medium',
     retryable: false,
     suggestedFix:
-      'Create or manage named functions directly in the Google Sheets UI, or use Apps Script / named ranges for API-driven reusable logic.',
+      'Use the Sheets UI (Data > Named functions) to create or manage named functions. For API-driven reusable logic, use named ranges (sheets_advanced.add_named_range) or Apps Script (sheets_appsscript.create).',
     resolution:
-      'ServalSheets will not call unsupported named-function API endpoints. Use a supported workaround instead of retrying this action.',
+      'Named function management is a UI-only feature in Google Sheets. The sheets_advanced named-function actions exist for schema compatibility but cannot be fulfilled server-side.',
   });
 }
 

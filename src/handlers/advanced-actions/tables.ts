@@ -130,7 +130,7 @@ async function validateCreateTablePreconditions(
       retryable: false,
       suggestedFix: `Clear or move the existing basic filter on ${targetSheetName}, then retry create_table.`,
       resolution:
-        'Remove overlapping filters before creating a table. Use sheets_dimensions.clear_basic_filter or choose a non-overlapping range.',
+        'Remove the basic filter from the sheet (Data > Remove filter in the Sheets UI), then retry create_table.',
       details: {
         conflictType: 'basic_filter',
         sheetId: targetRange.sheetId ?? 0,

@@ -39,6 +39,7 @@ import {
 import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
 import { suggestFix } from '../services/error-fix-suggester.js';
 import { ERROR_RECOVERY_MAP } from '../core/error-recovery-map.js';
+import { inferErrorSource } from '../utils/infer-error-source.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
@@ -607,10 +608,19 @@ export abstract class BaseHandler<TInput, TOutput> {
           // Non-blocking: pattern learner failure must not affect error reporting
         }
 
+        const inferredErrorSource = inferErrorSource(err);
+
         // Inject fixableVia from error-fix-suggester (non-blocking)
         try {
           if (!enriched.fixableVia) {
-            const fix = suggestFix(detail.code, detail.message, this.toolName, action);
+            const fix = suggestFix(
+              detail.code,
+              detail.message,
+              this.toolName,
+              action,
+              undefined,
+              inferredErrorSource
+            );
             if (fix) {
               enriched = {
                 ...enriched,

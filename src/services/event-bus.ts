@@ -39,7 +39,8 @@ export type SheetEventType =
   | 'sheet.share'
   | 'sheet.comment'
   | 'sheet.import'
-  | 'sheet.export';
+  | 'sheet.export'
+  | 'sheet.error';
 
 export interface SheetChangeEvent {
   /** Event type */

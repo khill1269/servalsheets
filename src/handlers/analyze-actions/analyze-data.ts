@@ -182,7 +182,23 @@ export async function handleAnalyzeDataAction(
         maxTokens: 'maxTokens' in req ? req.maxTokens : undefined,
       });
 
-      const contentText = await deps.createAIMessage(samplingRequest);
+      let contentText: string;
+      try {
+        contentText = await deps.createAIMessage(samplingRequest);
+      } catch (aiError) {
+        const msg = aiError instanceof Error ? aiError.message : String(aiError);
+        const is4xx = /\b(400|401|403|422)\b/.test(msg);
+        return {
+          success: false,
+          error: {
+            code: ErrorCodes.INTERNAL_ERROR,
+            message: is4xx
+              ? `AI analysis service rejected the request (${msg}). The prompt construction may need adjustment.`
+              : `AI analysis service unavailable: ${msg}`,
+            retryable: !is4xx,
+          },
+        };
+      }
       const duration = Date.now() - startTime;
 
       const parsed = parseAnalysisResponse(contentText);
@@ -196,7 +212,7 @@ export async function handleAnalyzeDataAction(
           success: false,
           error: {
             code: ErrorCodes.PARSE_ERROR,
-            message: parsed.error ?? 'Failed to parse analysis response',
+            message: parsed.error ?? 'Failed to parse AI analysis response',
             retryable: true,
           },
         };

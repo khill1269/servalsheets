@@ -155,14 +155,24 @@ export async function handleDeleteNamedRangeAction(
       isDestructive: true,
       spreadsheetId: req.spreadsheetId,
     },
+    skipIfElicitationUnavailable: req.safety?.confirmed === true,
   });
 
   if (!confirmation.confirmed) {
+    const isUnavailable = confirmation.outcome === 'unavailable';
+    // AUDIT-2026-04-23 (Root E, artifact bug #3): use ELICITATION_UNAVAILABLE
+    // error code when elicitation isn't supported so recovery-engine attaches
+    // alternatives[]: { wizard_start, safety.confirmed:true bypass }. Prior
+    // code emitted PRECONDITION_FAILED with generic text, losing recovery info.
     return deps.error({
-      code: ErrorCodes.PRECONDITION_FAILED,
-      message: confirmation.reason || 'User cancelled the operation',
+      code: isUnavailable ? ErrorCodes.ELICITATION_UNAVAILABLE : ErrorCodes.PRECONDITION_FAILED,
+      message: isUnavailable
+        ? `Interactive confirmation is unavailable for this client. Pass safety.confirmed: true to bypass, or use sheets_confirm.wizard_start. No destructive changes were made.`
+        : confirmation.reason || 'User cancelled the operation',
       retryable: false,
-      suggestedFix: 'Review the operation requirements and try again',
+      suggestedFix: isUnavailable
+        ? `Re-call delete_named_range with safety.confirmed: true to pre-approve, or start an interactive wizard via sheets_confirm.wizard_start. Named range ID: ${req.namedRangeId}.`
+        : 'Review the operation requirements and try again',
     });
   }
 

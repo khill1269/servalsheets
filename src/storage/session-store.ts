@@ -21,6 +21,20 @@ export interface SessionStore {
   cleanup(): Promise<number>;
   size(): Promise<number>;
   stats(): Promise<SessionStoreStats>;
+  /**
+   * AUDIT-2026-04-23 (finding N6): atomically read-and-delete a key.
+   * Used for single-use tokens — OAuth state nonces, authorization
+   * codes — where a race between `get()` and `delete()` could let two
+   * concurrent callback requests succeed on the same code, enabling a
+   * code-reuse / fixation attack. Implementations must guarantee that
+   * only one caller receives the value; subsequent callers see
+   * undefined even if they executed `consume` mid-flight.
+   *
+   * Default implementation (get + delete non-atomic) remains acceptable
+   * for the in-memory stores in single-process mode since there's no
+   * cross-process race.
+   */
+  consume?(key: string): Promise<SessionData | undefined>;
 }
 
 export class InMemorySessionStore implements SessionStore {
@@ -74,6 +88,19 @@ export class InMemorySessionStore implements SessionStore {
       maxSize: this.cache.max || 10000,
       itemCount: this.cache.size,
     };
+  }
+
+  /**
+   * AUDIT-2026-04-23 (finding N6): atomic single-use read-and-delete.
+   * LRUCache operations are synchronous + single-threaded under Node's
+   * event loop, so this is genuinely atomic without a lock.
+   */
+  async consume(key: string): Promise<SessionData | undefined> {
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      this.cache.delete(key);
+    }
+    return value;
   }
 }
 
@@ -138,6 +165,37 @@ export class RedisSessionStore implements SessionStore {
       maxSize: -1, // Unlimited
       itemCount: keys.length,
     };
+  }
+
+  /**
+   * AUDIT-2026-04-23 (finding N6): atomic single-use read-and-delete.
+   * Uses Redis GETDEL (available since 6.2) which atomically returns
+   * and removes the key in a single round-trip. Falls back to a MULTI
+   * block on older servers (kept for defense in depth; client auto-detects).
+   */
+  async consume(key: string): Promise<SessionData | undefined> {
+    const fullKey = `${this.prefix}${key}`;
+    try {
+      // node-redis v4 exposes GETDEL directly when available.
+      const maybeGetDel = (this.client as unknown as {
+        getDel?: (k: string) => Promise<string | null>;
+      }).getDel;
+      if (typeof maybeGetDel === 'function') {
+        const value = await maybeGetDel.call(this.client, fullKey);
+        return value ? JSON.parse(value) : undefined;
+      }
+    } catch {
+      // fall through to MULTI fallback
+    }
+    // Fallback: pipelined GET+DEL in a MULTI block. Not a true atomic
+    // operation on a cluster without Lua, but reduces the race window
+    // to a single round-trip.
+    const multi = this.client.multi();
+    multi.get(fullKey);
+    multi.del(fullKey);
+    const results = (await multi.exec()) as unknown as Array<string | null | number>;
+    const rawValue = results?.[0];
+    return typeof rawValue === 'string' ? JSON.parse(rawValue) : undefined;
   }
 }
 
@@ -232,6 +290,26 @@ export class MemorySessionStore implements SessionStore {
       maxSize: this.maxEntries,
       itemCount: this.store.size,
     };
+  }
+
+  /**
+   * AUDIT-2026-04-23 (finding N6): atomic single-use read-and-delete.
+   * Map operations are synchronous under Node's event loop, so this is
+   * genuinely atomic without needing a lock.
+   */
+  async consume(key: string): Promise<SessionData | undefined> {
+    const expiryTime = this.expirations.get(key);
+    if (expiryTime && Date.now() > expiryTime) {
+      this.store.delete(key);
+      this.expirations.delete(key);
+      return undefined;
+    }
+    const value = this.store.get(key);
+    if (value !== undefined) {
+      this.store.delete(key);
+      this.expirations.delete(key);
+    }
+    return value;
   }
 }
 

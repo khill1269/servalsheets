@@ -26,17 +26,20 @@ export class AgentHandler {
   private executeHandler: ExecuteHandlerFn;
   private sessionContext?: import('../services/session-context.js').SessionContextManager;
   private elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
+  private taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
 
   constructor(
     handlers?: AgentHandlerRegistry,
     options?: {
       sessionContext?: import('../services/session-context.js').SessionContextManager;
       elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
+      taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter;
     }
   ) {
     this.handlers = handlers;
     this.sessionContext = options?.sessionContext;
     this.elicitationServer = options?.elicitationServer;
+    this.taskStore = options?.taskStore;
     // Create executeHandler that dispatches to actual tool handlers
     this.executeHandler = async (tool: string, action: string, params: Record<string, unknown>) => {
       if (!this.handlers) {
@@ -361,6 +364,26 @@ export class AgentHandler {
         case 'get_status': {
           const plan = getPlanStatus(req.planId);
           if (!plan) {
+            // Also check the MCP task store (used by analyze.comprehensive background tasks)
+            if (this.taskStore) {
+              try {
+                const task = await this.taskStore.getTask(req.planId);
+                if (task) {
+                  return {
+                    response: {
+                      success: true,
+                      action: 'get_status',
+                      planId: req.planId,
+                      status: task.status === 'working' ? 'executing' : (task.status as import('../services/agent/types.js').PlanStatus),
+                      progress: { completedSteps: 0, totalSteps: 1, percentage: task.status === 'completed' ? 100 : 0 },
+                      executionTimeMs: Date.now() - startTime,
+                    },
+                  };
+                }
+              } catch {
+                // Task store lookup is best-effort
+              }
+            }
             return {
               response: {
                 success: false,
