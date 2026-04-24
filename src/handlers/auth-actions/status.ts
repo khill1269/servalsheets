@@ -73,15 +73,32 @@ function getReadiness(
 
   const missingConfig: string[] = [];
   if (!auth.configured) {
-    missingConfig.push('Google authentication is not configured');
+    missingConfig.push(
+      'Google authentication is not configured. ' +
+        'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your .env, ' +
+        'then run sheets_auth.login to complete the OAuth flow.'
+    );
   } else if (!auth.authenticated) {
-    missingConfig.push('Google authentication has not been completed for this session');
+    missingConfig.push(
+      'Google authentication has not been completed for this session. ' +
+        'Run sheets_auth.login to authorize.'
+    );
   }
   if (!llmFallbackAvailable) {
-    missingConfig.push('ANTHROPIC_API_KEY or LLM_API_KEY not configured for AI fallback');
+    missingConfig.push(
+      'AI features degraded: set ANTHROPIC_API_KEY or LLM_API_KEY in your .env ' +
+        'to enable the regex-fallback replacement for planner/analysis tools. ' +
+        'Until then, AI-dependent actions will silently fall back to pattern matching.'
+    );
   }
   if (!webhooksConfigured) {
-    missingConfig.push('REDIS_URL not configured for webhook delivery');
+    missingConfig.push(
+      'Webhook delivery disabled: REDIS_URL not set. ' +
+        'For local dev: `docker compose up redis` then set REDIS_URL=redis://localhost:6379. ' +
+        'For production: point REDIS_URL at your managed Redis instance. ' +
+        'Without Redis, sheets_webhook.* and sheets_analyze.schedule_intelligence ' +
+        'will reject new deliveries rather than accept-and-lose them.'
+    );
   }
 
   return {
