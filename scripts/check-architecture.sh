@@ -19,6 +19,19 @@ if [ -d "packages/mcp-http/src" ]; then
   fi
 fi
 
+# Rule 2: top-level handler files must not import sibling handler files
+# Allowed: imports to *-actions/ submodules, base.ts, index.ts, helpers/
+# Violation pattern: from './other-handler.js' (no slash in relative path → sibling file, not submodule)
+HANDLER_CROSS=$(grep -rn "from '\./[a-zA-Z][a-zA-Z0-9-]*\.js'" src/handlers/*.ts 2>/dev/null \
+  | grep -v "^src/handlers/index\.ts" \
+  | grep -v "'./base\|'./index\|'./error-codes\|'./logging\|'./optimization" \
+  || true)
+if [ -n "$HANDLER_CROSS" ]; then
+  echo "❌ Cross-handler sibling imports detected (use helpers/ for shared code):"
+  echo "$HANDLER_CROSS"
+  ERRORS=$((ERRORS + 1))
+fi
+
 if [ $ERRORS -gt 0 ]; then
   echo ""
   echo "❌ Architecture check failed with $ERRORS error(s)"

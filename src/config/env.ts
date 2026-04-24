@@ -151,7 +151,10 @@ export const EnvSchema = z
     // Prefetch
     ...PrefetchSchema.shape,
 
-    // Circuit Breakers
+    // Circuit Breakers — base defaults (per-API overrides take precedence)
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().min(1).default(5),
+    CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().min(1).default(2),
+    CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
     CIRCUIT_BREAKER_OAUTH: z.string().optional(),
     CIRCUIT_BREAKER_APPSSCRIPT: z.string().optional(),
     CIRCUIT_BREAKER_SNAPSHOT: z.string().optional(),
@@ -423,7 +426,12 @@ export function getOtlpExportConfig(): {
 }
 
 export function getCircuitBreakerConfig(): CircuitBreakerConfig {
-  return { failureThreshold: 5, successThreshold: 2, timeout: 30000 };
+  const e = getEnv();
+  return {
+    failureThreshold: e['CIRCUIT_BREAKER_FAILURE_THRESHOLD'],
+    successThreshold: e['CIRCUIT_BREAKER_SUCCESS_THRESHOLD'],
+    timeout: e['CIRCUIT_BREAKER_TIMEOUT_MS'],
+  };
 }
 
 export function getApiSpecificCircuitBreakerConfig(api: string): CircuitBreakerConfig {
