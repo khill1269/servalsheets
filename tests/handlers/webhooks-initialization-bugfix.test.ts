@@ -54,7 +54,6 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
 
       // Should return error (not throw)
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.message).toContain('Redis required');
     });
 
@@ -71,7 +70,7 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
 
       // Should succeed (even though no Redis - will throw Redis error inside)
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should provide clear error about Redis requirement when Redis not available', async () => {
@@ -87,7 +86,6 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
 
       // Should return error mentioning Redis
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.message).toContain('Redis required');
     });
 
@@ -132,7 +130,7 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       });
 
       // Will fail with Redis error, but that's expected - not initialization error
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       if (!result.response.success) {
         expect(result.response.error?.message).not.toContain('not initialized');
       }
@@ -146,7 +144,7 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       });
 
       // Will fail with Redis error, but not initialization error
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       if (!result.response.success) {
         expect(result.response.error?.message).not.toContain('not initialized');
       }
@@ -166,7 +164,6 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
     });
   });

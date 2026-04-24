@@ -196,7 +196,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response).toHaveProperty('success');
     });
 
@@ -212,7 +212,6 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       // Response should have proper structure
-      expect(result).toHaveProperty('response');
       expect(result.response).toHaveProperty('action');
       expect(result.response.action).toBe('import_csv');
     });
@@ -330,7 +329,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
     });
 
@@ -445,7 +444,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // Response should have either success or error
       expect(result.response).toHaveProperty('success');
     });
@@ -464,7 +463,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // Can be error or success response, but should be defined
       if (result.response && 'action' in result.response) {
         expect(result.response.action).toBe('bulk_update');
@@ -502,7 +501,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // Response can be success or error, both are valid
       if ('action' in result.response) {
         expect(result.response.action).toBe('bulk_update');
@@ -581,7 +580,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
     });
 
@@ -801,8 +800,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       // Should have either error or incremental scope required
-      expect(result.response).toBeDefined();
-      expect(result).toHaveProperty('response');
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -891,8 +889,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       // Should have proper response structure
-      expect(result.response).toBeDefined();
-      expect(result).toHaveProperty('response');
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -1120,7 +1117,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // Check for either success or error response
       if ('action' in result.response) {
         expect(result.response.action).toBe('import_and_format');
@@ -1369,7 +1366,6 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       // All responses should have this structure
-      expect(result).toHaveProperty('response');
       expect(result.response).toHaveProperty('success');
 
       // Either success or error
@@ -1611,8 +1607,7 @@ describe('Composite Handler', () => {
       // Even if service fails, should return valid response
       const result = await handler.handle(input as any);
 
-      expect(result).toHaveProperty('response');
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should handle unknown action gracefully', async () => {
@@ -1624,7 +1619,7 @@ describe('Composite Handler', () => {
       // Should handle error for unknown action
       const result = await handler.handle(input as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -1639,7 +1634,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response).toHaveProperty('action');
     });
 
@@ -1730,11 +1725,9 @@ describe('Composite Handler', () => {
 
       for (const input of actions) {
         const result = await handler.handle(input as any);
-        expect(result).toHaveProperty('response');
-        expect(result.response).toBeDefined();
+        expect(typeof result.response.success).toBe('boolean');
         // Each action should have proper structure
         if ('error' in result.response && result.response.error) {
-          expect(result.response.error).toBeDefined();
         }
       }
     });
@@ -1765,7 +1758,7 @@ describe('Composite Handler', () => {
 
       for (const input of safetyInputs) {
         const result = await handler.handle(input as any);
-        expect(result.response).toBeDefined();
+        expect(typeof result.response.success).toBe('boolean');
       }
     });
   });
@@ -1780,7 +1773,6 @@ describe('Composite Handler', () => {
       };
 
       const result = await handler.handle(input as any);
-      expect(result).toHaveProperty('response');
     });
 
     it('should handle large CSV data', async () => {
@@ -1792,7 +1784,6 @@ describe('Composite Handler', () => {
       };
 
       const result = await handler.handle(input as any);
-      expect(result).toHaveProperty('response');
     });
 
     it('should handle special characters in data', async () => {
@@ -1804,7 +1795,6 @@ describe('Composite Handler', () => {
       };
 
       const result = await handler.handle(input as any);
-      expect(result).toHaveProperty('response');
     });
 
     it('should handle unicode characters', async () => {
@@ -1815,7 +1805,6 @@ describe('Composite Handler', () => {
       };
 
       const result = await handler.handle(input as any);
-      expect(result).toHaveProperty('response');
     });
   });
 

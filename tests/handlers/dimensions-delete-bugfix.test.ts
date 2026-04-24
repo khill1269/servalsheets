@@ -101,7 +101,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
 
       // Verify result is successful
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('delete');
 
@@ -267,7 +267,7 @@ describe('DimensionsHandler - Delete with Count Parameter (BUG FIX 0.6)', () => 
       // With endIndex undefined, this becomes NaN, which may succeed or fail
       // The important thing is it doesn't crash
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 

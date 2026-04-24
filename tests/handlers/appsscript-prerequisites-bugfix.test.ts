@@ -108,7 +108,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
 
       // Should return error with helpful guidance
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.message).toContain('Apps Script API');
 
       // BUG FIX: Should mention how to enable API
@@ -145,7 +144,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
 
       // Should return error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
 
       // BUG FIX: Should mention required scopes
       const errorText =
@@ -183,7 +181,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
 
       // Should return error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
     });
 
@@ -213,7 +210,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
 
       // Should return NOT_FOUND error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('NOT_FOUND');
     });
   });
@@ -253,7 +249,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('AUTH_ERROR');
     });
   });
@@ -300,7 +295,6 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
     });
   });

@@ -156,7 +156,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'templates' in result.response) {
-        expect(result.response.templates).toBeDefined();
+        expect(Array.isArray(result.response.templates)).toBe(true);
         expect(result.response.totalTemplates).toBeGreaterThanOrEqual(0);
       }
       expect(mockDriveApi.files.list).toHaveBeenCalled();
@@ -230,7 +230,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
   });
 
@@ -245,7 +245,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template).toBeDefined();
+        expect(result.response.template?.templateId ?? result.response.template).toBeTruthy();
         expect(result.response.template!.id).toBe('template-1');
       }
       expect(mockDriveApi.files.get).toHaveBeenCalledWith(
@@ -264,7 +264,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should get builtin template', async () => {
@@ -275,7 +275,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // May succeed or fail depending on builtin templates available
     });
 
@@ -320,7 +320,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
   });
 
@@ -338,7 +338,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template).toBeDefined();
+        expect(result.response.template?.templateId ?? result.response.template).toBeTruthy();
         expect(result.response.template!.name).toBe('My Template');
       }
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
@@ -392,7 +392,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template).toBeDefined();
+        expect(result.response.template?.templateId ?? result.response.template).toBeTruthy();
       }
     });
 
@@ -408,7 +408,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should handle Drive API errors', async () => {
@@ -423,7 +423,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
   });
 
@@ -440,7 +440,7 @@ describe('SheetsTemplatesHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success && 'spreadsheetId' in result.response) {
         expect(result.response.spreadsheetId).toBe('new-id');
-        expect(result.response.spreadsheetUrl).toBeDefined();
+        expect(result.response.spreadsheetUrl).toBeTruthy();
       }
       expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalled();
     });
@@ -454,7 +454,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // May succeed or fail depending on builtin templates
     });
 
@@ -470,7 +470,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should apply template to specific folder', async () => {
@@ -483,7 +483,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should handle minimal API response', async () => {
@@ -521,7 +521,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should emit progress notifications for multi-sheet template application', async () => {
@@ -595,7 +595,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(mockDriveApi.files.update).toHaveBeenCalled();
     });
 
@@ -609,7 +609,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
       expect((result.response as any).error?.message).toContain('builtin');
     });
 
@@ -622,7 +622,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should update template category', async () => {
@@ -634,7 +634,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should handle template not found', async () => {
@@ -649,7 +649,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should handle Drive API errors', async () => {
@@ -664,7 +664,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
   });
 
@@ -677,7 +677,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(mockDriveApi.files.delete).toHaveBeenCalledWith(
         expect.objectContaining({ fileId: 'template-1' })
       );
@@ -692,7 +692,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
       expect((result.response as any).error?.message).toContain('builtin');
     });
 
@@ -707,7 +707,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should handle Drive API errors', async () => {
@@ -721,7 +721,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
   });
 
@@ -734,7 +734,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       if (result.response.success && 'preview' in result.response) {
         expect(result.response.preview).toBeDefined();
       }
@@ -749,7 +749,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // May succeed or fail depending on builtin templates
     });
 
@@ -764,7 +764,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should handle Drive API errors', async () => {
@@ -778,7 +778,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
   });
 
@@ -791,7 +791,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // May succeed or fail depending on builtin templates
     });
 
@@ -804,7 +804,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should handle builtin template not found', async () => {
@@ -816,7 +816,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       // May return error if template doesn't exist
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should verify created template', async () => {
@@ -828,7 +828,7 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       if (result.response.success && 'template' in result.response) {
         // Verify template was created in Drive
         expect(mockDriveApi.files.create).toHaveBeenCalled();
@@ -845,7 +845,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
       expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });

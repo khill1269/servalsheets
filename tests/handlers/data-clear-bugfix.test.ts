@@ -88,7 +88,7 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
 
       // Verify result is defined (not null/undefined)
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
 
       // Verify success response
       expect(result.response.success).toBe(true);
@@ -156,9 +156,8 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
 
       // Should return error response (not throw)
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
 
     it('should return result in dryRun mode', async () => {

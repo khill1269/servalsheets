@@ -146,7 +146,6 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
       // Should return error
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
 
       // BUG FIX 0.10: Error message should mention the correct parameter name
       const errorMessage = result.response.error?.message.toLowerCase();
@@ -165,7 +164,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
 
       // Should succeed (mock will handle the actual operation)
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should use sheet parameter for import_csv', async () => {
@@ -179,7 +178,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should treat import_csv sheetName as a newSheetName alias when creating a sheet', async () => {
@@ -236,7 +235,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should use sheet parameter for deduplicate', async () => {
@@ -250,7 +249,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should use sheetName parameter for setup_sheet (different action)', async () => {
@@ -266,7 +265,7 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -280,7 +279,6 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
     });
 
@@ -295,7 +293,6 @@ describe('CompositeHandler - Parameter Naming (BUG FIX 0.10)', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
   });
 });

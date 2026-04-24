@@ -143,7 +143,7 @@ describe('Cat10: Compute & Formula Engine', () => {
       if (result.response.success) {
         expect(result.response.action).toBe('evaluate');
         // Result may contain value: 5 or similar
-        expect(result.response).toBeDefined();
+        expect(typeof result.response.success).toBe('boolean');
       }
     });
 
@@ -750,7 +750,7 @@ describe('Cat10: Compute & Formula Engine', () => {
       });
 
       // Should not crash; may return partial results or all-fail response
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should preserve order of computation results', async () => {

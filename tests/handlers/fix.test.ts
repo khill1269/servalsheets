@@ -79,7 +79,6 @@ describe('FixHandler', () => {
         mode: 'preview',
       });
 
-      expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('mode', 'preview');
       expect(result.response).toHaveProperty('operations');

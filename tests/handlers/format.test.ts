@@ -105,7 +105,6 @@ describe('FormatHandler', () => {
         },
       });
 
-      expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'set_format');
       expect(result.response).toHaveProperty('cellsFormatted');

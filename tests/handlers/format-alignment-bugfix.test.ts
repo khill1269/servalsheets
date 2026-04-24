@@ -99,7 +99,7 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
       // Verify result is defined and successful
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('set_alignment');
 
@@ -229,7 +229,6 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
       // Should return error with helpful message
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error.code).toBe('INVALID_PARAMS');
       expect(result.response.error.message).toContain('alignment properties');
       // BUG FIX: Error message should mention correct parameter names
@@ -250,7 +249,6 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
       // Should return error because schema won't recognize horizontalAlignment
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error.message).toContain('horizontal');
     });
   });
@@ -266,7 +264,7 @@ describe('FormatHandler - Set Alignment (BUG FIX 0.5)', () => {
 
       // Should work or provide clear error
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 

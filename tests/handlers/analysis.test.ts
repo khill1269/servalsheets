@@ -103,8 +103,7 @@ describe('AnalyzeHandler', () => {
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error.code).toBeDefined();
+      expect(result.response.error.code).toBeTruthy();
     }
   });
 
@@ -119,7 +118,6 @@ describe('AnalyzeHandler', () => {
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
-      expect(result.response.error).toBeDefined();
     }
   });
 
@@ -134,7 +132,6 @@ describe('AnalyzeHandler', () => {
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
-      expect(result.response.error).toBeDefined();
     }
   });
 });

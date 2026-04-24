@@ -475,7 +475,6 @@ describe('SheetsCoreHandler', () => {
           destinationTitle: 'Copy of Spreadsheet',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy');
         expect((result.response as any).spreadsheet.spreadsheetId).toBe('copied-spreadsheet-id');
@@ -508,7 +507,6 @@ describe('SheetsCoreHandler', () => {
           locale: 'fr_FR',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'update_properties');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -525,7 +523,6 @@ describe('SheetsCoreHandler', () => {
           spreadsheetId: 'test-spreadsheet-id',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_url');
         expect(result.response).toHaveProperty('url');
@@ -554,7 +551,6 @@ describe('SheetsCoreHandler', () => {
           spreadsheetIds: ['id1', 'id2'],
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'batch_get');
         expect((result.response as any).spreadsheets).toHaveLength(2);
@@ -657,7 +653,6 @@ describe('SheetsCoreHandler', () => {
           spreadsheetId: 'test-spreadsheet-id',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_comprehensive');
         expect((result.response as any).comprehensiveMetadata.spreadsheetId).toBe(
@@ -904,7 +899,6 @@ describe('SheetsCoreHandler', () => {
           maxResults: 10,
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'list');
         expect((result.response as any).spreadsheets).toHaveLength(2);
@@ -969,7 +963,6 @@ describe('SheetsCoreHandler', () => {
           title: 'New Sheet',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'add_sheet');
         expect((result.response as any).sheet).not.toBeNull();
@@ -1019,7 +1012,6 @@ describe('SheetsCoreHandler', () => {
           sheetId: 123,
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'delete_sheet');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1172,7 +1164,6 @@ describe('SheetsCoreHandler', () => {
           newSheetName: 'Copy of Sheet1',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'duplicate_sheet');
         expect((result.response as any).sheet.sheetId).toBe(456);
@@ -1369,7 +1360,6 @@ describe('SheetsCoreHandler', () => {
           title: 'Updated Sheet Name',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'update_sheet');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1432,7 +1422,6 @@ describe('SheetsCoreHandler', () => {
           destinationSpreadsheetId: 'destination-id',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy_sheet_to');
         expect((result.response as any).sheet.sheetId).toBe(789);
@@ -1449,7 +1438,6 @@ describe('SheetsCoreHandler', () => {
           spreadsheetId: 'test-spreadsheet-id',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'list_sheets');
         expect((result.response as any).sheets).toHaveLength(1);
@@ -1500,7 +1488,6 @@ describe('SheetsCoreHandler', () => {
           sheetId: 0,
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_sheet');
         expect((result.response as any).sheet.sheetId).toBe(0);

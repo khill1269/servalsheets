@@ -277,7 +277,6 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:B2',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'read');
         expect((result.response as any).values).toEqual([
@@ -427,7 +426,6 @@ describe('SheetsDataHandler', () => {
           ],
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'write');
         expect(result.response).toHaveProperty('updatedCells', 4);
@@ -494,7 +492,6 @@ describe('SheetsDataHandler', () => {
           values: [['Carol', '28']],
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'append');
         expect(result.response).toHaveProperty('updatedCells', 2);
@@ -708,7 +705,6 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:B2',
         } as any);
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -865,7 +861,6 @@ describe('SheetsDataHandler', () => {
           find: 'Alice',
         } as any);
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'find_replace');
         expect((result.response as any).matches.length).toBeGreaterThan(0);
@@ -1016,7 +1011,6 @@ describe('SheetsDataHandler', () => {
           replacement: 'completed',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'find_replace');
         expect((result.response as any).replacementsCount).toBeGreaterThanOrEqual(0);
@@ -1115,7 +1109,6 @@ describe('SheetsDataHandler', () => {
           note: 'This is a note',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'add_note');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1133,7 +1126,6 @@ describe('SheetsDataHandler', () => {
           cell: 'Sheet1!A1',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear_note');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1152,7 +1144,6 @@ describe('SheetsDataHandler', () => {
           url: 'https://example.com',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'set_hyperlink');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1170,7 +1161,7 @@ describe('SheetsDataHandler', () => {
         });
 
         expect(result.response.success).toBe(false);
-        expect((result.response as any).error).toBeDefined();
+        expect(result.response.error?.code).toBeTruthy();
       });
     });
 
@@ -1182,7 +1173,6 @@ describe('SheetsDataHandler', () => {
           cell: 'Sheet1!A1',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear_hyperlink');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1201,7 +1191,6 @@ describe('SheetsDataHandler', () => {
           mergeType: 'MERGE_ALL',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'merge_cells');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1234,7 +1223,6 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:B2',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'unmerge_cells');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1253,7 +1241,6 @@ describe('SheetsDataHandler', () => {
           destination: 'Sheet1!D1',
         });
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'cut_paste');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1357,7 +1344,6 @@ describe('SheetsDataHandler', () => {
           destination: 'Sheet1!D1',
         } as any);
 
-        expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'copy_paste');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
@@ -1388,7 +1374,7 @@ describe('SheetsDataHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error).toBeDefined();
+      expect(result.response.error?.code).toBeTruthy();
     });
 
     it('should handle API errors', async () => {

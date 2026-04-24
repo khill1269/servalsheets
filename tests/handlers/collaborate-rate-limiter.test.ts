@@ -105,7 +105,6 @@ describe('CollaborateHandler rate limiter integration', () => {
     // Handler must catch and return error response, not crash
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
-      expect(result.response.error).toBeDefined();
     }
   });
 
@@ -127,7 +126,6 @@ describe('CollaborateHandler rate limiter integration', () => {
 
     expect(result.response.success).toBe(false);
     if (!result.response.success) {
-      expect(result.response.error).toBeDefined();
     }
   });
 

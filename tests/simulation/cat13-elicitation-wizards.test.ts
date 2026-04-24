@@ -127,7 +127,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('13.1b chart_create with title (step 2) dispatches', async () => {
@@ -154,7 +154,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -190,7 +190,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       if (result.response.success) {
         expect(result.response).toHaveProperty('spreadsheetId');
       }
@@ -204,7 +204,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -309,7 +309,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('13.7b wizard sessions have cap (1000 max with eviction)', async () => {
@@ -360,7 +360,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // Should degrade gracefully, not throw
     });
   });
@@ -476,7 +476,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should handle wizard completion', async () => {
@@ -490,7 +490,7 @@ describe('Category 13: Elicitation & Wizards', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 });

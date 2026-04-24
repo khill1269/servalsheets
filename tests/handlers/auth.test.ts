@@ -176,7 +176,6 @@ describe('AuthHandler', () => {
 
       const result = await handler.handle({ action: 'status' } as any);
 
-      expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('authenticated', true);
       expect(result.response).toHaveProperty('authType', 'service_account');

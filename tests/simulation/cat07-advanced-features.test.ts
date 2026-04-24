@@ -77,7 +77,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.2 list_named_ranges dispatches', async () => {
@@ -85,7 +85,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'list_named_ranges', spreadsheetId: 'test-sheet-id' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.3 get_named_range dispatches', async () => {
@@ -93,7 +93,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'get_named_range', spreadsheetId: 'test-sheet-id', name: 'SalesRange' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.4 update_named_range dispatches', async () => {
@@ -110,7 +110,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.5 delete_named_range dispatches', async () => {
@@ -125,7 +125,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.6 add_protected_range dispatches', async () => {
@@ -141,7 +141,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.7 list_protected_ranges dispatches', async () => {
@@ -149,7 +149,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'list_protected_ranges', spreadsheetId: 'test-sheet-id' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.8 set_metadata dispatches', async () => {
@@ -165,7 +165,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.9 get_metadata dispatches', async () => {
@@ -177,7 +177,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.10 add_banding dispatches', async () => {
@@ -192,7 +192,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.11 list_banding dispatches', async () => {
@@ -200,7 +200,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'list_banding', spreadsheetId: 'test-sheet-id' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.12 create_table dispatches', async () => {
@@ -216,7 +216,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.13 update_table dispatches', async () => {
@@ -232,7 +232,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.14 list_tables dispatches', async () => {
@@ -240,7 +240,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'list_tables', spreadsheetId: 'test-sheet-id' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.15 add_person_chip dispatches', async () => {
@@ -256,7 +256,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.16 list_chips dispatches', async () => {
@@ -264,7 +264,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'list_chips', spreadsheetId: 'test-sheet-id' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.17 create_named_function dispatches', async () => {
@@ -277,7 +277,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.18 list_named_functions dispatches', async () => {
@@ -285,7 +285,7 @@ describe('Category 7: Advanced Features', () => {
       request: { action: 'list_named_functions', spreadsheetId: 'test-sheet-id' },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.19 delete_named_function dispatches', async () => {
@@ -297,7 +297,7 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 
   it('7.20 create_template dispatches', async () => {
@@ -309,6 +309,6 @@ describe('Category 7: Advanced Features', () => {
       },
     });
     expect(result).toBeDefined();
-    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
   });
 });

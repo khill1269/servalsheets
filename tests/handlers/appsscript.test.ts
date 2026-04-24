@@ -159,7 +159,6 @@ describe('SheetsAppsScriptHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error.code).toBe('SERVICE_NOT_ENABLED');
       expect(result.response.error.message).toContain('Apps Script API is not enabled');
     });
@@ -218,7 +217,6 @@ describe('SheetsAppsScriptHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error.code).toBe('NOT_FOUND');
     });
   });
@@ -1145,7 +1143,6 @@ describe('SheetsAppsScriptHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error.code).toBe('UNAVAILABLE');
       expect(result.response.error.retryable).toBe(true);
     });

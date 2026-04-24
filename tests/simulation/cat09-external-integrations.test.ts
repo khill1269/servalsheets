@@ -135,7 +135,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.2 BigQuery list_tables dispatches', async () => {
@@ -147,7 +147,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.2b BigQuery query dispatches', async () => {
@@ -159,7 +159,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.3 BigQuery export_to_bigquery dispatches', async () => {
@@ -174,7 +174,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -201,7 +201,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.4b Apps Script get_content dispatches', async () => {
@@ -212,7 +212,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.5 Apps Script run with devMode guard dispatches', async () => {
@@ -225,7 +225,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.6 Apps Script trigger_create dispatches', async () => {
@@ -240,7 +240,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -260,7 +260,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.7b Federation call_remote dispatches', async () => {
@@ -272,7 +272,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.7c Federation validate_connection dispatches', async () => {
@@ -283,7 +283,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -301,7 +301,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.8b Connectors query throws when not configured', async () => {
@@ -331,7 +331,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.10 Connector error on invalid connector', async () => {
@@ -369,7 +369,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       // If Redis is not available, handler returns error with graceful message
     });
 
@@ -380,7 +380,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('9.9c Webhook watch_changes dispatches', async () => {
@@ -392,7 +392,7 @@ describe('Category 9: External Integrations', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 
@@ -433,7 +433,7 @@ describe('Category 9: External Integrations', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 });

@@ -512,7 +512,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
 
       // Without configured credentials, status returns success:false or success:true
       // depending on env — either way it should not throw
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(typeof result.response.success).toBe('boolean');
     });
 
@@ -524,7 +524,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       } as any);
 
       // Without OAuth client configured, login may fail gracefully
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(typeof result.response.success).toBe('boolean');
     });
 
@@ -540,7 +540,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       } as any);
 
       // Callback without real OAuth setup returns a structured error
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(typeof result.response.success).toBe('boolean');
     });
 
@@ -552,7 +552,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       } as any);
 
       // Logout clears local state — should succeed even without tokens
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
       expect(typeof result.response.success).toBe('boolean');
     });
   });

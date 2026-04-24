@@ -110,7 +110,7 @@ describe('AnalyzeHandler — quick_insights action (S3-A)', () => {
 
       const resp = result.response as any;
       // stats block
-      expect(resp.stats).toBeDefined();
+      expect(resp.stats).toBeTruthy();
       expect(typeof resp.stats.rowCount).toBe('number');
       expect(resp.stats.rowCount).toBeGreaterThan(0);
       expect(typeof resp.stats.columnCount).toBe('number');

@@ -150,7 +150,6 @@ describe('AnalyzeHandler', () => {
       if (!result.response.success) {
         console.log('analyze error:', JSON.stringify(result.response, null, 2));
       }
-      expect(result).toHaveProperty('response');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('summary');
       expect(result.response).toHaveProperty('analyses');
@@ -537,7 +536,7 @@ describe('AnalyzeHandler', () => {
 
       // Handler may use fast path, which doesn't call values.get the same way
       // Just verify the test ran successfully
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should use default range when not specified', async () => {
@@ -581,7 +580,7 @@ describe('AnalyzeHandler', () => {
 
       // Handler may use fast path which doesn't call values.get the same way
       // Just verify the test ran successfully
-      expect(result.response).toBeDefined();
+      expect(typeof result.response.success).toBe('boolean');
     });
   });
 

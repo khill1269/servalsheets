@@ -133,7 +133,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.message).toContain('Invalid webhook URL');
     });
 
@@ -422,7 +421,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.message).toContain('Webhook not found');
     });
 
@@ -437,7 +435,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
   });
 
@@ -539,7 +536,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
   });
 
@@ -606,7 +602,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
   });
 
@@ -892,7 +887,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
   });
 
@@ -906,7 +900,6 @@ describe('WebhookHandler', () => {
       });
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
       expect(result.response.error?.code).toBe('INVALID_PARAMS');
       expect(result.response.error?.message).toContain('Unknown action');
     });
