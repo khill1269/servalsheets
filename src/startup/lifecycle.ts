@@ -266,7 +266,11 @@ async function initializeWebhookInfrastructure(): Promise<void> {
   const webhookEndpoint = process.env['WEBHOOK_ENDPOINT'];
 
   if (!redisUrl) {
-    logger.info('Webhook infrastructure skipped: REDIS_URL not configured');
+    logger.info(
+      'Webhook infrastructure skipped: REDIS_URL not configured. ' +
+        'To enable: `docker compose up redis` (local) or set REDIS_URL (production). ' +
+        'sheets_webhook.* and sheets_analyze.schedule_intelligence will reject deliveries until configured.'
+    );
     return;
   }
 
