@@ -186,6 +186,10 @@ export const EnvSchema = z
 
     // Feature flags (additional)
     ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS: StrictBooleanSchema.default(false),
+    // Audit logging for compliance — gates tool-call logging in tool-handlers.ts
+    ENABLE_AUDIT_LOGGING: StrictBooleanSchema.default(false),
+    // Idempotency wrapping — deduplicates repeated identical tool calls per request
+    ENABLE_IDEMPOTENCY: StrictBooleanSchema.default(false),
 
     // Billing (optional)
     BILLING_ENABLED: StrictBooleanSchema.default(false),
