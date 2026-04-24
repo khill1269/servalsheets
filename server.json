@@ -22,7 +22,15 @@
       "transport": {
         "type": "stdio"
       },
-      "description": "Production-grade MCP server for Google Sheets — 25 tools, 409 actions"
+      "description": "Local STDIO mode via npm — 25 tools, 409 actions for Claude Desktop and development"
+    },
+    {
+      "registryType": "remote",
+      "url": "https://servalsheets.dev/mcp",
+      "transport": {
+        "type": "streamable-http"
+      },
+      "description": "Hosted deployment — connect without installing anything (25 tools, 409 actions)"
     }
   ],
   "tools": [
@@ -592,7 +600,14 @@
     "prompts",
     "logging",
     "completions",
-    "tasks"
+    "tasks",
+    "sampling",
+    "elicitation"
+  ],
+  "transports": [
+    "stdio",
+    "streamable-http",
+    "http-sse"
   ],
   "metadata": {
     "toolCount": 25,

@@ -12,6 +12,54 @@ Production-grade Google Sheets MCP Server with 25 tools, 409 actions, safety rai
   <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
 </p>
 
+## Connect to Claude
+
+### Option A — Claude.ai connector (no install)
+
+Add as a remote connector in Claude.ai → Settings → Connectors → Add:
+
+```
+https://servalsheets.dev/mcp
+```
+
+Or add to your `claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "servalsheets": {
+      "url": "https://servalsheets.dev/mcp"
+    }
+  }
+}
+```
+
+### Option B — Claude Desktop (local, STDIO)
+
+```json
+{
+  "mcpServers": {
+    "servalsheets": {
+      "command": "npx",
+      "args": ["-y", "servalsheets@latest"]
+    }
+  }
+}
+```
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` and restart Claude Desktop. Google OAuth runs on first launch.
+
+### Option C — Self-hosted
+
+```bash
+git clone https://github.com/khill1269/servalsheets
+cp .env.example .env   # fill GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET
+npm install && npm run build && npm run start:http
+# MCP endpoint: http://localhost:3000/mcp
+```
+
+---
+
 ## What's New (Post-v2.0.0, 2026-02-17 → Present)
 
 🔧 **2026-04-21 Flat-Tool Wire Hardening**

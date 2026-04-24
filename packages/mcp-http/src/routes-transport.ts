@@ -23,6 +23,8 @@ export interface HttpTransportSessionLimiter {
 export interface HttpTransportOAuthProvider {
   validateToken(): express.RequestHandler;
   getGoogleToken(req: Request): Promise<string | null | undefined>;
+  /** Optional — returns the Google refresh token for the authenticated user. */
+  getGoogleRefreshToken?(req: Request): Promise<string | null | undefined>;
 }
 
 export interface HttpTransportRequestContextOptions {
@@ -344,6 +346,10 @@ export function registerHttpTransportRoutes<
       // MCP bearer token as a Google credential (P0 security fix).
       const googleToken =
         enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : undefined;
+      const googleRefreshToken =
+        enableOAuth && oauth && oauth.getGoogleRefreshToken
+          ? ((await oauth.getGoogleRefreshToken(req)) ?? undefined)
+          : undefined;
       const sessionOwnerToken = bearerToken ?? googleToken;
 
       const userId = sessionOwnerToken
@@ -468,7 +474,7 @@ export function registerHttpTransportRoutes<
         });
         const { mcpServer, taskStore, disposeRuntime } = await createMcpServerInstance(
           googleToken,
-          undefined,
+          googleRefreshToken,
           sessionId
         );
 
@@ -633,6 +639,10 @@ export function registerHttpTransportRoutes<
     // MCP bearer token as a Google credential (P0 security fix).
     const googleToken =
       enableOAuth && oauth ? ((await oauth.getGoogleToken(req)) ?? undefined) : undefined;
+    const googleRefreshToken =
+      enableOAuth && oauth && oauth.getGoogleRefreshToken
+        ? ((await oauth.getGoogleRefreshToken(req)) ?? undefined)
+        : undefined;
     const sessionOwnerToken = bearerToken ?? googleToken;
     const userId = sessionOwnerToken
       ? `google:${createHash('sha256').update(sessionOwnerToken).digest('hex').substring(0, 16)}`
@@ -744,7 +754,7 @@ export function registerHttpTransportRoutes<
         const securityContext = createSessionSecurityContext(req, sessionOwnerToken || '');
         const { mcpServer, taskStore, disposeRuntime } = await createMcpServerInstance(
           googleToken,
-          undefined,
+          googleRefreshToken,
           newSessionId
         );
         sessions.set(newSessionId, {

@@ -3,143 +3,147 @@
 > Updated by each Claude session as its last act. Captures intent, decisions, and next steps
 > that code analysis alone cannot determine.
 > Full session history (Sessions 8–49): `docs/development/CODEBASE_CONTEXT.md#historical-feature-milestones`
-> Sessions 50–105 compressed: see Session History table below.
+> Sessions 50–113 compressed: see Session History table below.
 
 ## Current Phase
 
-**Session 111 (2026-04-01) — Flat tool mode debugging + production cleanup.** Branch `main`. 409 actions (25 tools). 2810/2810 tests pass (143 test files).
+**Sessions 112–115 (2026-04-19 → 2026-04-23) — Full audit remediation + MCP submission prep.** Branch `main`. 25 tools / 409 actions. 535/535 test files pass (11,601 tests). All 14 audit gates green.
 
-## What Was Just Completed (Session 111)
+## What Was Just Completed (Sessions 112–115)
 
-**Flat tool mode diagnosis + comprehensive production cleanup — all verified green.**
+**28-bug live stress test remediation, code simplification, and Anthropic MCP directory submission preparation. All 14 audit gates green. 535 test files pass.**
 
-### Flat tool mode fix
+### Audit scope
 
-- **Root cause identified**: The `tools/call` interceptor in `flat-tool-call-interceptor.ts` works correctly (proven via direct STDIO test), but the Cowork/Claude Desktop server instance was running stale code from before the interceptor was deployed
-- **Proof**: Spawned fresh server via STDIO, sent JSON-RPC `tools/call` for `sheets_auth_status` → success. Called `sheets_discover` (meta-tool only handled by interceptor) → success. Both flat and compound tool calls work.
-- **Proof of stale instance**: Calling `sheets_discover` from Cowork session → "Tool not found" (interceptor not active in running instance)
-- **Fix**: Restart Claude Desktop to load current dist/ with working interceptor
-- **Cleanup**: Removed all 5 `process.stderr.write` debug traces from interceptor, rebuilt dist
+A 14-phase live MCP stress test against the `ServalSheets Showcase Hub` workbook produced 28 confirmed bugs and a no-go recommendation for directory submission. Sessions 112–115 resolved 25+ of those bugs and all 12 original submission blockers.
 
-### Production cleanup
+### Fixes applied (by root cluster)
 
-1. **Orphaned processes**: Killed ~20 zombie `node dist/cli.js` processes on host machine via Desktop Commander
-2. **Temp file cleanup**: Deleted 40+ debugging artifacts from root directory (14 HTML reports, 4 Office docs, test scripts, .bak files, .tmp/ directory, test fixture directories, stale audit/research files, AQUI-VR framework artifacts)
-3. **Documentation sync**: Fixed 12 stale count references across 8 files (README.md, CODEBASE_CONTEXT.md, SOURCE_OF_TRUTH.md, state.md, metadata.json, facts.json, PROJECT_STATUS.md, USAGE_GUIDE.md) — all now consistently show 25 tools / 409 actions
-4. **Metadata regeneration**: `npm run schema:commit` (via generate-metadata.ts) — all 7 generated files in sync
-5. **Full verification**: TypeScript 0 errors, 2810/2810 tests pass, no drift, no placeholders, no debug prints
+**Root A — Analyze range scoping (bugs 7, 8, 9, 27)**
+- `analyze_quality`, `analyze_structure`, `analyze_formulas` — `sheetId` now scopes the read via `convertRangeInputAsync`
+- `convertRangeInputAsync` wired into quality.ts, patterns.ts, and handleGenerateFormula — all three now return `NOT_IMPLEMENTED` for `grid`/`semantic` instead of silently falling back to workbook-wide reads
+- Sync `convertRangeInput` private method removed (was unused after full migration)
 
-**Key decisions:**
+**Root B — error envelope schema (bug 5, universal)**
+- `response-intelligence.ts` now writes `fix.explanation` (string) to `suggestedFix` — matches `z.string().optional()` schema
+- `fixableVia` holds the structured `{tool, action, params, explanation}` object
+- Locked in by `tests/contracts/error-envelope-schema.test.ts` (11 tests)
 
-- Flat tool interceptor pattern is architecturally correct (overrides SDK handler via `setRequestHandler`)
-- `sheets_discover` meta-tool proves interceptor activity (no compound handler exists for it)
-- No code changes needed for the flat mode fix — just a server restart
+**Root C — sampling truthfulness (bugs 12, 13, 14)**
+- New `src/services/sampling-health-probe.ts` — real reachability probe with 5-min TTL cache + circuit breaker (3-failure threshold)
+- `auth.status.sampling.available = probe.healthy` (not env-var presence)
 
-**Files changed (1 src + 8 docs):**
+**Root D — agent plan binding (bugs 1, 2)**
+- Regex-fallback plans get `_requiredParams: string[]` on each invalid step via `annotateAIGeneratedDraftPlan(plan, true)`
+- `planningContextSummary` includes `REGEX_FALLBACK:` prefix when AI sampling was unavailable
+- `annotateAIGeneratedDraftPlan` now takes optional `backfillSentinels` param — merges two passes into one
 
-- `src/mcp/registration/flat-tool-call-interceptor.ts` — removed debug stderr traces
-- README.md, CODEBASE_CONTEXT.md, SOURCE_OF_TRUTH.md, .serval/state.md, .agent-context/metadata.json, docs/generated/facts.json, PROJECT_STATUS.md, USAGE_GUIDE.md — count sync to 409
+**Root E — elicitation alternatives (bugs 3, 4)**
+- `delete_named_range`, `delete_banding`, `delete_protected_range` now return `ELICITATION_UNAVAILABLE` (was `PRECONDITION_FAILED`) so recovery-engine attaches `wizard_start` + `safety.confirmed` alternatives
+- `safety.confirmed: z.boolean().optional()` added to `SafetyOptionsSchema` — all three handlers pass `skipIfElicitationUnavailable: req.safety?.confirmed === true`
+
+**Root F — error-source-aware suggester (bugs 18, 19, 24, 25)**
+- `ErrorSource` type + optional `errorSource` param in `suggestFix()`
+- `inferErrorSource()` extracted to `src/utils/infer-error-source.ts` — shared by `BaseHandler.mapError` and `mapStandaloneError`
+- `mapStandaloneError` now emits `errorSource` on every return
+- `tool-response.ts` reads `error['errorSource']` and passes it to `applyResponseIntelligence`
+- `exposedToolSurface` wired from `TOOL_ACTIONS` in `tool-response.ts` — suppresses suggestions pointing at unregistered actions
+
+**Root G — Apps Script lifecycle (bugs 20, 21, 22, 23, 24, 28)**
+- `script.run` devMode uses `scriptId` not `deploymentId!` (was `/scripts/undefined:run`)
+- 404 on deploymentId → structured `NOT_FOUND` with 4-step HEAD-deployment workflow explanation
+- `list_deployments` epoch sentinel `1970-01-01T00:00:00Z` filtered out
+- `script.update_content` rejection names the matched pattern + line numbers + 3-line snippet
+- `script.metrics` OAuth scope added to `FULL_ACCESS_SCOPES`
+- `get_metrics` 403 now routes to `sheets_auth.setup_feature` not retry playbook
+
+**Additional fixes**
+- `analyze_quality` score now severity-weighted (critical:20, high:10, medium:5, low:2; capped -60)
+- All quality issues no longer hardcoded as `MIXED_DATA_TYPES` — `inferQualityIssueType()` maps message text
+- `QualityIssueType` is now `DataQualityIssue['type']` (schema-derived, not local union)
+- `scout` per-sheet flags (hasFormulas, hasCharts, hasProtection, hasFilters) — real per-sheet API probe, not workbook-wide copy
+- `detect_patterns` numeric string coercion — Google API can return numbers as strings; helpers.ts now coerces
+- `checkColumnQuality` single-pass frequency Map (was two-pass set + map)
+- `data.ts` unknown-action error no longer embeds all 24 action names verbatim — routes to `sheets_analyze.discover`
+- `tables.ts` resolution text no longer references unexposed `sheets_dimensions.clear_basic_filter`
+- `update_protected_range` batchUpdate wrapped with context-aware error (cites `protectedRangeId`, not raw API range)
+- Named functions error message: "permanently unsupported" not "kept for compatibility"
+- `agent.get_status` now also queries `taskStore` when `planStore` misses — unifies `analyze.comprehensive` task polling
+- `transaction.ts`: `MAX_TRANSACTION_OPS` cached at module load; dryRun skips cap
+- `analyze.ts` row/col caps read from `ANALYZE_MAX_ROWS`/`ANALYZE_MAX_COLS` env vars (both call sites consistent)
+- N6: Atomic OAuth callback via `sessionStore.consume()` — Redis `GETDEL`, in-memory sync get+delete
+- N5: Per-clientId DCR rate limit on `/oauth/register/:clientId`
+- `CLAUDE.md` RFC 7591/7592 citation corrected
+
+**MCP directory submission prep**
+- `server.json` `packages` — added remote/streamable-http entry for `https://servalsheets.dev/mcp`
+- `server.json` `transports` + `capabilities` (sampling, elicitation) declared
+- `generate-metadata.ts` updated as the authoritative source — `server.json` is generated, never hand-edited
+- README "Connect to Claude" section added before "What's New"
+- 14/14 audit gates green; all Anthropic submission requirements verified
+
+### Code quality improvements (simplify pass)
+
+- `inferErrorSource()` extracted to `src/utils/infer-error-source.ts` — eliminates duplication between `base.ts` and `error-mapping.ts`
+- `QualityIssueType` unified with schema: `DataQualityIssue['type']`
+- `checkColumnQuality` single-pass frequency map
+- `annotateAIGeneratedDraftPlan` + `backfillRequiredParamSentinels` merged into one pass (optional `backfillSentinels` param)
+- Inline `import('...')` type cast moved to top-level import in `tool-response.ts`
 
 ## What Remains
 
-1. **Restart Claude Desktop** to pick up the working flat tool call interceptor
-2. **Fly.io deployment** — verify HTTP transport on Fly.io
-3. **End-to-end Google Sheets testing** — test actual operations once auth works
-4. **Rotate API keys** — secrets were visible in config dump during debugging session
+### Non-blocking for directory submission
 
-## What Was Previously Completed (Session 110)
+1. **Root D dryRun simulators** — per-tool before/after diff for `sheets_data.write`, `sheets_core.delete_sheet`, `sheets_format.set_format` (~1 week)
+2. **N17 webhooks task emission** — delivery is fire-and-forget; needs API shape decision before async-task change
+3. **N16 federation task emission** — `call_remote` is synchronous; design decision needed
+4. **`semantic` range branch** — `convertRangeInputAsync` returns `NOT_IMPLEMENTED` for semantic; a real resolver is deferred
 
-**Claude Code architecture review → 4 confirmed gaps found and implemented — all 2841/2841 tests pass.**
+### Pre-deployment (infrastructure, not code)
 
-### Improvements implemented
-
-1. **autoRecord wiring** (`src/mcp/registration/tool-execution-side-effects.ts`):
-   - After every successful mutation, checks `sessionCtx.getPreferences().autoRecord`
-   - If `true`, automatically calls `sessionCtx.recordOperation(...)` — no more manual `record_operation` calls needed
-   - Added `getSessionContextFn` to `ToolExecutionSideEffectDeps` interface + default wired in `createDefaultDeps()`
-   - Non-critical: wrapped in try/catch — never blocks tool execution
-   - Tests: 2 new tests in `tests/unit/tool-execution-side-effects.test.ts`
-
-2. **Agent tool catalog injection** (`src/services/agent/plan-compiler.ts`):
-   - Added `buildToolCatalogSummary()` that builds a compact summary of all 25 tools + actions from `TOOL_ACTIONS` (source of truth)
-   - Replaced the old hardcoded static tool list in `aiParsePlan()` system prompt with live catalog
-   - Agent plans now generated with awareness of all actual tools/actions — no more planning blind
-
-3. **Agent step streaming** (`src/services/agent/plan-executor.ts`):
-   - Added `sendProgress()` call after each step in `executePlan()`
-   - LLM clients now see real-time progress notifications: "Step N/M completed: description"
-   - Non-critical: wrapped in `.catch(() => {})` — never blocks execution
-
-4. **Session compaction** (`src/schemas/session.ts`, `src/services/session-context.ts`, `src/handlers/session.ts`):
-   - Added `compact_session` action to `sheets_session` (session now has 32 actions, up from 31)
-   - `compactHistory(digest, keepRecent)` method on `SessionContextManager`
-   - Handler: if history ≤ keepRecent, no-op; otherwise summarizes old ops into a digest record
-   - Analogous to Claude Code's context compaction at ~80% capacity
-   - Tool hash baseline regenerated via `npm run security:tool-hashes`
-
-**Key decisions:**
-
-- autoRecord is opt-in (default: false) — no surprise behavior changes for existing users
-- buildToolCatalogSummary caps at 8 actions/tool to keep prompt tokens reasonable
-- sendProgress uses `.catch()` not try/catch since it returns a promise
-- compact_session creates a digest string entry in history (preserves audit trail)
-- schema:commit git add fails on gitignored files (docs/generated, manifest.json) — pre-existing issue, not introduced here
-
-**Files changed (8 src + 1 test):**
-
-- `src/mcp/registration/tool-execution-side-effects.ts` — autoRecord wiring
-- `src/services/agent/plan-compiler.ts` — buildToolCatalogSummary + live tool catalog injection
-- `src/services/agent/plan-executor.ts` — sendProgress after each step
-- `src/schemas/session.ts` — compact_session action + output fields
-- `src/services/session-context.ts` — compactHistory() method
-- `src/handlers/session.ts` — compact_session case
-- `src/security/tool-hashes.baseline.json` — regenerated after session schema change
-- `tests/unit/tool-execution-side-effects.test.ts` — autoRecord tests
-- `tests/utils/ast-schema-parser.test.ts` — updated count: 31→32 for session
-
-**Verification**: 2841/2841 tests pass. TypeScript clean.
-
-_Sessions 107–109 detail archived to `.serval/archive/session-notes-history.md`_
-
-## Genuine Remaining Work
-
-1. **Error typing**: ~100 generic throws remain in src/services/ (google-api.ts, analysis/) — handlers already clean
-2. **P18-D1–D10**: Handler decomposition — file-size budget system in place; actual decomposition deferred
-3. ~~**16-F1–F6**: Formula evaluation engine~~ — **COMPLETE** ✅ `src/services/formula-evaluator.ts` (582 lines, HyperFormula v3.2.0) + `src/services/apps-script-evaluator.ts` (166 lines).
-4. **ISSUE-073**: Git worktree cleanup (maintainer-only)
-5. **ISSUE-075**: npm publish @serval/core v0.2.0 (maintainer-only)
-6. **Sampling**: Add `ANTHROPIC_API_KEY` to claude_desktop_config.json env block (manual — user must add own key)
+1. Register domain `servalsheets.dev` → point at Cloud Run / Railway / Fly.io instance
+2. Register Google Cloud OAuth app, set `GOOGLE_REDIRECT_URI=https://servalsheets.dev/callback`
+3. Generate `JWT_SECRET` (`openssl rand -hex 32`)
+4. Provision Redis (optional but recommended for sessions + webhooks)
+5. Set `ANTHROPIC_API_KEY` for AI features
+6. Verify `/health/ready` → 200 before submitting to Anthropic directory
 
 ## Verified False Claims (do not re-investigate)
 
-- **G-1**: revision-timeline no pagination — FALSE. `revision-timeline.ts:119-140` paginates with 50-page cap.
-- **G-2**: collaborate/versions no pagination — FALSE. `versions.ts:390-399` paginates with 100-page cap.
-- **G-4**: Apps Script bypasses `wrapGoogleApi` retry — FALSE. `appsscript.ts:365` wraps with `executeWithRetry()`.
-- **G-6**: core.list no pagination — FALSE. `core-actions/spreadsheet-read.ts:182-261` has cursor-based pagination.
-- **NEW-1 (agent self-eval gap)**: RESOLVED. `executePlan()` calls `aiValidateStepResult()` after each step. Tests: `tests/services/agent-engine-selfeval.test.ts`.
-- **NEW-2 (connector discover SSRF)**: RESOLVED. `connectors.ts:278` validates `req.endpoint` against `discovery.endpoints`.
-- **connector manager unbounded maps** — FALSE. `cappedMapSet` used at tenant-context.ts:214,302,360,381,429.
-- **OAuth redirect URI hardcoded** — FALSE. `oauth-config.ts:26` reads `OAUTH_REDIRECT_URI` from env.
+All prior false claims from sessions 111 and earlier remain valid. New additions:
 
-## Key Decisions Made
+- **Bug 26 (delete_banding schema drift)** — FALSE. Both `add_banding` and `delete_banding` already use `z.coerce.number().int()` + `SafetyOptionsSchema`. The stress test failure was a request format issue.
+- **Bug 16 (comprehensive taskId no polling route)** — RECLASSIFIED P2-docs. `task-store-adapter.ts:65-174` has `getTask`, `listTasks`, cancellation. Server-side is correct; issue was undocumented in tool description. `agent.get_status` now also checks `taskStore`.
+- **N8 (wizardSessions Map concurrency)** — ACCEPTABLE RISK. Auto-generated UUIDs (128-bit entropy) make enumeration impossible. Single-tenant practical risk is negligible.
+- **N9 (_scheduler singleton)** — NOT A BUG. Module-level lazy singleton set once at boot via `setScheduler()` — intentional pattern.
+- **A1NotationSchema preprocessor (Bug 6 state leak)** — FALSE. Pure stateless function, no closure state.
 
-- **Option D continuity**: auto-generated state.md + manual session-notes.md (no custom infrastructure)
-- **Safety rail order**: `createSnapshotIfNeeded()` BEFORE `confirmDestructiveAction()` (snapshot must exist before user approves)
-- **P18-X5 N/A**: SDK `ServerCapabilities` type doesn't include `progress` field — not fixable without SDK change; `sendProgress()` already works per-request
-- **16-F1–F6 COMPLETE** (2026-03-15): `formula-evaluator.ts` (582 lines, HyperFormula v3.2.0) + `apps-script-evaluator.ts` (166 lines). Wired into scenario modeling actions.
-- **Minimal change policy**: ≤3 src/ files per fix unless tests require more; no refactors while debugging
+## Key Decisions Made This Session
+
+- **`server.json` is GENERATED** — never edit it directly. The source is `scripts/generate-metadata.ts`. Running `npm run generate:metadata` regenerates it.
+- **Snapshot tests** — after any `SafetyOptionsSchema` or shared schema change, run `npx vitest run tests/snapshots -u` to update snapshots before `verify:safe`.
+- **`safety.confirmed`** — public bypass for elicitation on non-elicitation clients. Pass `true` in `request.safety.confirmed` to pre-approve destructive operations.
+- **`inferErrorSource`** — canonical location: `src/utils/infer-error-source.ts`. If you need to classify an error's origin (google_api, ai_service, validation, auth), import from there.
+- **dryRun cap bypass** — `transaction.ts` skips `MAX_TRANSACTION_OPS` check when `safety.dryRun: true`. Don't re-add the check.
+- **Annotation changes require schema:commit** — `SafetyOptionsSchema` changes are caught by snapshot tests (`tests/snapshots/`), not just `check:drift`.
 
 ## Architecture Quick Reference
 
 - Full handler map, service inventory, anti-patterns: `docs/development/CODEBASE_CONTEXT.md`
-- Feature specs (F1–F6): `docs/development/FEATURE_PLAN.md`
-- Current metrics (tools/actions/tests): `src/schemas/action-counts.ts` + `.serval/state.md`
-- TASKS.md: open backlog (P2 phase-2 progress coverage tranche E, ISSUE-073, ISSUE-075)
+- Feature specs: `docs/development/FEATURE_PLAN.md`
+- Current metrics: `src/schemas/action-counts.ts` + `.serval/state.md`
+- Deployment guide: `deployment/DEPLOYMENT_GUIDE.md`
+- Submission checklist: see "Pre-deployment" section above
 
 ## Session History (recent)
 
 | Date       | Session | Summary                                                                                                                             |
 | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-23 | 115     | Code simplify: inferErrorSource shared util, QualityIssueType schema-derived, single-pass checkColumnQuality, annotate+backfill merged |
+| 2026-04-23 | 114     | MCP submission prep: server.json HTTP transport + generate-metadata.ts source; README "Connect to Claude" section; snapshots updated |
+| 2026-04-23 | 113     | Root A completion: convertRangeInputAsync wired into quality/patterns/generateFormula; mapStandaloneError emits errorSource; N21/N22 |
+| 2026-04-22 | 112     | 28-bug audit remediation: Roots A–G, safety.confirmed schema field, backfillRequiredParamSentinels, sampling health probe, 14 gates green |
+| 2026-04-01 | 111     | Flat tool mode debugging + production cleanup; stale process cleanup; 2810/2810 tests                                               |
 | 2026-03-31 | 110     | Claude Code arch review → 4 fixes: autoRecord wiring, agent catalog injection, step streaming, compact_session; 2841/2841 tests     |
 | 2026-03-25 | 109     | 3-agent codebase verification + 4 fixes: sampling-consent utils, metadata sync, incremental-scope decomp, retryAfterMs TS fix       |
 | 2026-03-24 | 108     | MCP SEP compliance audit: annotation titles, idempotentHint, agencyHint (SEP-1792), requiredScopes (SEP-1880); A+ score             |
@@ -149,47 +153,3 @@ _Sessions 107–109 detail archived to `.serval/archive/session-notes-history.md
 | 2026-03-22 | 104     | XFetch cache, Spearman correlation, autocorrelation seasonality, Isolation Forest, K-Means, LRU+TTL, SWR; 4643/4643 tests          |
 | 2026-03-22 | 103     | Full 8-agent audit + 5 verified fixes: PQueue mutex, handler dedup, session GC, tenant cleanup, additive jitter; 2711/2711 tests    |
 | 2026-03-21 | 102     | Error typing sprint; BigQuery handler 1964→541 lines (7 submodules); Dimensions handler 2146→430 lines; 2710/2710 tests             |
-| 2026-03-21 | 101     | LLM Intelligence: cost estimates, confidence in _meta, traceId auto-gen, tool hiding, recovery playbooks, adaptive descs            |
-| 2026-03-20 | 100     | Merge remediation/phase-1 → main (PR #37); resolved 11 conflicts; synced manifest.json 397→404                                     |
-| 2026-03-20 | 99      | 8-commit bug fix batch (BUG-1–20): A1 range, output schema mismatches, Google API params, worker safety, auto-fill, compute         |
-| 2026-03-19 | 98      | Enterprise SSO/SAML 2.0 SP: saml-provider.ts (NEW), JWT scope='sso', 24 tests; node-saml v3.1.2                                    |
-| 2026-03-19 | 97      | Tier 4 services decomp: agent-engine 2467→75 lines (7 submodules), transaction-wal.ts extracted; 2742/2742 tests                   |
-| 2026-03-19 | 96      | Tier 2 ACTION_HINT_OVERRIDES; sampling test fix; comprehensive.ts 8-phase progress reporting; 2742/2742 tests                       |
-| 2026-03-18 | 95      | semantic_search feature (Voyage AI embeddings, LRU index); live API tests for agent/compute/connectors/federation                   |
-| 2026-03-18 | 94      | Issue tracker triage; ISSUE-073/237/240 closed; AQUI-VR 100%/A+; 88 undescribed CSV issues noted                                   |
-| 2026-03-18 | 93      | Wiring gap closure: ACTION_HINT_OVERRIDES 25/25 tools, CoT hints 13 types, Google API preflight, BUG-1/BUG-2 fixes                  |
-| 2026-03-18 | 92      | AQUI-VR remaining 20 findings closed/waived; M-20 path.basename fix; L-8/L-9 contract tests; all 12 gates green                    |
-| 2026-03-18 | 91      | AQUI-VR_v3.2_Framework: 54-finding registry, G13-G25 gates; check:drift macOS hang fix; staged-registration tests                  |
-| 2026-03-18 | 90      | Production-ready 1.7.0 release commit; analyze understanding follow-up wiring (query_natural_language, scout, comprehensive)        |
-| 2026-03-17 | 89      | Tier 2 ACTION_HINT_OVERRIDES; sampling-enhancements test fix; server instructions -22%; completions expansion; dist verification    |
-| 2026-03-16 | 88      | 8-step audit remediation; aiValidateStepResult; \_meta.aiMode; OAuth localhost server; ISSUE-073 resolved                           |
-| 2026-03-15 | 87      | 8-category re-audit (A grade); 6 schema fixes; live MCP probe 57/60 pass                                                            |
-| 2026-03-15 | 86      | Conditional webhook filtering; share_add pre-flight; elicitation MUST NOT fix; Tasks 9/12/13/14/16/17/18 verified                   |
-| 2026-03-15 | 85      | Round 2 description fixes (C2/H5/H6/M1/Task7/8/13); federation ACTION_HINT_OVERRIDES; Task 12 MCP schema audit                      |
-| 2026-03-15 | 84      | Usability audit: tool-discovery-hints.ts (NEW); BuiltinValidationRuleSchema; appsscript scriptId; defer-schema fixes                |
-| 2026-03-15 | 83      | Google Cloud Monitoring 90-min window: QuotaCircuitBreaker; Retry-After alignment; spreadsheet existence pre-caching; Fix A+B wired |
-| 2026-03-15 | 82      | Cache O(1) size tracking; CoT \_hints layer (response-hints-engine.ts, 17 tests); stash cleanup                                     |
-| 2026-03-15 | 81      | Type safety sprint (53 typed errors, 11 files); tranche E regression tests; action-recommender 5 new rules                          |
-| 2026-03-15 | 80      | LLM Intelligence Phases 1-3 (\_meta.apiCallsMade, performance tiers, batching hints); codebase enhancements A/C/D                   |
-| 2026-03-15 | 79      | Dead code removal (42 noUnusedLocals); typed error sprint (89 throws); ESLint fix; 2654/2654 tests                                  |
-| 2026-03-14 | 78      | Systematic test repair: 63 failing → 0; 14+ test files; hardcoded timestamps, WebhookManager, resource registration                 |
-| 2026-03-14 | 77      | S3-A quick_insights + S3-B auto_fill (TDD); 2646/2646 tests; 402 actions                                                            |
-| 2026-03-14 | 76      | Re-audit remediation: webhook DNS fail-closed; servalsheets init CLI; plan encryption; per-spreadsheet throttle                     |
-| 2026-03-13 | 75      | MCP 2025-11-25 elicitation compliance: ElicitationServer interface fix, OAuth flow wiring, form-mode removal, api-key-server.ts     |
-| 2026-03-11 | 58      | LLM Intelligence full plan (Sprints 1-4): quality scanner, action recommender, agent auto-retry, formula library, build_dashboard   |
-| 2026-03-03 | 55      | MCP/API fixes (6); VERIFIED_FIX_PLAN (9 fixes); 2452/2452 tests, G0–G5 green                                                        |
-| 2026-03-03 | 54      | Project audit execution: fixed 5 stale doc counts, created sync-doc-counts.mjs, historical-doc notes                                |
-| 2026-03-03 | 53      | P2 phase-2 progress coverage tranches A–D + sampling-consent hardening; 272/272 tests                                               |
-| 2026-03-02 | 52      | P18 verification sprint — all items closed or N/A                                                                                   |
-| 2026-03-02 | 51      | P16 backlog verification, 5 prompt registrations added, state.md updated                                                            |
-| 2026-03-01 | 50      | Advanced integrations: DuckDB/Pyodide/Drive Activity/Workspace Events/Scheduler/SERVAL Formula (+14 actions, 377→391)               |
-| 2026-02-28 | 49      | P16 LLM usability, elicitation wiring (core.create + collaborate.share_add)                                                         |
-| 2026-02-28 | 47-48   | G0–G5 gates green, connectors.ts fix, LLM UX polish (annotations, aliases)                                                          |
-| 2026-02-27 | 46      | sheets_connectors metadata + full wiring verification (10 actions)                                                                  |
-| 2026-02-25 | 41      | ISSUE-226/234/237 fixes; 24 issues verified already fixed                                                                            |
-| 2026-02-24 | 39      | Remediation Phase 1: 9 tests fixed, security fixes, gate pipeline restored                                                          |
-| 2026-02-23 | 35-38   | P6 API fixes, P7–P15 implementation (cache, safety rails, MCP wiring, 5 composite actions)                                          |
-| 2026-02-23 | 24-34   | P4 features: F4 Suggestions, F3 Cleaning, F1 Generator, F5 Time-Travel, F6 Scenarios, F2 Federation                                 |
-| 2026-02-22 | 18-23   | P2 feature flags, P3 backends (Excel/Notion/Airtable), P4 feature plan                                                              |
-| 2026-02-21 | 13-17   | P0 serval-core migration, P1 DX polish (ESLint fix, drift check, silent FPs)                                                        |
-| 2026-02-20 | 8-12    | Audit infrastructure (fixtures, coverage, gates, drift, agents)                                                                     |

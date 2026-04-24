@@ -63,10 +63,16 @@ npm run check:debug-prints  # No console.log in handlers
 npm run check:silent-fallbacks  # No silent {} returns
 npm run validate:alignment  # Schema-handler alignment
 npm run validate:audit      # Audit document validation
+npm run check:mcp-features  # MCP 2025-11-25 feature coverage scan (sampling/elicitation/tasks/etc.)
 
-# Full gate pipeline
-npm run gates               # G0-G5 validation gates
+# Gate pipelines (two separate systems — both must pass for releases)
+npm run gates               # Deployment gates: typecheck + test:run + check:drift
+npm run audit:gate          # Audit quality gates A1-A14 (architecture, coverage, contracts, MCP features)
 npm run verify:build        # Build + validate + smoke
+
+# Per-tool debug tracing (dev only)
+DEBUG_TOOL=sheets_data DEBUG_ACTION=read npm run test:fast   # verbose logs for one tool/action
+DEBUG_TOOL=sheets_data DEBUG_VERBOSE=true npm run test:fast  # includes request/response payloads
 ```
 
 ## No Documentation File Creation
@@ -81,6 +87,8 @@ Report findings in chat. Code changes only — no meta-documentation.
 Modified `src/schemas/*.ts` without regenerating → CI fails "metadata drift detected".
 **Fix:** `npm run schema:commit` after ANY schema change. This is the #1 CI failure cause.
 Generated files: `src/schemas/index.ts`, `annotations.ts`, `src/mcp/completions.ts`, `server.json`, `package.json`.
+
+**`server.json` is GENERATED — never hand-edit it.** The source is `scripts/generate-metadata.ts`. Edit the generator, then run `npm run generate:metadata`. Direct edits to `server.json` are overwritten on the next `schema:commit` or `generate:metadata` call.
 
 ### 2. Response Builder Anti-Pattern
 
@@ -161,6 +169,58 @@ LLM clients using ServalSheets MUST follow these patterns:
 **Rule:** Never move code from `src/http-server/` into `packages/mcp-http/` unless it has zero
 ServalSheets-specific imports. The package layer must remain product-agnostic.
 
+### 11. Schema Changes Also Require Snapshot Updates (Session 112–115)
+
+After editing `SafetyOptionsSchema`, `RangeInputSchema`, or any shared schema — the snapshot tests in `tests/snapshots/` will fail even after `check:drift` passes:
+
+```bash
+npx vitest run tests/snapshots -u   # update snapshots
+npm run verify:safe                  # then full verify
+```
+
+`check:drift` tracks action/tool counts; snapshot tests track full JSON schema shapes. Both must pass.
+
+### 12. `safety.confirmed` — Pre-approval bypass for elicitation (Session 112)
+
+For clients that don't support MCP Elicitation, destructive `sheets_advanced` operations (delete_named_range, delete_banding, delete_protected_range) return `ELICITATION_UNAVAILABLE`. The caller can bypass by re-calling with `safety.confirmed: true`:
+
+```typescript
+{ action: 'delete_named_range', namedRangeId: 'nr1', safety: { confirmed: true } }
+```
+
+`SafetyOptionsSchema` now has `confirmed: z.boolean().optional()`. The handler passes `skipIfElicitationUnavailable: req.safety?.confirmed === true` to `requestSafetyConfirmation()`.
+
+### 13. Error Source Inference — shared utility (Session 112–115)
+
+When classifying errors for `fixableVia` routing, use the canonical utility:
+
+```typescript
+import { inferErrorSource } from '../utils/infer-error-source.js';
+const source = inferErrorSource(error); // 'google_api' | 'ai_service' | 'validation' | 'auth' | undefined
+```
+
+`BaseHandler.mapError()` and `mapStandaloneError()` both use this. Do NOT inline the heuristic again — it was duplicated in two places and has been consolidated.
+
+### 14. `convertRangeInput` is gone — use `convertRangeInputAsync` (Session 115)
+
+The sync `convertRangeInput` private method was removed from `AnalyzeHandler`. All callers now use `convertRangeInputAsync(spreadsheetId, range)` which:
+
+- Handles `grid` branch via `convertGridRangeToA1`
+- Returns `{ notImplemented: true, reason }` for `semantic` (caller must emit `NOT_IMPLEMENTED`)
+- Handles `a1` and `namedRange` synchronously (same as before)
+
+Deps interfaces that used to accept `(range) => ConvertedRangeInput | undefined` now accept `(range) => Promise<ConvertedRangeInput | { notImplemented: true; reason: string } | undefined>`.
+
+### 15. `annotateAIGeneratedDraftPlan` backfill parameter (Session 115)
+
+The function now has a second parameter:
+
+```typescript
+annotateAIGeneratedDraftPlan(plan, backfillSentinels = false)
+```
+
+When `backfillSentinels: true`, each invalid step also gets `_requiredParams: string[]` listing the missing required fields. The plan-compiler passes `true` for regex-fallback plans. AI-generated plans don't need it (LLM fills params).
+
 ## Key Files
 
 - `src/server.ts` — MCP server entrypoint
@@ -172,6 +232,11 @@ ServalSheets-specific imports. The package layer must remain product-agnostic.
 - `src/connectors/plugin-api.ts` — Third-party connector plugins — `SERVAL_CONNECTOR_PLUGINS`
 - `src/security/oidc-provider.ts` — OIDC PKCE SSO — `OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID`
 - `packages/serval-sdk/` — `@serval/sdk` typed client (namespaced MCP access)
+- `src/utils/infer-error-source.ts` — **Canonical** error-source heuristic (shared by BaseHandler + mapStandaloneError)
+- `src/services/sampling-health-probe.ts` — Real sampling reachability probe (5-min TTL, circuit breaker)
+- `scripts/generate-metadata.ts` — **Authoritative source for `server.json`** — edit here, not server.json directly
+- `src/handlers/helpers/error-mapping.ts` — `mapStandaloneError()` for 12 standalone handlers
+- `tests/snapshots/` — Schema shape snapshots; update with `npx vitest run tests/snapshots -u` after schema changes
 
 ## Code Patterns
 
@@ -230,13 +295,18 @@ if (!result.response) throw new ResponseValidationError(); // Shape check
 
 ## Source of Truth
 
-| Metric           | Source File                                                                                    |
-| ---------------- | ---------------------------------------------------------------------------------------------- |
-| ACTION_COUNT     | `src/schemas/index.ts`                                                                         |
-| TOOL_COUNT       | `src/schemas/index.ts`                                                                         |
-| Protocol Version | `src/constants/protocol.ts` (re-exported via `src/version.ts:14`)                              |
-| TOOL_ACTIONS map | `src/mcp/completions.ts` — verified by `tests/contracts/completions-cross-map.test.ts`         |
-| MUTATION_ACTIONS | `src/middleware/mutation-actions.constants.ts:MUTATION_ACTION_NAMES` (audit + write-lock both derive from this; CI gate: `scripts/check-mutation-actions.mjs`) |
+| Metric                  | Source File                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| ACTION_COUNT            | `src/schemas/index.ts`                                                                         |
+| TOOL_COUNT              | `src/schemas/index.ts`                                                                         |
+| Protocol Version        | `src/constants/protocol.ts` (re-exported via `src/version.ts:14`)                             |
+| TOOL_ACTIONS map        | `src/mcp/completions.ts` — verified by `tests/contracts/completions-cross-map.test.ts`        |
+| MUTATION_ACTIONS        | `src/middleware/mutation-actions.constants.ts:MUTATION_ACTION_NAMES`                          |
+| server.json content     | `scripts/generate-metadata.ts` — **never edit server.json directly**                         |
+| Error source inference  | `src/utils/infer-error-source.ts` — used by BaseHandler.mapError + mapStandaloneError         |
+| Sampling health         | `src/services/sampling-health-probe.ts` — probes real reachability, 5-min cache               |
+| DataQualityIssue types  | `src/schemas/analyze.ts:DataQualityIssueSchema.shape.type` (`DataQualityIssue['type']`)       |
+| SafetyOptions schema    | `src/schemas/shared.ts:SafetyOptionsSchema` — includes `confirmed`, `dryRun`, `autoSnapshot` |
 
 Never hardcode these values — always reference the source file with `file:line`.
 
@@ -267,8 +337,9 @@ When implementing a new feature (e.g., F4 Smart Suggestions from `docs/developme
 - **Don't run full test suite in main context** — delegate to subagent (returns summary vs 5K tokens of output)
 - **Don't batch commits** — commit per logical unit (schema change, handler, tests)
 - **Don't skip schema:commit** — #1 CI failure cause; PostToolUse hook will remind you
-- **Don't modify generated files directly** — `action-counts.ts`, `annotations.ts`, `completions.ts`, `server.json` are generated by `schema:commit`
+- **Don't modify generated files directly** — `action-counts.ts`, `annotations.ts`, `completions.ts`, `server.json` are generated by `schema:commit`. For `server.json` specifically, edit `scripts/generate-metadata.ts` then run `npm run generate:metadata`.
 - **Don't use `verify` in low-memory** — use `verify:safe` (skips ESLint, includes drift check)
+- **Don't forget snapshot tests after schema changes** — `check:drift` passes but `tests/snapshots/` will fail; run `npx vitest run tests/snapshots -u` to update
 
 ## Subagent Delegation
 
@@ -297,4 +368,4 @@ ESLint may OOM in low-memory environments (~3GB heap) — use `verify:safe`. Sil
 
 ## Security Features (quick ref)
 
-RFC 7591 DCR (GET/PUT/DELETE `/oauth/register/:id`), RFC 8707 Resource Indicators (`aud` binding), SAML 2.0 SSO (`src/security/saml-provider.ts`), OIDC PKCE SSO (`src/security/oidc-provider.ts`), range-level RBAC (`src/services/rbac-manager.ts`), cross-day hash-chain audit (`src/services/audit-logger.ts`, `AUDIT_PII_REDACTION=true`). Further reading: `docs/development/ARCHITECTURE.md` · `docs/development/CLAUDE_CODE_RULES.md` · `docs/development/PROJECT_STATUS.md`
+RFC 7591 DCR registration (`POST /oauth/register`) + RFC 7592 management (`GET`/`PUT`/`DELETE /oauth/register/:id`), RFC 8707 Resource Indicators (`aud` binding), SAML 2.0 SSO (`src/security/saml-provider.ts`), OIDC PKCE SSO (`src/security/oidc-provider.ts`), range-level RBAC (`src/services/rbac-manager.ts`), cross-day hash-chain audit (`src/services/audit-logger.ts`, `AUDIT_PII_REDACTION=true`). Further reading: `docs/development/ARCHITECTURE.md` · `docs/development/CLAUDE_CODE_RULES.md` · `docs/development/PROJECT_STATUS.md`
