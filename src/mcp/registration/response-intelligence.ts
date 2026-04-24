@@ -31,6 +31,26 @@ type ResponseIntelligenceOptions = {
   spreadsheetId?: string;
   params?: Record<string, unknown>;
   aiMode?: 'sampling' | 'heuristic' | 'cached';
+  /**
+   * AUDIT-2026-04-23 (Root F): optional classification of where the error
+   * originated. When set, the error-fix-suggester routes by source in
+   * addition to error code — preventing, e.g., AI-service 5xx failures
+   * from suggesting sheets_data.read.
+   */
+  errorSource?:
+    | 'google_api'
+    | 'ai_service'
+    | 'internal'
+    | 'validation'
+    | 'auth';
+  /**
+   * AUDIT-2026-04-23 (Root F): optional set of "tool.action" strings
+   * indicating what's actually exposed to the current client. When set,
+   * suggestions whose tool+action isn't in the surface are suppressed
+   * rather than emitted as dead-ends (e.g. sheets_dimensions.clear_basic_filter
+   * on a client that only has 7 tool families exposed).
+   */
+  exposedToolSurface?: ReadonlySet<string>;
 };
 
 type ResponseIntelligenceResult = {
@@ -730,22 +750,36 @@ export function applyResponseIntelligence(
       errorMessage,
       options.toolName,
       options.actionName,
-      options.params
+      options.params,
+      options.errorSource
     );
-    if (fix) {
-      // Inject the full SuggestedFix object
-      error['suggestedFix'] = {
-        tool: fix.tool,
-        action: fix.action,
-        params: fix.params,
-        explanation: fix.explanation,
-      };
+    // AUDIT-2026-04-23 (Root F): if the suggester returned a fix but the
+    // exposed tool surface doesn't include `${fix.tool}.${fix.action}`,
+    // suppress it — pointing a client at an unexposed tool is worse than
+    // no suggestion at all. Surface check only applies when the caller
+    // actually provided an exposedToolSurface; otherwise we trust prior
+    // behavior.
+    const fixTargetInScope =
+      !options.exposedToolSurface ||
+      options.exposedToolSurface.has(`${fix?.tool}.${fix?.action}`);
+    if (fix && fixTargetInScope) {
+      // AUDIT-2026-04-23 fix for Root B: the response Zod schema at
+      // src/schemas/shared.ts:1177 declares `suggestedFix` as `z.string().optional()`.
+      // Previous code assigned an object here, causing MCP output-schema violations
+      // (notably for the named_function family but actually universal across every
+      // error path). `suggestedFix` now holds the human-readable explanation string;
+      // the full structured fix lives in `fixableVia` (schema at shared.ts:1180-1200),
+      // which is the LLM-executable shape.
+      if (!error['suggestedFix'] || typeof error['suggestedFix'] !== 'string') {
+        error['suggestedFix'] = fix.explanation;
+      }
       // Wire structured fixableVia so LLMs can execute the fix directly
       if (!error['fixableVia']) {
         error['fixableVia'] = {
           tool: fix.tool,
           action: fix.action,
           params: fix.params,
+          explanation: fix.explanation,
         };
       }
     }

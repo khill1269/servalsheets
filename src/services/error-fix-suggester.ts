@@ -16,6 +16,17 @@ export interface SuggestedFix {
 }
 
 /**
+ * Classifies where an error originated. Used to disambiguate suggestions —
+ * e.g. a 5xx from Google's API should retry sheets_data.read, but a 5xx
+ * from the server's outbound LLM call shouldn't suggest that at all.
+ *
+ * AUDIT-2026-04-23 (Root F): added so the suggester can route by source
+ * instead of by coarse HTTP status alone. Pre-existing callers (no source
+ * passed) keep the legacy behavior.
+ */
+export type ErrorSource = 'google_api' | 'ai_service' | 'internal' | 'validation' | 'auth';
+
+/**
  * Strip `undefined` values from a params object.
  *
  * The fixableVia schema (src/schemas/shared.ts ~line 1180) requires each
@@ -51,9 +62,17 @@ export function suggestFix(
   errorMessage: string,
   toolName?: string,
   action?: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
+  errorSource?: ErrorSource
 ): SuggestedFix | null {
-  const fix = suggestFixInternal(errorCode, errorMessage, toolName, action, params);
+  // AUDIT-2026-04-23 (Root F): early-return null when the error source
+  // is known to be something the suggester can't meaningfully recover —
+  // ai_service failures (malformed outbound LLM requests, provider 5xx)
+  // should never route to sheets_data.read.
+  if (errorSource === 'ai_service' && (errorCode === 'INTERNAL_ERROR' || errorCode === 'SERVICE_UNAVAILABLE')) {
+    return null;
+  }
+  const fix = suggestFixInternal(errorCode, errorMessage, toolName, action, params, errorSource);
   if (!fix) return null;
   return { ...fix, params: sanitizeSuggestedParams(fix.params) };
 }
@@ -63,7 +82,8 @@ function suggestFixInternal(
   errorMessage: string,
   toolName?: string,
   action?: string,
-  params?: Record<string, unknown>
+  params?: Record<string, unknown>,
+  _errorSource?: ErrorSource
 ): SuggestedFix | null {
   // 1. INVALID_RANGE (unbounded) - rewrite range with bounds
   if (
@@ -149,18 +169,43 @@ function suggestFixInternal(
     }
   }
 
-  // 5. PERMISSION_DENIED - suggest re-login
+  // 5. PERMISSION_DENIED - route by context
   if (
     errorCode === 'PERMISSION_DENIED' ||
     errorCode === 'AUTH_ERROR' ||
     errorCode === 'AUTHENTICATION_ERROR'
   ) {
+    // BigQuery billing denial: jobs.create means wrong GCP project, not auth
+    if (errorMessage.includes('bigquery.jobs.create')) {
+      return {
+        tool: 'sheets_bigquery',
+        action: 'connect',
+        params: { projectId: '' },
+        explanation:
+          'BigQuery billing project is not authorized. Call sheets_bigquery.connect with a GCP project you can bill against.',
+      };
+    }
+    // Apps Script get_metrics scope denial: requires cloud-platform admin scope
+    if (action === 'get_metrics') {
+      return {
+        tool: 'sheets_auth',
+        action: 'setup_feature',
+        params: { feature: 'apps_script_metrics' },
+        explanation:
+          'get_metrics requires the cloud-platform admin scope. Use sheets_auth.setup_feature to request it.',
+      };
+    }
     return {
       tool: 'sheets_auth',
       action: 'login',
       params: {},
       explanation: 'Permission denied. Re-authenticate to refresh access.',
     };
+  }
+
+  // 5a. INTERNAL_ERROR from analyze actions should not route to sheets_data.read
+  if (errorCode === 'INTERNAL_ERROR' && toolName?.startsWith('sheets_analyze')) {
+    return null;
   }
 
   // 6. QUOTA_EXCEEDED - suggest batch with smaller size

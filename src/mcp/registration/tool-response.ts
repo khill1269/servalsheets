@@ -15,6 +15,7 @@ import {
 } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { applyResponseIntelligence } from './response-intelligence.js';
+import type { ErrorSource } from '../../services/error-fix-suggester.js';
 import { applyVerbosityFilter } from '../../handlers/helpers/verbosity-filter.js';
 import { sanitizeToolOutput } from './tool-output-sanitization.js';
 import { getEnv } from '../../config/env.js';
@@ -29,6 +30,15 @@ import {
   sanitizeErrorPayload,
   type PlainRecord,
 } from './tool-response-normalization.js';
+import { TOOL_ACTIONS } from '../../schemas/index.js';
+
+// Build the canonical surface once at module load — includes every registered
+// tool.action pair. Suppresses fixableVia suggestions that point at actions
+// that don't exist in this build (e.g. removed actions referenced by stale
+// suggestedFix strings).
+const REGISTERED_TOOL_SURFACE: ReadonlySet<string> = new Set(
+  Object.entries(TOOL_ACTIONS).flatMap(([tool, actions]) => actions.map((a) => `${tool}.${a}`))
+);
 
 /**
  * Module-level flag: emit onboarding hint exactly once per server lifetime.
@@ -445,12 +455,22 @@ export function buildToolResponse(
         typeof preCompactResponse['spreadsheetId'] === 'string'
           ? preCompactResponse['spreadsheetId']
           : undefined;
+      // Read errorSource from the error detail if the handler emitted it
+      // (mapStandaloneError and BaseHandler.mapError both populate this field)
+      const errorRecord =
+        preCompactHasFailure && isPlainRecord(preCompactResponse['error'])
+          ? (preCompactResponse['error'] as Record<string, unknown>)
+          : undefined;
+      const emittedErrorSource = errorRecord?.['errorSource'] as ErrorSource | undefined;
+
       intelligenceResult = applyResponseIntelligence(preCompactResponse, {
         toolName,
         actionName: responseAction,
         hasFailure: preCompactHasFailure,
         spreadsheetId: responseSpreadsheetId,
         aiMode,
+        exposedToolSurface: REGISTERED_TOOL_SURFACE,
+        errorSource: emittedErrorSource,
       });
     } catch (err) {
       logger.debug('applyResponseIntelligence threw, continuing without enrichment', {

@@ -13,6 +13,8 @@
 
 import { ErrorCodes } from '../error-codes.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
+import type { ErrorSource } from '../../services/error-fix-suggester.js';
+import { inferErrorSource } from '../../utils/infer-error-source.js';
 import {
   ValidationError,
   NotFoundError,
@@ -161,13 +163,16 @@ function normalizeZodIssues(issues: z.ZodError['issues']): Array<{
  * 4. Generic Error → INTERNAL_ERROR, retryable=true
  * 5. Non-Error throw → INTERNAL_ERROR, String()-ified message
  */
+
 export function mapStandaloneError(error: unknown): {
   code: ErrorDetail['code'];
   message: string;
   details?: Record<string, unknown>;
   retryable: boolean;
   retryAfterMs?: number;
+  errorSource?: ErrorSource;
 } & Partial<ErrorDetail> {
+  const errorSource = inferErrorSource(error);
   // CircuitBreakerError → UNAVAILABLE with retryAfterMs (ISSUE-149)
   if (error instanceof CircuitBreakerError) {
     return {
@@ -265,6 +270,7 @@ export function mapStandaloneError(error: unknown): {
           parsed.message ??
           (error instanceof Error ? error.message : (googleApiError.message ?? 'Google API error')),
         retryable: parsed.retryable ?? false,
+        errorSource: 'google_api',
       };
     }
   }
@@ -302,6 +308,7 @@ export function mapStandaloneError(error: unknown): {
         code: ErrorCodes.CONFIG_ERROR,
         message: error.message,
         retryable: false,
+        errorSource,
       };
     }
 
@@ -309,6 +316,7 @@ export function mapStandaloneError(error: unknown): {
       code: ErrorCodes.INTERNAL_ERROR,
       message: error.message,
       retryable: false,
+      errorSource,
     };
   }
 
@@ -317,5 +325,6 @@ export function mapStandaloneError(error: unknown): {
     code: ErrorCodes.INTERNAL_ERROR,
     message: error != null ? String(error) : 'An unknown error occurred',
     retryable: false,
+    errorSource,
   };
 }
