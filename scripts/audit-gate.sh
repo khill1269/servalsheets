@@ -122,6 +122,12 @@ run_gate "A11: MCP protocol compliance" \
 # A12: Source/dist consistency (verifies dist reflects source schema counts)
 run_gate "A12: Source/dist consistency" "npm run check:source-dist"
 
+# A13: MCP feature coverage (verifies all active MCP features have test coverage)
+run_gate "A13: MCP feature coverage" "npm run check:mcp-features"
+
+# A14: Live test structural coverage (verifies all tools have live test files)
+run_gate "A14: Live test coverage guard" "npx vitest run tests/audit/live-action-coverage.test.ts"
+
 # Summary
 TOTAL_DURATION=$((SECONDS - START_TIME))
 echo ""

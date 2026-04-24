@@ -601,7 +601,15 @@ const serverJson = {
       transport: {
         type: 'stdio',
       },
-      description: pkg.description,
+      description: `Local STDIO mode via npm — ${TOOL_COUNT} tools, ${ACTION_COUNT} actions for Claude Desktop and development`,
+    },
+    {
+      registryType: 'remote',
+      url: 'https://servalsheets.dev/mcp',
+      transport: {
+        type: 'streamable-http',
+      },
+      description: `Hosted deployment — connect without installing anything (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`,
     },
   ],
   tools: sortedToolAnalyses.map((a) => ({
@@ -609,7 +617,8 @@ const serverJson = {
     description: `${a.toolName} operations (${a.actionCount} actions)`,
     actions: a.actions,
   })),
-  capabilities: ['tools', 'resources', 'prompts', 'logging', 'completions', 'tasks'],
+  capabilities: ['tools', 'resources', 'prompts', 'logging', 'completions', 'tasks', 'sampling', 'elicitation'],
+  transports: ['stdio', 'streamable-http', 'http-sse'],
   metadata: {
     toolCount: TOOL_COUNT,
     actionCount: ACTION_COUNT,
