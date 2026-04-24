@@ -20,6 +20,10 @@ import { z } from '../../lib/schema.js';
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { isFlatToolName, routeFlatToolCall } from './flat-tool-routing.js';
 import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
+import {
+  handleListAllTools,
+  type ListAllToolsInput,
+} from './flat-list-all-tools-handler.js';
 import { getRegisteredToolRuntime } from './registered-tool-runtime.js';
 import { buildToolResponse } from './tool-response.js';
 import { logger } from '../../utils/logger.js';
@@ -67,6 +71,24 @@ export function registerFlatToolCallInterceptor(server: McpServer): void {
         logger.debug('sheets_discover tool call', { query: discoverInput.query });
 
         const result = handleDiscover(discoverInput);
+        return buildToolResponse({ response: result });
+      }
+
+      // ── sheets_list_all_tools (P-2 audit fix) ────────────────────────
+      // Full registry dump for clients whose ListTools response gets capped.
+      // Always-loaded so it's reachable even when tool_search hides deferred tools.
+      if (toolName === 'sheets_list_all_tools') {
+        const listInput: ListAllToolsInput = {
+          parentTool: typeof args['parentTool'] === 'string' ? args['parentTool'] : undefined,
+          domain: typeof args['domain'] === 'string' ? args['domain'] : undefined,
+          alwaysLoadedOnly: args['alwaysLoadedOnly'] === true,
+          deferredOnly: args['deferredOnly'] === true,
+          verbosity: args['verbosity'] === 'minimal' ? 'minimal' : 'standard',
+        };
+
+        logger.debug('sheets_list_all_tools call', { filters: listInput });
+
+        const result = handleListAllTools(listInput);
         return buildToolResponse({ response: result });
       }
 
