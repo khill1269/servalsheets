@@ -81,16 +81,14 @@ describe('Category 5: Visualization Operations', () => {
     const result = await handler.handle({
       request: { action: 'chart_list', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.2 chart_get returns response object', async () => {
     const result = await handler.handle({
       request: { action: 'chart_get', spreadsheetId: 'test-sheet-id', chartId: 123 },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.3 chart_create dispatches correctly', async () => {
@@ -107,8 +105,7 @@ describe('Category 5: Visualization Operations', () => {
         position: { overlayPosition: { anchorCell: { a1: 'A5' } } },
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.4 chart_delete dispatches correctly', async () => {
@@ -118,8 +115,7 @@ describe('Category 5: Visualization Operations', () => {
     const result = await handler.handle({
       request: { action: 'chart_delete', spreadsheetId: 'test-sheet-id', chartId: 123 },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.5 chart_update_data_range dispatches', async () => {
@@ -134,8 +130,7 @@ describe('Category 5: Visualization Operations', () => {
         data: { sourceRange: { a1: 'Sheet1!A1:C5' } },
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.6 chart_add_trendline dispatches', async () => {
@@ -151,8 +146,7 @@ describe('Category 5: Visualization Operations', () => {
         trendline: { type: 'LINEAR' },
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.7 chart_remove_trendline dispatches', async () => {
@@ -167,8 +161,7 @@ describe('Category 5: Visualization Operations', () => {
         seriesIndex: 0,
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.8 pivot_create dispatches', async () => {
@@ -184,8 +177,7 @@ describe('Category 5: Visualization Operations', () => {
         values: ['Sales'],
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.9 pivot_refresh dispatches', async () => {
@@ -195,8 +187,7 @@ describe('Category 5: Visualization Operations', () => {
     const result = await handler.handle({
       request: { action: 'pivot_refresh', spreadsheetId: 'test-sheet-id', pivotId: 999 },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.10 suggest_chart dispatches', async () => {
@@ -207,8 +198,7 @@ describe('Category 5: Visualization Operations', () => {
         range: { a1: 'Sheet1!A1:C4' },
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.11 suggest_pivot dispatches', async () => {
@@ -219,8 +209,7 @@ describe('Category 5: Visualization Operations', () => {
         sourceRange: { a1: 'Sheet1!A1:C4' },
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('5.12 chart_move dispatches correctly', async () => {
@@ -235,7 +224,6 @@ describe('Category 5: Visualization Operations', () => {
         position: { overlayPosition: { anchorCell: { a1: 'E5' } } },
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 });

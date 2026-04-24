@@ -345,7 +345,6 @@ describe('_meta contract — response shape invariants', () => {
         Promise.resolve(buildToolResponse(successResponse(actions[i]!), tools[i]!))
       );
       const resp = getResponse(result);
-      expect(typeof resp!['success']).toBe('boolean');
       expect(resp!['success']).toBe(true);
     }
   });

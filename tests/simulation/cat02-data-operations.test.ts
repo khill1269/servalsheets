@@ -270,7 +270,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
       });
 
       expect(response.response?.success).toBe(true);
-      expect((response.response as any)?.values).toBeDefined();
+      expect(Array.isArray((response.response as any)?.values)).toBe(true);
     });
 
     it('should detect primaryKeyColumn with 100% unique values', async () => {
@@ -292,7 +292,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
       });
 
       expect(response.response?.success).toBe(true);
-      expect((response.response as any)?.values).toBeDefined();
+      expect(Array.isArray((response.response as any)?.values)).toBe(true);
     });
 
     it('should assess riskLevel as high for data with many nulls', async () => {
@@ -314,7 +314,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
       });
 
       expect(response.response?.success).toBe(true);
-      expect((response.response as any)?.values).toBeDefined();
+      expect(Array.isArray((response.response as any)?.values)).toBe(true);
     });
   });
 
@@ -879,7 +879,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
       });
 
       expect(response.response?.success).toBe(true);
-      expect((response.response as any)?.values).toBeDefined();
+      expect(Array.isArray((response.response as any)?.values)).toBe(true);
     });
 
     it('should detect and warn about duplicate rows', async () => {
@@ -943,7 +943,7 @@ describe('Category 2: Data Read/Write/Transform (sheets_data)', () => {
       });
 
       expect(response.response?.success).toBe(true);
-      expect((response.response as any)?.values).toBeDefined();
+      expect(Array.isArray((response.response as any)?.values)).toBe(true);
     });
 
     it('should recommend analysis after batch read', async () => {

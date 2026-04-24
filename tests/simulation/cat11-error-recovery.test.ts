@@ -988,16 +988,11 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         spreadsheetId: 'abc123',
       }) as SuggestedFix;
 
-      // Verify all required fields are present
-      expect(fix).toBeDefined();
-      expect(fix.tool).toBeTruthy();
-      expect(typeof fix.tool).toBe('string');
-      expect(fix.action).toBeTruthy();
-      expect(typeof fix.action).toBe('string');
-      expect(fix.params).toBeTruthy();
+      // Verify all required fields are present with correct types and values
+      expect(fix.tool).toBe('sheets_data');
+      expect(fix.action).toBe('read');
       expect(typeof fix.params).toBe('object');
-      expect(fix.explanation).toBeTruthy();
-      expect(typeof fix.explanation).toBe('string');
+      expect(fix.explanation.length).toBeGreaterThan(0);
     });
   });
 

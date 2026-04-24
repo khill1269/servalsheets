@@ -88,24 +88,21 @@ describe('Category 6: Collaboration Operations', () => {
         emailAddress: 'user@example.com',
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.2 share_list dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_list', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.3 share_get dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_get', spreadsheetId: 'test-sheet-id', permissionId: 'perm-1' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.4 share_update dispatches', async () => {
@@ -117,32 +114,28 @@ describe('Category 6: Collaboration Operations', () => {
         role: 'reader',
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.5 share_remove dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_remove', spreadsheetId: 'test-sheet-id', permissionId: 'perm-1' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.6 share_set_link dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_set_link', spreadsheetId: 'test-sheet-id', enabled: true },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.7 share_get_link dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'share_get_link', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.8 comment_add dispatches', async () => {
@@ -152,16 +145,14 @@ describe('Category 6: Collaboration Operations', () => {
     const result = await handler.handle({
       request: { action: 'comment_add', spreadsheetId: 'test-sheet-id', content: 'Test comment' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.9 comment_list dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'comment_list', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.10 approval_create dispatches', async () => {
@@ -174,32 +165,28 @@ describe('Category 6: Collaboration Operations', () => {
         requiredApprovals: 1,
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.11 approval_approve dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'approval_approve', spreadsheetId: 'test-sheet-id', approvalId: 'apr-1' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.12 undo dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'undo', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.13 redo dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'redo', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.14 version_create_snapshot dispatches', async () => {
@@ -210,16 +197,14 @@ describe('Category 6: Collaboration Operations', () => {
         name: 'Backup',
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.15 version_list_snapshots dispatches', async () => {
     const result = await handler.handle({
       request: { action: 'version_list_snapshots', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.16 version_restore_snapshot dispatches', async () => {
@@ -230,8 +215,7 @@ describe('Category 6: Collaboration Operations', () => {
         snapshotId: 'snap-123',
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.17 version_delete_snapshot dispatches', async () => {
@@ -242,8 +226,7 @@ describe('Category 6: Collaboration Operations', () => {
         snapshotId: 'snap-123',
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 
   it('6.18 diff_revisions dispatches', async () => {
@@ -255,7 +238,6 @@ describe('Category 6: Collaboration Operations', () => {
         revisionId2: 'rev-2',
       },
     });
-    expect(result).toBeDefined();
-    expect(typeof result.response.success).toBe('boolean');
+    expect(result.response.success).toBe(true);
   });
 });

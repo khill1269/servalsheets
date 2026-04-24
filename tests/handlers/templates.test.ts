@@ -230,7 +230,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
   });
 
@@ -245,7 +245,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template?.templateId ?? result.response.template).toBeTruthy();
+        expect(result.response.template?.id ?? result.response.template?.templateId).toBeTruthy();
         expect(result.response.template!.id).toBe('template-1');
       }
       expect(mockDriveApi.files.get).toHaveBeenCalledWith(
@@ -264,7 +264,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should get builtin template', async () => {
@@ -320,7 +320,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
   });
 
@@ -338,7 +338,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template?.templateId ?? result.response.template).toBeTruthy();
+        expect(result.response.template?.id ?? result.response.template?.templateId).toBeTruthy();
         expect(result.response.template!.name).toBe('My Template');
       }
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
@@ -392,7 +392,7 @@ describe('SheetsTemplatesHandler', () => {
 
       expect(result.response.success).toBe(true);
       if (result.response.success && 'template' in result.response) {
-        expect(result.response.template?.templateId ?? result.response.template).toBeTruthy();
+        expect(result.response.template?.id ?? result.response.template?.templateId).toBeTruthy();
       }
     });
 
@@ -408,7 +408,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should handle Drive API errors', async () => {
@@ -423,7 +423,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
   });
 
@@ -440,7 +440,7 @@ describe('SheetsTemplatesHandler', () => {
       expect(result.response.success).toBe(true);
       if (result.response.success && 'spreadsheetId' in result.response) {
         expect(result.response.spreadsheetId).toBe('new-id');
-        expect(result.response.spreadsheetUrl).toBeTruthy();
+        expect(result.response.spreadsheetUrl).toMatch(/^https?:\/\//);
       }
       expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalled();
     });
@@ -470,7 +470,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should apply template to specific folder', async () => {
@@ -521,7 +521,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should emit progress notifications for multi-sheet template application', async () => {
@@ -609,7 +609,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
       expect((result.response as any).error?.message).toContain('builtin');
     });
 
@@ -649,7 +649,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should handle Drive API errors', async () => {
@@ -664,7 +664,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
   });
 
@@ -692,7 +692,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
       expect((result.response as any).error?.message).toContain('builtin');
     });
 
@@ -707,7 +707,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should handle Drive API errors', async () => {
@@ -721,7 +721,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
   });
 
@@ -764,7 +764,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
 
     it('should handle Drive API errors', async () => {
@@ -778,7 +778,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
     });
   });
 
@@ -845,7 +845,7 @@ describe('SheetsTemplatesHandler', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBeTruthy();
+      expect(result.response.error?.code).toMatch(/^[A-Z_]+$/);
       expect((result.response as any).error?.code).toBe('INVALID_PARAMS');
     });
   });
