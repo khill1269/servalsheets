@@ -19,7 +19,6 @@ was (a) copying the caller's `context` string into every generated step's
 and (b) generating steps that required a `spreadsheetId` even when the caller
 didn't provide one — guaranteeing failure on "create a new sheet from scratch"
 requests.
-</content>
 
 **Changes:**
 - `src/services/agent/plan-compiler.ts`: removed `context` from fallback step
@@ -44,7 +43,6 @@ requests.
 ### `2ac35f7f` — fix(versioning): single-source-of-truth + CI guard (L-6)
 Addresses audit finding **L-6** (skill.md claimed v1.6.0, package.json said
 v2.0.0, `src/server/health.ts` hardcoded `'1.4.0'` fallback in two places).
-</content>
 
 **Changes:**
 - `src/server/health.ts`: both hardcoded `'1.4.0'` fallbacks replaced with
@@ -79,7 +77,6 @@ inventory regardless of their own truncation.
 - `src/mcp/registration/tools-list-compat.ts`: new `buildListAllToolsEntry()`
   and the tool is included in the flat-mode `ListTools` response so clients
   can find it in the first place.
-</content>
 
 **Verified:** Typecheck clean on all three changed files.
 **Zero breaking changes** — purely additive; old discovery paths keep working.
@@ -111,7 +108,6 @@ describes the observable failure mode. Example:
 ---
 
 ## Audit tracks considered but NOT started in this phase
-</content>
 
 | Track | Why not this phase |
 |---|---|
@@ -145,7 +141,6 @@ describes the observable failure mode. Example:
    reports ~15 TS7016 errors across `src/admin/routes.ts`,
    `src/auth/oauth-provider.ts`, `src/http-server/*`. None are from my changes —
    all are pre-existing. Fix is `npm i -D @types/express @types/jsonwebtoken`.
-</content>
 
 ---
 
@@ -205,4 +200,3 @@ scripts/verify-version.mjs                        (new)
 tests/services/agent-engine-bootstrap.test.ts     (new)
 audit/2026-04-24/phase1-progress.md               (new, this file)
 ```
-</content>

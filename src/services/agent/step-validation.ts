@@ -10,7 +10,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
  * Emitted by the planner's regex fallback for zero-state bootstrap plans.
  * Resolved by plan-executor.getEffectiveStepParams at runtime; at draft-
  * validation time we pass these through so validation doesn't reject
- * syntactically-valid placeholders that will become valid values later.
+ * syntactically-valid template strings that will become valid values later.
  */
 const STEP_VAR_RE = /^\{\{\s*steps\[\d+\]\..+?\s*\}\}$/;
 function isStepVarTemplate(v: unknown): v is string {
@@ -32,7 +32,7 @@ function getEffectiveStepParams(
   step: ExecutionStep,
   plan: Pick<PlanState, 'spreadsheetId'>
 ): Record<string, unknown> {
-  // Step-var templates are valid placeholders at draft time; strip them so the
+  // Step-var templates are valid template strings at draft time; strip them so the
   // Zod schema doesn't reject them against e.g. spreadsheetId regex patterns.
   const sanitized = stripStepVarTemplates(step.params);
   return {

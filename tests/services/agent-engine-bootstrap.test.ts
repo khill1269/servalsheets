@@ -21,7 +21,6 @@ describe('plan-compiler — zero-state bootstrap (O-2, O-5)', () => {
   beforeEach(() => {
     planStore.clear();
   });
-</content>
   it('does NOT leak context into step.params (was Zod validation bug)', async () => {
     const plan = await compilePlanAI(
       'clean the data and sort by date',
@@ -35,7 +34,6 @@ describe('plan-compiler — zero-state bootstrap (O-2, O-5)', () => {
       expect(step.params).not.toHaveProperty('description');
     }
   });
-</content>
 
   it('prepends a sheets_core.create step when description asks to build and no spreadsheetId', async () => {
     const plan = await compilePlanAI(
@@ -60,7 +58,6 @@ describe('plan-compiler — zero-state bootstrap (O-2, O-5)', () => {
       );
     }
   });
-</content>
 
   it('does NOT prepend bootstrap when spreadsheetId is provided', async () => {
     const plan = await compilePlanAI(
@@ -100,4 +97,3 @@ describe('extractTitleFromDescription', () => {
     expect(extractTitleFromDescription('   ')).toBe('Untitled Spreadsheet');
   });
 });
-</content>
