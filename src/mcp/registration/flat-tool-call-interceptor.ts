@@ -2,6 +2,10 @@ import { logger } from '../../utils/logger.js';
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { COMPOUND_TOOL_NAMES, routeFlatToolCall } from './flat-tool-routing.js';
 import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
+import {
+  handleListAllTools,
+  type ListAllToolsInput,
+} from './flat-list-all-tools-handler.js';
 
 /**
  * Flat Tool Call Interceptor
@@ -125,6 +129,52 @@ export function registerFlatToolCallInterceptor(mcpServer: {
                     error: {
                       code: 'INTERNAL_ERROR',
                       message: error instanceof Error ? error.message : 'sheets_discover failed',
+                    },
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      // Special case: sheets_list_all_tools (P-2 audit fix). Same pattern as
+      // sheets_discover — advertised by tools-list-compat.ts but not registered
+      // as an SDK tool, so dispatch directly. Returns the full ~409-action
+      // registry in one call for clients whose ListTools/tool_search truncates.
+      if (name === 'sheets_list_all_tools') {
+        const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+        try {
+          const listInput: ListAllToolsInput = {
+            parentTool: typeof args['parentTool'] === 'string' ? args['parentTool'] : undefined,
+            domain: typeof args['domain'] === 'string' ? args['domain'] : undefined,
+            alwaysLoadedOnly: args['alwaysLoadedOnly'] === true,
+            deferredOnly: args['deferredOnly'] === true,
+            verbosity: args['verbosity'] === 'minimal' ? 'minimal' : 'standard',
+          };
+          const result = handleListAllTools(listInput);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            structuredContent: result as unknown as Record<string, unknown>,
+          };
+        } catch (error) {
+          logger.error('[FlatToolInterceptor] sheets_list_all_tools dispatch failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: false,
+                    error: {
+                      code: 'INTERNAL_ERROR',
+                      message:
+                        error instanceof Error ? error.message : 'sheets_list_all_tools failed',
                     },
                   },
                   null,

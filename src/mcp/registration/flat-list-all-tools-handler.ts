@@ -18,9 +18,30 @@
 import { logger } from '../../utils/logger.js';
 import {
   getFlatToolRegistry,
-  getFlatRegistryStats,
   type FlatToolDefinition,
 } from './flat-tool-registry.js';
+
+/** Compute aggregate stats over the flat registry. Inlined here so this file
+ *  does not depend on un-exported helpers in flat-tool-registry.js. */
+function computeFlatRegistryStats(): {
+  total: number;
+  alwaysLoaded: number;
+  deferred: number;
+  byDomain: Record<string, number>;
+} {
+  const registry = getFlatToolRegistry();
+  const byDomain: Record<string, number> = {};
+  for (const tool of registry) {
+    const domain = tool.parentTool.replace(/^sheets_/, '');
+    byDomain[domain] = (byDomain[domain] ?? 0) + 1;
+  }
+  return {
+    total: registry.length,
+    alwaysLoaded: registry.filter((t) => !t.deferLoading).length,
+    deferred: registry.filter((t) => t.deferLoading).length,
+    byDomain,
+  };
+}
 
 export interface ListAllToolsInput {
   /** Filter by parent tool (e.g., 'sheets_core', 'sheets_data') */
@@ -38,7 +59,7 @@ export interface ListAllToolsInput {
 export interface ListAllToolsResult {
   success: true;
   action: 'list_all_tools';
-  stats: ReturnType<typeof getFlatRegistryStats>;
+  stats: ReturnType<typeof computeFlatRegistryStats>;
   /** Total after filtering */
   count: number;
   tools: Array<
@@ -97,7 +118,7 @@ export function handleListAllTools(input: ListAllToolsInput): ListAllToolsResult
   return {
     success: true,
     action: 'list_all_tools',
-    stats: getFlatRegistryStats(),
+    stats: computeFlatRegistryStats(),
     count: tools.length,
     tools: projected,
   };
