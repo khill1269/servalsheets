@@ -12,6 +12,7 @@
  * @module mcp/registration/flat-discover-handler
  */
 
+import { z } from 'zod';
 import { discoverActions, analyzeDiscoveryQuery } from '../../services/action-discovery.js';
 import { buildFlatToolName } from './flat-tool-registry.js';
 import { logger } from '../../utils/logger.js';
@@ -21,6 +22,22 @@ export interface DiscoverInput {
   category?: string;
   maxResults?: number;
 }
+
+/**
+ * Zod input schema for trust-boundary validation (audit OWASP A03 fix).
+ *
+ * The MCP `tools/call` interceptor MUST parse untrusted JSON-RPC arguments
+ * through this schema before invoking handleDiscover(). Mirrors the
+ * non-flat `sheets_analyze.discover_action` action's input shape — same
+ * fields, same constraints — so behavior is identical at both surfaces.
+ */
+export const DiscoverInputSchema = z
+  .object({
+    query: z.string().min(1).max(500),
+    category: z.string().max(100).optional(),
+    maxResults: z.number().int().min(1).max(100).optional(),
+  })
+  .strict();
 
 export interface DiscoverResult {
   success: true;

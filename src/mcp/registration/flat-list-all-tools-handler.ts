@@ -15,6 +15,7 @@
  * Supports filtering (by parent tool, domain, load mode) and minimal mode
  * for token efficiency on large result sets.
  */
+import { z } from 'zod';
 import { logger } from '../../utils/logger.js';
 import {
   getFlatToolRegistry,
@@ -55,6 +56,24 @@ export interface ListAllToolsInput {
   /** If 'minimal', omit description + annotations for token efficiency */
   verbosity?: 'minimal' | 'standard';
 }
+
+/**
+ * Zod input schema for trust-boundary validation (audit OWASP A03 fix).
+ *
+ * The MCP `tools/call` interceptor MUST parse untrusted JSON-RPC arguments
+ * through this schema before invoking handleListAllTools(). Unknown keys are
+ * stripped and types are enforced; this is the only place "external input"
+ * crosses into trusted territory for this handler.
+ */
+export const ListAllToolsInputSchema = z
+  .object({
+    parentTool: z.string().max(100).optional(),
+    domain: z.string().max(50).optional(),
+    alwaysLoadedOnly: z.boolean().optional(),
+    deferredOnly: z.boolean().optional(),
+    verbosity: z.enum(['minimal', 'standard']).optional(),
+  })
+  .strict();
 
 export interface ListAllToolsResult {
   success: true;

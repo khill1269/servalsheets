@@ -1,10 +1,10 @@
 import { logger } from '../../utils/logger.js';
 import { getEffectiveToolMode } from '../../config/constants.js';
 import { COMPOUND_TOOL_NAMES, routeFlatToolCall } from './flat-tool-routing.js';
-import { handleDiscover, type DiscoverInput } from './flat-discover-handler.js';
+import { handleDiscover, DiscoverInputSchema } from './flat-discover-handler.js';
 import {
   handleListAllTools,
-  type ListAllToolsInput,
+  ListAllToolsInputSchema,
 } from './flat-list-all-tools-handler.js';
 
 /**
@@ -108,9 +108,36 @@ export function registerFlatToolCallInterceptor(mcpServer: {
       // (buildDiscoverToolEntry) but not registered as an SDK tool, so the
       // SDK's tools/call dispatcher would 404 it. Dispatch directly here.
       if (name === 'sheets_discover') {
-        const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+        // Trust-boundary validation: untrusted JSON-RPC args parsed through
+        // Zod schema before any handler use (audit OWASP A03 mitigation).
+        const parsed = DiscoverInputSchema.safeParse(req.params.arguments ?? {});
+        if (!parsed.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: false,
+                    error: {
+                      code: 'INVALID_INPUT',
+                      message: 'sheets_discover input failed schema validation',
+                      issues: parsed.error.issues.map((i) => ({
+                        path: i.path.join('.'),
+                        message: i.message,
+                      })),
+                    },
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+            isError: true,
+          };
+        }
         try {
-          const result = handleDiscover(args as unknown as DiscoverInput);
+          const result = handleDiscover(parsed.data);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
             structuredContent: result as unknown as Record<string, unknown>,
@@ -146,16 +173,35 @@ export function registerFlatToolCallInterceptor(mcpServer: {
       // as an SDK tool, so dispatch directly. Returns the full ~409-action
       // registry in one call for clients whose ListTools/tool_search truncates.
       if (name === 'sheets_list_all_tools') {
-        const args = (req.params.arguments ?? {}) as Record<string, unknown>;
-        try {
-          const listInput: ListAllToolsInput = {
-            parentTool: typeof args['parentTool'] === 'string' ? args['parentTool'] : undefined,
-            domain: typeof args['domain'] === 'string' ? args['domain'] : undefined,
-            alwaysLoadedOnly: args['alwaysLoadedOnly'] === true,
-            deferredOnly: args['deferredOnly'] === true,
-            verbosity: args['verbosity'] === 'minimal' ? 'minimal' : 'standard',
+        // Trust-boundary validation (audit OWASP A03 mitigation).
+        const parsed = ListAllToolsInputSchema.safeParse(req.params.arguments ?? {});
+        if (!parsed.success) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    success: false,
+                    error: {
+                      code: 'INVALID_INPUT',
+                      message: 'sheets_list_all_tools input failed schema validation',
+                      issues: parsed.error.issues.map((i) => ({
+                        path: i.path.join('.'),
+                        message: i.message,
+                      })),
+                    },
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+            isError: true,
           };
-          const result = handleListAllTools(listInput);
+        }
+        try {
+          const result = handleListAllTools(parsed.data);
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
             structuredContent: result as unknown as Record<string, unknown>,
@@ -191,6 +237,14 @@ export function registerFlatToolCallInterceptor(mcpServer: {
       if (!COMPOUND_TOOL_NAMES.has(name)) {
         // Branch 1: sheets_<domain>_<action> — full flat name advertised by flat mode.
         if (name.startsWith('sheets_')) {
+          // Trust boundary: req.params.arguments is untrusted JSON-RPC input.
+          // routeFlatToolCall() converts the flat tool call into a compound
+          // (tool, action) pair + normalized args. The args are validated
+          // downstream by the per-tool Zod schemas in
+          // src/mcp/registration/tool-handlers.ts (Sheets*InputSchema) before
+          // any handler sees them — see schema-helpers.ts wrapInputSchemaForLegacyRequest.
+          // SDK's tool-call dispatcher applies the validating schema; this
+          // function only routes, never executes.
           const args = (req.params.arguments ?? {}) as Record<string, unknown>;
           const routed = routeFlatToolCall(name, args);
           if (routed) {
@@ -199,6 +253,9 @@ export function registerFlatToolCallInterceptor(mcpServer: {
               to: routed.compoundToolName,
               action: routed.normalizedArgs['action'],
             });
+            // Mutating req.params here re-enters the SDK dispatcher, which
+            // then runs the compound tool's input schema (Zod safeParse) on
+            // the new arguments before invoking the handler.
             req.params.name = routed.compoundToolName;
             req.params.arguments = routed.normalizedArgs;
           } else {
