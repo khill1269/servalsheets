@@ -892,15 +892,68 @@ function buildDiscoverToolEntry(): Record<string, unknown> {
   };
 }
 
+/**
+ * Build the sheets_list_all_tools meta-tool entry for flat mode (P-2 audit fix L-1).
+ *
+ * Some MCP clients cap ListTools or hide deferred-loaded tools, leaving
+ * users unable to discover most of the ~409 flat actions. This always-loaded
+ * meta-tool returns the complete registry in ONE call so clients can always
+ * reach everything regardless of their own discovery truncation.
+ */
+function buildListAllToolsEntry(): Record<string, unknown> {
+  return {
+    name: 'sheets_list_all_tools',
+    title: 'List All ServalSheets Tools',
+    description:
+      'Return the complete flat tool registry — every exposed action name, ' +
+      'parent compound tool, domain, and load mode. Use when your MCP client ' +
+      'caps ListTools or hides deferred tools. Filter by parentTool, domain, ' +
+      'or load mode; verbosity:"minimal" returns name/parentTool/action/' +
+      'deferLoading only for token efficiency.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        parentTool: {
+          type: 'string',
+          description:
+            'Filter by parent compound tool name (e.g. "sheets_core", "sheets_data")',
+        },
+        domain: {
+          type: 'string',
+          description: 'Filter by domain prefix (e.g. "core", "data", "analyze")',
+        },
+        alwaysLoadedOnly: {
+          type: 'boolean',
+          description: 'If true, return only tools that are always loaded',
+        },
+        deferredOnly: {
+          type: 'boolean',
+          description: 'If true, return only tools that are deferred-loaded',
+        },
+        verbosity: {
+          type: 'string',
+          enum: ['minimal', 'standard'],
+          description:
+            'minimal = name/parentTool/action/deferLoading only; standard = full metadata (default)',
+        },
+      },
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  };
+}
+
 function getBundledToolsForList(): readonly (typeof ACTIVE_TOOL_DEFINITIONS)[number][] {
   const availableToolNames = new Set(
     getAvailableToolNames(ACTIVE_TOOL_DEFINITIONS.map((tool) => tool.name))
   );
 
   return ACTIVE_TOOL_DEFINITIONS.filter((tool) => availableToolNames.has(tool.name));
-}
-
-export function registerToolsListCompatibilityHandler(server: McpServer): void {
+}export function registerToolsListCompatibilityHandler(server: McpServer): void {
   const protocolServer = server.server as unknown as {
     setRequestHandler: typeof server.server.setRequestHandler;
   };
@@ -922,17 +975,18 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
             );
 
       // ── FLAT MODE ──────────────────────────────────────────────────────
-      // Return the current flat action surface (most deferred) + sheets_discover
+      // Return the current flat action surface (most deferred) + sheets_discover + sheets_list_all_tools
       if (effectiveMode === 'flat') {
         const flatEntries = buildFlatToolListEntries(accessFilter);
         const discoverEntry = buildDiscoverToolEntry();
+        const listAllEntry = buildListAllToolsEntry();
         const page = paginateToolsListEntries(
-          [discoverEntry, ...flatEntries],
+          [discoverEntry, listAllEntry, ...flatEntries],
           request.params?.cursor
         );
 
         logger.info('tools/list serving flat mode', {
-          totalTools: flatEntries.length + 1,
+          totalTools: flatEntries.length + 2,
           pageTools: page.tools.length,
           hasNextPage: page.nextCursor !== undefined,
           alwaysLoaded: page.tools.filter((t) => !t['x-defer-loading']).length,
