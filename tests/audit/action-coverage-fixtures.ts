@@ -784,7 +784,8 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
         range: 'Sheet1!A1:D10',
         rowProperties: {
           headerColor: { red: 0.2, green: 0.6, blue: 0.9, alpha: 1 },
-          firstBandColor: { red: 0.9, green: 0.9, blue: 0.9, alpha: 1 },
+          firstBandColor: { red: 0.95, green: 0.95, blue: 0.95, alpha: 1 },
+          secondBandColor: { red: 1, green: 1, blue: 1, alpha: 1 },
         },
       },
       requiredFields: ['spreadsheetId', 'range'],

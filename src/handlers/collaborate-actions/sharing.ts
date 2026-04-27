@@ -566,12 +566,31 @@ export async function handleShareGetAction(
   input: CollaborateShareGetInput,
   deps: SharingDeps
 ): Promise<CollaborateResponse> {
-  const response = await deps.driveApi.permissions.get({
-    fileId: input.spreadsheetId!,
-    permissionId: input.permissionId!,
-    supportsAllDrives: true,
-    fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
-  });
+  let response;
+  try {
+    response = await deps.driveApi.permissions.get({
+      fileId: input.spreadsheetId!,
+      permissionId: input.permissionId!,
+      supportsAllDrives: true,
+      fields: 'id,type,role,emailAddress,domain,displayName,expirationTime',
+    });
+  } catch (err: unknown) {
+    const status =
+      (err as { code?: number; status?: number })?.code ??
+      (err as { code?: number; status?: number })?.status;
+    if (status === 404) {
+      return deps.error({
+        code: 'NOT_FOUND' as const,
+        message: `Permission '${input.permissionId}' not found on spreadsheet '${input.spreadsheetId}'.`,
+        category: 'client',
+        severity: 'low',
+        retryable: false,
+        suggestedFix: 'Check the permissionId with share_list first.',
+        details: { permissionId: input.permissionId, spreadsheetId: input.spreadsheetId },
+      });
+    }
+    throw err;
+  }
 
   return deps.success('share_get', {
     permission: deps.mapPermission(response.data),
