@@ -24,6 +24,8 @@ export interface ActionFixture {
   requiredFields: string[];
   /** Actions that don't need spreadsheetId */
   noSpreadsheet?: boolean;
+  /** Reason to skip this fixture in live API tests (e.g., requires external service) */
+  skipReason?: string;
 }
 
 // ─── Tools that don't require spreadsheetId ─────────────────
@@ -49,7 +51,7 @@ const NO_SPREADSHEET_ACTIONS: Record<string, Set<string>> = {
 
 // ─── Fixture Overrides (complex actions needing extra params) ────
 
-type PartialFixture = Partial<Pick<ActionFixture, 'validInput' | 'requiredFields'>>;
+type PartialFixture = Partial<Pick<ActionFixture, 'validInput' | 'requiredFields' | 'skipReason'>>;
 
 /**
  * Manual overrides for actions that need more than just { action, spreadsheetId }.
@@ -82,7 +84,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'data'],
     },
     batch_clear: {
-      validInput: { ranges: ['Sheet1!A1:B2'] },
+      validInput: { ranges: ['Sheet1!A1:B2'], safety: { confirmed: true } },
       requiredFields: ['spreadsheetId', 'ranges'],
     },
     find_replace: {
@@ -200,8 +202,8 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheetId'],
     },
     update_sheet: {
-      validInput: { sheetId: 0, title: 'Renamed' },
-      requiredFields: ['spreadsheetId', 'sheetId'],
+      validInput: { sheetId: 0, title: 'Renamed Sheet' },
+      requiredFields: ['spreadsheetId', 'sheetId', 'title'],
     },
     copy_sheet_to: {
       validInput: { sheetId: 0, destinationSpreadsheetId: 'dest-id' },
@@ -285,7 +287,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
     },
     rule_add_conditional_format: {
       validInput: {
-        sheetId: 0,
+        sheetId: 1,
         range: 'Sheet1!A1:A10',
         rule: {
           type: 'boolean',
@@ -327,7 +329,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range'],
     },
     list_data_validations: {
-      validInput: { sheetId: 0 },
+      validInput: { sheetId: 0, range: 'Sheet1!A1:A10' },
       requiredFields: ['spreadsheetId', 'sheetId'],
     },
     add_conditional_format_rule: {
@@ -345,7 +347,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'cell', 'runs'],
     },
     generate_conditional_format: {
-      validInput: { sheetId: 0, range: 'Sheet1!A1:A10', description: 'highlight values > 100' },
+      validInput: { sheetId: 1, range: 'Sheet1!A1:A10', description: 'highlight values greater than 100' },
       requiredFields: ['spreadsheetId', 'sheetId', 'range', 'description'],
     },
     build_dependent_dropdown: {
@@ -428,7 +430,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range'],
     },
     clear_basic_filter: {
-      validInput: { sheetId: 0 },
+      validInput: { sheetId: 0, safety: { confirmed: true } },
       requiredFields: ['spreadsheetId', 'sheetId'],
     },
     get_basic_filter: {
@@ -436,7 +438,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'sheetId'],
     },
     sort_range: {
-      validInput: { range: 'Sheet1!A1:D10', sortSpecs: [{ columnIndex: 0 }] },
+      validInput: { range: 'Sheet1!A1:D10', sortSpecs: [{ columnIndex: 1, sortOrder: 'ASCENDING' }] },
       requiredFields: ['spreadsheetId', 'range', 'sortSpecs'],
     },
     delete_duplicates: {
@@ -510,7 +512,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
         sheetId: 0,
         chartType: 'BAR',
         data: { sourceRange: 'Sheet1!A1:D10' },
-        position: { overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 4 } } },
+        position: { anchorCell: 'E1', sheetId: 0 },
       },
       requiredFields: ['spreadsheetId', 'sheetId', 'chartType', 'data', 'position'],
     },
@@ -753,7 +755,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'name'],
     },
     add_protected_range: {
-      validInput: { range: 'Sheet1!A1:B10', description: 'Protected' },
+      validInput: { range: 'Sheet1!A1:B10', description: 'Protected', safety: { confirmed: true } },
       requiredFields: ['spreadsheetId', 'range'],
     },
     update_protected_range: {
@@ -778,7 +780,13 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'metadataId'],
     },
     add_banding: {
-      validInput: { range: 'Sheet1!A1:D10' },
+      validInput: {
+        range: 'Sheet1!A1:D10',
+        rowProperties: {
+          headerColor: { red: 0.2, green: 0.6, blue: 0.9, alpha: 1 },
+          firstBandColor: { red: 0.9, green: 0.9, blue: 0.9, alpha: 1 },
+        },
+      },
       requiredFields: ['spreadsheetId', 'range'],
     },
     update_banding: {
@@ -823,7 +831,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { range: 'A1', uri: 'https://example.com' },
       requiredFields: ['spreadsheetId', 'range', 'uri'],
     },
-    list_chips: { requiredFields: ['spreadsheetId'] },
+    list_chips: {
+      validInput: { range: 'Sheet1!A1:A10' },
+      requiredFields: ['spreadsheetId', 'range'],
+    },
     create_named_function: {
       validInput: { functionName: 'MY_FUNC', functionBody: '=A1+B1' },
       requiredFields: ['spreadsheetId', 'functionName', 'functionBody'],
@@ -851,6 +862,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['code'],
     },
     logout: { requiredFields: [] },
+    setup_feature: {
+      validInput: { feature: 'connectors' },
+      requiredFields: [],
+    },
   },
 
   sheets_session: {
@@ -997,8 +1012,8 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
 
   sheets_quality: {
     validate: {
-      validInput: { spreadsheetId: 'test-id', value: { range: 'A1:B2' } },
-      requiredFields: ['spreadsheetId', 'value'],
+      validInput: { value: 'test-value', rules: ['builtin_string'] },
+      requiredFields: ['value'],
     },
     detect_conflicts: {
       validInput: { spreadsheetId: 'test-id' },
@@ -1115,14 +1130,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     analyze_data: {
+      skipReason: 'AI analysis service — requires ANTHROPIC_API_KEY in environment',
       validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D10' },
       requiredFields: ['spreadsheetId'],
     },
     suggest_visualization: {
+      skipReason: 'AI analysis service — requires ANTHROPIC_API_KEY in environment',
       validInput: { spreadsheetId: 'test-id', range: 'Sheet1!A1:D10' },
       requiredFields: ['spreadsheetId'],
     },
     generate_formula: {
+      skipReason: 'AI analysis service — requires ANTHROPIC_API_KEY in environment',
       validInput: { spreadsheetId: 'test-id', description: 'sum column A' },
       requiredFields: ['spreadsheetId', 'description'],
     },
@@ -1461,6 +1479,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['title'],
     },
     get: {
+      skipReason: 'Apps Script project required — spreadsheet must have a bound Apps Script project',
       validInput: { scriptId: 'script1' },
       requiredFields: ['scriptId'],
     },
@@ -1480,6 +1499,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['scriptId'],
     },
     list_versions: {
+      skipReason: 'Apps Script project required — script must exist and have versions',
       validInput: { scriptId: 'script1' },
       requiredFields: ['scriptId'],
     },
@@ -1492,6 +1512,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['scriptId'],
     },
     list_deployments: {
+      skipReason: 'Apps Script project required — script must exist and have deployments',
       validInput: { scriptId: 'script1' },
       requiredFields: ['scriptId'],
     },
@@ -1546,7 +1567,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { webhookId: 'wh1' },
       requiredFields: ['webhookId'],
     },
-    list: { requiredFields: [] },
+    list: {
+      skipReason: 'Redis required — REDIS_URL must be configured in environment',
+      requiredFields: [],
+    },
     get: {
       validInput: { webhookId: 'wh1' },
       requiredFields: ['webhookId'],
@@ -1555,7 +1579,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { webhookId: 'wh1' },
       requiredFields: ['webhookId'],
     },
-    get_stats: { requiredFields: [] },
+    get_stats: {
+      skipReason: 'Redis required — REDIS_URL must be configured in environment',
+      requiredFields: [],
+    },
     watch_changes: {
       validInput: { spreadsheetId: 'test-id', webhookUrl: 'https://example.com/hook' },
       requiredFields: ['spreadsheetId', 'webhookUrl'],
@@ -1902,6 +1929,7 @@ export function generateAllFixtures(): ActionFixture[] {
 
   for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
     for (const action of actions) {
+      const override = FIXTURE_OVERRIDES[tool]?.[action];
       fixtures.push({
         tool,
         action,
@@ -1909,6 +1937,7 @@ export function generateAllFixtures(): ActionFixture[] {
         invalidInput: buildInvalidInput(tool, action),
         requiredFields: getRequiredFields(tool, action),
         noSpreadsheet: !needsSpreadsheetId(tool, action),
+        ...(override?.skipReason !== undefined ? { skipReason: override.skipReason } : {}),
       });
     }
   }
