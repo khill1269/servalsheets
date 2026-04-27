@@ -54,3 +54,6 @@ export * from './schema-compat.js';
 
 // URL Utilities
 export * from './url.js';
+
+// Safe Regex (ReDoS prevention)
+export * from './safe-regex-factory.js';

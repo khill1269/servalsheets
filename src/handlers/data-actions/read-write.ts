@@ -190,6 +190,7 @@ export async function handleRead(
     spreadsheetId: input.spreadsheetId,
     endpoint: 'values' as const,
     range: readRange,
+    userId: ha.context.sessionContext?.getUserId(),
     params: {
       valueRenderOption: input.valueRenderOption,
       majorDimension: input.majorDimension,

@@ -28,6 +28,7 @@ import type {
 } from '../schemas/quality.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
+import { createSafeRegex } from '../utils/safe-regex-factory.js';
 import { applyVerbosityFilter } from './helpers/verbosity-filter.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { sendProgress } from '../utils/request-context.js';
@@ -179,7 +180,7 @@ function compileCustomValidationRule(
     case 'pattern': {
       let regex: RegExp;
       try {
-        regex = new RegExp(rule.pattern, rule.flags);
+        regex = createSafeRegex(rule.pattern, rule.flags, 'user');
       } catch (error) {
         throw new ValidationError(
           `Invalid custom pattern rule: ${error instanceof Error ? error.message : String(error)}`,

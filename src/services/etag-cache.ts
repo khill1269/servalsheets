@@ -46,11 +46,13 @@ interface ETagEntry {
 /**
  * ETag cache key components
  */
-interface CacheKey {
+export interface CacheKey {
   spreadsheetId: string;
   endpoint: 'metadata' | 'values' | 'properties' | 'sheets';
   range?: string;
   params?: Record<string, unknown>;
+  /** User/session scope for multi-tenant isolation. Defaults to 'anon' if omitted. */
+  userId?: string;
 }
 
 const REDIS_KEY_PREFIX = 'servalsheets:etag:';
@@ -101,10 +103,14 @@ export class ETagCache {
   }
 
   /**
-   * Generate cache key from request parameters
+   * Generate cache key from request parameters.
+   *
+   * Keys are prefixed with userId (or 'anon' for unauthenticated/single-user mode)
+   * to prevent cross-tenant data leakage in multi-tenant HTTP deployments.
    */
   private getCacheKey(key: CacheKey): string {
-    const parts = [key.spreadsheetId, key.endpoint];
+    const userScope = key.userId ?? 'anon';
+    const parts = [userScope, key.spreadsheetId, key.endpoint];
 
     if (key.range) {
       parts.push(key.range);
@@ -277,17 +283,24 @@ export class ETagCache {
   }
 
   /**
-   * Invalidate all entries for a spreadsheet
+   * Invalidate all entries for a spreadsheet.
+   *
+   * Scoped by userId to prevent cross-tenant invalidation side effects.
+   * Pass userId to limit invalidation to one tenant; omit to invalidate all tenants
+   * (used by admin/maintenance operations).
    *
    * Called after mutations to ensure fresh data on next read.
    * Clears from both L1 (memory) and L2 (Redis)
    */
-  async invalidateSpreadsheet(spreadsheetId: string): Promise<void> {
+  async invalidateSpreadsheet(spreadsheetId: string, userId?: string): Promise<void> {
     let count = 0;
 
-    // Invalidate L1 (memory)
+    // Invalidate L1 (memory) — keys are now `{userId}:{spreadsheetId}:...`
     for (const key of this.cache.keys()) {
-      if (key.startsWith(`${spreadsheetId}:`)) {
+      const matchesUser = userId
+        ? key.startsWith(`${userId}:${spreadsheetId}:`)
+        : key.includes(`:${spreadsheetId}:`);
+      if (matchesUser) {
         this.cache.delete(key);
         count++;
       }
@@ -296,12 +309,15 @@ export class ETagCache {
     // Invalidate L2 (Redis)
     if (this.redis) {
       try {
-        const pattern = `${REDIS_KEY_PREFIX}${spreadsheetId}:*`;
+        const pattern = userId
+          ? `${REDIS_KEY_PREFIX}${userId}:${spreadsheetId}:*`
+          : `${REDIS_KEY_PREFIX}*:${spreadsheetId}:*`;
         const keys = await scanRedisKeys(this.redis, pattern);
         if (keys.length > 0) {
           await this.redis.del(...keys);
           logger.debug('Invalidated spreadsheet ETags from Redis', {
             spreadsheetId,
+            userId: userId ?? 'all',
             redisCount: keys.length,
           });
         }
@@ -314,24 +330,29 @@ export class ETagCache {
     }
 
     if (count > 0) {
-      logger.debug('Invalidated spreadsheet ETags', { spreadsheetId, count });
+      logger.debug('Invalidated spreadsheet ETags', { spreadsheetId, userId: userId ?? 'all', count });
     }
   }
 
   /**
-   * Get all cache keys for a spreadsheet
+   * Get all cache keys for a spreadsheet.
    *
-   * Returns array of cache key strings that can be used with selective invalidation.
+   * Scoped by userId to prevent cross-tenant key enumeration.
+   * Omit userId to get keys across all users (admin use only).
    *
    * @param spreadsheetId - Spreadsheet ID
-   * @returns Array of cache keys (e.g., ['spreadsheetId:metadata', 'spreadsheetId:values:A1:B10'])
+   * @param userId - Optional user scope (defaults to all users)
+   * @returns Array of cache keys (e.g., ['anon:spreadsheetId:metadata'])
    */
-  async getKeysForSpreadsheet(spreadsheetId: string): Promise<string[]> {
+  async getKeysForSpreadsheet(spreadsheetId: string, userId?: string): Promise<string[]> {
     const keys: string[] = [];
 
-    // Get from L1 (memory)
+    // Get from L1 (memory) — keys are now `{userId}:{spreadsheetId}:...`
     for (const key of this.cache.keys()) {
-      if (key.startsWith(`${spreadsheetId}:`)) {
+      const matchesUser = userId
+        ? key.startsWith(`${userId}:${spreadsheetId}:`)
+        : key.includes(`:${spreadsheetId}:`);
+      if (matchesUser) {
         keys.push(key);
       }
     }
@@ -339,7 +360,9 @@ export class ETagCache {
     // Get from L2 (Redis) if available
     if (this.redis) {
       try {
-        const pattern = `${REDIS_KEY_PREFIX}${spreadsheetId}:*`;
+        const pattern = userId
+          ? `${REDIS_KEY_PREFIX}${userId}:${spreadsheetId}:*`
+          : `${REDIS_KEY_PREFIX}*:${spreadsheetId}:*`;
         const redisKeys = await scanRedisKeys(this.redis, pattern);
         // Strip Redis prefix to get actual cache keys
         const cacheKeys = redisKeys.map((k: string) => k.replace(REDIS_KEY_PREFIX, ''));

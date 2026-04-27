@@ -20,6 +20,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { createSafeRegex } from '../utils/safe-regex-factory.js';
 import {
   getDiscoveryApiClient,
   type DiscoverySchema,
@@ -552,16 +553,22 @@ export class ResponseValidator {
       });
     }
 
-    // Validate pattern
+    // Validate pattern — use safe regex to prevent ReDoS from pathological API schemas.
     if (schema.pattern) {
-      const regex = new RegExp(schema.pattern);
-      if (!regex.test(value)) {
-        errors.push({
-          path,
-          expected: `pattern: ${schema.pattern}`,
-          actual: value,
-          message: `Value '${value}' does not match pattern ${schema.pattern}`,
-          severity: 'error',
+      try {
+        const regex = createSafeRegex(schema.pattern, undefined, 'api');
+        if (!regex.test(value)) {
+          errors.push({
+            path,
+            expected: `pattern: ${schema.pattern}`,
+            actual: value,
+            message: `Value '${value}' does not match pattern ${schema.pattern}`,
+            severity: 'error',
+          });
+        }
+      } catch {
+        logger.warn('Skipping pattern validation — unsafe or invalid pattern from Discovery API', {
+          pattern: schema.pattern,
         });
       }
     }

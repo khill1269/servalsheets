@@ -1356,6 +1356,11 @@ export class SessionContextManager {
   // USER PROFILE MANAGEMENT
   // ===========================================================================
 
+  /** Returns the current authenticated user ID, or undefined in single-user / unauthenticated mode. */
+  getUserId(): string | undefined {
+    return this.currentUserId;
+  }
+
   /**
    * Set the current user ID and load their profile
    */
