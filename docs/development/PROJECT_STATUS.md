@@ -1,7 +1,7 @@
 ---
 title: Project Status
 category: development
-last_updated: 2026-04-21
+last_updated: 2026-04-24
 description: Current build status and verification results
 version: 2.0.0
 tags: [development, status]
@@ -9,11 +9,16 @@ tags: [development, status]
 
 # ServalSheets - Project Status
 
-**Last Updated:** 2026-04-21
+**Last Updated:** 2026-04-24
 
 ## Build Status: ✅ PASSING
 
-All verification checks are currently passing on the 2026-04-21 working tree. Recent session (2026-04-21) closed six flat-tool-surface bugs and updated the audit trail — see [regression-audit-2026-04-21.md](../audits/regression-audit-2026-04-21.md) for how they surfaced and why they escaped the existing gates.
+All verification checks are currently passing. 2026-04-24 session fixed two flat-tool-surface bugs that caused LLM clients to see only 100 of 409 tools:
+
+- `FLAT_TOOLS_PAGE_SIZE` raised from 100 → 1000 (`tools-list-compat.ts`) — MCP clients that don't follow `nextCursor` now get all tools in one page
+- `getEffectiveToolMode()` fallback fixed (`constants.ts:394`) — was returning `'bundled'` for both branches; now returns `'flat'` for non-HTTP default
+
+Earlier session (2026-04-21) closed six flat-tool-surface bugs — see [regression-audit-2026-04-21.md](../audits/regression-audit-2026-04-21.md).
 
 ### Verification Results (2026-04-21)
 

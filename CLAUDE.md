@@ -42,6 +42,22 @@ Full 4-layer trace with line numbers: `docs/development/ARCHITECTURE.md`
 7. **Schema-handler alignment** — run `npm run validate:alignment`; deviations must be in `src/schemas/handler-deviations.ts`
 8. **Audit docs must validate** — `npm run validate:audit` with `.github/AUDIT_TEMPLATE.md` format
 
+## AI Verification Protocol (see `.claude/verification-protocol.md` for full rules)
+
+A claim without `command → output` evidence is **[UNVERIFIED]** and must not be acted on.
+
+| Claim type | Required command |
+|---|---|
+| "Line N contains X" | `Read(file, offset=N-2, limit=8)` |
+| "There are N instances" | `grep -rn "pattern" path/ \| wc -l` |
+| "X is not implemented" | `grep -rn "X" src/` — show empty results |
+| "Y causes Z" | Read every conditional/catch on the path |
+| "Comment is current" | Grep for actual implementation |
+| "Feature/middleware missing" | Read `.serval/ground-truth.json` first |
+
+Two-phase audits: Phase 1 = gather evidence only. Phase 2 = interpret evidence only.
+Known codebase error patterns: `.serval/corrections.jsonl` (injected at SessionStart).
+
 ## Verification (single canonical reference)
 
 ```bash

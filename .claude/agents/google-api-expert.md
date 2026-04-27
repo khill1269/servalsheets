@@ -2,7 +2,7 @@
 name: google-api-expert
 description: Google Sheets API v4 expert with real-time documentation access. Validates API usage patterns, quota optimization, best practices, and error handling. Always checks latest Google documentation for accuracy. Use when implementing new actions, debugging API issues, or optimizing quota usage.
 model: sonnet
-color: teal
+color: cyan
 tools:
   - Read
   - Grep

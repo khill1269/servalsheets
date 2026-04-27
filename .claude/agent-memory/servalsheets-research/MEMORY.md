@@ -2,7 +2,11 @@
 
 **Agent:** servalsheets-research (Haiku model)  
 **Specialty:** Fast pattern analysis, code reading, implementation strategy  
-**Updated:** Session 111
+**Updated:** Session 117 (Ground Truth Registry Research)
+
+## ⭐ GROUND TRUTH REGISTRY (NEW)
+
+**See [`ground-truth-registry.md`](ground-truth-registry.md)** — Authoritative baseline with file:line evidence for all architectural facts, counts, and critical patterns. Load this first for any accuracy-sensitive work.
 
 ## Core Facts
 
@@ -228,6 +232,66 @@ sheets_advanced: 31, sheets_agent: 8, sheets_analyze: 26, sheets_appsscript: 19,
 - Integration: ~50 (live API tests, skipped in CI)
 - Total: 2253 passing
 
+## Middleware Chain & Execution Flow (Session 117)
+
+**CRITICAL FINDING:** STDIO and HTTP transports execute the **identical middleware chain** via `src/mcp/registration/tool-handlers.ts:890-1680`. No divergence between transports. C1 audit finding about execution path differences is **FALSE**.
+
+### Complete Middleware Chain (26 Steps)
+
+1. Request context creation (traceId, spanId, principalId)
+2. Queue metrics update
+3. Auth exemption check
+4. Google API authentication
+5. Handler existence check
+6. Keepalive start
+7. OpenTelemetry tracing setup
+8. Legacy invocation detection
+9. Rate limiting (token bucket)
+10. Argument normalization + envelope unwrapping
+11. Verbosity extraction & recording
+12. RBAC permission check (if ENABLE_RBAC=true)
+13. Mutation safety validation (formula injection blocking)
+14. **Routed execution with write-lock (mutations only)**
+15. Protocol version injection (_meta field)
+16. Span result attributes (success/cells-affected)
+17. History recording (session undo trail)
+18. Metrics recording (latency, self-corrections)
+19. Trace recording (OpenTelemetry spans)
+20. Cost tracking (if ENABLE_COST_TRACKING=true)
+21. **Audit logging** (if ENABLE_AUDIT_LOGGING=true) ← fires on both success & error
+22. Action log spreadsheet append (if ENABLE_ACTION_LOG_SHEET=true)
+23. Event bus emission (sheet.write, sheet.format, etc. events)
+24. Debug logging per-tool (if DEBUG_TOOL set)
+25. Range recording for completions cache
+26. Sampling context invalidation (for LLM-focused caching)
+
+**Error path:** Steps 17-26 also execute for errors (history, metrics, trace, audit).
+
+### Audit Logging Call Sites
+
+Only 2 locations (both in same function):
+- `tool-handlers.ts:1472` — Success path: `getAuditLogger().logToolCall({ outcome: 'success' })`
+- `tool-handlers.ts:1628` — Error path: `getAuditLogger().logToolCall({ outcome: 'failure' })`
+
+Both require `ENABLE_AUDIT_LOGGING=true`. Wrapped in try-catch (non-critical).
+
+## Ground Truth Registry System (Session 117)
+
+**See:** `ground-truth-registry-findings.md` for complete specification.
+
+**Key files:**
+- `.serval/routing-map.json` — Current dispatch index (25 tools, 409 actions) — ~65KB
+- Missing: schema file references, handler method names, cache rules, test locations
+
+**Proposed solution:** Auto-generated `src/generated/ground-truth-registry.json` with all 5 data streams:
+1. Middleware chain (26 steps with file:line)
+2. Feature declarations vs implementations (9 MCP 2025-11-25 features)
+3. Audit logging callsites (exhaustive grep of logToolCall)
+4. Schema→Handler→Test→Cache traceability (all 409 actions)
+5. Mutation action flags
+
+**Generator:** `scripts/generate-ground-truth-registry.ts` (4-6 hours to implement)
+
 ## Notes for Implementation
 
 1. Always read the similar action first (find 2-3 examples)
@@ -237,3 +301,4 @@ sheets_advanced: 31, sheets_agent: 8, sheets_analyze: 26, sheets_appsscript: 19,
 5. Destructive actions must call confirmDestructiveAction() + createSnapshotIfNeeded()
 6. Never hardcode tool/action counts (use src/schemas/action-counts.ts)
 7. All errors must use typed ErrorCode from shared.ts
+8. Both STDIO and HTTP transports execute identical middleware — no transport-specific code paths exist

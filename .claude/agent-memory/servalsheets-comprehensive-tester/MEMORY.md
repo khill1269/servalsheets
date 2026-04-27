@@ -112,6 +112,79 @@
 - Both `sheets_data` and `sheets_dimensions` have an `auto_fill` action
 - This is safe — routing is per-tool, action names only need uniqueness within a tool
 
+## Key Findings (2026-04-26) — Handler Test + Mutation Audit
+
+### Handler Test Coverage — All 25 Present, 16 Failing
+
+- All 25 handler test files exist (`tests/handlers/{tool}.test.ts`)
+- Handler test totals: 72 files, 1642 tests, **16 failures** (1% fail rate)
+- Failure breakdown:
+  - 9 in `tests/handlers/analyze.test.ts` — SAMPLING_CONSENT_REQUIRED blocks all LLM calls
+  - 4 in `tests/handlers/composite.test.ts` — missing `values.batchUpdate` mock
+  - 2 in `tests/handlers/analyze-query-natural-language.test.ts` — same consent blocker
+  - 1 in `tests/handlers/sampling-enhancements.test.ts` — consent blocker prevents `createMessage` calls
+
+### Root Cause 1: SAMPLING_CONSENT_REQUIRED=true Breaks All Sampling Tests
+
+- `src/config/env.ts:233`: `SAMPLING_CONSENT_REQUIRED` defaults to `true`
+- `vitest.config.ts` does NOT set `SAMPLING_CONSENT_REQUIRED=false` in test env
+- Tests calling any LLM path (analyze, generate_formula, suggest_chart, query_natural_language, suggest_format) get:
+  `GDPR_CONSENT_REQUIRED: SAMPLING_CONSENT_REQUIRED=true but no consent checker registered`
+- Fix: add `SAMPLING_CONSENT_REQUIRED: 'false'` to `vitest.config.ts` `env` block (line 25)
+- Affects: `tests/handlers/analyze.test.ts` (9 failures), `analyze-query-natural-language.test.ts` (2), `sampling-enhancements.test.ts` (1)
+
+### Root Cause 2: Missing `values.batchUpdate` Mock in Composite Tests
+
+- `src/services/composite-operations.ts:473`: `bulkUpdate()` calls `this.sheetsApi.spreadsheets.values.batchUpdate()`
+- `tests/handlers/composite.test.ts:83-113`: mock has `get`, `update`, `append`, `clear`, `batchGet` but NOT `batchUpdate`
+- Results in `TypeError: this.sheetsApi.spreadsheets.values.batchUpdate is not a function`
+- Returned as `INTERNAL_ERROR` with `success: false`
+- Fix: add `batchUpdate: vi.fn().mockResolvedValue({ data: { spreadsheetId: 'test123', totalUpdatedRows: 1 } })` to mock at line 83
+- Also affects `import_and_format` (same service dependency chain)
+- Affected tests: 3 `bulk_update` success paths, 1 `import_and_format`
+
+### Root Cause 3: `PARSE_ERROR` vs `INTERNAL_ERROR` Code Mismatch
+
+- `tests/handlers/analyze.test.ts:251` expects `PARSE_ERROR` code on LLM parse failures
+- Actual code returned is `INTERNAL_ERROR` (fallback in `mapStandaloneError`)
+- This is a test expectation mismatch — `PARSE_ERROR` was likely a planned code that wasn't added to `ErrorCodeSchema`
+- Affected: 2 tests (`should handle parse error in LLM response`, `should handle formula parse error`)
+
+### MCP Tests — 1 Failure
+
+- `tests/mcp/llm-provenance-meta.test.ts`: same consent blocker as analyze tests
+- `src/utils/sampling-consent.ts:62`: throws `GDPR_CONSENT_REQUIRED` when no checker registered
+- Service tests: 77 files, 1735 tests, all pass (1713 pass, 22 skipped)
+- MCP tests: 27 files, 183 tests, 1 fail (consent blocker)
+
+### Performance Benchmark Results (Stryker sandbox, representative)
+
+- Schema validation (valid inputs): `sheets_transaction` 3.5M ops/sec, `sheets_dimensions` 1.2M ops/sec
+- Schema validation (invalid rejection): 136-138K ops/sec (both tools)
+- `buildToolResponse()` small: 3.7M ops/sec; large (100x10): 57K ops/sec
+- Error response build: 4.3M ops/sec (faster than success due to no serialization overhead)
+- JSON serialize medium (1000 cells): 45x slower than small response
+
+### Memory Audit
+
+- `tests/audit/memory-leaks.test.ts`: 5/5 pass
+- `tests/audit/action-coverage.test.ts`: 1261/1261 pass (full 409-action coverage assertions)
+- No memory leaks detected in any of the 5 profiled scenarios
+
+### Mutation Testing Status
+
+- `npm run mutation:critical` is ACTIVELY RUNNING (multiple Stryker workers, >42 min elapsed)
+- 8 critical security files being mutated (oauth-provider, safety middleware, write-lock, retry, circuit-breaker, python-worker, duckdb-worker, cache-invalidation-graph)
+- No prior mutation reports exist — first run appears to be in progress
+- Config at `stryker.critical.conf.mjs`: thresholds high=80, low=60, break=50; concurrency=2
+
+### Contract Tests (39 files)
+
+- `action-metadata-raw-contract.test.ts`: 4 assertions
+- `annotations-compliance.test.ts`: 40 assertions
+- `api-contracts.test.ts`: 101 assertions
+- `error-codes.test.ts`: 156 assertions — largest contract coverage
+
 ## Files to Reference
 
 - Auth guard: `src/utils/auth-guard.ts`

@@ -45,9 +45,9 @@ npm run gates:g1
 Checks:
 
 - Cross-map consistency tests
-- Schema-handler alignment (22 tools)
+- Schema-handler alignment (25 tools)
 - Hardcoded count detection
-- Action count: 305 (unchanged)
+- Action count: 409
 - Tool count: 22 (unchanged)
 
 **G2: Phase Behavior (~45s)**

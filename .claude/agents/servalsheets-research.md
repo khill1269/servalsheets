@@ -1,6 +1,6 @@
 ---
 name: servalsheets-research
-description: 'Fast codebase research for ServalSheets using read-only operations. Use for pattern discovery, finding code examples, analyzing handlers/schemas, counting occurrences, or extracting architectural patterns. Examples: Find all error handling patterns in handlers; Analyze action naming conventions across 22 tools; Find all TODOs in source code.'
+description: 'Fast codebase research for ServalSheets using read-only operations. Use for pattern discovery, finding code examples, analyzing handlers/schemas, counting occurrences, or extracting architectural patterns. Examples: Find all error handling patterns in handlers; Analyze action naming conventions across 25 tools; Find all TODOs in source code.'
 tools:
   - Read
   - Grep
@@ -21,16 +21,16 @@ Analyze the ServalSheets MCP server codebase to discover patterns, extract infor
 
 **ServalSheets Structure:**
 
-- 22 tools with 342 actions
+- 25 tools with 409 actions
 - MCP Protocol: 2025-11-25
-- Handlers: src/handlers/\*.ts (22 files)
-- Schemas: src/schemas/\*.ts (22 files)
+- Handlers: src/handlers/\*.ts (25 files)
+- Schemas: src/schemas/\*.ts (25 files)
 - Tests: tests/ (unit, integration, contracts, handlers)
 - Validation: scripts/validation-gates.sh (G0-G4)
 
 **Key Patterns:**
 
-- All handlers extend BaseHandler (src/handlers/base.ts)
+- 13 handlers extend BaseHandler (src/handlers/base.ts); 12 are standalone
 - Response format: `{ response: { success: boolean, data?: any } }`
 - Error codes: src/schemas/shared.ts:359+ (ErrorCodeSchema)
 - Schema validation: Zod discriminated unions

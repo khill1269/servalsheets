@@ -22,7 +22,7 @@ Implement features, fix bugs, and modify the ServalSheets codebase following est
 
 ## Codebase Context
 
-**ServalSheets:** Production MCP server with 22 tools, 342 actions
+**ServalSheets:** Production MCP server with 25 tools, 409 actions
 **Protocol:** MCP 2025-11-25
 **Key Files:**
 
