@@ -837,19 +837,26 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range'],
     },
     create_named_function: {
+      skipReason: 'FEATURE_UNAVAILABLE by design — Google Sheets API does not expose named function management via REST API. Use Sheets UI (Data > Named functions) instead.',
       validInput: { functionName: 'MY_FUNC', functionBody: '=A1+B1' },
       requiredFields: ['spreadsheetId', 'functionName', 'functionBody'],
     },
-    list_named_functions: { requiredFields: ['spreadsheetId'] },
+    list_named_functions: {
+      skipReason: 'FEATURE_UNAVAILABLE by design — Google Sheets API does not expose named function management via REST API. Use Sheets UI (Data > Named functions) instead.',
+      requiredFields: ['spreadsheetId'],
+    },
     get_named_function: {
+      skipReason: 'FEATURE_UNAVAILABLE by design — Google Sheets API does not expose named function management via REST API. Use Sheets UI (Data > Named functions) instead.',
       validInput: { functionName: 'MY_FUNC' },
       requiredFields: ['spreadsheetId', 'functionName'],
     },
     update_named_function: {
+      skipReason: 'FEATURE_UNAVAILABLE by design — Google Sheets API does not expose named function management via REST API. Use Sheets UI (Data > Named functions) instead.',
       validInput: { functionName: 'MY_FUNC', functionBody: '=A1+C1' },
       requiredFields: ['spreadsheetId', 'functionName'],
     },
     delete_named_function: {
+      skipReason: 'FEATURE_UNAVAILABLE by design — Google Sheets API does not expose named function management via REST API. Use Sheets UI (Data > Named functions) instead.',
       validInput: { functionName: 'MY_FUNC' },
       requiredFields: ['spreadsheetId', 'functionName'],
     },
@@ -1054,10 +1061,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId'],
     },
     diff_revisions: {
+      skipReason: 'Requires real revision IDs from the spreadsheet history — placeholder IDs rev1/rev2 cause NOT_FOUND in live runs. Use history.list_revisions to get actual IDs.',
       validInput: { revisionId1: 'rev1', revisionId2: 'rev2' },
       requiredFields: ['spreadsheetId', 'revisionId1', 'revisionId2'],
     },
     restore_cells: {
+      skipReason: 'Requires a real revision ID from the spreadsheet history — placeholder ID rev1 causes NOT_FOUND in live runs. Use history.list_revisions to get actual IDs.',
       validInput: { revisionId: 'rev1', cells: ['A1', 'B2'] },
       requiredFields: ['spreadsheetId', 'revisionId', 'cells'],
     },
@@ -1298,14 +1307,17 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range'],
     },
     generate_sheet: {
+      skipReason: 'AI-powered sheet generation — requires ANTHROPIC_API_KEY or sampling server configured',
       validInput: { description: 'Q1 budget tracker with revenue and expenses' },
       requiredFields: ['description'],
     },
     generate_template: {
+      skipReason: 'AI-powered template generation — requires ANTHROPIC_API_KEY or sampling server configured',
       validInput: { description: 'Employee onboarding checklist' },
       requiredFields: ['description'],
     },
     preview_generation: {
+      skipReason: 'AI-powered generation preview — requires ANTHROPIC_API_KEY or sampling server configured',
       validInput: { description: 'Sales pipeline tracker' },
       requiredFields: ['description'],
     },
@@ -1585,10 +1597,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: [],
     },
     watch_changes: {
+      skipReason: 'Requires Drive API access with a publicly reachable webhookUrl — Drive API push notifications cannot be tested without a real HTTPS callback endpoint',
       validInput: { spreadsheetId: 'test-id', webhookUrl: 'https://example.com/hook' },
       requiredFields: ['spreadsheetId', 'webhookUrl'],
     },
     subscribe_workspace: {
+      skipReason: 'Requires Google Workspace Events API and a valid Pub/Sub topic — Workspace Events service is not initialized in the test environment',
       validInput: {
         spreadsheetId: 'test-id',
         notificationEndpoint: 'projects/test-project/topics/test-topic',
@@ -1596,10 +1610,12 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'notificationEndpoint'],
     },
     reactivate_workspace: {
+      skipReason: 'Requires Google Workspace Events API and an existing subscription ID — Workspace Events service is not initialized in the test environment',
       validInput: { subscriptionId: 'subscriptions/sub-123' },
       requiredFields: ['subscriptionId'],
     },
     unsubscribe_workspace: {
+      skipReason: 'Requires Google Workspace Events API and an existing subscription ID — Workspace Events service is not initialized in the test environment',
       validInput: { subscriptionId: 'sub-123' },
       requiredFields: ['subscriptionId'],
     },
@@ -1660,15 +1676,18 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
 
   sheets_federation: {
     call_remote: {
+      skipReason: 'Requires MCP_FEDERATION_SERVERS to be configured with reachable remote MCP servers — no federation servers available in test environment',
       validInput: { serverName: 'srv1', toolName: 'test_tool' },
       requiredFields: ['serverName', 'toolName'],
     },
     list_servers: { requiredFields: [] },
     get_server_tools: {
+      skipReason: 'Requires MCP_FEDERATION_SERVERS to be configured with reachable remote MCP servers — no federation servers available in test environment',
       validInput: { serverName: 'srv1' },
       requiredFields: ['serverName'],
     },
     validate_connection: {
+      skipReason: 'Requires MCP_FEDERATION_SERVERS to be configured with reachable remote MCP servers — no federation servers available in test environment',
       validInput: { serverName: 'srv1' },
       requiredFields: ['serverName'],
     },
@@ -1680,22 +1699,27 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['description'],
     },
     execute: {
+      skipReason: 'Requires a real planId from a prior sheets_agent.plan call — placeholder plan-123 returns NOT_FOUND in live runs',
       validInput: { planId: 'plan-123' },
       requiredFields: ['planId'],
     },
     execute_step: {
+      skipReason: 'Requires a real planId and stepId from a prior sheets_agent.plan call — placeholder IDs return NOT_FOUND in live runs',
       validInput: { planId: 'plan-123', stepId: 'step-1' },
       requiredFields: ['planId', 'stepId'],
     },
     observe: {
+      skipReason: 'Requires a real planId from a prior sheets_agent.plan call — placeholder plan-123 returns NOT_FOUND in live runs',
       validInput: { planId: 'plan-123' },
       requiredFields: ['planId'],
     },
     rollback: {
+      skipReason: 'Requires a real planId and checkpointId from a prior agent execution — placeholder IDs return NOT_FOUND in live runs',
       validInput: { planId: 'plan-123', checkpointId: 'ckpt-1' },
       requiredFields: ['planId', 'checkpointId'],
     },
     get_status: {
+      skipReason: 'Requires a real planId from a prior sheets_agent.plan call — placeholder plan-123 returns NOT_FOUND in live runs',
       validInput: { planId: 'plan-123' },
       requiredFields: ['planId'],
     },
@@ -1703,6 +1727,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: [],
     },
     resume: {
+      skipReason: 'Requires a real planId from a prior sheets_agent.plan call — placeholder plan-123 returns NOT_FOUND in live runs',
       validInput: { planId: 'plan-123' },
       requiredFields: ['planId'],
     },
@@ -1791,6 +1816,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'left', 'right', 'on'],
     },
     python_eval: {
+      skipReason: 'Requires Python runtime with pandas installed — not available in the standard Node.js server environment',
       validInput: {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:C50',
@@ -1799,6 +1825,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range', 'code'],
     },
     pandas_profile: {
+      skipReason: 'Requires Python runtime with pandas installed — not available in the standard Node.js server environment',
       validInput: {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:C50',
@@ -1806,6 +1833,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range'],
     },
     sklearn_model: {
+      skipReason: 'Requires Python runtime with scikit-learn installed — not available in the standard Node.js server environment',
       validInput: {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:D100',
@@ -1815,6 +1843,7 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       requiredFields: ['spreadsheetId', 'range', 'targetColumn', 'modelType'],
     },
     matplotlib_chart: {
+      skipReason: 'Requires Python runtime with matplotlib installed — not available in the standard Node.js server environment',
       validInput: {
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:C50',
