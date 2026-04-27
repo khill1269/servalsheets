@@ -878,39 +878,72 @@ export async function executePlan(
   }
 
   if (dryRun) {
-    // Real dryRun: delegate to each handler's safety.dryRun path so callers
-    // get structured previews (before/after data, what would be deleted, etc.)
-    // instead of a uniform `{ dryRunPreview: true }` no-op response.
-    // Steps with missing required params fail here with clear errors — strictly
-    // better than the prior all-pass shim which hid unexecutable plans.
+    // Preview execution without actual tool calls.
+    //
+    // We still run each step's params through its Zod input schema so the
+    // dry-run catches shape/type bugs that would otherwise surface only at
+    // real execution. Failed steps return success:false with the full Zod
+    // issue list — we do NOT short-circuit after the first failure so the
+    // caller sees every problem at once.
     const now = new Date().toISOString();
-    const previewResults: StepResult[] = [];
-
-    for (const step of plan.steps) {
-      const startedAt = new Date().toISOString();
-      try {
-        const dryRunParams = {
-          ...getEffectiveStepParams(step, plan),
-          safety: { dryRun: true },
-        };
-        const result = await executeHandler(step.tool, step.action, dryRunParams);
-        previewResults.push({
+    const schemas = getToolInputSchemas();
+    const previewResults: StepResult[] = plan.steps.map((step) => {
+      if (step.type === 'inject_cross_sheet_lookup' || step.tool === '__internal__') {
+        return {
           stepId: step.stepId,
           success: true,
-          result,
-          startedAt,
-          completedAt: new Date().toISOString(),
-        });
-      } catch (err) {
-        previewResults.push({
-          stepId: step.stepId,
-          success: false,
-          error: `dryRun preview failed for ${step.tool}.${step.action}: ${err instanceof Error ? err.message : String(err)}`,
-          startedAt,
-          completedAt: new Date().toISOString(),
-        });
+          result: { dryRunPreview: true, action: step.action },
+          startedAt: now,
+          completedAt: now,
+        };
       }
-    }
+
+      const inputSchema = schemas.get(step.tool);
+      if (!inputSchema) {
+        return {
+          stepId: step.stepId,
+          success: true,
+          result: { dryRunPreview: true, action: step.action },
+          startedAt: now,
+          completedAt: now,
+        };
+      }
+
+      const params = getEffectiveStepParams(step, plan);
+      const parseResult = inputSchema.safeParse({
+        request: { action: step.action, ...params },
+      });
+
+      if (parseResult.success) {
+        return {
+          stepId: step.stepId,
+          success: true,
+          result: { dryRunPreview: true, action: step.action },
+          startedAt: now,
+          completedAt: now,
+        };
+      }
+
+      // Keep the full Zod issue list on the result so the caller can show
+      // every problem at once, not just the first.
+      return {
+        stepId: step.stepId,
+        success: false,
+        result: {
+          dryRunPreview: true,
+          action: step.action,
+          error: 'VALIDATION_ERROR',
+          issues: parseResult.error.issues.map((issue) => ({
+            path: issue.path.filter((p): p is string | number => typeof p !== 'symbol'),
+            message: issue.message,
+            code: issue.code,
+          })),
+        },
+        error: `Dry-run validation failed for ${step.tool}.${step.action}`,
+        startedAt: now,
+        completedAt: now,
+      };
+    });
 
     // If any step failed validation, mark the plan as paused so the caller
     // can see it didn't fully succeed, even in preview mode.
