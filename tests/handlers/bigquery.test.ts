@@ -330,8 +330,8 @@ describe('SheetsBigQueryHandler', () => {
         },
       });
 
-      expect(typeof result.response.success).toBe('boolean');
-      // May succeed with incomplete flag or timeout error
+      // With jobComplete: false and short timeoutMs, the handler times out
+      expect(result.response.success).toBe(false);
     });
   });
 

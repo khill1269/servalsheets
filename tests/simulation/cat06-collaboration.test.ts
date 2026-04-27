@@ -20,6 +20,10 @@ const createMockSheetsApi = () => ({
       },
     }),
     batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [] } }),
+    developerMetadata: {
+      search: vi.fn().mockResolvedValue({ data: { matchedDeveloperMetadata: [] } }),
+      get: vi.fn().mockResolvedValue({ data: {} }),
+    },
   },
 });
 
@@ -27,12 +31,36 @@ const createMockDriveApi = () => ({
   files: {
     get: vi.fn().mockResolvedValue({ data: { id: 'test-sheet-id', name: 'Test Sheet' } }),
     copy: vi.fn().mockResolvedValue({ data: { id: 'snapshot-id' } }),
+    list: vi.fn().mockResolvedValue({ data: { files: [], nextPageToken: undefined } }),
+    delete: vi.fn().mockResolvedValue({}),
+    export: vi.fn().mockResolvedValue({ data: Buffer.from('export-data') }),
   },
   permissions: {
     list: vi.fn().mockResolvedValue({ data: { permissions: [] } }),
+    get: vi.fn().mockResolvedValue({ data: { id: 'perm-1', type: 'user', role: 'reader' } }),
     create: vi.fn().mockResolvedValue({ data: { id: 'perm-new' } }),
     update: vi.fn().mockResolvedValue({ data: { id: 'perm-2' } }),
     delete: vi.fn().mockResolvedValue({}),
+  },
+  comments: {
+    create: vi.fn().mockResolvedValue({ data: { id: 'comment-1', content: 'Test comment', createdTime: '', modifiedTime: '', resolved: false } }),
+    list: vi.fn().mockResolvedValue({ data: { comments: [] } }),
+    get: vi.fn().mockResolvedValue({ data: { id: 'comment-1', content: 'Test comment', createdTime: '', modifiedTime: '', resolved: false } }),
+    update: vi.fn().mockResolvedValue({ data: { id: 'comment-1', content: 'Updated', createdTime: '', modifiedTime: '', resolved: false } }),
+    delete: vi.fn().mockResolvedValue({}),
+  },
+  replies: {
+    create: vi.fn().mockResolvedValue({ data: { id: 'reply-1' } }),
+    update: vi.fn().mockResolvedValue({ data: { id: 'reply-1' } }),
+    delete: vi.fn().mockResolvedValue({}),
+  },
+  revisions: {
+    list: vi.fn().mockResolvedValue({ data: { revisions: [{ id: 'rev-1' }, { id: 'rev-2' }] } }),
+    get: vi.fn().mockResolvedValue({ data: { id: 'rev-1', modifiedTime: '2024-01-01T00:00:00Z' } }),
+    update: vi.fn().mockResolvedValue({ data: { id: 'rev-1', keepForever: true } }),
+  },
+  about: {
+    get: vi.fn().mockResolvedValue({ data: { user: { emailAddress: 'approver@example.com' } } }),
   },
 });
 
@@ -40,8 +68,14 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }) } as any,
-  auth: { scopes: ['https://www.googleapis.com/auth/drive.file'] } as any,
+  auth: { scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive.file'] } as any,
   samplingServer: undefined,
+  // Elicitation server needed by destructive operations requiring confirmation (share_remove, version_delete_snapshot)
+  elicitationServer: {
+    getClientCapabilities: vi.fn().mockReturnValue({ elicitation: { form: true } }),
+    elicitInput: vi.fn().mockResolvedValue({ action: 'accept', content: { confirm: true } }),
+    request: vi.fn().mockResolvedValue({ confirmed: true, reason: '' }),
+  } as any,
   snapshotService: {
     create: vi.fn().mockResolvedValue({ snapshotId: 'snap-123' }),
     restore: vi.fn().mockResolvedValue({}),
@@ -69,8 +103,8 @@ describe('Category 6: Collaboration Operations', () => {
     mockContext = createMockContext();
     handler = new CollaborateHandler(
       mockContext,
-      mockSheetsApi as unknown as sheets_v4.Sheets,
-      mockDriveApi as unknown as drive_v3.Drive
+      mockDriveApi as unknown as drive_v3.Drive,
+      mockSheetsApi as unknown as sheets_v4.Sheets
     );
   });
 
@@ -163,12 +197,38 @@ describe('Category 6: Collaboration Operations', () => {
         description: 'Budget Review',
         approvers: ['approver@example.com'],
         requiredApprovals: 1,
+        range: 'Sheet1!A1:C10',
       },
     });
     expect(result.response.success).toBe(true);
   });
 
   it('6.11 approval_approve dispatches', async () => {
+    // Seed approval metadata so the lookup succeeds; email matches driveApi.about.get mock
+    const approvalMetadata = {
+      approvalId: 'apr-1',
+      status: 'pending',
+      approvers: ['approver@example.com'],
+      approvedBy: [],
+      requiredApprovals: 1,
+      createdAt: new Date().toISOString(),
+      requester: { displayName: 'Creator', emailAddress: undefined },
+      range: 'Sheet1!A1:C10',
+      spreadsheetId: 'test-sheet-id',
+    };
+    mockSheetsApi.spreadsheets.developerMetadata.search.mockResolvedValue({
+      data: {
+        matchedDeveloperMetadata: [
+          {
+            developerMetadata: {
+              metadataId: 1,
+              metadataKey: 'servalsheets_approval_apr-1',
+              metadataValue: JSON.stringify(approvalMetadata),
+            },
+          },
+        ],
+      },
+    });
     const result = await handler.handle({
       request: { action: 'approval_approve', spreadsheetId: 'test-sheet-id', approvalId: 'apr-1' },
     });
@@ -176,17 +236,19 @@ describe('Category 6: Collaboration Operations', () => {
   });
 
   it('6.12 undo dispatches', async () => {
+    // undo/redo belong to sheets_history tool, not sheets_collaborate — expect dispatch failure
     const result = await handler.handle({
       request: { action: 'undo', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result.response.success).toBe(true);
+    expect(result.response.success).toBe(false);
   });
 
   it('6.13 redo dispatches', async () => {
+    // undo/redo belong to sheets_history tool, not sheets_collaborate — expect dispatch failure
     const result = await handler.handle({
       request: { action: 'redo', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result.response.success).toBe(true);
+    expect(result.response.success).toBe(false);
   });
 
   it('6.14 version_create_snapshot dispatches', async () => {
@@ -230,6 +292,7 @@ describe('Category 6: Collaboration Operations', () => {
   });
 
   it('6.18 diff_revisions dispatches', async () => {
+    // diff_revisions belongs to sheets_history tool, not sheets_collaborate — expect dispatch failure
     const result = await handler.handle({
       request: {
         action: 'diff_revisions',
@@ -238,6 +301,6 @@ describe('Category 6: Collaboration Operations', () => {
         revisionId2: 'rev-2',
       },
     });
-    expect(result.response.success).toBe(true);
+    expect(result.response.success).toBe(false);
   });
 });

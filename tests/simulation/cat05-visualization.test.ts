@@ -25,7 +25,28 @@ const createMockSheetsApi = () => ({
               gridProperties: { rowCount: 100, columnCount: 26 },
             },
             charts: [
-              { chartId: 123, spec: { title: 'Sales Chart', basicChart: { chartType: 'LINE' } } },
+              {
+                chartId: 123,
+                spec: {
+                  title: 'Sales Chart',
+                  basicChart: {
+                    chartType: 'LINE',
+                    series: [
+                      {
+                        series: { sourceRange: { sources: [] } },
+                        trendline: { type: 'LINEAR' },
+                      },
+                    ],
+                  },
+                },
+                position: {
+                  overlayPosition: {
+                    anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 0 },
+                    widthPixels: 600,
+                    heightPixels: 400,
+                  },
+                },
+              },
             ],
           },
         ],
@@ -102,7 +123,7 @@ describe('Category 5: Visualization Operations', () => {
         sheetId: 0,
         chartType: 'COLUMN',
         data: { sourceRange: { a1: 'Sheet1!A1:B4' } },
-        position: { overlayPosition: { anchorCell: { a1: 'A5' } } },
+        position: { anchorCell: 'A5', sheetId: 0 },
       },
     });
     expect(result.response.success).toBe(true);
@@ -113,7 +134,12 @@ describe('Category 5: Visualization Operations', () => {
       data: { replies: [{ deleteChart: {} }] },
     });
     const result = await handler.handle({
-      request: { action: 'chart_delete', spreadsheetId: 'test-sheet-id', chartId: 123 },
+      request: {
+        action: 'chart_delete',
+        spreadsheetId: 'test-sheet-id',
+        chartId: 123,
+        safety: { dryRun: true },
+      },
     });
     expect(result.response.success).toBe(true);
   });
@@ -206,7 +232,7 @@ describe('Category 5: Visualization Operations', () => {
       request: {
         action: 'suggest_pivot',
         spreadsheetId: 'test-sheet-id',
-        sourceRange: { a1: 'Sheet1!A1:C4' },
+        range: { a1: 'Sheet1!A1:C4' },
       },
     });
     expect(result.response.success).toBe(true);
@@ -221,7 +247,7 @@ describe('Category 5: Visualization Operations', () => {
         action: 'chart_move',
         spreadsheetId: 'test-sheet-id',
         chartId: 123,
-        position: { overlayPosition: { anchorCell: { a1: 'E5' } } },
+        position: { anchorCell: 'E5', sheetId: 0 },
       },
     });
     expect(result.response.success).toBe(true);

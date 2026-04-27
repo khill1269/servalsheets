@@ -18,6 +18,9 @@ import type { HandlerContext } from '../../src/handlers/base.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const createMockBigQueryApi = () => ({
+  tabledata: {
+    insertAll: vi.fn().mockResolvedValue({ data: { insertErrors: [] } }),
+  },
   datasets: {
     list: vi.fn().mockResolvedValue({
       data: { datasets: [{ datasetReference: { datasetId: 'dataset1' } }] },
@@ -37,7 +40,28 @@ const createMockBigQueryApi = () => ({
   },
   jobs: {
     query: vi.fn().mockResolvedValue({
-      data: { jobReference: { jobId: 'job1' }, rows: [{ f: [{ v: '100' }] }] },
+      data: {
+        jobReference: { jobId: 'job1', projectId: 'test-project' },
+        jobComplete: true,
+        schema: { fields: [{ name: 'count', type: 'INTEGER' }] },
+        rows: [{ f: [{ v: '100' }] }],
+        totalBytesProcessed: '1024',
+        cacheHit: false,
+      },
+    }),
+    insert: vi.fn().mockResolvedValue({
+      data: { jobReference: { jobId: 'insert-job1', projectId: 'test-project' }, status: { state: 'DONE' } },
+    }),
+    get: vi.fn().mockResolvedValue({
+      data: { jobReference: { jobId: 'insert-job1' }, status: { state: 'DONE' } },
+    }),
+    getQueryResults: vi.fn().mockResolvedValue({
+      data: {
+        jobComplete: true,
+        schema: { fields: [{ name: 'count', type: 'INTEGER' }] },
+        rows: [{ f: [{ v: '100' }] }],
+        totalBytesProcessed: '1024',
+      },
     }),
   },
 });
@@ -53,6 +77,15 @@ const createMockSheetsApi = () => ({
     }),
     batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [] } }),
     values: {
+      get: vi.fn().mockResolvedValue({
+        data: {
+          values: [
+            ['id', 'name'],
+            ['1', 'Alice'],
+            ['2', 'Bob'],
+          ],
+        },
+      }),
       update: vi.fn().mockResolvedValue({ data: { updatedRows: 1 } }),
       append: vi.fn().mockResolvedValue({ data: { updates: {} } }),
     },
@@ -164,10 +197,12 @@ describe('Category 9: External Integrations', () => {
         request: {
           action: 'export_to_bigquery',
           spreadsheetId: 'test-sheet-id',
-          projectId: 'test-project',
-          datasetId: 'dataset1',
-          destinationTableId: 'table1',
-          sheetName: 'Sheet1',
+          range: { a1: 'Sheet1!A1:B10' },
+          destination: {
+            projectId: 'test-project',
+            datasetId: 'dataset1',
+            tableId: 'table1',
+          },
         },
       });
       expect(result.response.success).toBe(true);
@@ -176,16 +211,37 @@ describe('Category 9: External Integrations', () => {
 
   describe('9.4-9.6 Apps Script Integration', () => {
     let handler: SheetsAppsScriptHandler;
-    let mockAppsScriptApi: ReturnType<typeof createMockAppsScriptApi>;
-    let mockSheetsApi: ReturnType<typeof createMockSheetsApi>;
 
     beforeEach(() => {
-      mockAppsScriptApi = createMockAppsScriptApi();
-      mockSheetsApi = createMockSheetsApi();
-      handler = new SheetsAppsScriptHandler(
-        mockContext,
-        mockSheetsApi as unknown as any,
-        mockAppsScriptApi as unknown as any
+      // Provide a googleClient mock with token methods so run() doesn't fail on getTokenStatus
+      const appsScriptContext = {
+        ...mockContext,
+        googleClient: {
+          getTokenStatus: vi.fn().mockReturnValue({ expiryDate: Date.now() + 3600000 }),
+          oauth2: { credentials: { access_token: 'mock-token' }, getAccessToken: vi.fn() },
+        } as any,
+      };
+      handler = new SheetsAppsScriptHandler(appsScriptContext);
+      // Mock internal HTTP calls — apiRequest is private but injectable via spy
+      vi.spyOn(handler as any, 'apiRequest').mockImplementation(
+        async (_method: string, path: string) => {
+          if (path === '/projects') {
+            // POST /projects — create
+            return { scriptId: 'script-123', title: 'My Script', parentId: undefined };
+          }
+          if (path.includes('/content')) {
+            // GET /projects/:id/content
+            return {
+              scriptId: 'script-123',
+              files: [{ name: 'Code', type: 'SERVER_JS', source: 'function test() {}' }],
+            };
+          }
+          if (path.includes(':run')) {
+            // POST /scripts/:id:run — execute function
+            return { done: true, response: { result: true } };
+          }
+          return {};
+        }
       );
     });
 
@@ -221,10 +277,8 @@ describe('Category 9: External Integrations', () => {
       expect(result.response.success).toBe(true);
     });
 
-    it('9.6 Apps Script trigger_create dispatches', async () => {
-      mockAppsScriptApi.projects.create.mockResolvedValue({
-        data: { scriptId: 'script-123', parentId: 'test-sheet-id' },
-      });
+    it('9.6 Apps Script trigger_create returns not-implemented (API limitation)', async () => {
+      // create_trigger is permanently NOT_IMPLEMENTED — triggers must use in-script ScriptApp APIs
       const result = await handler.handle({
         request: {
           action: 'create_trigger',
@@ -232,7 +286,7 @@ describe('Category 9: External Integrations', () => {
           triggerType: 'ON_EDIT',
         },
       });
-      expect(result.response.success).toBe(true);
+      expect(result.response.success).toBe(false);
     });
   });
 
@@ -254,7 +308,8 @@ describe('Category 9: External Integrations', () => {
       expect(result.response.success).toBe(true);
     });
 
-    it('9.7b Federation call_remote dispatches', async () => {
+    it('9.7b Federation call_remote returns error when no servers configured', async () => {
+      // call_remote requires MCP_FEDERATION_SERVERS to be set; returns error when unconfigured
       const result = await handler.handle({
         request: {
           action: 'call_remote',
@@ -262,17 +317,18 @@ describe('Category 9: External Integrations', () => {
           toolName: 'some_tool',
         },
       });
-      expect(result.response.success).toBe(true);
+      expect(result.response.success).toBe(false);
     });
 
-    it('9.7c Federation validate_connection dispatches', async () => {
+    it('9.7c Federation validate_connection returns error when no servers configured', async () => {
+      // validate_connection requires MCP_FEDERATION_SERVERS to be set; returns error when unconfigured
       const result = await handler.handle({
         request: {
           action: 'validate_connection',
           serverName: 'remote-server',
         },
       });
-      expect(result.response.success).toBe(true);
+      expect(result.response.success).toBe(false);
     });
   });
 
@@ -346,7 +402,8 @@ describe('Category 9: External Integrations', () => {
       handler = new WebhookHandler(mockContext);
     });
 
-    it('9.9 Webhook register dispatches when Redis available', async () => {
+    it('9.9 Webhook register returns error when Redis unavailable', async () => {
+      // register requires Redis; handler returns structured error when Redis is not configured
       const result = await handler.handle({
         request: {
           action: 'register',
@@ -355,20 +412,21 @@ describe('Category 9: External Integrations', () => {
           eventTypes: ['sheet.update'],
         },
       });
-      expect(result.response.success).toBe(true);
-      // If Redis is not available, handler returns error with graceful message
+      expect(result.response.success).toBe(false);
     });
 
-    it('9.9b Webhook list dispatches', async () => {
+    it('9.9b Webhook list returns error when Redis unavailable', async () => {
+      // list requires Redis; handler returns structured error when Redis is not configured
       const result = await handler.handle({
         request: {
           action: 'list',
         },
       });
-      expect(result.response.success).toBe(true);
+      expect(result.response.success).toBe(false);
     });
 
-    it('9.9c Webhook watch_changes dispatches', async () => {
+    it('9.9c Webhook watch_changes returns error when Redis unavailable', async () => {
+      // watch_changes requires Redis; handler returns structured error when Redis is not configured
       const result = await handler.handle({
         request: {
           action: 'watch_changes',
@@ -376,7 +434,7 @@ describe('Category 9: External Integrations', () => {
           webhookUrl: 'https://example.com/webhook',
         },
       });
-      expect(result.response.success).toBe(true);
+      expect(result.response.success).toBe(false);
     });
   });
 

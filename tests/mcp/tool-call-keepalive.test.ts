@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Handlers } from '../../src/handlers/index.js';
 import { registerServalSheetsTools } from '../../src/mcp/registration/tool-handlers.js';
 import { resetSessionContext } from '../../src/services/session-context.js';
@@ -41,6 +41,10 @@ function createMockHandlers(overrides?: {
 }
 
 describe('legacy tool-call keepalive registration path', () => {
+  beforeEach(() => {
+    vi.stubEnv('MCP_TRANSPORT', 'http');
+  });
+
   afterEach(() => {
     resetSessionContext();
     resetEnvForTest();

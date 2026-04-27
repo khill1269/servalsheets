@@ -211,7 +211,7 @@ describe('ETagCache', () => {
 
       expect(result).toEqual(data);
       expect(mockRedis.get).toHaveBeenCalledWith(
-        expect.stringContaining('servalsheets:etag:test-123:values:A1:B10')
+        expect.stringContaining('servalsheets:etag:anon:test-123:values:A1:B10')
       );
     });
 
@@ -315,7 +315,7 @@ describe('ETagCache', () => {
 
       expect(mockRedis.setEx).toHaveBeenCalled();
       const setExCall = mockRedis.setEx.mock.calls[0];
-      expect(setExCall[0]).toContain('servalsheets:etag:test-123:values:A1:B10');
+      expect(setExCall[0]).toContain('servalsheets:etag:anon:test-123:values:A1:B10');
       expect(setExCall[1]).toBe(600); // TTL in seconds (10 minutes)
       expect(typeof setExCall[2]).toBe('string'); // JSON string
 
@@ -432,7 +432,7 @@ describe('ETagCache', () => {
       await cache.invalidate(key);
 
       expect(mockRedis.del).toHaveBeenCalledWith(
-        expect.stringContaining('servalsheets:etag:test-123:values:A1:B10')
+        expect.stringContaining('servalsheets:etag:anon:test-123:values:A1:B10')
       );
     });
 
@@ -478,18 +478,18 @@ describe('ETagCache', () => {
     it('should clear all entries for a spreadsheet from L2 Redis', async () => {
       mockRedis.scan.mockResolvedValue({
         cursor: 0,
-        keys: ['servalsheets:etag:test-123:metadata', 'servalsheets:etag:test-123:values:A1:B10'],
+        keys: ['servalsheets:etag:anon:test-123:metadata', 'servalsheets:etag:anon:test-123:values:A1:B10'],
       });
 
       await cache.invalidateSpreadsheet('test-123');
 
       expect(mockRedis.scan).toHaveBeenCalledWith(0, {
-        MATCH: 'servalsheets:etag:test-123:*',
+        MATCH: 'servalsheets:etag:*:test-123:*',
         COUNT: 100,
       });
       expect(mockRedis.del).toHaveBeenCalledWith(
-        'servalsheets:etag:test-123:metadata',
-        'servalsheets:etag:test-123:values:A1:B10'
+        'servalsheets:etag:anon:test-123:metadata',
+        'servalsheets:etag:anon:test-123:values:A1:B10'
       );
     });
 
@@ -703,6 +703,62 @@ describe('ETagCache', () => {
 
       const etag = cache.getETag(key);
       expect(etag).toBe('etag-special');
+    });
+
+    it('should isolate cache entries by userId (cross-tenant security)', async () => {
+      const spreadsheetId = 'shared-spreadsheet-id';
+
+      // User A caches their view of the spreadsheet
+      await cache.setETag(
+        { spreadsheetId, endpoint: 'metadata', userId: 'user-A' },
+        'etag-user-A',
+        { title: 'User A sees this' }
+      );
+
+      // User B caches their view of the same spreadsheet
+      await cache.setETag(
+        { spreadsheetId, endpoint: 'metadata', userId: 'user-B' },
+        'etag-user-B',
+        { title: 'User B sees this' }
+      );
+
+      // Each user only sees their own cached ETag
+      expect(cache.getETag({ spreadsheetId, endpoint: 'metadata', userId: 'user-A' })).toBe('etag-user-A');
+      expect(cache.getETag({ spreadsheetId, endpoint: 'metadata', userId: 'user-B' })).toBe('etag-user-B');
+
+      // User A's data is not visible to User B
+      const dataB = await cache.getCachedData({ spreadsheetId, endpoint: 'metadata', userId: 'user-B' });
+      expect(dataB).toEqual({ title: 'User B sees this' });
+
+      const dataA = await cache.getCachedData({ spreadsheetId, endpoint: 'metadata', userId: 'user-A' });
+      expect(dataA).toEqual({ title: 'User A sees this' });
+    });
+
+    it('should use "anon" scope when userId is omitted (single-user fallback)', async () => {
+      const key = { spreadsheetId: 'test-id', endpoint: 'metadata' as const };
+      await cache.setETag(key, 'etag-anon', { data: 'anon data' });
+
+      // Explicit anon userId retrieves the same entry
+      expect(cache.getETag({ ...key, userId: 'anon' })).toBe('etag-anon');
+
+      // No-userId lookup also retrieves it (same key)
+      expect(cache.getETag(key)).toBe('etag-anon');
+    });
+
+    it('should isolate invalidateSpreadsheet by userId when specified', async () => {
+      const spreadsheetId = 'multi-tenant-sheet';
+
+      await cache.setETag({ spreadsheetId, endpoint: 'metadata', userId: 'user-A' }, 'etag-A');
+      await cache.setETag({ spreadsheetId, endpoint: 'metadata', userId: 'user-B' }, 'etag-B');
+
+      // Invalidate only user-A's entries
+      await cache.invalidateSpreadsheet(spreadsheetId, 'user-A');
+
+      // User A's entry is gone
+      expect(cache.getETag({ spreadsheetId, endpoint: 'metadata', userId: 'user-A' })).toBeNull();
+
+      // User B's entry is unaffected
+      expect(cache.getETag({ spreadsheetId, endpoint: 'metadata', userId: 'user-B' })).toBe('etag-B');
     });
 
     it('should differentiate between endpoints', async () => {

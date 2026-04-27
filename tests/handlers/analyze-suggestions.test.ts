@@ -223,7 +223,6 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('suggest_next_actions');
       expect(Array.isArray(result.response.suggestions)).toBe(true);
@@ -404,7 +403,6 @@ describe('F4: Smart Suggestions', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('auto_enhance');
       expect(result.response.mode).toBe('preview');

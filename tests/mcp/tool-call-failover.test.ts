@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Handlers } from '../../src/handlers/index.js';
 import { TaskStoreAdapter } from '../../src/core/task-store-adapter.js';
 import { InMemoryTaskStore } from '../../src/core/task-store.js';
@@ -74,6 +74,12 @@ describe('legacy registered tool failover path', () => {
     vi.unstubAllEnvs();
   });
 
+  // Pin to bundled mode: the flat-tool interceptor checks _requestHandlers instanceof Map,
+  // which these lightweight mocks don't provide. Bundled mode skips the interceptor entirely.
+  beforeEach(() => {
+    vi.stubEnv('MCP_TRANSPORT', 'http');
+  });
+
   it('falls back to the hosted executor for sheets_compute task execution after a local failure', async () => {
     const registeredTaskHandlers: Record<
       string,
@@ -97,6 +103,7 @@ describe('legacy registered tool failover path', () => {
     const server = {
       server: {
         setRequestHandler: vi.fn(),
+        _requestHandlers: new Map(),
       },
       experimental: {
         tasks: {
@@ -181,6 +188,7 @@ describe('legacy registered tool failover path', () => {
     const server = {
       server: {
         setRequestHandler: vi.fn(),
+        _requestHandlers: new Map(),
       },
       experimental: {
         tasks: {
@@ -266,6 +274,7 @@ describe('legacy registered tool failover path', () => {
     const server = {
       server: {
         setRequestHandler: vi.fn(),
+        _requestHandlers: new Map(),
       },
       experimental: {
         tasks: {
@@ -349,6 +358,7 @@ describe('legacy registered tool failover path', () => {
     const server = {
       server: {
         setRequestHandler: vi.fn(),
+        _requestHandlers: new Map(),
       },
       experimental: {
         tasks: {
@@ -432,6 +442,7 @@ describe('legacy registered tool failover path', () => {
     const server = {
       server: {
         setRequestHandler: vi.fn(),
+        _requestHandlers: new Map(),
       },
       experimental: {
         tasks: {
@@ -516,6 +527,7 @@ describe('legacy registered tool failover path', () => {
     const server = {
       server: {
         setRequestHandler: vi.fn(),
+        _requestHandlers: new Map(),
       },
       experimental: {
         tasks: {

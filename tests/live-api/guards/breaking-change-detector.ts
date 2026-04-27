@@ -476,7 +476,7 @@ export class BreakingChangeDetector {
     if (typeof value === 'object') return 'object';
     if (typeof value === 'string') return 'string';
     if (typeof value === 'number') return 'number';
-    if (typeof value === 'boolean') return 'boolean';
+    if (typeof value === 'boolean') return 'boolean'; // check-tautology-ok — type detection switch, not a test assertion
     return 'any';
   }
 

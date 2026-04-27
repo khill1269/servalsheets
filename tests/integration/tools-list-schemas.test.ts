@@ -61,6 +61,10 @@ describe('tools/list Schema Serialization', () => {
   let server: ServalSheetsServer;
 
   beforeAll(async () => {
+    // Pin to bundled mode: this test validates compound-tool schemas (request envelope,
+    // discriminated union variants). Setting MCP_TRANSPORT to a non-stdio, non-empty
+    // value causes getEffectiveToolMode() to return 'bundled' at request time.
+    process.env['MCP_TRANSPORT'] = 'http';
     // Federation requires MCP_FEDERATION_SERVERS to be visible in tools/list
     process.env['MCP_FEDERATION_SERVERS'] = 'test-server:http://localhost:9999';
     resetEnvForTest();
@@ -77,6 +81,7 @@ describe('tools/list Schema Serialization', () => {
   afterAll(async () => {
     // Clean shutdown
     await server.shutdown();
+    delete process.env['MCP_TRANSPORT'];
   });
 
   afterEach(() => {

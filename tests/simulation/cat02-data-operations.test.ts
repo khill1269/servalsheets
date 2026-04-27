@@ -220,8 +220,10 @@ const createMockContext = (): HandlerContext =>
       trackReadOperation: vi.fn(),
       recordElicitationRejection: vi.fn(),
       wasRecentlyRejected: vi.fn().mockReturnValue(false),
-      checkRedundantRead: vi.fn().mockReturnValue(false),
+      checkRedundantRead: vi.fn().mockReturnValue(null),
       recordReadAttempt: vi.fn(),
+      getUserId: vi.fn().mockReturnValue(undefined),
+      setLastRange: vi.fn(),
     } as any,
   }) as any;
 

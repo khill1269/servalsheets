@@ -155,7 +155,7 @@ function isValidResponseShape(result: unknown): boolean {
   const r = result as Record<string, unknown>;
   if (!r['response'] || typeof r['response'] !== 'object') return false;
   const resp = r['response'] as Record<string, unknown>;
-  return typeof resp['success'] === 'boolean';
+  return typeof resp['success'] === 'boolean'; // check-tautology-ok — runtime shape validator, not a test assertion
 }
 
 // ─── Suite 1: 100 concurrent reads ───────────────────────────────────────────

@@ -70,7 +70,7 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
 
       // Should succeed (even though no Redis - will throw Redis error inside)
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
+      expect(result.response.success).toBe(false);
     });
 
     it('should provide clear error about Redis requirement when Redis not available', async () => {
@@ -130,10 +130,8 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       });
 
       // Will fail with Redis error, but that's expected - not initialization error
-      expect(typeof result.response.success).toBe('boolean');
-      if (!result.response.success) {
-        expect(result.response.error?.message).not.toContain('not initialized');
-      }
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.message).not.toContain('not initialized');
     });
 
     it('should handle get_stats action after initialization', async () => {
@@ -144,10 +142,8 @@ describe('WebhookHandler - Initialization (BUG FIX 0.8)', () => {
       });
 
       // Will fail with Redis error, but not initialization error
-      expect(typeof result.response.success).toBe('boolean');
-      if (!result.response.success) {
-        expect(result.response.error?.message).not.toContain('not initialized');
-      }
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.message).not.toContain('not initialized');
     });
   });
 

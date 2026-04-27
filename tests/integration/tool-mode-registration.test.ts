@@ -43,9 +43,11 @@ describe('tool-mode MCP registration', () => {
     vi.resetModules();
   });
 
-  it('registers all tools in stdio server mode (no mode gating)', async () => {
-    // Ensure no legacy mode env var is set
+  it('registers all tools in bundled mode (no mode gating)', async () => {
+    // Pin to bundled mode to test compound-tool registration.
+    // Flat mode (default for stdio) registers ~409 action-level tools instead.
     vi.unstubAllEnvs();
+    vi.stubEnv('SERVAL_TOOL_MODE', 'bundled');
     // Federation requires MCP_FEDERATION_SERVERS to be visible
     vi.stubEnv('MCP_FEDERATION_SERVERS', 'test-server:http://localhost:9999');
     vi.resetModules();

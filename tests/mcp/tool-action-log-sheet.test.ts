@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Handlers } from '../../src/handlers/index.js';
 import { resetEnvForTest } from '../../src/config/env.js';
 import { registerServalSheetsTools } from '../../src/mcp/registration/tool-handlers.js';
@@ -118,6 +118,10 @@ function createGoogleClient(): GoogleApiClient {
 }
 
 describe('tool action log sheet wiring', () => {
+  beforeEach(() => {
+    vi.stubEnv('MCP_TRANSPORT', 'http');
+  });
+
   afterEach(() => {
     resetSessionContext();
     resetEnvForTest();

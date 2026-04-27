@@ -540,8 +540,7 @@ describe('Category 1: Core CRUD & Spreadsheet Lifecycle', () => {
       } as any);
 
       // Callback without real OAuth setup returns a structured error
-      expect(result.response.success).toBe(true);
-      expect(result.response.success).toBe(true);
+      expect(result.response.success).toBe(false);
     });
 
     it('should dispatch logout action and return a response', async () => {

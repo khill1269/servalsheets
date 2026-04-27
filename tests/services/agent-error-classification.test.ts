@@ -202,14 +202,17 @@ describe('B1: agent error classification', () => {
     expect(stored!.steps.length).toBe(originalStepCount);
   });
 
-  it('dry run completes successfully without calling handler', async () => {
+  it('dry run completes successfully calling handler with dryRun:true', async () => {
     const plan = makePlan('read data from spreadsheet');
 
-    const handler = vi.fn().mockRejectedValue(new Error('Should not be called'));
+    const handler = vi.fn().mockResolvedValue({ success: true });
     const result = await executePlan(plan.planId, true, handler as ExecuteHandlerFn);
 
     expect(result.status).toBe('completed');
-    expect(handler).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalled();
+    for (const call of handler.mock.calls) {
+      expect(call[2]).toMatchObject({ safety: { dryRun: true } });
+    }
   });
 
   it('executePlan handles second step error after first step succeeds', async () => {

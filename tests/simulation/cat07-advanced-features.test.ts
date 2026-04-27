@@ -31,6 +31,15 @@ const createMockSheetsApi = () => ({
       },
     }),
     batchUpdate: vi.fn().mockResolvedValue({ data: { replies: [{}] } }),
+    developerMetadata: {
+      get: vi.fn().mockResolvedValue({ data: {} }),
+      search: vi.fn().mockResolvedValue({
+        data: { matchedDeveloperMetadata: [] },
+      }),
+    },
+    values: {
+      get: vi.fn().mockResolvedValue({ data: { values: [['Column A', 'Column B', 'Column C']] } }),
+    },
   },
 });
 
@@ -118,6 +127,7 @@ describe('Category 7: Advanced Features', () => {
         action: 'delete_named_range',
         spreadsheetId: 'test-sheet-id',
         namedRangeId: 'nr-1',
+        safety: { confirmed: true },
       },
     });
     expect(result.response.success).toBe(true);
@@ -133,6 +143,7 @@ describe('Category 7: Advanced Features', () => {
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:B5' },
         warningOnly: true,
+        safety: { dryRun: true },
       },
     });
     expect(result.response.success).toBe(true);
@@ -180,6 +191,11 @@ describe('Category 7: Advanced Features', () => {
         action: 'add_banding',
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:C10' },
+        rowProperties: {
+          headerColor: { red: 0.2, green: 0.4, blue: 0.8 },
+          firstBandColor: { red: 1, green: 1, blue: 1 },
+          secondBandColor: { red: 0.9, green: 0.9, blue: 0.9 },
+        },
       },
     });
     expect(result.response.success).toBe(true);
@@ -202,6 +218,7 @@ describe('Category 7: Advanced Features', () => {
         spreadsheetId: 'test-sheet-id',
         range: { a1: 'Sheet1!A1:C10' },
         tableProperties: { displayName: 'SalesData' },
+        hasHeaders: false,
       },
     });
     expect(result.response.success).toBe(true);
@@ -246,12 +263,16 @@ describe('Category 7: Advanced Features', () => {
 
   it('7.16 list_chips dispatches', async () => {
     const result = await handler.handle({
-      request: { action: 'list_chips', spreadsheetId: 'test-sheet-id' },
+      request: {
+        action: 'list_chips',
+        spreadsheetId: 'test-sheet-id',
+        range: { a1: 'Sheet1!A1:Z100' },
+      },
     });
     expect(result.response.success).toBe(true);
   });
 
-  it('7.17 create_named_function dispatches', async () => {
+  it('7.17 create_named_function returns unavailable (API not supported)', async () => {
     const result = await handler.handle({
       request: {
         action: 'create_named_function',
@@ -260,17 +281,19 @@ describe('Category 7: Advanced Features', () => {
         functionBody: '=revenue - cost',
       },
     });
-    expect(result.response.success).toBe(true);
+    // Named function management is permanently unsupported via Google Sheets API v4
+    expect(result.response.success).toBe(false);
   });
 
-  it('7.18 list_named_functions dispatches', async () => {
+  it('7.18 list_named_functions returns unavailable (API not supported)', async () => {
     const result = await handler.handle({
       request: { action: 'list_named_functions', spreadsheetId: 'test-sheet-id' },
     });
-    expect(result.response.success).toBe(true);
+    // Named function management is permanently unsupported via Google Sheets API v4
+    expect(result.response.success).toBe(false);
   });
 
-  it('7.19 delete_named_function dispatches', async () => {
+  it('7.19 delete_named_function returns unavailable (API not supported)', async () => {
     const result = await handler.handle({
       request: {
         action: 'delete_named_function',
@@ -278,17 +301,19 @@ describe('Category 7: Advanced Features', () => {
         functionName: 'CALCULATE_PROFIT',
       },
     });
-    expect(result.response.success).toBe(true);
+    // Named function management is permanently unsupported via Google Sheets API v4
+    expect(result.response.success).toBe(false);
   });
 
-  it('7.20 create_template dispatches', async () => {
+  it('7.20 create_template returns invalid (action not supported)', async () => {
     const result = await handler.handle({
       request: {
-        action: 'create_template',
+        action: 'create_template' as any,
         spreadsheetId: 'test-sheet-id',
         name: 'Budget Template',
       },
     });
-    expect(result.response.success).toBe(true);
+    // create_template is not a valid sheets_advanced action
+    expect(result.response.success).toBe(false);
   });
 });

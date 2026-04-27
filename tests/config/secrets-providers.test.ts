@@ -80,20 +80,20 @@ describe('VaultSecretsProvider', () => {
     expect(await provider.getSecret('MISSING')).toBeUndefined();
   });
 
-  it('returns undefined on server error', async () => {
+  it('throws ConfigError on server error', async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response('internal error', { status: 500, statusText: 'Internal Server Error' })
     );
 
     const provider = new VaultSecretsProvider('https://vault.example.com', 'test-token');
-    expect(await provider.getSecret('KEY')).toBeUndefined();
+    await expect(provider.getSecret('KEY')).rejects.toThrow();
   });
 
-  it('returns undefined on network error', async () => {
+  it('throws ConfigError on network error', async () => {
     fetchSpy.mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
     const provider = new VaultSecretsProvider('https://vault.example.com', 'test-token');
-    expect(await provider.getSecret('KEY')).toBeUndefined();
+    await expect(provider.getSecret('KEY')).rejects.toThrow();
   });
 
   it('caches secrets and serves from cache on repeat calls', async () => {

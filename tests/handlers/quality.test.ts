@@ -96,7 +96,6 @@ describe('QualityHandler', () => {
       });
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'validate');
       expect(result.response).toHaveProperty('valid', true);
@@ -241,7 +240,6 @@ describe('QualityHandler', () => {
       });
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'detect_conflicts');
       expect((result.response as any).conflicts).toBeDefined();
@@ -263,7 +261,6 @@ describe('QualityHandler', () => {
       });
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'resolve_conflict');
       expect(result.response).toHaveProperty('resolved', true);
@@ -302,7 +299,6 @@ describe('QualityHandler', () => {
       });
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action', 'analyze_impact');
       expect((result.response as any).impact).toBeDefined();

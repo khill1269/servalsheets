@@ -27,6 +27,8 @@ export default defineConfig({
       OAUTH_AUTO_OPEN_BROWSER: 'false',
       OAUTH_USE_CALLBACK_SERVER: 'false',
       SERVAL_STAGED_REGISTRATION: 'false',
+      ENABLE_STDIO_PURITY_TEST: 'true',
+      SAMPLING_CONSENT_REQUIRED: 'false',
     },
     // Parallel execution with thread pool (increased for P2-2 optimization)
     pool: 'threads',

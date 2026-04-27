@@ -64,6 +64,10 @@ describe('tool registration helpers', () => {
   });
 
   it('builds a pre-auth handler map that serves session actions locally', async () => {
+    // preview_generation uses sampling internally; disable consent requirement so
+    // this test (which only verifies handler registration) doesn't need a checker.
+    vi.stubEnv('SAMPLING_CONSENT_REQUIRED', 'false');
+    resetEnvForTest(); // clear cached env so the stub above takes effect
     const { server } = createMockServer();
     const authHandler = {
       handle: vi.fn().mockResolvedValue({ response: { success: true, action: 'status' } }),

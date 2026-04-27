@@ -534,9 +534,6 @@ describe('AnalyzeHandler', () => {
         console.log('Response summary:', result.response.summary);
       }
 
-      // Handler may use fast path, which doesn't call values.get the same way
-      // Just verify the test ran successfully
-      expect(typeof result.response.success).toBe('boolean');
     });
 
     it('should use default range when not specified', async () => {
@@ -578,9 +575,6 @@ describe('AnalyzeHandler', () => {
 
       expect(result.response.success).toBe(true);
 
-      // Handler may use fast path which doesn't call values.get the same way
-      // Just verify the test ran successfully
-      expect(typeof result.response.success).toBe('boolean');
     });
   });
 

@@ -275,8 +275,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // May succeed or fail depending on builtin templates available
+      // Builtin templates directory not present in tests → returns NOT_FOUND
+      expect(result.response.success).toBe(false);
     });
 
     it('should verify template structure', async () => {
@@ -454,8 +454,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // May succeed or fail depending on builtin templates
+      // Builtin templates directory not present in tests → returns NOT_FOUND
+      expect(result.response.success).toBe(false);
     });
 
     it('should handle template not found', async () => {
@@ -483,7 +483,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // template-1 found via mock, spreadsheets.create succeeds
+      expect(result.response.success).toBe(true);
     });
 
     it('should handle minimal API response', async () => {
@@ -595,7 +596,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // template-1 found via mock, files.update succeeds
+      expect(result.response.success).toBe(true);
       expect(mockDriveApi.files.update).toHaveBeenCalled();
     });
 
@@ -622,7 +624,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // template-1 found via mock, files.update succeeds
+      expect(result.response.success).toBe(true);
     });
 
     it('should update template category', async () => {
@@ -634,7 +637,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // template-1 found via mock, files.update succeeds
+      expect(result.response.success).toBe(true);
     });
 
     it('should handle template not found', async () => {
@@ -677,7 +681,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // template-1 found via mock, files.delete succeeds
+      expect(result.response.success).toBe(true);
       expect(mockDriveApi.files.delete).toHaveBeenCalledWith(
         expect.objectContaining({ fileId: 'template-1' })
       );
@@ -734,10 +739,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      if (result.response.success && 'preview' in result.response) {
-        expect(result.response.preview).toBeDefined();
-      }
+      // template-1 found via mock
+      expect(result.response.success).toBe(true);
       expect(mockDriveApi.files.get).toHaveBeenCalled();
     });
 
@@ -749,8 +752,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // May succeed or fail depending on builtin templates
+      // Builtin templates directory not present in tests → NOT_FOUND
+      expect(result.response.success).toBe(false);
     });
 
     it('should handle template not found', async () => {
@@ -791,8 +794,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // May succeed or fail depending on builtin templates
+      // Builtin templates directory not present in tests → NOT_FOUND
+      expect(result.response.success).toBe(false);
     });
 
     it('should allow custom name', async () => {
@@ -804,7 +807,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // Builtin templates directory not present in tests → NOT_FOUND
+      expect(result.response.success).toBe(false);
     });
 
     it('should handle builtin template not found', async () => {
@@ -815,8 +819,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      // May return error if template doesn't exist
-      expect(typeof result.response.success).toBe('boolean');
+      // Builtin template does not exist → NOT_FOUND
+      expect(result.response.success).toBe(false);
     });
 
     it('should verify created template', async () => {
@@ -828,7 +832,8 @@ describe('SheetsTemplatesHandler', () => {
         },
       } as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // Builtin templates directory not present in tests → NOT_FOUND
+      expect(result.response.success).toBe(false);
       if (result.response.success && 'template' in result.response) {
         // Verify template was created in Drive
         expect(mockDriveApi.files.create).toHaveBeenCalled();

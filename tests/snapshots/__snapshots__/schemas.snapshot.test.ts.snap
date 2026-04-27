@@ -1441,6 +1441,7 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
             },
             "fileContent": {
               "description": "Base64-encoded XLSX file content",
+              "maxLength": 13981013,
               "type": "string"
             },
             "safety": {
@@ -5468,6 +5469,7 @@ exports[`Schema Snapshots > Input Schemas > ImportXlsxInputSchema should match s
     },
     "fileContent": {
       "description": "Base64-encoded XLSX file content",
+      "maxLength": 13981013,
       "type": "string"
     },
     "safety": {
@@ -61628,6 +61630,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
                         "properties": {
                           "flags": {
                             "description": "Optional RegExp flags, e.g. \\"i\\"",
+                            "pattern": "^[gimsuy]{0,6}$",
                             "type": "string"
                           },
                           "id": {
@@ -61646,6 +61649,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
                           },
                           "pattern": {
                             "description": "Regular expression pattern without surrounding slashes",
+                            "maxLength": 200,
                             "minLength": 1,
                             "type": "string"
                           },
@@ -70653,6 +70657,7 @@ exports[`Schema Snapshots > Input Schemas > ValidationRuleInputSchema should mat
           "properties": {
             "flags": {
               "description": "Optional RegExp flags, e.g. \\"i\\"",
+              "pattern": "^[gimsuy]{0,6}$",
               "type": "string"
             },
             "id": {
@@ -70671,6 +70676,7 @@ exports[`Schema Snapshots > Input Schemas > ValidationRuleInputSchema should mat
             },
             "pattern": {
               "description": "Regular expression pattern without surrounding slashes",
+              "maxLength": 200,
               "minLength": 1,
               "type": "string"
             },
@@ -159272,6 +159278,9 @@ exports[`Schema Snapshots > Output Schemas > SheetsFederationOutputSchema should
             "success": {
               "const": true,
               "type": "boolean"
+            },
+            "taskId": {
+              "type": "string"
             },
             "tools": {
               "items": {

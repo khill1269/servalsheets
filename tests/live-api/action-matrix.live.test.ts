@@ -1080,7 +1080,7 @@ function parseMcpOutcome(result: CallToolResult): ParsedMcpOutcome {
       }
     | undefined;
 
-  if (typeof response?.['success'] === 'boolean') {
+  if (typeof response?.['success'] === 'boolean') { // check-tautology-ok — response shape guard, not a test assertion
     return {
       success: response['success'] as boolean,
       errorCode: error?.code,

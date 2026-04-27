@@ -181,10 +181,8 @@ describe('SessionHandler - sheetNames (BUG FIX 0.11.1)', () => {
         },
       });
 
-      // Empty spreadsheetId — either rejected (success: false) or stored as-is
-      // Either outcome is acceptable but must not throw
-      expect(typeof result.response.success).toBe('boolean');
-      expect(typeof result.response.success).toBe('boolean');
+      // Empty spreadsheetId — rejected because spreadsheetId is required
+      expect(result.response.success).toBe(false);
     });
   });
 

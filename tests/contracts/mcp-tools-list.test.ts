@@ -104,7 +104,10 @@ describe('MCP tools/list runtime ownership', () => {
     });
   });
 
-  it('paginates the flat tools/list surface with an opaque cursor', async () => {
+  it('returns all flat tools in a single page (no client-side pagination needed)', async () => {
+    // FLAT_TOOLS_PAGE_SIZE raised to 1000 so all ~409 tools fit in one response.
+    // MCP clients that don't follow nextCursor would miss page 2+ — the large page
+    // size fixes the tool-discovery gap reported by real LLM clients.
     vi.doMock('../../src/config/constants.js', async () => {
       const actual = await vi.importActual<typeof import('../../src/config/constants.js')>(
         '../../src/config/constants.js'
@@ -121,16 +124,16 @@ describe('MCP tools/list runtime ownership', () => {
     registerToolsListCompatibilityHandler(mock.server);
 
     const firstPage = await mock.getHandler()({ params: {} });
-    expect(firstPage.tools.length).toBeLessThanOrEqual(100);
+    // All ~410 flat tools + discover fit in one page — no nextCursor needed
+    expect(firstPage.tools.length).toBeGreaterThan(100);
     expect(firstPage.tools[0]['name']).toBe('sheets_discover');
-    expect(firstPage.nextCursor).toEqual(expect.any(String));
+    expect(firstPage.nextCursor).toBeUndefined();
 
-    const secondPage = await mock.getHandler()({ params: { cursor: firstPage.nextCursor } });
-    expect(secondPage.tools.length).toBeGreaterThan(0);
-    expect(secondPage.tools.every((tool) => tool['name'] !== 'sheets_discover')).toBe(true);
-
-    const firstPageNames = new Set(firstPage.tools.map((tool) => String(tool['name'])));
-    expect(secondPage.tools.some((tool) => firstPageNames.has(String(tool['name'])))).toBe(false);
+    // Cursor encoding still works for clients that explicitly request a page
+    const explicitPage = await mock.getHandler()({
+      params: { cursor: Buffer.from(JSON.stringify({ offset: 0 }), 'utf8').toString('base64url') },
+    });
+    expect(explicitPage.tools.length).toBe(firstPage.tools.length);
   });
 
   it('rejects invalid flat tools/list cursors as invalid params', async () => {

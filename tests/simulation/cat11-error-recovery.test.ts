@@ -988,9 +988,9 @@ describe('Category 11: Error Recovery & Self-Correction', () => {
         spreadsheetId: 'abc123',
       }) as SuggestedFix;
 
-      // Verify all required fields are present with correct types and values
-      expect(fix.tool).toBe('sheets_data');
-      expect(fix.action).toBe('read');
+      // SHEET_NOT_FOUND correctly redirects to list_sheets so the user can discover valid sheet names
+      expect(fix.tool).toBe('sheets_core');
+      expect(fix.action).toBe('list_sheets');
       expect(typeof fix.params).toBe('object');
       expect(fix.explanation.length).toBeGreaterThan(0);
     });

@@ -111,6 +111,9 @@ describe('Composite Handler', () => {
           }),
           clear: vi.fn().mockResolvedValue({ data: { clearedRange: 'Sheet1!A2:Z1000' } }),
           batchGet: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }),
+          batchUpdate: vi.fn().mockResolvedValue({
+            data: { spreadsheetId: 'test123', totalUpdatedRows: 1, totalUpdatedCells: 0, totalUpdatedColumns: 0, responses: [] },
+          }),
         },
         batchUpdate: vi.fn().mockResolvedValue({
           data: {
@@ -196,7 +199,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
+      expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('success');
     });
 
@@ -329,7 +332,6 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
     });
 
@@ -444,8 +446,7 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
-      // Response should have either success or error
+      expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('success');
     });
 
@@ -463,8 +464,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // Can be error or success response, but should be defined
+      expect(result.response.success).toBe(true);
       if (result.response && 'action' in result.response) {
         expect(result.response.action).toBe('bulk_update');
       }
@@ -501,8 +501,7 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // Response can be success or error, both are valid
+      expect(result.response.success).toBe(true);
       if ('action' in result.response) {
         expect(result.response.action).toBe('bulk_update');
       }
@@ -580,7 +579,6 @@ describe('Composite Handler', () => {
       const result = await handler.handle(input as any);
 
       expect(result).toBeDefined();
-      expect(typeof result.response.success).toBe('boolean');
       expect(result.response.success).toBe(true);
     });
 
@@ -799,8 +797,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      // Should have either error or incremental scope required
-      expect(typeof result.response.success).toBe('boolean');
+      // No Drive API → export fails
+      expect(result.response.success).toBe(false);
     });
   });
 
@@ -888,8 +886,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      // Should have proper response structure
-      expect(typeof result.response.success).toBe('boolean');
+      // No Drive API → import fails
+      expect(result.response.success).toBe(false);
     });
   });
 
@@ -1110,15 +1108,15 @@ describe('Composite Handler', () => {
       const input = {
         action: 'import_and_format' as const,
         spreadsheetId: 'test123',
-        sheet: 'DataSheet',
+        sheet: 'Sheet1',
         csvData: 'Name,Age,Email\nAlice,30,alice@test.com',
         hasHeader: true,
       };
 
       const result = await handler.handle(input as any);
 
-      expect(typeof result.response.success).toBe('boolean');
-      // Check for either success or error response
+      // Sheets API mocked → import_and_format succeeds
+      expect(result.response.success).toBe(true);
       if ('action' in result.response) {
         expect(result.response.action).toBe('import_and_format');
       }
@@ -1607,7 +1605,8 @@ describe('Composite Handler', () => {
       // Even if service fails, should return valid response
       const result = await handler.handle(input as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // import_csv with mocked Sheets API → succeeds
+      expect(result.response.success).toBe(true);
     });
 
     it('should handle unknown action gracefully', async () => {
@@ -1619,7 +1618,8 @@ describe('Composite Handler', () => {
       // Should handle error for unknown action
       const result = await handler.handle(input as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // Unknown action → INVALID_PARAMS error
+      expect(result.response.success).toBe(false);
     });
   });
 
@@ -1634,7 +1634,8 @@ describe('Composite Handler', () => {
 
       const result = await handler.handle(input as any);
 
-      expect(typeof result.response.success).toBe('boolean');
+      // smart_append with mocked Sheets API → succeeds
+      expect(result.response.success).toBe(true);
       expect(result.response).toHaveProperty('action');
     });
 
@@ -1725,10 +1726,8 @@ describe('Composite Handler', () => {
 
       for (const input of actions) {
         const result = await handler.handle(input as any);
-        expect(typeof result.response.success).toBe('boolean');
-        // Each action should have proper structure
-        if ('error' in result.response && result.response.error) {
-        }
+        // Each action should return a valid response object with a success discriminant
+        expect(result.response).toHaveProperty('success');
       }
     });
 
@@ -1758,7 +1757,8 @@ describe('Composite Handler', () => {
 
       for (const input of safetyInputs) {
         const result = await handler.handle(input as any);
-        expect(typeof result.response.success).toBe('boolean');
+        // Each action should return a valid response with a success discriminant
+        expect(result.response).toHaveProperty('success');
       }
     });
   });
