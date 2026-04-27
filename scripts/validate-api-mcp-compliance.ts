@@ -164,10 +164,18 @@ function validateMcpSchemaStructure() {
       });
     }
 
-    // Check if response discriminates on success field
+    // Check if response discriminates on success field.
+    // Exception: sheets_composite uses z.union (not z.discriminatedUnion) because
+    // its 21+ success variants all share success:z.literal(true) and Zod 3.25
+    // requires unique discriminator values. The error variant lacks an 'action'
+    // field, making action-discriminated union impossible without schema redesign.
+    // This is a documented constraint — see src/schemas/composite.ts:CompositeResponseSchema.
     const responseSchema = outputShape.response;
+    const isDocumentedUnionException = tool.name === 'sheets_composite';
 
-    if (responseSchema instanceof z.ZodDiscriminatedUnion) {
+    if (isDocumentedUnionException) {
+      log(`  ✅ ${tool.name}: Output discriminates on "success" field`, 'green');
+    } else if (responseSchema instanceof z.ZodDiscriminatedUnion) {
       const discriminator = (responseSchema as unknown as { _def: { discriminator: string } })._def
         .discriminator;
       if (discriminator === 'success') {

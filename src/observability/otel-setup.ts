@@ -20,11 +20,14 @@ let sdk: NodeSDK | null = null;
 
 /**
  * Initialize OpenTelemetry SDK.
- * Only runs if ENABLE_OTEL=true; otherwise no-op.
+ * Only runs if OTEL_ENABLED=true (set in env.ts Zod schema); otherwise no-op.
  */
 export async function initTelemetry(): Promise<void> {
-  if (process.env['ENABLE_OTEL'] !== 'true') {
-    logger.debug('OpenTelemetry disabled (ENABLE_OTEL not set)');
+  // Use the canonical env var name from src/config/env.ts:91 (OTEL_ENABLED).
+  // Previously read ENABLE_OTEL which did not match the Zod schema, causing
+  // OTel to silently never start even when OTEL_ENABLED=true was set.
+  if (process.env['OTEL_ENABLED'] !== 'true') {
+    logger.debug('OpenTelemetry disabled (OTEL_ENABLED not set)');
     return;
   }
 
@@ -60,15 +63,6 @@ export async function initTelemetry(): Promise<void> {
 
     await sdk.start();
     logger.info(`OpenTelemetry SDK initialized (service: ${serviceName})`);
-
-    process.on('SIGTERM', async () => {
-      try {
-        await sdk?.shutdown();
-        logger.info('OpenTelemetry SDK shut down');
-      } catch (err) {
-        logger.error('Error shutting down OpenTelemetry SDK', err);
-      }
-    });
   } catch (err) {
     logger.error('Failed to initialize OpenTelemetry SDK', err);
   }

@@ -23,6 +23,8 @@ import type {
 
 const BASE_URL = 'https://www.alphavantage.co/query';
 
+const CONNECTOR_REQUEST_TIMEOUT_MS = Number(process.env['CONNECTOR_REQUEST_TIMEOUT_MS'] ?? 10_000);
+
 export class AlphaVantageConnector implements SpreadsheetConnector {
   readonly id = 'alpha_vantage';
   readonly name = 'Alpha Vantage';
@@ -53,9 +55,12 @@ export class AlphaVantageConnector implements SpreadsheetConnector {
 
   async healthCheck(): Promise<HealthStatus> {
     const start = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
     try {
       const resp = await fetch(
-        `${BASE_URL}?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey=${this.apiKey}`
+        `${BASE_URL}?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey=${this.apiKey}`,
+        { signal: controller.signal }
       );
       return {
         healthy: resp.ok,
@@ -70,6 +75,8 @@ export class AlphaVantageConnector implements SpreadsheetConnector {
         message: err instanceof Error ? err.message : 'Connection failed',
         lastChecked: new Date().toISOString(),
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -298,36 +305,42 @@ export class AlphaVantageConnector implements SpreadsheetConnector {
       }
     }
 
-    const resp = await fetch(url.toString());
-    if (!resp.ok) {
-      throw new ServiceError(
-        `Alpha Vantage API error: HTTP ${resp.status}`,
-        'INTERNAL_ERROR',
-        'alpha-vantage',
-        true
-      );
-    }
-    const data = (await resp.json()) as Record<string, unknown>;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
+    try {
+      const resp = await fetch(url.toString(), { signal: controller.signal });
+      if (!resp.ok) {
+        throw new ServiceError(
+          `Alpha Vantage API error: HTTP ${resp.status}`,
+          'INTERNAL_ERROR',
+          'alpha-vantage',
+          true
+        );
+      }
+      const data = (await resp.json()) as Record<string, unknown>;
 
-    // Check for API error messages
-    if (data['Error Message']) {
-      throw new ServiceError(
-        `Alpha Vantage: ${data['Error Message']}`,
-        'INTERNAL_ERROR',
-        'alpha-vantage',
-        false
-      );
-    }
-    if (data['Note']) {
-      throw new ServiceError(
-        `Alpha Vantage rate limit: ${data['Note']}`,
-        'QUOTA_EXCEEDED',
-        'alpha-vantage',
-        true
-      );
-    }
+      // Check for API error messages
+      if (data['Error Message']) {
+        throw new ServiceError(
+          `Alpha Vantage: ${data['Error Message']}`,
+          'INTERNAL_ERROR',
+          'alpha-vantage',
+          false
+        );
+      }
+      if (data['Note']) {
+        throw new ServiceError(
+          `Alpha Vantage rate limit: ${data['Note']}`,
+          'QUOTA_EXCEEDED',
+          'alpha-vantage',
+          true
+        );
+      }
 
-    return this.formatResult(endpoint, data);
+      return this.formatResult(endpoint, data);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   getQuotaUsage(): QuotaStatus {

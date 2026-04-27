@@ -94,16 +94,16 @@ export class HealthService {
     const checks: HealthCheck[] = [];
     let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
 
-    // Check 1: Authentication (skip when no client configured — e.g. HTTP server without session)
-    if (this.googleClient) {
-      const authCheck = await this.checkAuth();
-      checks.push(authCheck);
-      if (authCheck.status === 'error') overallStatus = 'unhealthy';
-      else if (authCheck.status === 'degraded' && overallStatus === 'healthy') {
-        overallStatus = 'degraded';
-      }
+    // Check 1: Authentication
+    const authCheck = await this.checkAuth();
+    checks.push(authCheck);
+    if (authCheck.status === 'error') overallStatus = 'unhealthy';
+    else if (authCheck.status === 'degraded' && overallStatus === 'healthy') {
+      overallStatus = 'degraded';
+    }
 
-      // Check 2: Google API connectivity
+    // Check 2: Google API connectivity
+    if (this.googleClient) {
       const apiCheck = await this.checkGoogleApi();
       checks.push(apiCheck);
       if (apiCheck.status === 'error') overallStatus = 'unhealthy';
@@ -161,13 +161,21 @@ export class HealthService {
     const start = Date.now();
 
     if (!this.googleClient) {
+      const hasCredentials = !!(
+        process.env['GOOGLE_SERVICE_ACCOUNT_KEY'] ??
+        process.env['GOOGLE_APPLICATION_CREDENTIALS'] ??
+        process.env['GOOGLE_OAUTH_CLIENT_ID']
+      );
       return {
         name: 'auth',
         status: 'degraded',
-        message: 'No Google API client configured',
+        message: hasCredentials
+          ? 'Google client not initialized in HTTP mode — authenticate first'
+          : 'No Google credentials configured',
         latency: Date.now() - start,
         metadata: {
-          configured: false,
+          configured: hasCredentials,
+          credentialSource: hasCredentials ? 'env' : 'none',
         },
       };
     }

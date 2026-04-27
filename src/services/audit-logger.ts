@@ -394,12 +394,29 @@ export class AuditLogger {
       return ip;
     };
 
-    return {
+    const redacted: AuditEvent = {
       ...event,
       userId: redactEmail(event.userId),
       ipAddress: event.ipAddress ? anonymiseIp(event.ipAddress) : event.ipAddress,
       userAgent: event.userAgent ? '[REDACTED]' : event.userAgent,
     };
+
+    // Redact nested permission.email if present
+    if (
+      'permission' in redacted &&
+      redacted.permission !== null &&
+      typeof redacted.permission === 'object'
+    ) {
+      const perm = redacted.permission as Record<string, unknown>;
+      if (typeof perm['email'] === 'string') {
+        (redacted as Record<string, unknown>)['permission'] = {
+          ...perm,
+          email: redactEmail(perm['email']),
+        };
+      }
+    }
+
+    return redacted;
   }
 
   /**

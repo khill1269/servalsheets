@@ -61,6 +61,9 @@ export async function runPythonSafe(
   return new Promise<PythonRunResult>((resolve, reject) => {
     const worker = new Worker(workerPath, {
       workerData: { code, globals, timeoutMs },
+      resourceLimits: {
+        maxOldGenerationSizeMb: Number(process.env['PYTHON_WORKER_MAX_MEMORY_MB'] ?? 512),
+      },
     });
 
     const timer = setTimeout(() => {

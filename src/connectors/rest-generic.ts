@@ -9,6 +9,8 @@
  */
 
 import { logger } from '../utils/logger.js';
+
+const CONNECTOR_REQUEST_TIMEOUT_MS = Number(process.env['CONNECTOR_REQUEST_TIMEOUT_MS'] ?? 10_000);
 import { ConfigError, NotFoundError, ServiceError } from '../core/errors.js';
 import { validateWebhookUrl } from '../services/webhook-url-validation.js';
 import type {
@@ -151,9 +153,11 @@ export class GenericRestConnector implements SpreadsheetConnector {
 
       const url = new URL(`${this.config.baseUrl}${firstEndpoint.path}`);
       const headers = this.buildHeaders();
-      const resp = await fetch(url.toString(), { headers, method: 'HEAD' }).catch(() =>
-        fetch(url.toString(), { headers, method: 'GET' })
-      );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
+      const resp = await fetch(url.toString(), { headers, method: 'HEAD', signal: controller.signal })
+        .catch(() => fetch(url.toString(), { headers, method: 'GET', signal: controller.signal }))
+        .finally(() => clearTimeout(timeoutId));
 
       return {
         healthy: resp.ok || resp.status === 405, // HEAD not allowed is still healthy
@@ -226,18 +230,24 @@ export class GenericRestConnector implements SpreadsheetConnector {
       }
     }
 
-    const resp = await fetch(url, fetchOptions);
-    if (!resp.ok) {
-      throw new ServiceError(
-        `REST API error: HTTP ${resp.status} ${resp.statusText}`,
-        'INTERNAL_ERROR',
-        'rest-generic',
-        true
-      );
-    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
+    try {
+      const resp = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      if (!resp.ok) {
+        throw new ServiceError(
+          `REST API error: HTTP ${resp.status} ${resp.statusText}`,
+          'INTERNAL_ERROR',
+          'rest-generic',
+          true
+        );
+      }
 
-    const data = (await resp.json()) as unknown;
-    return this.formatResult(endpoint, epConfig, data);
+      const data = (await resp.json()) as unknown;
+      return this.formatResult(endpoint, epConfig, data);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   getQuotaUsage(): QuotaStatus {

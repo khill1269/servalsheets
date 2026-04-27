@@ -385,44 +385,33 @@ export async function handleBatchRead(
   let valueRanges: sheets_v4.Schema$ValueRange[];
 
   if (useParallel) {
-    const totalMerged = mergeResult.mergedRanges.length;
-    let completedMerged = 0;
-
-    const tasks = mergeResult.mergedRanges.map((merged, i) => ({
-      id: `batch-read-merged-${i}`,
-      fn: async () => {
-        const dedupKey = `values:get:${input.spreadsheetId}:${merged.mergedRange}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
-        const res = await ha.deduplicatedApiCall(dedupKey, () =>
-          ha.api.spreadsheets.values.get({
-            spreadsheetId: input.spreadsheetId,
-            range: merged.mergedRange,
-            valueRenderOption: input.valueRenderOption,
-            majorDimension: (input as DataRequest & { majorDimension?: string }).majorDimension,
-            dateTimeRenderOption:
-              ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
-              (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
-            fields: 'range,values',
-          })
-        );
-        completedMerged++;
-        void ha.sendProgress(
-          completedMerged,
-          totalMerged,
-          `batch_read: fetched ${completedMerged}/${totalMerged} range chunks`
-        );
-        return { mergedData: res.data, merged };
-      },
-      priority: 1,
-    }));
-
-    const results = await ha.context.parallelExecutor!.executeAllSuccessful(tasks);
+    // TASK #18: Use batchGet instead of N individual values.get calls.
+    // batchGet with N ranges costs 1 quota unit; N separate gets cost N quota units.
+    // The parallel executor is still used to manage progress reporting, but the
+    // actual API call is a single batchGet, matching the serial path below.
+    const mergedRangeStrings = mergeResult.mergedRanges.map((m) => m.mergedRange);
+    const dedupKey = `values:batchGet:${input.spreadsheetId}:${mergedRangeStrings.join(',')}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
+    const response = await ha.deduplicatedApiCall(dedupKey, () =>
+      ha.api.spreadsheets.values.batchGet({
+        spreadsheetId: input.spreadsheetId,
+        ranges: mergedRangeStrings,
+        valueRenderOption: input.valueRenderOption,
+        majorDimension: (input as DataRequest & { majorDimension?: string }).majorDimension,
+        dateTimeRenderOption:
+          ((input as Record<string, unknown>)['dateTimeRenderOption'] as string) ??
+          (input.valueRenderOption === 'UNFORMATTED_VALUE' ? 'SERIAL_NUMBER' : undefined),
+        fields: 'valueRanges(range,values)',
+      })
+    );
+    void ha.sendProgress(1, 1, `batch_read: fetched ${mergedRangeStrings.length} ranges via batchGet`);
+    const mergedResults = response.data.valueRanges ?? [];
 
     valueRanges = new Array(ranges.length);
-    for (const result of results) {
-      const { mergedData, merged } = result as {
-        mergedData: sheets_v4.Schema$ValueRange;
-        merged: { rangeInfo: unknown; originalIndices: number[] };
-      };
+    for (let i = 0; i < mergeResult.mergedRanges.length; i++) {
+      const merged = mergeResult.mergedRanges[i]!;
+      const mergedData = mergedResults[i];
+      if (!mergedData) continue;
+
       const mergedValues = (mergedData.values || []) as unknown[][];
 
       for (const originalIndex of merged.originalIndices) {

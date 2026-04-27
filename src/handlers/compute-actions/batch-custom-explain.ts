@@ -47,12 +47,15 @@ export async function handleCustomFunction(
       expr = expr.replace(/\bx\b/g, String(cellVal));
     }
 
-    // Replace $ColumnName and $A, $B etc. with actual values
+    // Replace $ColumnName and $A, $B etc. with actual values.
+    // headerName comes from spreadsheet content — escape metacharacters to
+    // prevent ReDoS from adversarial column names like "(a+)+".
+    const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     for (let i = 0; i < headers.length; i++) {
       const headerName = headers[i]!;
       const colLetter = String.fromCharCode(65 + i);
       const cellVal = row[i] ?? 0;
-      expr = expr.replace(new RegExp(`\\$${headerName}`, 'gi'), String(cellVal));
+      expr = expr.replace(new RegExp(`\\$${escapeRegExp(headerName)}`, 'gi'), String(cellVal));
       expr = expr.replace(new RegExp(`\\$${colLetter}\\b`, 'g'), String(cellVal));
     }
     try {

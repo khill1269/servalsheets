@@ -195,10 +195,19 @@ async function runPython(): Promise<void> {
       py.setStderr({ batched: suppressPyodideOutput });
     }
 
-    await py.loadPackage(['numpy', 'pandas', 'scipy', 'matplotlib'], {
-      messageCallback: suppressPyodideOutput,
-      errorCallback: suppressPyodideOutput,
+    // Only load heavy packages that are actually imported by user code.
+    // Unconditional loading causes OOM even when the user code doesn't use them.
+    const HEAVY_PACKAGES = ['numpy', 'pandas', 'scipy', 'matplotlib'];
+    const neededPackages = HEAVY_PACKAGES.filter((pkg) => {
+      // Match "import pkg", "from pkg import", "import pkg.sub"
+      return new RegExp(`(?:^|\\n)\\s*(?:import|from)\\s+${pkg}(?:\\s|\\.|,|$)`, 'm').test(req.code);
     });
+    if (neededPackages.length > 0) {
+      await py.loadPackage(neededPackages, {
+        messageCallback: suppressPyodideOutput,
+        errorCallback: suppressPyodideOutput,
+      });
+    }
 
     // Inject caller globals into the Python namespace
     for (const [k, v] of Object.entries(req.globals)) {

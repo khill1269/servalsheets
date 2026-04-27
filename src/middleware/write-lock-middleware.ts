@@ -183,24 +183,28 @@ export function isMutationAction(action: string): boolean {
 
 /**
  * Extract action and spreadsheetId from normalized tool args.
- * Args are expected in { request: { action, spreadsheetId, ... } } format
- * after normalizeToolArgs() processing.
+ * Supports both envelope format { request: { action, spreadsheetId, ... } }
+ * and flat format { action, spreadsheetId, ... } to prevent write-lock bypass
+ * when args arrive without a request envelope.
  */
 export function extractWriteLockParams(normalizedArgs: Record<string, unknown>): {
   action?: string;
   spreadsheetIds: string[];
 } {
-  const request = normalizedArgs['request'];
-  if (!request || typeof request !== 'object') {
-    return { spreadsheetIds: [] };
-  }
-  const req = request as Record<string, unknown>;
+  const req = normalizedArgs['request'] as Record<string, unknown> | undefined;
   const ids = new Set<string>();
-  collectSpreadsheetIds(req, ids);
-  return {
-    action: typeof req['action'] === 'string' ? req['action'] : undefined,
-    spreadsheetIds: [...ids],
-  };
+
+  if (req && typeof req === 'object') {
+    collectSpreadsheetIds(req, ids);
+  }
+
+  // Also check flat format (args without request envelope)
+  if (ids.size === 0) {
+    collectSpreadsheetIds(normalizedArgs, ids);
+  }
+
+  const action = (req?.['action'] ?? normalizedArgs['action']) as string | undefined;
+  return { action: typeof action === 'string' ? action : undefined, spreadsheetIds: [...ids] };
 }
 
 async function withMultipleWriteLocks<T>(

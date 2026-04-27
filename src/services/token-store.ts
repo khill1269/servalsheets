@@ -18,6 +18,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { sanitizeTokenStorePath } from '../utils/auth-paths.js';
 import { ConfigError, DataError } from '../core/errors.js';
 
 export interface StoredTokens {
@@ -59,7 +60,7 @@ export class EncryptedFileTokenStore implements TokenStore {
         }
       );
     }
-    this.filePath = filePath;
+    this.filePath = sanitizeTokenStorePath(filePath);
     this.key = Buffer.from(secretKeyHex, 'hex');
   }
 

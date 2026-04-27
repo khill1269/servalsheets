@@ -225,9 +225,12 @@ export const EnvSchema = z
     ENABLE_SAMPLING: StrictBooleanSchema.default(true),
 
     // Sampling Consent (GDPR gate)
-    // When true, assertSamplingConsent() requires explicit opt-in before any LLM sampling call.
-    // Set to false only in trusted internal deployments where consent is handled upstream.
-    SAMPLING_CONSENT_REQUIRED: StrictBooleanSchema.default(false),
+    // When true (default), assertSamplingConsent() requires explicit opt-in before any
+    // LLM sampling call. Spreadsheet cell data is sent to the MCP client's LLM during
+    // sampling — users must consent to this under GDPR Arts. 13, 22, 28.
+    // Set SAMPLING_CONSENT_REQUIRED=false only in trusted internal single-tenant deployments
+    // where consent is handled upstream or where no EU user data is processed.
+    SAMPLING_CONSENT_REQUIRED: StrictBooleanSchema.default(true),
     // TTL for sampling consent cache (milliseconds). Default: 5 minutes.
     SAMPLING_CONSENT_CACHE_TTL_MS: z.coerce.number().int().min(1000).default(300000),
 
@@ -467,8 +470,19 @@ export function getDistributedCacheConfig(): { enabled: boolean } {
   return { enabled: false };
 }
 
-export function getBackgroundAnalysisConfig(): { enabled: boolean; intervalMs: number } {
-  return { enabled: true, intervalMs: 60000 };
+export function getBackgroundAnalysisConfig(): {
+  enabled: boolean;
+  intervalMs: number;
+  minCells: number;
+  debounceMs: number;
+} {
+  const env = getEnv();
+  return {
+    enabled: true,
+    intervalMs: 60000,
+    minCells: Number(env['BACKGROUND_ANALYSIS_MIN_CELLS'] ?? 50),
+    debounceMs: Number(env['BACKGROUND_ANALYSIS_DEBOUNCE_MS'] ?? 2000),
+  };
 }
 
 export function getFederationConfig(): { enabled: boolean } {

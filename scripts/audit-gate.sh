@@ -41,7 +41,7 @@ fi
 
 PASS_COUNT=0
 FAIL_COUNT=0
-TOTAL_GATES=12
+TOTAL_GATES=15
 START_TIME=$SECONDS
 
 gate_pass() {
@@ -127,6 +127,23 @@ run_gate "A13: MCP feature coverage" "npm run check:mcp-features"
 
 # A14: Live test structural coverage (verifies all tools have live test files)
 run_gate "A14: Live test coverage guard" "npx vitest run tests/audit/live-action-coverage.test.ts"
+
+# A15 runs Stryker mutation testing (~10-20 min). Gate intentionally last.
+run_gate "A15: Mutation score >= 60% (critical paths)" "npm run mutation:critical"
+
+# Optional checks (exit 0 on failure — report only, do not block gate)
+echo ""
+echo "Optional checks (non-blocking):"
+if npm run check:layers > /dev/null 2>&1; then
+  echo -e "  ${GREEN}✓${NC} check:layers (architecture layer enforcement)"
+else
+  echo -e "  ${YELLOW}!${NC} check:layers reported violations (non-blocking)"
+fi
+if npm run check:knip > /dev/null 2>&1; then
+  echo -e "  ${GREEN}✓${NC} check:knip (dead code scan)"
+else
+  echo -e "  ${YELLOW}!${NC} check:knip reported unused exports/files (non-blocking)"
+fi
 
 # Summary
 TOTAL_DURATION=$((SECONDS - START_TIME))

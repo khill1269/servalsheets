@@ -1015,7 +1015,9 @@ export abstract class BaseHandler<TInput, TOutput> {
           : undefined;
 
     let stackSlice: string | undefined;
-    if (typeof errRecord['stack'] === 'string') {
+    // Only expose stack frames in non-production to avoid leaking internal
+    // file paths and call topology to MCP clients. OWASP WSTG-ERRH-01.
+    if (process.env['NODE_ENV'] !== 'production' && typeof errRecord['stack'] === 'string') {
       // Strip absolute path prefixes and keep only the top 3 frames.
       const frames = (errRecord['stack'] as string)
         .split('\n')

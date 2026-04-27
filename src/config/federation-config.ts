@@ -10,6 +10,7 @@
 
 import { z } from '../lib/schema.js';
 import { ValidationError } from '../core/errors.js';
+import { logger } from '../utils/logger.js';
 
 /** RFC 1918 / loopback / link-local ranges blocked to prevent SSRF */
 const BLOCKED_HOST_PATTERNS = [
@@ -128,7 +129,9 @@ export function parseFederationServers(jsonString: string | undefined): Federati
     }
     return validated;
   } catch (error) {
-    console.error('Failed to parse MCP_FEDERATION_SERVERS:', error);
+    logger.error('Failed to parse MCP_FEDERATION_SERVERS — federation disabled', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }

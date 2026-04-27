@@ -223,21 +223,21 @@ export function createTaskAwareSamplingServer(baseServer: SamplingServer): Sampl
  */
 const DEFAULT_MODEL_HINTS: Record<string, { hints: Array<{ name: string }>; temperature: number }> =
   {
-    formulaGeneration: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.1 },
-    dataAnalysis: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.5 },
-    chartRecommendation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
-    formulaExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.2 },
-    dataIssues: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
-    scenarioNarrative: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.4 },
-    cleaningStrategy: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.3 },
-    structureDesign: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.5 },
-    queryInterpretation: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.2 },
-    anomalyExplanation: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
-    templateSuggestion: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.4 },
-    pipelineDesign: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.3 },
-    diffNarrative: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
-    connectorDiscovery: { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 },
-    agentPlanning: { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.2 },
+    formulaGeneration: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.1 },
+    dataAnalysis: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.5 },
+    chartRecommendation: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.3 },
+    formulaExplanation: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.2 },
+    dataIssues: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.3 },
+    scenarioNarrative: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.4 },
+    cleaningStrategy: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.3 },
+    structureDesign: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.5 },
+    queryInterpretation: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.2 },
+    anomalyExplanation: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.3 },
+    templateSuggestion: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.4 },
+    pipelineDesign: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.3 },
+    diffNarrative: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.3 },
+    connectorDiscovery: { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.3 },
+    agentPlanning: { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.2 },
   };
 
 /**
@@ -257,14 +257,14 @@ export function getModelHint(
   const knownHint = DEFAULT_MODEL_HINTS[operationType];
   if (knownHint) {
     if (dataSize && dataSize > 1000 && knownHint.hints[0]?.name.includes('haiku')) {
-      return { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: knownHint.temperature };
+      return { hints: [{ name: 'claude-sonnet-4-6' }], temperature: knownHint.temperature };
     }
     return knownHint;
   }
   if (dataSize && dataSize > 1000) {
-    return { hints: [{ name: 'claude-sonnet-4-latest' }], temperature: 0.4 };
+    return { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.4 };
   }
-  return { hints: [{ name: 'claude-3-5-haiku-latest' }], temperature: 0.3 };
+  return { hints: [{ name: 'claude-haiku-4-5-20251001' }], temperature: 0.3 };
 }
 
 // ============================================================================

@@ -1,5 +1,6 @@
 export interface HttpServerLifecycleLogger {
   info(message: string, meta?: unknown): void;
+  warn(message: string, meta?: unknown): void;
   error(message: string, meta?: unknown): void;
 }
 
@@ -48,6 +49,9 @@ const defaultLogger: HttpServerLifecycleLogger = {
   info(message: string, meta?: unknown) {
     console.info(message, meta);
   },
+  warn(message: string, meta?: unknown) {
+    console.warn(message, meta);
+  },
   error(message: string, meta?: unknown) {
     console.error(message, meta);
   },
@@ -82,6 +86,11 @@ export function createHttpServerLifecycle<TMetricsExporter = unknown, TMetricsSe
           resolve();
         }
       });
+      // Terminate keep-alive connections so httpServer.close() resolves promptly.
+      // closeAllConnections() was added in Node.js 18.2.0; guard for older runtimes.
+      if (typeof (httpServer as any).closeAllConnections === 'function') {
+        (httpServer as any).closeAllConnections();
+      }
     });
   };
 
@@ -130,9 +139,16 @@ export function createHttpServerLifecycle<TMetricsExporter = unknown, TMetricsSe
       await options.initTelemetry();
       await options.ensureToolIntegrityVerified.run();
       await options.initializeRbac();
-      void options.rateLimiterReady.catch((error) => {
-        log.error('HTTP rate limiter bootstrap failed after server start', { error });
-      });
+      try {
+        await Promise.race([
+          options.rateLimiterReady,
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 5000)
+          ),
+        ]);
+      } catch {
+        log.warn('Rate limiter not ready within 5s — proceeding with IP-only limiting');
+      }
 
       await new Promise<void>((resolve, reject) => {
         httpServer = options.app.listen(options.port, options.host);

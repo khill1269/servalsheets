@@ -251,10 +251,7 @@ export function registerHttpFoundationMiddleware<
     // crashing requests before route handlers run. Trust proxy is
     // configured correctly at the app level (trust proxy = 1).
     validate: false,
-    keyGenerator: (req: Request) => {
-      const ip = extractTrustedClientIp(req);
-      return `${ip}:${req.method}:${req.path}`;
-    },
+    keyGenerator: (req: Request) => extractTrustedClientIp(req),
     message: { error: 'Too many requests, please try again later' },
     handler: (_req: Request, res: Response) => {
       res.status(429).json({

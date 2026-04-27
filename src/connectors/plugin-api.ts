@@ -113,6 +113,17 @@ export class ConnectorPluginLoader {
       return this.loaded.get(packageName)!;
     }
 
+    // Validate package name format before dynamic import to prevent path traversal.
+    // Reject names containing '..' or bare '/' (relative paths could reach internal modules).
+    // Valid npm package names: scoped (@scope/name) or unscoped (name or name/subpath).
+    const validNpmName = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*(?:\/[a-z0-9-._~]+)*$/i;
+    if (!validNpmName.test(packageName) || packageName.includes('..')) {
+      throw new Error(
+        `ConnectorPluginLoader: invalid package name '${packageName}'. ` +
+          `Package names must be valid npm package names (no path traversal).`
+      );
+    }
+
     let mod: unknown;
     try {
       mod = await import(packageName);

@@ -42,13 +42,16 @@ export interface HttpServerRuntimeConfig {
   readonly eventStoreMaxEvents: number;
 }
 
-export const DEFAULT_HTTP_CORS_ORIGINS = [
+const REMOTE_CORS_ORIGINS = [
   'https://claude.ai',
   'https://claude.com',
   'https://platform.openai.com',
   'https://copilot.microsoft.com',
   'https://grok.x.ai',
   'https://gemini.google.com',
+] as const;
+
+const LOCALHOST_CORS_ORIGINS = [
   'http://localhost:6274',
   'http://localhost:3000',
   'http://localhost:8080',
@@ -56,6 +59,18 @@ export const DEFAULT_HTTP_CORS_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://127.0.0.1:8080',
 ] as const;
+
+/** Full default list (remote + localhost) — used in non-production environments */
+export const DEFAULT_HTTP_CORS_ORIGINS = [
+  ...REMOTE_CORS_ORIGINS,
+  ...LOCALHOST_CORS_ORIGINS,
+] as const;
+
+/** Production default: no localhost origins (require explicit CORS_ORIGINS config) */
+export const DEFAULT_PROD_HTTP_CORS_ORIGINS = [...REMOTE_CORS_ORIGINS] as const;
+
+/** Dev default: includes localhost origins for local MCP clients */
+export const DEFAULT_DEV_HTTP_CORS_ORIGINS = [...DEFAULT_HTTP_CORS_ORIGINS] as const;
 
 const defaultLogger: HttpRuntimeConfigLogger = {
   warn(message: string) {
@@ -72,6 +87,11 @@ export function resolveHttpServerRuntimeConfig(
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
 
+  const defaultOrigins =
+    process.env['NODE_ENV'] === 'production'
+      ? DEFAULT_PROD_HTTP_CORS_ORIGINS
+      : DEFAULT_DEV_HTTP_CORS_ORIGINS;
+
   const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
   if (legacySseEnabled) {
     log.warn(
@@ -87,7 +107,7 @@ export function resolveHttpServerRuntimeConfig(
     host: options.host ?? defaultHost,
     corsOrigins:
       options.corsOrigins ??
-      (configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [...DEFAULT_HTTP_CORS_ORIGINS]),
+      (configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [...defaultOrigins]),
     rateLimitWindowMs: options.rateLimitWindowMs ?? envConfig.RATE_LIMIT_WINDOW_MS,
     rateLimitMax: options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX,
     trustProxy: options.trustProxy ?? false,

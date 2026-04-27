@@ -391,7 +391,7 @@ export function getEffectiveToolMode(): 'flat' | 'bundled' {
   const entry = path.basename(process.argv[1] ?? '');
   const isHttp =
     process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
-  return isHttp ? 'bundled' : 'bundled';
+  return isHttp ? 'bundled' : 'flat';
 }
 export type ToolStage = 1 | 2 | 3;
 

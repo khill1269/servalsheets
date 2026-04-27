@@ -114,39 +114,70 @@ export class RedisSessionStore implements SessionStore {
     this.ttlSeconds = ttlSeconds;
   }
 
+  // node-redis v4 requires an explicit connect() before any commands.
+  // This lazy guard is called at the start of every public method so the
+  // synchronous createSessionStore() factory doesn't need to become async.
+  private async ensureConnected(): Promise<void> {
+    if (!this.client.isOpen) {
+      await this.client.connect();
+    }
+  }
+
+  // Non-blocking SCAN replacement for redis.keys() (O(1) amortized per iteration
+  // vs O(N) blocking). redis.keys() blocks the Redis event loop for the full
+  // duration — at 10k+ sessions this causes hundreds-of-ms stalls.
+  private async scanKeys(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    let cursor = 0;
+    do {
+      // node-redis v4 scan() expects RedisArgument (string | Buffer) for cursor.
+      const result = await this.client.scan(String(cursor), { MATCH: pattern, COUNT: 100 });
+      cursor = Number(result.cursor);
+      keys.push(...result.keys);
+    } while (cursor !== 0);
+    return keys;
+  }
+
   async set(key: string, value: SessionData, options?: { ttlMs?: number }): Promise<void> {
+    await this.ensureConnected();
     const ttlSecs = options?.ttlMs ? Math.ceil(options.ttlMs / 1000) : this.ttlSeconds;
     await this.client.setEx(`${this.prefix}${key}`, ttlSecs, JSON.stringify(value));
   }
 
   async get(key: string): Promise<SessionData | undefined> {
+    await this.ensureConnected();
     const value = await this.client.get(`${this.prefix}${key}`);
     return value ? JSON.parse(value) : undefined;
   }
 
   async delete(key: string): Promise<boolean> {
+    await this.ensureConnected();
     const result = await this.client.del(`${this.prefix}${key}`);
     return result > 0;
   }
 
   async has(key: string): Promise<boolean> {
+    await this.ensureConnected();
     return (await this.client.exists(`${this.prefix}${key}`)) > 0;
   }
 
   async keys(): Promise<string[]> {
-    const keys = await this.client.keys(`${this.prefix}*`);
+    await this.ensureConnected();
+    const keys = await this.scanKeys(`${this.prefix}*`);
     return keys.map((k) => k.replace(this.prefix, ''));
   }
 
   async clear(): Promise<void> {
-    const keys = await this.client.keys(`${this.prefix}*`);
+    await this.ensureConnected();
+    const keys = await this.scanKeys(`${this.prefix}*`);
     if (keys.length > 0) {
       await this.client.del(keys);
     }
   }
 
   async cleanup(): Promise<number> {
-    const keys = await this.client.keys(`${this.prefix}*`);
+    await this.ensureConnected();
+    const keys = await this.scanKeys(`${this.prefix}*`);
     if (keys.length > 0) {
       await this.client.del(keys);
     }
@@ -154,12 +185,14 @@ export class RedisSessionStore implements SessionStore {
   }
 
   async size(): Promise<number> {
-    const keys = await this.client.keys(`${this.prefix}*`);
+    await this.ensureConnected();
+    const keys = await this.scanKeys(`${this.prefix}*`);
     return keys.length;
   }
 
   async stats(): Promise<SessionStoreStats> {
-    const keys = await this.client.keys(`${this.prefix}*`);
+    await this.ensureConnected();
+    const keys = await this.scanKeys(`${this.prefix}*`);
     return {
       size: keys.length * 1024, // Estimate
       maxSize: -1, // Unlimited
@@ -174,6 +207,7 @@ export class RedisSessionStore implements SessionStore {
    * block on older servers (kept for defense in depth; client auto-detects).
    */
   async consume(key: string): Promise<SessionData | undefined> {
+    await this.ensureConnected();
     const fullKey = `${this.prefix}${key}`;
     try {
       // node-redis v4 exposes GETDEL directly when available.

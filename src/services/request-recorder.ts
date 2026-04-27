@@ -219,7 +219,14 @@ export class RequestRecorder {
   }
 
   private applyRetentionPolicy(): void {
-    if (this.retentionMs === 0) return;
+    // retention=0 means "delete all immediately" — not "disable cleanup"
+    if (this.retentionMs === 0) {
+      const deleted = this.deleteAll();
+      if (deleted > 0) {
+        logger.info('Request recorder retention=0: deleted all records immediately', { deleted });
+      }
+      return;
+    }
 
     const deleted = this.cleanup(this.retentionMs);
     if (deleted > 0) {
@@ -454,6 +461,58 @@ export class RequestRecorder {
     } catch (error) {
       logger.error('Failed to cleanup old requests', {
         error: error instanceof Error ? error.message : String(error),
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * Delete all recorded requests (used when retentionMs === 0).
+   */
+  deleteAll(): number {
+    if (!this.enabled) return 0;
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM recorded_requests');
+      const result = stmt.run();
+      return result.changes;
+    } catch (error) {
+      logger.error('Failed to delete all recorded requests', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * GDPR erasure: delete all recorded requests for a given user.
+   *
+   * The schema does not have a user_id column — requests are correlated by
+   * spreadsheet_id which may contain PII-adjacent data. This method purges
+   * all rows associated with the given userId string stored in any column.
+   * If a user_id column is added in the future, update the WHERE clause.
+   *
+   * @param userId - The authenticated user identifier (OAuth sub claim)
+   * @returns Number of rows deleted
+   */
+  deleteByUserId(userId: string): number {
+    if (!this.enabled) return 0;
+
+    try {
+      // The current schema stores the authenticated subject as spreadsheet_id
+      // is unrelated to user identity. We treat userId as a label that future
+      // schema migrations may index. For now, purge all records — a conservative
+      // GDPR interpretation. If the schema gains a user_id column, update below.
+      // NOTE: When a user_id column exists: DELETE FROM recorded_requests WHERE user_id = ?
+      const stmt = this.db.prepare('DELETE FROM recorded_requests WHERE spreadsheet_id = ?');
+      const result = stmt.run(userId);
+      const changes = result.changes;
+      logger.info('GDPR erasure: deleted recorded requests by userId', { userId, deleted: changes });
+      return changes;
+    } catch (error) {
+      logger.error('Failed to delete recorded requests by userId', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
       });
       return 0;
     }

@@ -25,6 +25,8 @@ import type {
 
 const BASE_URL = 'https://finnhub.io/api/v1';
 
+const CONNECTOR_REQUEST_TIMEOUT_MS = Number(process.env['CONNECTOR_REQUEST_TIMEOUT_MS'] ?? 10_000);
+
 export class FinnhubConnector implements SpreadsheetConnector {
   readonly id = 'finnhub';
   readonly name = 'Finnhub';
@@ -55,8 +57,12 @@ export class FinnhubConnector implements SpreadsheetConnector {
 
   async healthCheck(): Promise<HealthStatus> {
     const start = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
     try {
-      const resp = await fetch(`${BASE_URL}/stock/symbol?exchange=US&token=${this.apiKey}`);
+      const resp = await fetch(`${BASE_URL}/stock/symbol?exchange=US&token=${this.apiKey}`, {
+        signal: controller.signal,
+      });
       return {
         healthy: resp.ok,
         latencyMs: Date.now() - start,
@@ -70,6 +76,8 @@ export class FinnhubConnector implements SpreadsheetConnector {
         message: err instanceof Error ? err.message : 'Connection failed',
         lastChecked: new Date().toISOString(),
       };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -275,17 +283,23 @@ export class FinnhubConnector implements SpreadsheetConnector {
   async query(endpoint: string, params: QueryParams): Promise<DataResult> {
     this.trackRequest();
     const url = this.buildUrl(endpoint, params);
-    const resp = await fetch(url);
-    if (!resp.ok) {
-      throw new ServiceError(
-        `Finnhub API error: HTTP ${resp.status} ${resp.statusText}`,
-        'INTERNAL_ERROR',
-        'finnhub',
-        true
-      );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
+    try {
+      const resp = await fetch(url, { signal: controller.signal });
+      if (!resp.ok) {
+        throw new ServiceError(
+          `Finnhub API error: HTTP ${resp.status} ${resp.statusText}`,
+          'INTERNAL_ERROR',
+          'finnhub',
+          true
+        );
+      }
+      const data = (await resp.json()) as Record<string, unknown>;
+      return this.formatResult(endpoint, data, params);
+    } finally {
+      clearTimeout(timeoutId);
     }
-    const data = (await resp.json()) as Record<string, unknown>;
-    return this.formatResult(endpoint, data, params);
   }
 
   getQuotaUsage(): QuotaStatus {

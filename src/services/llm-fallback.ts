@@ -13,7 +13,7 @@
  * Configuration via environment variables:
  * - LLM_PROVIDER: 'anthropic' | 'openai' | 'google' (default: 'anthropic')
  * - LLM_API_KEY or ANTHROPIC_API_KEY or OPENAI_API_KEY or GOOGLE_API_KEY
- * - LLM_MODEL: Model name (default: claude-sonnet-4-20250514)
+ * - LLM_MODEL: Model name (default: claude-sonnet-4-6)
  *
  * @module services/llm-fallback
  */
@@ -83,7 +83,7 @@ export function getLLMFallbackConfig(): LLMFallbackConfig | null {
 
   // Default models per provider
   const defaultModels: Record<LLMProvider, string> = {
-    anthropic: 'claude-sonnet-4-20250514',
+    anthropic: 'claude-sonnet-4-6',
     openai: 'gpt-4o',
     google: 'gemini-2.0-flash',
   };

@@ -130,6 +130,10 @@ export class CacheInvalidationGraph {
     rules['sheets_data.cut_paste'] = { invalidates: ['values:*', 'metadata:*'] };
     rules['sheets_data.copy_paste'] = { invalidates: ['values:*', 'metadata:*'] };
 
+    // Cell note operations
+    rules['sheets_data.add_note'] = { invalidates: ['metadata:*'] };
+    rules['sheets_data.get_note'] = { invalidates: [] };
+
     // P4: Multi-Spreadsheet Federation (F2)
     rules['sheets_data.cross_read'] = { invalidates: [] }; // Read-only
     rules['sheets_data.cross_query'] = { invalidates: [] }; // Read-only
@@ -170,11 +174,24 @@ export class CacheInvalidationGraph {
     // Format suggestions (read-only)
     rules['sheets_format.suggest_format'] = { invalidates: [] }; // Read-only
 
+    // Actual action names used by the handler
+    rules['sheets_format.set_text_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.set_background'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.set_alignment'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.set_borders'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.clear_format'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.apply_preset'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.set_rich_text'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.sparkline_add'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_format.sparkline_clear'] = { invalidates: ['values:*', 'metadata:*'] };
+
     // Data validation
     rules['sheets_format.set_validation'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.clear_validation'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.get_validation'] = { invalidates: [] }; // Read-only
     rules['sheets_format.build_dependent_dropdown'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.set_data_validation'] = { invalidates: ['metadata:*'] };
+    rules['sheets_format.clear_data_validation'] = { invalidates: ['metadata:*'] };
 
     // ========================================================================
     // sheets_dimensions (28 actions)
@@ -236,6 +253,15 @@ export class CacheInvalidationGraph {
     rules['sheets_visualize.move_chart'] = { invalidates: ['metadata:*'] };
     rules['sheets_visualize.resize_chart'] = { invalidates: ['metadata:*'] };
 
+    // Actual action names used by the handler (chart_create, chart_update, etc.)
+    rules['sheets_visualize.chart_create'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.chart_update'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.chart_delete'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.chart_move'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.chart_resize'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.chart_list'] = { invalidates: [] };
+    rules['sheets_visualize.chart_get'] = { invalidates: [] };
+
     // Pivot table operations
     rules['sheets_visualize.create_pivot'] = { invalidates: ['metadata:*'] };
     rules['sheets_visualize.update_pivot'] = { invalidates: ['metadata:*'] };
@@ -243,6 +269,12 @@ export class CacheInvalidationGraph {
     rules['sheets_visualize.list_pivots'] = { invalidates: [] };
     rules['sheets_visualize.get_pivot'] = { invalidates: [] };
     rules['sheets_visualize.refresh_pivot'] = { invalidates: ['values:*'] }; // Refreshes computed values
+
+    // Actual action names used by the handler (pivot_create, pivot_update, etc.)
+    rules['sheets_visualize.pivot_create'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.pivot_update'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.pivot_delete'] = { invalidates: ['metadata:*'] };
+    rules['sheets_visualize.pivot_list'] = { invalidates: [] };
 
     // AI-powered suggestions (read-only)
     rules['sheets_visualize.suggest_chart'] = { invalidates: [] }; // Read-only
@@ -256,6 +288,26 @@ export class CacheInvalidationGraph {
     rules['sheets_dimensions.auto_fill'] = { invalidates: ['values:*'] };
     rules['sheets_dimensions.auto_resize'] = { invalidates: ['metadata:*'] };
     rules['sheets_dimensions.sort_range'] = { invalidates: ['values:*'] };
+
+    // Consolidated dimension actions (matching actual handler action names)
+    rules['sheets_dimensions.freeze'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.group'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.ungroup'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.hide'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.show'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.insert'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_dimensions.delete'] = { invalidates: ['values:*', 'metadata:*'], cascade: true };
+    rules['sheets_dimensions.move'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_dimensions.resize'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.trim_whitespace'] = { invalidates: ['values:*'] };
+    rules['sheets_dimensions.set_basic_filter'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.clear_basic_filter'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.create_filter_view'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.update_filter_view'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.delete_filter_view'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.delete_duplicates'] = { invalidates: ['values:*'] };
+    rules['sheets_dimensions.text_to_columns'] = { invalidates: ['values:*', 'metadata:*'] };
+    rules['sheets_dimensions.randomize_range'] = { invalidates: ['values:*'] };
 
     // ========================================================================
     // sheets_collaborate (35 actions)

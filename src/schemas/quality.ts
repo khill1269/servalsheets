@@ -106,8 +106,16 @@ const CustomPatternRuleSchema = z.object({
   type: z.literal('pattern'),
   id: z.string().min(1).optional().describe('Optional stable rule ID. Auto-generated if omitted'),
   name: z.string().min(1).optional().describe('Optional rule name'),
-  pattern: z.string().min(1).describe('Regular expression pattern without surrounding slashes'),
-  flags: z.string().optional().describe('Optional RegExp flags, e.g. "i"'),
+  pattern: z
+    .string()
+    .min(1)
+    .max(200, 'Pattern too long — max 200 characters to prevent ReDoS')
+    .describe('Regular expression pattern without surrounding slashes'),
+  flags: z
+    .string()
+    .regex(/^[gimsuy]{0,6}$/, 'flags must be a combination of g, i, m, s, u, y')
+    .optional()
+    .describe('Optional RegExp flags, e.g. "i"'),
   severity: ValidationSeveritySchema.optional().default('error'),
   message: z.string().optional().describe('Optional custom failure message'),
 });

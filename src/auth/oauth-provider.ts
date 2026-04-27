@@ -23,6 +23,7 @@ import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js'
 import { VERSION, SERVER_ICONS } from '../version.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 import { formatScopesForAuth, getConfiguredScopes } from '../config/oauth-scopes.js';
+import { getRequestRecorder } from '../services/request-recorder.js';
 
 // ============================================================================
 // SECURITY CONSTANTS
@@ -1383,6 +1384,13 @@ export class OAuthProvider {
           }
         }
         await this.sessionStore.delete(`google_tokens:${userIdToClear}`);
+
+        // GDPR erasure: purge recorded requests associated with this user
+        try {
+          getRequestRecorder().deleteByUserId(userIdToClear);
+        } catch {
+          // Non-fatal: recorder may be disabled or unavailable
+        }
       }
 
       // Try to revoke as refresh token

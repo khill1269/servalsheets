@@ -34,6 +34,9 @@ const config = {
     'src/utils/circuit-breaker.ts',
     'src/services/python-worker.ts',
     'src/services/duckdb-worker.ts',
+    // Cache invalidation rules — a mutation removing a rule would not be caught
+    // without this entry. Rule key format is toolName.actionName.
+    'src/services/cache-invalidation-graph.ts',
   ],
   ignorePatterns: [
     'dist',

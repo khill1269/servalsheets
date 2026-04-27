@@ -377,10 +377,10 @@ export function createServerCapabilities(): ServerCapabilities {
     // Clients can use logging/setLevel to adjust server verbosity
     logging: {},
 
-    // Completions support — prompt-argument autocompletion (MCP 2025-11-25)
-    // The SDK auto-registers a completion/complete handler for prompt arguments declared
-    // with completable(). Tool-argument completions (spreadsheetId, range, action) are
-    // built in src/mcp/completions.ts but not yet wired to the completion/complete handler.
+    // Completions support — MCP 2025-11-25
+    // Handled by registerToolCompletionHandler() in src/server/control-plane-registration.ts:93.
+    // Dispatches: action → completeAction(), spreadsheetId → completeSpreadsheetId(),
+    // range/ranges → completeRangeContextAware(). Uses custom ref/tool extension.
     completions: {},
 
     // Extensions framework (MCP 2025-11-25)

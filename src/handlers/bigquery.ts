@@ -385,6 +385,19 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
     for (let attempt = 0; ; attempt++) {
       if (Date.now() > deadlineMs) {
+        // Cancel orphaned job to prevent it consuming slot quota indefinitely
+        try {
+          const controller = new AbortController();
+          const cancelTimeout = setTimeout(() => controller.abort(), 3000);
+          await bigquery.jobs
+            .cancel({ projectId: params.projectId, jobId })
+            .finally(() => clearTimeout(cancelTimeout));
+        } catch (cancelErr) {
+          logger.warn('BigQuery job cancel failed — job may continue running', {
+            jobId,
+            error: cancelErr instanceof Error ? cancelErr.message : String(cancelErr),
+          });
+        }
         throw new ServiceError(
           `BigQuery query exceeded timeout of ${params.timeoutMs ?? 600000}ms. Job ID: ${jobId} - check BigQuery console for status.`,
           'DEADLINE_EXCEEDED',

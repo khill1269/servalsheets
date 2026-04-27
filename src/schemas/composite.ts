@@ -350,7 +350,10 @@ export const ExportXlsxOutputSchema = z.object({
 
 export const ImportXlsxInputSchema = z.object({
   action: z.literal('import_xlsx').describe('Import XLSX (Excel) file as new spreadsheet'),
-  fileContent: z.string().describe('Base64-encoded XLSX file content'),
+  fileContent: z
+    .string()
+    .max(13_981_013, 'XLSX file exceeds 10MB decoded limit (13.3MB base64)')
+    .describe('Base64-encoded XLSX file content'),
   title: z.string().max(255).optional().describe('Title for the new spreadsheet'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])

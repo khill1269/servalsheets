@@ -35,7 +35,10 @@ import { getToolSurfaceMetadata } from '../tool-surface-metadata.js';
 import { getOutputSchemaForTool, clearOutputSchemaCache } from './output-schema-registry.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
-const FLAT_TOOLS_PAGE_SIZE = 100;
+// Large enough to fit all current and near-future flat tools (409 actions + discover + headroom).
+// MCP clients that don't follow nextCursor would only see page 1; raising this limit ensures
+// the full tool surface is returned in a single response when no cursor is provided.
+const FLAT_TOOLS_PAGE_SIZE = 1000;
 const ACTIVE_TOOL_DEFINITION_MAP = new Map(
   ACTIVE_TOOL_DEFINITIONS.map((tool) => [tool.name, tool] as const)
 );
@@ -783,8 +786,26 @@ function buildFlatToolListEntries(
       return !allowedActions || allowedActions.has(flat.action);
     })
     .map((flat: FlatToolDefinition) => {
-      const actionKey = `${flat.parentTool}.${flat.action}`;
+      // Deferred tools: emit minimal schema to keep tools/list payload small.
+      // x-defer-loading tells the Anthropic API not to count them against the
+      // context window. The real schema is resolved at call time by the compound
+      // handler via flat-tool-routing.ts → the compound Zod discriminated union.
+      // Original target: ~1,500 tokens for the full flat surface (5 always-loaded
+      // + ~394 deferred with minimal entries). Full schemas on deferred tools
+      // ballooned this to 1.2MB — well over the 300KB STDIO wire budget.
+      if (flat.deferLoading) {
+        return {
+          name: flat.name,
+          title: flat.title,
+          description: flat.description,
+          inputSchema: { type: 'object' },
+          annotations: flat.annotations,
+          'x-defer-loading': true,
+        };
+      }
 
+      // Always-loaded tools: use hand-tuned schemas for the 15 bootstrap-critical
+      // actions, then fall back to Zod-derived schema for accurate required/optional.
       // Schema resolution order (BUG #3, BUG #6):
       //   1. Hand-tuned ALWAYS_LOADED_SCHEMAS overrides (bootstrap-critical tools)
       //   2. Per-action schema derived from the compound Zod discriminated union
@@ -792,6 +813,7 @@ function buildFlatToolListEntries(
       //      with the authoritative compound schema automatically
       //   3. Generic fallback {spreadsheetId, optional range, optional values}
       //      — only when derivation fails (unknown Zod structure, missing action)
+      const actionKey = `${flat.parentTool}.${flat.action}`;
       const detailedSchema = ALWAYS_LOADED_SCHEMAS[actionKey];
       let inputSchema: Record<string, unknown>;
 
@@ -845,8 +867,6 @@ function buildFlatToolListEntries(
         description: flat.description,
         inputSchema,
         annotations: flat.annotations,
-        // Signal to Anthropic API that this tool should be deferred
-        ...(flat.deferLoading ? { 'x-defer-loading': true } : {}),
       };
     });
 }
