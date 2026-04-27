@@ -221,17 +221,18 @@ describe('compileFromTemplate', () => {
 // ---------------------------------------------------------------------------
 
 describe('executePlan dryRun', () => {
-  it('calls executeHandler with dryRun:true flag', async () => {
+  it('validates steps via Zod schema without calling executeHandler', async () => {
     const plan = makePlan();
     const handler = vi.fn().mockResolvedValue({ success: true });
 
     const result = await executePlan(plan.planId, true, handler);
 
     expect(result.status).toBe('completed');
-    expect(handler).toHaveBeenCalled();
-    // Each call should include safety: { dryRun: true } as part of the params (third arg)
-    for (const call of handler.mock.calls) {
-      expect(call[2]).toMatchObject({ safety: { dryRun: true } });
+    // dryRun uses Zod schema validation — handler must NOT be called
+    expect(handler).not.toHaveBeenCalled();
+    // Each result should have dryRunPreview:true
+    for (const r of result.results) {
+      expect((r.result as Record<string, unknown>)?.['dryRunPreview']).toBe(true);
     }
   });
 

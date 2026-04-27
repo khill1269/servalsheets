@@ -202,16 +202,17 @@ describe('B1: agent error classification', () => {
     expect(stored!.steps.length).toBe(originalStepCount);
   });
 
-  it('dry run completes successfully calling handler with dryRun:true', async () => {
+  it('dry run completes successfully using Zod schema validation (handler not called)', async () => {
     const plan = makePlan('read data from spreadsheet');
 
     const handler = vi.fn().mockResolvedValue({ success: true });
     const result = await executePlan(plan.planId, true, handler as ExecuteHandlerFn);
 
     expect(result.status).toBe('completed');
-    expect(handler).toHaveBeenCalled();
-    for (const call of handler.mock.calls) {
-      expect(call[2]).toMatchObject({ safety: { dryRun: true } });
+    // dryRun uses Zod schema validation — handler must NOT be called
+    expect(handler).not.toHaveBeenCalled();
+    for (const r of result.results) {
+      expect((r.result as Record<string, unknown>)?.['dryRunPreview']).toBe(true);
     }
   });
 

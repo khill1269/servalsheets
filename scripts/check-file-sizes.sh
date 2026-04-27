@@ -60,8 +60,8 @@ get_budget_override() {
     "src/handlers/appsscript.ts")    echo 800 ;;
     # collaborate.ts: ~786 lines after decomposition (41 actions — high dispatch overhead)
     "src/handlers/collaborate.ts")   echo 850 ;;
-    # analyze.ts: 1196 lines, 23 actions
-    "src/handlers/analyze.ts")       echo 1350 ;;
+    # analyze.ts: 1484 lines, 26 actions (grew with response intelligence + sampling)
+    "src/handlers/analyze.ts")       echo 1600 ;;
     # auth.ts: ~235 lines after decomposition (5 actions delegated to auth-actions/)
     "src/handlers/auth.ts")          echo 350 ;;
     # composite.ts: ~407 lines after decomposition (21 actions delegated to composite-actions/)
