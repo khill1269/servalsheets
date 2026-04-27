@@ -603,6 +603,9 @@ jobs:
       - name: Build workspace packages
         run: npm run build -w packages/serval-core -w packages/mcp-client -w packages/mcp-http -w packages/mcp-runtime -w packages/mcp-stdio
 
+      - name: Build main project
+        run: npm run build
+
       - name: Generate metadata (produces manifest.json, server.json needed by coverage suite)
         run: npm run generate:metadata
 
