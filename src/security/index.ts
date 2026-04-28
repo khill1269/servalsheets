@@ -11,6 +11,7 @@ export {
   ScopeCategory,
   OPERATION_SCOPES,
   IncrementalScopeRequiredError,
+  InsufficientScopeError,
   ScopeValidator,
   createScopeValidator,
   requireScopes,

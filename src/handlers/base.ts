@@ -72,8 +72,8 @@ import { recordGoogleApiCall } from '../observability/metrics.js';
 import {
   ScopeValidator,
   IncrementalScopeRequiredError,
+  InsufficientScopeError,
   OPERATION_SCOPES,
-  ScopeCategory,
 } from '../security/incremental-scope.js';
 import {
   getFieldMask as getFieldMaskHelper,
@@ -195,29 +195,36 @@ export abstract class BaseHandler<TInput, TOutput> {
    * @throws {IncrementalScopeRequiredError} When scopes are insufficient
    */
   protected checkOperationScopes(operation: string): void {
-    // Skip validation if incremental consent is disabled or auth context missing
-    if (!getEnv()['INCREMENTAL_CONSENT_ENABLED'] || !this.context.auth) {
-      return;
-    }
+    // STDIO / unauthenticated path — no token present, no scope to check.
+    if (!this.context.auth) return;
 
-    const validator = new ScopeValidator({
-      scopes: this.context.auth.scopes,
-    });
+    // Only enforce for operations that have an explicit scope requirement.
+    // Unknown operations pass through to avoid breaking future actions
+    // before their scope config is wired in.
+    const opConfig = OPERATION_SCOPES[operation];
+    if (!opConfig) return;
 
-    if (!validator.hasRequiredScopes(operation)) {
-      const missingScopes = validator.getMissingScopes(operation);
+    const validator = new ScopeValidator({ scopes: this.context.auth.scopes });
+    if (validator.hasRequiredScopes(operation)) return;
 
-      // Get operation config for required scopes and category
-      const opConfig = OPERATION_SCOPES[operation];
-      const requiredScopes = opConfig?.required ?? missingScopes;
-      const category = opConfig?.category ?? ScopeCategory.SPREADSHEET;
+    const missingScopes = validator.getMissingScopes(operation);
 
+    // When incremental consent UI is available, return an auth URL so the
+    // client can prompt the user to re-authorize.  Otherwise reject cleanly —
+    // scope enforcement is unconditional regardless of the env var.
+    if (getEnv()['INCREMENTAL_CONSENT_ENABLED']) {
       throw new IncrementalScopeRequiredError({
         operation,
-        requiredScopes,
+        requiredScopes: opConfig.required,
         currentScopes: this.context.auth.scopes,
         authorizationUrl: '#', // URL generation happens in ScopeValidator
-        category,
+        category: opConfig.category,
+      });
+    } else {
+      throw new InsufficientScopeError({
+        operation,
+        missingScopes,
+        category: opConfig.category,
       });
     }
   }

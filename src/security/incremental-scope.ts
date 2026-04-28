@@ -109,6 +109,29 @@ export class IncrementalScopeRequiredError extends Error {
 }
 
 /**
+ * Error thrown when a valid token lacks required scopes and incremental consent
+ * UI is not available (INCREMENTAL_CONSENT_ENABLED=false). Unlike
+ * IncrementalScopeRequiredError, this does not carry an authorizationUrl.
+ */
+export class InsufficientScopeError extends Error {
+  public readonly code = 'INSUFFICIENT_PERMISSIONS';
+  public readonly operation: string;
+  public readonly missingScopes: string[];
+  public readonly category: ScopeCategory;
+
+  constructor(options: { operation: string; missingScopes: string[]; category: ScopeCategory }) {
+    super(
+      `Operation "${options.operation}" requires OAuth scopes not present in the current token: ` +
+        options.missingScopes.join(', ')
+    );
+    this.name = 'InsufficientScopeError';
+    this.operation = options.operation;
+    this.missingScopes = options.missingScopes;
+    this.category = options.category;
+  }
+}
+
+/**
  * Scope validator for checking operation permissions
  */
 export class ScopeValidator {
