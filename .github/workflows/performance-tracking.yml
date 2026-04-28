@@ -3,8 +3,16 @@ name: Performance Tracking
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'deployment/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'deployment/**'
   workflow_dispatch:
 
 permissions:
@@ -163,6 +171,14 @@ jobs:
                   comment += `- \`${reg.name}\`: +${reg.change.toFixed(1)}% slower\n`;
                 }
                 comment += '\n';
+                // Write flag file so the blocking step can fail CI
+                const fs2 = require('fs');
+                const path2 = require('path');
+                fs2.mkdirSync('.performance-history', { recursive: true });
+                fs2.writeFileSync(
+                  '.performance-history/regression-detected',
+                  `Regressions detected at ${new Date().toISOString()}: ${regressions.map(r => r.name).join(', ')}`
+                );
               }
 
               if (improvements.length > 0) {

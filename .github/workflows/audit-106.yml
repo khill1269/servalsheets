@@ -170,8 +170,9 @@ jobs:
           P0_COUNT=$(node -p "require('./${{ env.AUDIT_OUTPUT_DIR }}/results.json').issues.filter(i => i.priority === 'P0').length")
 
           if [ "$P0_COUNT" -gt 0 ]; then
-            echo "::warning::Found $P0_COUNT critical P0 issues"
-            echo "⚠️ $P0_COUNT critical issues require immediate attention"
+            echo "::error::Found $P0_COUNT critical P0 issues — blocking workflow"
+            echo "❌ $P0_COUNT critical P0 issues require immediate attention before merge"
+            exit 1
           else
             echo "✅ No critical P0 issues found"
           fi

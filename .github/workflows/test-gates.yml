@@ -3,8 +3,20 @@ name: Supplemental Test Gates
 on:
   push:
     branches: [main, develop, 'release/**']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'deployment/**'
+      - '*.example.*'
   pull_request:
     branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'deployment/**'
+      - '*.example.*'
   workflow_dispatch:
   merge_group:
 
