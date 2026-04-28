@@ -453,7 +453,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 [Metadata] set_metadata, get_metadata, delete_metadata — Custom app attributes (not visible to users)
 [Banding] add_banding, update_banding, delete_banding, list_banding — Alternating row colors
 [Tables] create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties — Structured ranges with filters (banding is a separate add_banding step)
-[Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips — Linked references. Note: For write operations, only Drive file links are supported via add_rich_link_chip. Reading back smart chips via list_chips can return YouTube, Calendar, and People chip types, but these cannot be created via the API.
+[Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips — Linked references. WRITABLE via API: person chips (add_person_chip), Drive file chips (add_drive_chip), and custom rich link chips (add_rich_link_chip). READ-ONLY via API: Finance, map, calendar, YouTube, and rating chips — these can be read via list_chips but must be created interactively in the Sheets UI.
 [Named Functions] create_named_function, update_named_function, delete_named_function, list_named_functions, get_named_function — Compatibility stubs; currently return FEATURE_UNAVAILABLE because the live Sheets API does not expose named functions reliably
 
 **⚠️ BANDING PRE-CHECK:** list_banding BEFORE add_banding (adding to range that already has banding fails silently). Protection always requires editor list.

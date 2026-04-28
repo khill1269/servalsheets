@@ -239,6 +239,15 @@ Generated plan:
   }
 ]
 
+CRITICAL GOOGLE SHEETS API CONSTRAINTS — apply before generating any step:
+- ALL indices are 0-BASED in API calls but displayed as 1-based in the UI — off-by-one is the #1 planning failure
+- Writing to a cell with a formula returns HTTP 200 even if the result is #ERROR! — add a read/verify step after critical formula writes
+- After write, formulas recalculate asynchronously — do NOT read formula results in the immediately following step
+- Inserting rows shifts ALL formula references below the insertion point — account for this in subsequent steps
+- NEVER use full-column ranges (A:A) in batchGet — always bound with explicit rows (A1:A10000)
+- sheetId is numeric (integer) — always use the integer sheetId, never the sheet name string, in batchUpdate requests
+- batchUpdate has a 10MB response size limit — estimate row count before batch operations on ranges >50K rows
+
 Return ONLY valid JSON array, no markdown code blocks, no explanation.
 Maximum ${maxSteps || 10} steps.`;
 

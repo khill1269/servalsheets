@@ -882,6 +882,66 @@ describe('DimensionsHandler', () => {
       expect(result.response).toHaveProperty('action', 'ungroup');
       expect(result.response).toHaveProperty('columnsAffected', 6);
     });
+
+    it('should collapse a row group', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'update_dimension_group',
+        dimension: 'ROWS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        startIndex: 5,
+        endIndex: 15,
+        collapsed: true,
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response).toHaveProperty('action', 'update_dimension_group');
+      expect(result.response).toHaveProperty('collapsed', true);
+      expect(result.response).toHaveProperty('rowsAffected', 10);
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: 'test-sheet-id',
+        requestBody: {
+          requests: [
+            {
+              updateDimensionGroup: {
+                dimensionGroup: {
+                  range: {
+                    sheetId: 0,
+                    dimension: 'ROWS',
+                    startIndex: 5,
+                    endIndex: 15,
+                  },
+                  depth: 1,
+                  collapsed: true,
+                },
+                fields: 'collapsed',
+              },
+            },
+          ],
+        },
+      });
+    });
+
+    it('should expand a column group with explicit depth', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'update_dimension_group',
+        dimension: 'COLUMNS',
+        spreadsheetId: 'test-sheet-id',
+        sheetId: 0,
+        startIndex: 0,
+        endIndex: 5,
+        depth: 2,
+        collapsed: false,
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response).toHaveProperty('collapsed', false);
+      expect(result.response).toHaveProperty('columnsAffected', 5);
+    });
   });
 
   describe('Append Operations', () => {

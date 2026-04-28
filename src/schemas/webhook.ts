@@ -20,32 +20,48 @@ const PubSubTopicSchema = z
 /**
  * Webhook actions
  */
-export const WebhookActionsSchema = z.enum([
-  'register',
-  'unregister',
-  'list',
-  'get',
-  'test',
-  'get_stats',
-  'watch_changes',
-  'subscribe_workspace',
-  'reactivate_workspace',
-  'unsubscribe_workspace',
-  'list_workspace_subscriptions',
-]);
+export const WebhookActionsSchema = z
+  .enum([
+    'register',
+    'unregister',
+    'list',
+    'get',
+    'test',
+    'get_stats',
+    'watch_changes',
+    'subscribe_workspace',
+    'reactivate_workspace',
+    'unsubscribe_workspace',
+    'list_workspace_subscriptions',
+  ])
+  .describe(
+    'Webhook action. "register": Register a webhook to receive change notifications. ' +
+      '"unregister": Stop receiving notifications for a webhook. ' +
+      '"list": List all registered webhooks. "get": Get details for a specific webhook. ' +
+      '"test": Send a test event to verify delivery. "get_stats": View delivery statistics. ' +
+      '"watch_changes": Enable real-time change tracking via Google Pub/Sub. ' +
+      '"subscribe_workspace"/"reactivate_workspace"/"unsubscribe_workspace"/"list_workspace_subscriptions": Workspace-level subscription lifecycle.'
+  );
 
 /**
  * Webhook event types (Google Sheets changes)
  */
-export const WebhookEventTypeSchema = z.enum([
-  'sheet.update', // Any change to spreadsheet
-  'sheet.create', // New sheet created
-  'sheet.delete', // Sheet deleted
-  'sheet.rename', // Sheet renamed
-  'cell.update', // Cell values changed
-  'format.update', // Formatting changed
-  'all', // All events
-]);
+export const WebhookEventTypeSchema = z
+  .enum([
+    'sheet.update',
+    'sheet.create',
+    'sheet.delete',
+    'sheet.rename',
+    'cell.update',
+    'format.update',
+    'all',
+  ])
+  .describe(
+    'Event type to subscribe to. "sheet.update": Any structural or metadata change to the spreadsheet. ' +
+      '"sheet.create"/"sheet.delete"/"sheet.rename": Sheet tab lifecycle events. ' +
+      '"cell.update": Cell value changes. "format.update": Formatting or style changes. ' +
+      '"all": Receive all event types.'
+  );
 
 /**
  * Webhook registration input

@@ -1,6 +1,6 @@
 /**
  * Structure Operations for sheets_dimensions.
- * Covers: insert, delete, move, group, ungroup, append
+ * Covers: insert, delete, move, group, ungroup, update_dimension_group, append
  */
 
 import { ErrorCodes } from '../error-codes.js';
@@ -10,6 +10,7 @@ import type {
   DimensionsMoveInput,
   DimensionsGroupInput,
   DimensionsUngroupInput,
+  DimensionsUpdateDimensionGroupInput,
   DimensionsAppendInput,
   DimensionsResponse,
 } from '../../schemas/index.js';
@@ -405,6 +406,60 @@ export async function handleUngroup(
   }
 
   return ha.success('ungroup', isRows ? { rowsAffected: count } : { columnsAffected: count });
+}
+
+// ─── handleUpdateDimensionGroup ───────────────────────────────────────────
+
+export async function handleUpdateDimensionGroup(
+  ha: DimensionsHandlerAccess,
+  input: DimensionsUpdateDimensionGroupInput
+): Promise<DimensionsResponse> {
+  const isRows = input.dimension === 'ROWS';
+  const depth = input.depth ?? 1;
+
+  await ha.sheetsApi.spreadsheets.batchUpdate({
+    spreadsheetId: input.spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          updateDimensionGroup: {
+            dimensionGroup: {
+              range: {
+                sheetId: input.sheetId,
+                dimension: input.dimension,
+                startIndex: input.startIndex,
+                endIndex: input.endIndex,
+              },
+              depth,
+              collapsed: input.collapsed,
+            },
+            fields: 'collapsed',
+          },
+        },
+      ],
+    },
+  });
+
+  try {
+    if (ha.context.sessionContext) {
+      ha.context.sessionContext.recordOperation({
+        tool: 'sheets_dimensions',
+        action: 'update_dimension_group',
+        spreadsheetId: input.spreadsheetId,
+        description: `${input.collapsed ? 'Collapsed' : 'Expanded'} ${isRows ? 'row' : 'column'} group at depth ${depth}`,
+        undoable: false,
+      });
+    }
+  } catch {
+    // Non-blocking: session context recording is best-effort
+  }
+
+  return ha.success('update_dimension_group', {
+    collapsed: input.collapsed,
+    ...(isRows
+      ? { rowsAffected: input.endIndex - input.startIndex }
+      : { columnsAffected: input.endIndex - input.startIndex }),
+  });
 }
 
 // ─── handleAppend ─────────────────────────────────────────────────────────

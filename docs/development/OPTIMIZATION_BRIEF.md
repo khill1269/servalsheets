@@ -308,7 +308,7 @@ sed -n '77,132p' src/mcp/registration/response-intelligence.ts
 ```typescript
 'sheets_dimensions.insert': 'Inserting multiple rows? Always insert BOTTOM-TO-TOP — row indices shift after each insert. Insert at higher index first.',
 'sheets_data.find_replace': 'Scans the ENTIRE specified range. For 1-2 known cells, sheets_data.write is faster and uses less quota.',
-'sheets_history.restore_cells': 'WRITES old cell values immediately. Create a snapshot with sheets_collab.version_create_snapshot BEFORE restoring if you may want to undo.',
+'sheets_history.restore_cells': 'WRITES old cell values immediately. Create a snapshot with sheets_collaborate.version_create_snapshot BEFORE restoring if you may want to undo.',
 'sheets_collaborate.version_restore_revision': 'Restores the ENTIRE spreadsheet to a past state — irreversible without another restore. Use sheets_history.restore_cells for surgical cell recovery instead.',
 ```
 

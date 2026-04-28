@@ -91,7 +91,8 @@ const ACTION_GOTCHAS: Partial<Record<string, string>> = {
     'Colors use 0-1 float scale, NOT 0-255. E.g., red = {"red":1,"green":0,"blue":0}.',
   // Dimensions
   'sheets_dimensions.insert':
-    'Row/column indices are 0-based. Row 1 in the UI = index 0 in the API.',
+    'Row/column indices are 0-based. Row 1 in the UI = index 0 in the API. ' +
+    'Inserting multiple rows? Insert BOTTOM-TO-TOP — row indices shift after each insert, so insert at the highest index first.',
   'sheets_dimensions.delete':
     'Row/column indices are 0-based. Deleting "row 5" means startIndex:4, endIndex:5.',
   // Structure
@@ -105,6 +106,9 @@ const ACTION_GOTCHAS: Partial<Record<string, string>> = {
   // History / Time-Travel
   'sheets_history.restore_cells':
     'restore_cells writes OLD values to CURRENT sheet. Always create a snapshot first (sheets_history.create_snapshot).',
+  'sheets_collaborate.version_restore_revision':
+    'Restores the ENTIRE spreadsheet to a past state — irreversible without another restore. ' +
+    'Use sheets_history.restore_cells for surgical cell-level recovery instead.',
   'sheets_history.timeline':
     'Timeline uses Drive Revision API — large spreadsheets may have merged revisions (multiple edits in one entry).',
   // Compute

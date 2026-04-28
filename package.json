@@ -2,7 +2,7 @@
   "name": "servalsheets",
   "mcpName": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade MCP server for Google Sheets — 25 tools, 409 actions",
+  "description": "Production-grade MCP server for Google Sheets — 25 tools, 410 actions",
   "type": "module",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",

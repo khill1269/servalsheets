@@ -33716,7 +33716,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsConnectorsInputSchema should m
                         "type": "string"
                       },
                       "operator": {
-                        "description": "Filter comparison operator",
+                        "description": "Comparison operator: \\"eq\\" (equals), \\"neq\\" (not equals), \\"gt\\" (greater than), \\"lt\\" (less than), \\"gte\\" (>=), \\"lte\\" (<=), \\"contains\\" (substring match), \\"starts_with\\" (prefix match)",
                         "enum": [
                           "eq",
                           "neq",
@@ -33911,7 +33911,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsConnectorsInputSchema should m
                               "type": "string"
                             },
                             "operator": {
-                              "description": "Filter comparison operator",
+                              "description": "Comparison operator: \\"eq\\" (equals), \\"neq\\" (not equals), \\"gt\\" (greater than), \\"lt\\" (less than), \\"gte\\" (>=), \\"lte\\" (<=), \\"contains\\" (substring match), \\"starts_with\\" (prefix match)",
                               "enum": [
                                 "eq",
                                 "neq",
@@ -34910,7 +34910,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsConnectorsInputSchema should m
                         "type": "string"
                       },
                       "operator": {
-                        "description": "Filter comparison operator",
+                        "description": "Comparison operator: \\"eq\\" (equals), \\"neq\\" (not equals), \\"gt\\" (greater than), \\"lt\\" (less than), \\"gte\\" (>=), \\"lte\\" (<=), \\"contains\\" (substring match), \\"starts_with\\" (prefix match)",
                         "enum": [
                           "eq",
                           "neq",
@@ -45909,6 +45909,188 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
           "additionalProperties": false,
           "properties": {
             "action": {
+              "const": "update_dimension_group",
+              "description": "Collapse or expand an existing row/column group",
+              "type": "string"
+            },
+            "collapsed": {
+              "description": "true to collapse the group (hide rows/cols), false to expand",
+              "type": "boolean"
+            },
+            "depth": {
+              "description": "Depth of the group to update (1 = outermost). Required when multiple groups overlap the same range.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "dimension": {
+              "description": "ROWS or COLUMNS",
+              "enum": [
+                "ROWS",
+                "COLUMNS"
+              ],
+              "type": "string"
+            },
+            "endIndex": {
+              "description": "Zero-based exclusive end index identifying the group to update",
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "safety": {
+              "additionalProperties": false,
+              "description": "Safety options for destructive operations",
+              "properties": {
+                "autoSnapshot": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "confirmed": {
+                  "description": "Pre-approval bypass for destructive operations when the MCP client does not support interactive elicitation. Pass true after reviewing the operation details out-of-band. Equivalent to answering \\"Yes, proceed\\" to the elicitation prompt. Has no effect on non-destructive operations.",
+                  "type": "boolean"
+                },
+                "dryRun": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "effectScope": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxCellsAffected": {
+                      "default": 50000,
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxColumnsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxRowsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "requireExplicitRange": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "maxCellsAffected",
+                    "requireExplicitRange"
+                  ],
+                  "type": "object"
+                },
+                "expectedState": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checksum": {
+                      "description": "MD5 hash of range values to verify",
+                      "type": "string"
+                    },
+                    "checksumRange": {
+                      "description": "A1 range for checksum calculation (default: A1:J10)",
+                      "type": "string"
+                    },
+                    "columnCount": {
+                      "description": "Expected total column count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "firstRowValues": {
+                      "description": "Expected header values in first row",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "rowCount": {
+                      "description": "Expected total row count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "sheetTitle": {
+                      "description": "Sheet title that must exist",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Specific version to validate",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sanitizeFormulas": {
+                  "default": true,
+                  "description": "When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.",
+                  "type": "boolean"
+                },
+                "transactionId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "dryRun",
+                "autoSnapshot",
+                "sanitizeFormulas"
+              ],
+              "type": "object"
+            },
+            "sheetId": {
+              "description": "Numeric sheet ID (provide sheetId OR sheetName, not both). Found in the gid= URL parameter.",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sheetName": {
+              "description": "Sheet tab name (provide sheetName OR sheetId, not both). The visible tab label at the bottom of the spreadsheet.",
+              "type": "string"
+            },
+            "spreadsheetId": {
+              "description": "Spreadsheet ID from URL",
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9-_]+$",
+              "type": "string"
+            },
+            "startIndex": {
+              "description": "Zero-based start index identifying the group to update",
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "verbosity": {
+              "default": "standard",
+              "description": "Response detail level: minimal (summary only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
+              "enum": [
+                "minimal",
+                "standard",
+                "detailed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "spreadsheetId",
+            "verbosity",
+            "action",
+            "dimension",
+            "startIndex",
+            "endIndex",
+            "collapsed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
               "const": "append",
               "description": "Append rows or columns to the end of the sheet",
               "type": "string"
@@ -50566,6 +50748,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsFederationInputSchema should m
       "additionalProperties": false,
       "properties": {
         "action": {
+          "description": "Federation action. \\"call_remote\\": Execute a tool on a remote MCP server (requires serverName, toolName). \\"list_servers\\": List all configured remote servers and their connection status. \\"get_server_tools\\": Discover available tools on a remote server (requires serverName). \\"validate_connection\\": Test connectivity to a remote server (requires serverName).",
           "enum": [
             "call_remote",
             "list_servers",
@@ -70042,6 +70225,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsWebhookInputSchema should matc
             "eventTypes": {
               "description": "List of event types to subscribe to. Available: \\"sheet.update\\" (any change), \\"sheet.create\\" (new sheet), \\"sheet.delete\\" (sheet removed), \\"sheet.rename\\" (sheet renamed), \\"cell.update\\" (cell values changed), \\"format.update\\" (formatting changed), \\"all\\" (all events). Example: [\\"cell.update\\", \\"sheet.create\\"]",
               "items": {
+                "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
                 "enum": [
                   "sheet.update",
                   "sheet.create",
@@ -70924,6 +71108,7 @@ exports[`Schema Snapshots > Input Schemas > WebhookRegisterInputSchema should ma
     "eventTypes": {
       "description": "List of event types to subscribe to. Available: \\"sheet.update\\" (any change), \\"sheet.create\\" (new sheet), \\"sheet.delete\\" (sheet removed), \\"sheet.rename\\" (sheet renamed), \\"cell.update\\" (cell values changed), \\"format.update\\" (formatting changed), \\"all\\" (all events). Example: [\\"cell.update\\", \\"sheet.create\\"]",
       "items": {
+        "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
         "enum": [
           "sheet.update",
           "sheet.create",
@@ -159240,6 +159425,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsFederationOutputSchema should
           "additionalProperties": false,
           "properties": {
             "action": {
+              "description": "Federation action. \\"call_remote\\": Execute a tool on a remote MCP server (requires serverName, toolName). \\"list_servers\\": List all configured remote servers and their connection status. \\"get_server_tools\\": Discover available tools on a remote server (requires serverName). \\"validate_connection\\": Test connectivity to a remote server (requires serverName).",
               "enum": [
                 "call_remote",
                 "list_servers",
@@ -159318,6 +159504,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsFederationOutputSchema should
           "additionalProperties": false,
           "properties": {
             "action": {
+              "description": "Federation action. \\"call_remote\\": Execute a tool on a remote MCP server (requires serverName, toolName). \\"list_servers\\": List all configured remote servers and their connection status. \\"get_server_tools\\": Discover available tools on a remote server (requires serverName). \\"validate_connection\\": Test connectivity to a remote server (requires serverName).",
               "enum": [
                 "call_remote",
                 "list_servers",
@@ -171089,6 +171276,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                     },
                     "eventTypes": {
                       "items": {
+                        "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
                         "enum": [
                           "sheet.update",
                           "sheet.create",
@@ -171163,6 +171351,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                           },
                           "eventTypes": {
                             "items": {
+                              "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
                               "enum": [
                                 "sheet.update",
                                 "sheet.create",
@@ -171260,6 +171449,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                         },
                         "eventTypes": {
                           "items": {
+                            "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
                             "enum": [
                               "sheet.update",
                               "sheet.create",
@@ -171347,6 +171537,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                           "type": "string"
                         },
                         "eventType": {
+                          "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
                           "enum": [
                             "sheet.update",
                             "sheet.create",

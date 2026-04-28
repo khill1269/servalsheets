@@ -20,6 +20,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { sanitizeTokenStorePath } from '../utils/auth-paths.js';
 import { ConfigError, DataError } from '../core/errors.js';
+import { logger } from '../utils/logger.js';
 
 export interface StoredTokens {
   access_token?: string;
@@ -89,10 +90,27 @@ export class EncryptedFileTokenStore implements TokenStore {
       const tag = Buffer.from(record.tag, 'base64');
       const ciphertext = Buffer.from(record.ciphertext, 'base64');
 
-      const decipher = createDecipheriv('aes-256-gcm', this.key, iv);
-      decipher.setAuthTag(tag);
-      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-      return JSON.parse(decrypted.toString('utf8')) as StoredTokens;
+      try {
+        const decipher = createDecipheriv('aes-256-gcm', this.key, iv);
+        decipher.setAuthTag(tag);
+        const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+        return JSON.parse(decrypted.toString('utf8')) as StoredTokens;
+      } catch (decryptError) {
+        // Key rotation: if primary key fails, try ENCRYPTION_KEY_LEGACY (64-char hex).
+        // On success, the token will be re-encrypted with the current key on the next save().
+        const legacyKeyHex = process.env['ENCRYPTION_KEY_LEGACY'];
+        if (!legacyKeyHex || legacyKeyHex.length !== 64) {
+          throw decryptError;
+        }
+        logger.warn('Primary decryption key failed; retrying with ENCRYPTION_KEY_LEGACY', {
+          filePath: this.filePath,
+        });
+        const legacyKey = Buffer.from(legacyKeyHex, 'hex');
+        const decipher = createDecipheriv('aes-256-gcm', legacyKey, iv);
+        decipher.setAuthTag(tag);
+        const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+        return JSON.parse(decrypted.toString('utf8')) as StoredTokens;
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return null;

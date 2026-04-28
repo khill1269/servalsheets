@@ -14,12 +14,14 @@ import { ErrorDetailSchema } from './shared.js';
 /**
  * Federation action enum
  */
-export const FederationActionSchema = z.enum([
-  'call_remote',
-  'list_servers',
-  'get_server_tools',
-  'validate_connection',
-]);
+export const FederationActionSchema = z
+  .enum(['call_remote', 'list_servers', 'get_server_tools', 'validate_connection'])
+  .describe(
+    'Federation action. "call_remote": Execute a tool on a remote MCP server (requires serverName, toolName). ' +
+      '"list_servers": List all configured remote servers and their connection status. ' +
+      '"get_server_tools": Discover available tools on a remote server (requires serverName). ' +
+      '"validate_connection": Test connectivity to a remote server (requires serverName).'
+  );
 
 /**
  * Federation input schema

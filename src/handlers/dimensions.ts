@@ -34,6 +34,7 @@ import type {
   DimensionsFreezeInput,
   DimensionsGroupInput,
   DimensionsUngroupInput,
+  DimensionsUpdateDimensionGroupInput,
   DimensionsAppendInput,
   // Filter/Sort types (5)
   DimensionsSetBasicFilterInput,
@@ -65,6 +66,7 @@ import {
   handleMove,
   handleGroup,
   handleUngroup,
+  handleUpdateDimensionGroup,
   handleAppend,
 } from './dimensions-actions/structure-operations.js';
 import { handleFreeze } from './dimensions-actions/freeze-operations.js';
@@ -232,6 +234,12 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           break;
         case 'ungroup':
           response = await handleUngroup(ha, req as DimensionsUngroupInput);
+          break;
+        case 'update_dimension_group':
+          response = await handleUpdateDimensionGroup(
+            ha,
+            req as DimensionsUpdateDimensionGroupInput
+          );
           break;
         case 'append':
           response = await handleAppend(ha, req as DimensionsAppendInput);

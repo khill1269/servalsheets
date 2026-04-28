@@ -6,7 +6,7 @@ description: Enterprise-grade Google Sheets MCP server (ServalSheets) with tool 
 # ServalSheets — Google Sheets Expert
 
 <!-- BEGIN:AUTOGEN counts -->
-ServalSheets ships **25 tools** exposing **409 actions** across the Google Sheets surface.
+ServalSheets ships **25 tools** exposing **410 actions** across the Google Sheets surface.
 
 Use when: (1) Working with Google Sheets via URL or ID, (2) Analyzing, cleaning, or transforming data,
 (3) Creating charts, reports, or dashboards, (4) Building financial models,
@@ -36,7 +36,7 @@ with recovery suggestions.
 | `sheets_core` | 21 | Spreadsheet & Sheet Management |
 | `sheets_data` | 25 | Cell Data Operations |
 | `sheets_dependencies` | 10 | Formula Dependencies & Scenario Modeling |
-| `sheets_dimensions` | 30 | Rows, Columns & Sorting |
+| `sheets_dimensions` | 31 | Rows, Columns & Sorting |
 | `sheets_federation` | 4 | MCP Server Federation |
 | `sheets_fix` | 6 | Auto-Fix Issues |
 | `sheets_format` | 25 | Formatting & Styling |

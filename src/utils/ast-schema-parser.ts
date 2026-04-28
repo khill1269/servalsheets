@@ -239,20 +239,9 @@ function findStandaloneActionEnum(sourceFile: ts.SourceFile, actions: Set<string
           declaration.initializer &&
           ts.isCallExpression(declaration.initializer)
         ) {
-          const call = declaration.initializer;
-          if (
-            ts.isPropertyAccessExpression(call.expression) &&
-            call.expression.name.text === 'enum'
-          ) {
-            const enumArg = call.arguments[0];
-            if (enumArg && ts.isArrayLiteralExpression(enumArg)) {
-              enumArg.elements.forEach((element) => {
-                if (ts.isStringLiteral(element)) {
-                  actions.add(element.text);
-                }
-              });
-            }
-          }
+          // Use extractEnumFromExpression to handle both z.enum([...]) and
+          // z.enum([...]).describe(...) chaining patterns
+          extractEnumFromExpression(declaration.initializer, actions);
         }
       }
     }

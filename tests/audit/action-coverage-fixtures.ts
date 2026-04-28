@@ -421,6 +421,23 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { sheetId: 0, dimension: 'ROWS', startIndex: 0, endIndex: 5 },
       requiredFields: ['spreadsheetId', 'sheetId', 'dimension', 'startIndex', 'endIndex'],
     },
+    update_dimension_group: {
+      validInput: {
+        sheetId: 0,
+        dimension: 'ROWS',
+        startIndex: 0,
+        endIndex: 5,
+        collapsed: true,
+      },
+      requiredFields: [
+        'spreadsheetId',
+        'sheetId',
+        'dimension',
+        'startIndex',
+        'endIndex',
+        'collapsed',
+      ],
+    },
     append: {
       validInput: { sheetId: 0, dimension: 'ROWS', count: 5 },
       requiredFields: ['spreadsheetId', 'sheetId'],

@@ -13,7 +13,7 @@ import { getAvailableToolActions, getAvailableToolNames } from '../mcp/tool-regi
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 409 actions across 25 tools
+ * Total: 410 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -315,6 +315,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'freeze',
     'group',
     'ungroup',
+    'update_dimension_group',
     'append',
     'set_basic_filter',
     'clear_basic_filter',

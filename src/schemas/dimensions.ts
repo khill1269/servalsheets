@@ -217,6 +217,33 @@ const UngroupDimensionActionSchema = CommonFieldsSchema.extend({
   endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
 });
 
+const UpdateDimensionGroupActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('update_dimension_group')
+    .describe('Collapse or expand an existing row/column group'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .describe('Zero-based start index identifying the group to update'),
+  endIndex: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .describe('Zero-based exclusive end index identifying the group to update'),
+  depth: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(8)
+    .optional()
+    .describe(
+      'Depth of the group to update (1 = outermost). Required when multiple groups overlap the same range.'
+    ),
+  collapsed: z.boolean().describe('true to collapse the group (hide rows/cols), false to expand'),
+});
+
 const AppendDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('append').describe('Append rows or columns to the end of the sheet'),
   dimension: DimensionSchema.describe('ROWS or COLUMNS'),
@@ -698,6 +725,7 @@ export const SheetsDimensionsInputSchema = z.object({
       FreezeDimensionActionSchema,
       GroupDimensionActionSchema,
       UngroupDimensionActionSchema,
+      UpdateDimensionGroupActionSchema,
       AppendDimensionActionSchema,
       // Filter and sort actions (4 - v2.0: merged filter_update_filter_criteria into set_basic_filter)
       SetBasicFilterActionSchema, // Now handles both full and incremental updates via columnIndex
@@ -901,6 +929,16 @@ export type DimensionsUngroupInput = SheetsDimensionsInput['request'] & {
   dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
   endIndex: number;
+};
+export type DimensionsUpdateDimensionGroupInput = SheetsDimensionsInput['request'] & {
+  action: 'update_dimension_group';
+  spreadsheetId: string;
+  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
+  startIndex: number;
+  endIndex: number;
+  depth?: number;
+  collapsed: boolean;
 };
 export type DimensionsAppendInput = SheetsDimensionsInput['request'] & {
   action: 'append';

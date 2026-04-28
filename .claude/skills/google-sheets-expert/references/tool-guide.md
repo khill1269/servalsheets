@@ -1,7 +1,7 @@
 # ServalSheets Tool Reference
 
 <!-- BEGIN:AUTOGEN counts -->
-ServalSheets exposes **25 tools** / **409 actions** over the MCP interface.
+ServalSheets exposes **25 tools** / **410 actions** over the MCP interface.
 <!-- END:AUTOGEN counts -->
 
 ## Tools
@@ -23,7 +23,7 @@ ServalSheets exposes **25 tools** / **409 actions** over the MCP interface.
 | `sheets_core` | 21 | Spreadsheet & Sheet Management |
 | `sheets_data` | 25 | Cell Data Operations |
 | `sheets_dependencies` | 10 | Formula Dependencies & Scenario Modeling |
-| `sheets_dimensions` | 30 | Rows, Columns & Sorting |
+| `sheets_dimensions` | 31 | Rows, Columns & Sorting |
 | `sheets_federation` | 4 | MCP Server Federation |
 | `sheets_fix` | 6 | Auto-Fix Issues |
 | `sheets_format` | 25 | Formatting & Styling |

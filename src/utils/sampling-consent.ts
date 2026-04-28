@@ -90,6 +90,23 @@ export async function assertSamplingConsent(): Promise<void> {
   try {
     await _consentChecker();
     _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs });
+    // GDPR Article 7: log that consent was verified so it can be demonstrated on request.
+    // Non-blocking — audit failure must never block sampling.
+    if (getEnv()['ENABLE_AUDIT_LOGGING']) {
+      void (async () => {
+        try {
+          const { getAuditLogger } = await import('../services/audit-logger.js');
+          await getAuditLogger().logToolCall({
+            tool: 'sheets_session',
+            action: 'sampling_consent_verified',
+            userId: cacheKey,
+            outcome: 'success',
+          });
+        } catch {
+          // Audit logging is non-critical
+        }
+      })();
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs, errorMessage: message });

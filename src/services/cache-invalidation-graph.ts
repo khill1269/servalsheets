@@ -236,6 +236,10 @@ export class CacheInvalidationGraph {
     rules['sheets_dimensions.ungroup_columns'] = { invalidates: ['metadata:*'] };
     rules['sheets_dimensions.collapse_group'] = { invalidates: ['metadata:*'] };
     rules['sheets_dimensions.expand_group'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.update_dimension_group'] = { invalidates: ['metadata:*'] };
+    // Actual action names from discriminatedUnion
+    rules['sheets_dimensions.group'] = { invalidates: ['metadata:*'] };
+    rules['sheets_dimensions.ungroup'] = { invalidates: ['metadata:*'] };
 
     // Move operations
     rules['sheets_dimensions.move_rows'] = { invalidates: ['values:*', 'metadata:*'] };

@@ -24,6 +24,7 @@ export const SERVER_INFO = {
   name: 'servalsheets',
   version: VERSION,
   protocolVersion: MCP_PROTOCOL_VERSION,
+  description: 'Production-grade MCP server for Google Sheets — 25 tools, 409 actions, MCP 2025-11-25',
 } as const;
 
 /** Server icon metadata for client UIs (inline SVG to avoid dead GitHub asset URLs) */

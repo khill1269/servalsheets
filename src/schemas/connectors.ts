@@ -53,7 +53,10 @@ const TransformFilterSchema = z.object({
   column: z.string().min(1).describe('Column name to filter on'),
   operator: z
     .enum(['eq', 'neq', 'gt', 'lt', 'gte', 'lte', 'contains', 'starts_with'])
-    .describe('Filter comparison operator'),
+    .describe(
+      'Comparison operator: "eq" (equals), "neq" (not equals), "gt" (greater than), ' +
+        '"lt" (less than), "gte" (>=), "lte" (<=), "contains" (substring match), "starts_with" (prefix match)'
+    ),
   value: z.union([z.string(), z.number()]).describe('Value to compare against'),
 });
 

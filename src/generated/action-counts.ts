@@ -23,7 +23,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_core: 21,
   sheets_data: 25,
   sheets_dependencies: 10,
-  sheets_dimensions: 30,
+  sheets_dimensions: 31,
   sheets_federation: 4,
   sheets_fix: 6,
   sheets_format: 25,

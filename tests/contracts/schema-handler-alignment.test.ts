@@ -177,7 +177,7 @@ describe('Schema-Handler Alignment', () => {
         core: 21,
         data: 25,
         dependencies: 10,
-        dimensions: 30,
+        dimensions: 31,
         federation: 4,
         fix: 6,
         format: 25,
