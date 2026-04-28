@@ -474,6 +474,7 @@ const ClearSheetActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Clear cell formatting (default: false)'),
   clearNotes: z.boolean().optional().default(false).describe('Clear cell notes (default: false)'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, confirmed, snapshot, etc.)'),
 });
 
 const MoveSheetActionSchema = CommonFieldsSchema.extend({

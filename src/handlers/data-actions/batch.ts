@@ -812,7 +812,8 @@ export async function handleBatchClear(
     'batch_clear',
     `Clear ${batchClearTargets} range(s) in spreadsheet ${input.spreadsheetId}. All cell values in the specified ranges will be permanently erased. This action cannot be undone.`,
     Math.max(batchClearTargets, 1),
-    0
+    0,
+    input.safety?.confirmed === true
   );
   if (!batchClearConfirmation.proceed) {
     return ha.makeError({

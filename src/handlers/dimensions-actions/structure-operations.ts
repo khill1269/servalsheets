@@ -37,7 +37,8 @@ export async function handleInsert(
       [isRows ? 'affectedRows' : 'affectedColumns']: count,
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
-    }
+    },
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
@@ -121,7 +122,8 @@ export async function handleDelete(
   const confirmed = await ha.confirmOperation(
     `Delete ${isRows ? 'Rows' : 'Columns'}`,
     `You are about to delete ${count} ${label} (${label} ${input.startIndex + 1}-${input.endIndex}).\n\nAll data, formatting, and formulas will be permanently removed.`,
-    safetyContext
+    safetyContext,
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
@@ -260,7 +262,8 @@ export async function handleMove(
       [isRows ? 'affectedRows' : 'affectedColumns']: count,
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
-    }
+    },
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
@@ -481,7 +484,8 @@ export async function handleAppend(
       [isRows ? 'affectedRows' : 'affectedColumns']: count,
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
-    }
+    },
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {

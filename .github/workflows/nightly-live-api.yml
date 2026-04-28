@@ -134,7 +134,7 @@ jobs:
           } catch { process.exit(0); }
           const summary = [
             '## Action Matrix Results',
-            \`**\${report.passed}/\${report.totalActions} passed** | Executed: \${report.executed} | Probed: \${report.probed} | Skipped: \${report.skipped} | Duration: \${Math.round(report.durationMs/1000)}s\`,
+            \`**\${report.passed}/\${report.totalActions} passed** | Executed: \${report.executed} | Staged: \${report.stagedExecuted || 0} | Probed: \${report.probed} | External: \${report.external || 0} | Duration: \${Math.round(report.durationMs/1000)}s\`,
             '',
             '| Tool | Mode | Pass | Fail |',
             '|------|------|------|------|',

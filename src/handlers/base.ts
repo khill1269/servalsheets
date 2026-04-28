@@ -1255,7 +1255,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     operation: string,
     details: string,
     context: SafetyContext,
-    options?: { skipIfElicitationUnavailable?: boolean }
+    options?: { skipIfElicitationUnavailable?: boolean; preConfirmed?: boolean }
   ): Promise<boolean> {
     const logger = getRequestLogger();
     const safetyContext = {
@@ -1268,6 +1268,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       details,
       context: safetyContext,
       skipIfElicitationUnavailable: options?.skipIfElicitationUnavailable,
+      preConfirmed: options?.preConfirmed,
       logger,
     });
 

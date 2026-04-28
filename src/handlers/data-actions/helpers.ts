@@ -644,7 +644,8 @@ export async function requestDestructiveConfirmation(
   action: string,
   description: string,
   estimatedCells: number,
-  threshold: number = 100
+  threshold: number = 100,
+  preConfirmed: boolean = false
 ): Promise<{ proceed: boolean; reason?: string }> {
   const confirmation = await requestSafetyConfirmation({
     server: ha.context.server ?? ha.context.elicitationServer,
@@ -659,6 +660,7 @@ export async function requestDestructiveConfirmation(
       spreadsheetId: ha.currentSpreadsheetId,
     },
     logger: ha.context.logger,
+    preConfirmed,
   });
 
   if (!confirmation.confirmed) {

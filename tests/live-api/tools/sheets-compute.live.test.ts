@@ -38,7 +38,7 @@ describe.skipIf(!runLiveTests)('sheets_compute Live API Tests', () => {
     // Seed numeric data for statistics tests
     await liveClient.sheets.spreadsheets.values.update({
       spreadsheetId: testSpreadsheet.id,
-      range: 'Sheet1!A1:B6',
+      range: 'TestData!A1:B6',
       valueInputOption: 'RAW',
       requestBody: {
         values: [
@@ -96,7 +96,7 @@ describe.skipIf(!runLiveTests)('sheets_compute Live API Tests', () => {
         request: {
           action: 'statistical',
           spreadsheetId: testSpreadsheet.id,
-          range: 'Sheet1!A2:A6',
+          range: 'TestData!A2:A6',
           metrics: ['mean', 'median', 'stddev', 'min', 'max'],
         },
       });
