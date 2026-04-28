@@ -110,6 +110,10 @@
     "test:mcp-http-task-contract": "vitest --run tests/packages/mcp-http",
     "test:http-transport-failover": "vitest --run tests/http-server/http-transport-failover.test.ts",
     "test:coverage:tracking": "vitest --run --coverage",
+    "test:simulation": "vitest run tests/simulation/",
+    "test:simulation:full": "vitest run tests/simulation/ tests/contracts/ tests/compliance/",
+    "stress:catalog": "npx tsx tests/stress/scenario-catalog.ts --print",
+    "stress:run": "STRESS_TEST=1 vitest run tests/live-api/zstress/ --timeout=300000",
     "clean": "rm -rf dist",
     "prepare": "npm run build",
     "pretest": "npm run typecheck"

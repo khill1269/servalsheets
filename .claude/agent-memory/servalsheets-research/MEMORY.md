@@ -4,6 +4,27 @@
 **Specialty:** Fast pattern analysis, code reading, implementation strategy  
 **Updated:** Session 117 (Ground Truth Registry Research)
 
+## ⭐ STRESS TEST INFRASTRUCTURE (NEW — Session 128)
+
+**See [`stress-test-infrastructure-audit.md`](stress-test-infrastructure-audit.md)** — Complete audit of performance testing, load simulation, concurrency, and fault injection. Establishes baseline and design for 50+ scenario generator targeting 1000+ concurrent AI+Sheets user flows.
+
+**Key findings:**
+- **Existing:** Schema validation benchmarks (409 actions), memory leak tests (1000 ops < 50MB), concurrency coordinator (15 default, 5-30 adaptive), circuit breaker, batching system (100-op limit, 20-100ms window)
+- **Missing:** Multi-user concurrency, AI workflow simulation, fault injection, cache metrics, agent plan stress, transaction boundary tests
+- **Recommended build:** 5-phase system with scenario generator, load runner, fault injector, metrics collector, mock API, + CI integration
+
+## ⭐ LIVE TESTING INFRASTRUCTURE MAP (Session 128)
+
+**See [`live-testing-infrastructure-audit.md`](live-testing-infrastructure-audit.md)** — Complete inventory of live API testing, audit gates, probe systems, observability stack, and CI workflows. Load for designing comprehensive testing systems.
+
+**Key findings:**
+- `.tmp-live-test.mjs`: 196/409 actions tested (47.9% coverage) via stdio transport
+- `.tmp-probe-smoke.mjs`: Server startup validation (3s)
+- `tests/audit/action-coverage-fixtures.ts`: Auto-generated 409 fixtures from TOOL_ACTIONS
+- `scripts/audit-gate.sh`: 15-gate CI pipeline (40-60s, A1-A15)
+- `tests/config/vitest.config.live.*.ts`: Smoke/nightly/optimization live test runners
+- Observability: Prometheus+Grafana+Loki+Tempo stack (`.env.local.observability`)
+
 ## ⭐ GROUND TRUTH REGISTRY (NEW)
 
 **See [`ground-truth-registry.md`](ground-truth-registry.md)** — Authoritative baseline with file:line evidence for all architectural facts, counts, and critical patterns. Load this first for any accuracy-sensitive work.
