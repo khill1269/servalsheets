@@ -70225,7 +70225,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsWebhookInputSchema should matc
             "eventTypes": {
               "description": "List of event types to subscribe to. Available: \\"sheet.update\\" (any change), \\"sheet.create\\" (new sheet), \\"sheet.delete\\" (sheet removed), \\"sheet.rename\\" (sheet renamed), \\"cell.update\\" (cell values changed), \\"format.update\\" (formatting changed), \\"all\\" (all events). Example: [\\"cell.update\\", \\"sheet.create\\"]",
               "items": {
-                "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
+                "description": "ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). These are NOT Google API event type strings — Google only delivers file-level notifications. \\"sheet.update\\": Any structural or metadata change. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Tab lifecycle. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting changes. \\"all\\": All categories.",
                 "enum": [
                   "sheet.update",
                   "sheet.create",
@@ -70413,11 +70413,11 @@ exports[`Schema Snapshots > Input Schemas > SheetsWebhookInputSchema should matc
           "properties": {
             "action": {
               "const": "subscribe_workspace",
-              "description": "Create a Google Workspace Events subscription via Pub/Sub. Spreadsheet subscriptions currently use the Google Drive Workspace Events v1beta surface.",
+              "description": "Create a Google Workspace Events subscription for a spreadsheet via Cloud Pub/Sub. IMPORTANT: The Workspace Events API for Google Drive/Sheets is currently in DEVELOPER PREVIEW (launched July 2025). Delivers file-level change notifications only (google.workspace.drive.file.v3.contentChanged) — no sheet-tab or cell-level granularity from Google. ServalSheets polls the Sheets API after each notification to determine what changed. Requires a Cloud Pub/Sub topic (not a direct HTTP endpoint).",
               "type": "string"
             },
             "notificationEndpoint": {
-              "description": "Pub/Sub topic to receive Workspace Events (format: projects/{project}/topics/{topic}). Google recommends Pub/Sub topics for delivery, and spreadsheet subscriptions currently use the Drive Workspace Events v1beta surface.",
+              "description": "Cloud Pub/Sub topic to receive Workspace Events notifications (format: projects/{project}/topics/{topic}). The Workspace Events API delivers to Pub/Sub only — not to HTTP endpoints directly.",
               "pattern": "^projects\\\\/[^/]+\\\\/topics\\\\/[^/]+$",
               "type": "string"
             },
@@ -71108,7 +71108,7 @@ exports[`Schema Snapshots > Input Schemas > WebhookRegisterInputSchema should ma
     "eventTypes": {
       "description": "List of event types to subscribe to. Available: \\"sheet.update\\" (any change), \\"sheet.create\\" (new sheet), \\"sheet.delete\\" (sheet removed), \\"sheet.rename\\" (sheet renamed), \\"cell.update\\" (cell values changed), \\"format.update\\" (formatting changed), \\"all\\" (all events). Example: [\\"cell.update\\", \\"sheet.create\\"]",
       "items": {
-        "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
+        "description": "ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). These are NOT Google API event type strings — Google only delivers file-level notifications. \\"sheet.update\\": Any structural or metadata change. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Tab lifecycle. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting changes. \\"all\\": All categories.",
         "enum": [
           "sheet.update",
           "sheet.create",
@@ -71187,11 +71187,11 @@ exports[`Schema Snapshots > Input Schemas > WebhookSubscribeWorkspaceInputSchema
   "properties": {
     "action": {
       "const": "subscribe_workspace",
-      "description": "Create a Google Workspace Events subscription via Pub/Sub. Spreadsheet subscriptions currently use the Google Drive Workspace Events v1beta surface.",
+      "description": "Create a Google Workspace Events subscription for a spreadsheet via Cloud Pub/Sub. IMPORTANT: The Workspace Events API for Google Drive/Sheets is currently in DEVELOPER PREVIEW (launched July 2025). Delivers file-level change notifications only (google.workspace.drive.file.v3.contentChanged) — no sheet-tab or cell-level granularity from Google. ServalSheets polls the Sheets API after each notification to determine what changed. Requires a Cloud Pub/Sub topic (not a direct HTTP endpoint).",
       "type": "string"
     },
     "notificationEndpoint": {
-      "description": "Pub/Sub topic to receive Workspace Events (format: projects/{project}/topics/{topic}). Google recommends Pub/Sub topics for delivery, and spreadsheet subscriptions currently use the Drive Workspace Events v1beta surface.",
+      "description": "Cloud Pub/Sub topic to receive Workspace Events notifications (format: projects/{project}/topics/{topic}). The Workspace Events API delivers to Pub/Sub only — not to HTTP endpoints directly.",
       "pattern": "^projects\\\\/[^/]+\\\\/topics\\\\/[^/]+$",
       "type": "string"
     },
@@ -171276,7 +171276,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                     },
                     "eventTypes": {
                       "items": {
-                        "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
+                        "description": "ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). These are NOT Google API event type strings — Google only delivers file-level notifications. \\"sheet.update\\": Any structural or metadata change. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Tab lifecycle. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting changes. \\"all\\": All categories.",
                         "enum": [
                           "sheet.update",
                           "sheet.create",
@@ -171351,7 +171351,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                           },
                           "eventTypes": {
                             "items": {
-                              "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
+                              "description": "ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). These are NOT Google API event type strings — Google only delivers file-level notifications. \\"sheet.update\\": Any structural or metadata change. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Tab lifecycle. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting changes. \\"all\\": All categories.",
                               "enum": [
                                 "sheet.update",
                                 "sheet.create",
@@ -171449,7 +171449,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                         },
                         "eventTypes": {
                           "items": {
-                            "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
+                            "description": "ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). These are NOT Google API event type strings — Google only delivers file-level notifications. \\"sheet.update\\": Any structural or metadata change. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Tab lifecycle. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting changes. \\"all\\": All categories.",
                             "enum": [
                               "sheet.update",
                               "sheet.create",
@@ -171537,7 +171537,7 @@ exports[`Schema Snapshots > Output Schemas > SheetsWebhookOutputSchema should ma
                           "type": "string"
                         },
                         "eventType": {
-                          "description": "Event type to subscribe to. \\"sheet.update\\": Any structural or metadata change to the spreadsheet. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Sheet tab lifecycle events. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting or style changes. \\"all\\": Receive all event types.",
+                          "description": "ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). These are NOT Google API event type strings — Google only delivers file-level notifications. \\"sheet.update\\": Any structural or metadata change. \\"sheet.create\\"/\\"sheet.delete\\"/\\"sheet.rename\\": Tab lifecycle. \\"cell.update\\": Cell value changes. \\"format.update\\": Formatting changes. \\"all\\": All categories.",
                           "enum": [
                             "sheet.update",
                             "sheet.create",

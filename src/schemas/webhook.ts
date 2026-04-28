@@ -57,10 +57,10 @@ export const WebhookEventTypeSchema = z
     'all',
   ])
   .describe(
-    'Event type to subscribe to. "sheet.update": Any structural or metadata change to the spreadsheet. ' +
-      '"sheet.create"/"sheet.delete"/"sheet.rename": Sheet tab lifecycle events. ' +
-      '"cell.update": Cell value changes. "format.update": Formatting or style changes. ' +
-      '"all": Receive all event types.'
+    'ServalSheets internal event filter category (applied server-side after receiving a Google Drive file-change notification). ' +
+      'These are NOT Google API event type strings — Google only delivers file-level notifications. ' +
+      '"sheet.update": Any structural or metadata change. "sheet.create"/"sheet.delete"/"sheet.rename": Tab lifecycle. ' +
+      '"cell.update": Cell value changes. "format.update": Formatting changes. "all": All categories.'
   );
 
 /**
@@ -196,11 +196,17 @@ export const WebhookSubscribeWorkspaceInputSchema = z.object({
   action: z
     .literal('subscribe_workspace')
     .describe(
-      'Create a Google Workspace Events subscription via Pub/Sub. Spreadsheet subscriptions currently use the Google Drive Workspace Events v1beta surface.'
+      'Create a Google Workspace Events subscription for a spreadsheet via Cloud Pub/Sub. ' +
+        'IMPORTANT: The Workspace Events API for Google Drive/Sheets is currently in DEVELOPER PREVIEW (launched July 2025). ' +
+        'Delivers file-level change notifications only (google.workspace.drive.file.v3.contentChanged) — ' +
+        'no sheet-tab or cell-level granularity from Google. ' +
+        'ServalSheets polls the Sheets API after each notification to determine what changed. ' +
+        'Requires a Cloud Pub/Sub topic (not a direct HTTP endpoint).'
     ),
   spreadsheetId: z.string().min(1),
   notificationEndpoint: PubSubTopicSchema.describe(
-    'Pub/Sub topic to receive Workspace Events (format: projects/{project}/topics/{topic}). Google recommends Pub/Sub topics for delivery, and spreadsheet subscriptions currently use the Drive Workspace Events v1beta surface.'
+    'Cloud Pub/Sub topic to receive Workspace Events notifications (format: projects/{project}/topics/{topic}). ' +
+      'The Workspace Events API delivers to Pub/Sub only — not to HTTP endpoints directly.'
   ),
 });
 
