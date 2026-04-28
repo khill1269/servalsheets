@@ -98,20 +98,20 @@ For each of the 25 tools:
 npm run test:fast
 ```
 
-Validates: unit tests pass (count shown in output)
+Validates: unit + contracts (handlers, contracts dirs)
 
 ### Standard Check (15 min)
 
 ```bash
-npm run verify:safe
+npm run verify:safe        # typecheck + drift + tests
+npm run test:services      # Service layer (81 files)
+npm run test:compliance    # MCP compliance (15 files)
 ```
-
-Validates: Unit tests + typecheck + drift check
 
 ### Full Audit (45 min)
 
 ```bash
-npm run audit:full
+npm run audit:full         # audit:coverage + perf + memory + gate (A1-A15) + snapshot
 ```
 
 Validates: Coverage + performance + memory + gates + snapshot

@@ -34,7 +34,8 @@ Analyze the ServalSheets MCP server codebase to discover patterns, extract infor
 - Response format: `{ response: { success: boolean, data?: any } }`
 - Error codes: src/schemas/shared.ts:359+ (ErrorCodeSchema)
 - Schema validation: Zod discriminated unions
-- Action naming: Mostly verb_noun pattern (read_range, create_sheet)
+- Action naming: Short verb or verb_noun pattern (e.g. `read`, `write`, `append`, `create_filter_view`, `sort_range`) — NOT old-style `read_range`/`write_range` (those were renamed)
+- Source of truth for counts: `src/generated/action-counts.ts` (re-exported via `src/schemas/index.ts`)
 
 ## Research Methodology
 

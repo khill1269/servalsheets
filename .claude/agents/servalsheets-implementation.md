@@ -62,8 +62,8 @@ Implement features, fix bugs, and modify the ServalSheets codebase following est
 **Phase 3: Validation**
 
 ```bash
-npm run gates:g0  # Baseline integrity
-npm run gates:g1  # Metadata consistency (if schema changed)
+npm run verify:safe  # Full check: typecheck + drift + tests (skips ESLint to avoid OOM)
+npm run schema:commit && npm run check:drift  # After schema changes only
 # Fix any failures
 # Commit: "chore: validation fixes"
 ```
@@ -76,7 +76,7 @@ npm run gates:g1  # Metadata consistency (if schema changed)
 2. Run: `npm run schema:commit` (regenerates metadata)
 3. Add handler method: handleActionName() in src/handlers/[tool].ts
 4. Write tests: tests/handlers/[tool].test.ts
-5. Validate: npm run gates:g0 && npm run gates:g1
+5. Validate: npm run verify:safe
 
 **Bug Fixing:**
 
@@ -91,7 +91,7 @@ npm run gates:g1  # Metadata consistency (if schema changed)
 1. Modify schema in src/schemas/\*.ts
 2. Run: `npm run schema:commit` (MANDATORY!)
 3. Update handlers if needed
-4. Run: npm run gates:g1 (metadata consistency)
+4. Run: npm run check:drift (verify no metadata drift)
 
 ## Constraints (STRICT)
 
@@ -127,15 +127,14 @@ chore: validation fixes for [feature]
 
 ```bash
 # After ANY code change:
-npm run gates:g0  # ~20s
+npm run test:fast     # Unit + contract tests (~8s)
+npm run typecheck     # TypeScript strict check
 
-# After schema changes:
-npm run schema:commit  # Regenerates + validates
-npm run gates:g1       # ~8s
+# After schema changes (MANDATORY):
+npm run schema:commit  # Regenerates all 7 generated files + validates
 
-# Before commit:
-npm run check:drift
-npm run test:fast
+# Before commit (full check):
+npm run verify:safe   # typecheck + drift + tests (skips ESLint to avoid OOM)
 ```
 
 ## Success Criteria
@@ -144,8 +143,9 @@ Your implementation is successful when:
 
 - ✓ Tests written BEFORE implementation
 - ✓ All tests passing (npm run test:fast)
-- ✓ G0 gate passing (baseline integrity)
-- ✓ G1 gate passing if schema changed (metadata consistency)
+- ✓ `npm run test:fast` passing
+- ✓ `npm run verify:safe` passing (typecheck + drift + tests)
+- ✓ `npm run schema:commit` run if any schema file changed
 - ✓ 3-5 focused commits (test → feat → chore)
 - ✓ No unrelated changes
 - ✓ Follows existing patterns

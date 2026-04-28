@@ -1,5 +1,20 @@
 # MCP Protocol Specialist Memory
 
+## UPDATE 2026-04-28 — Counts & Spec Facts Correction
+
+**Stale facts in the 2026-02-25 audit below — use these instead:**
+
+- Tools: **25** (not 22); Actions: **409** (not 341)
+- Source of truth for counts: `src/generated/action-counts.ts` (re-exported via `src/schemas/index.ts`)
+- Annotations file: `src/generated/annotations.ts` (was `src/schemas/annotations.ts`)
+- Tool name max: **128 chars** per SEP-986 (old audits say 64 — that was pre-2025-11-25)
+- JSON Schema default: **2020-12** in 2025-11-25 spec (declare `$schema` for Draft 7 explicitly)
+- Elicitation URL mode: `features-2025-11-25.ts:280-282` declares `{ form: true, url: true }` — both modes live
+- Sampling SEP-1577 `tools` param: NOT yet passed in any `createMessage` call — this is an implementation gap, not a compliance failure (it's optional)
+- ReDoS + ETag vulnerability entries from prior audits: **BOTH RESOLVED** — see corrections.jsonl entries 20-21
+
+---
+
 ## Deep Compliance Audit (2026-02-25) -- MCP 2025-11-25
 
 **Overall: 16/17 COMPLIANT, 1 WARNING (non-fatal error suppression)**

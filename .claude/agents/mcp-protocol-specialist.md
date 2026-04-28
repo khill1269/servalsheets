@@ -43,7 +43,7 @@ This project uses:
 - **Protocol Version:** MCP 2025-11-25 (reference: `src/version.ts:14`)
 - **SDK Version:** @modelcontextprotocol/sdk 1.26.0
 - **Transport Modes:** STDIO (`src/server.ts`), HTTP/SSE (`src/http-server.ts`), Remote OAuth (`src/remote-server.ts`)
-- **Tool Count:** 25 tools with 409 actions (reference: `src/schemas/index.ts` — never hardcode)
+- **Tool Count:** 25 tools with 409 actions (reference: `src/generated/action-counts.ts` — re-exported via `src/schemas/index.ts` — never hardcode)
 - **Response Pattern:** Handlers return `{ response: { success, data } }` → `buildToolResponse()` converts to MCP `CallToolResult`
 
 ## Core Responsibilities
@@ -85,11 +85,13 @@ When debugging MCP communication failures:
 
 For tool schemas:
 
-- Verify input schema follows JSON Schema Draft 7 (MCP requirement)
+- Verify input schema follows JSON Schema (default dialect in MCP 2025-11-25 is **2020-12**, not Draft 7 — declare `"$schema": "http://json-schema.org/draft-07/schema"` explicitly if using Draft 7 semantics)
 - Verify output schema structure matches `CallToolResult` spec
 - Check that `structuredContent` is used correctly alongside `content`
 - Validate that `isError: true` is set for error responses (not thrown as JSON-RPC errors)
-- Check tool naming conventions: lowercase, underscores, max 64 chars
+- Check tool naming conventions: 1–128 chars, `A-Za-z0-9_-.` only (dot-delimited namespacing allowed per SEP-986)
+- Verify annotation fields use `Hint` suffix: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` — not `readOnly` etc.
+- Verify `execution.taskSupport` is declared on tools that support long-running Task execution (SEP-1686)
 
 ## Decision Framework
 
@@ -130,13 +132,41 @@ interface CallToolResult {
 
 ```typescript
 interface Tool {
-  name: string; // lowercase, underscores, max 64 chars
-  description?: string; // LLM-optimized description
-  inputSchema: JSONSchema; // JSON Schema Draft 7
-  outputSchema?: JSONSchema; // 2025-11-25 addition (advisory)
-  annotations?: ToolAnnotations; // hints for clients
+  name: string;                   // 1–128 chars, A-Za-z0-9_-. (SEP-986)
+  title?: string;                 // NEW: human-readable display name
+  description?: string;           // LLM-optimized description
+  inputSchema: JSONSchema;        // JSON Schema (2020-12 default in 2025-11-25)
+  outputSchema?: JSONSchema;      // advisory; server MUST conform, client SHOULD validate
+  annotations?: ToolAnnotations;  // readOnlyHint/destructiveHint/idempotentHint/openWorldHint
+  icons?: Icon[];                 // NEW in 2025-11-25 (SEP-973)
+  execution?: {
+    taskSupport: 'forbidden' | 'optional' | 'required'; // SEP-1686 (default: 'forbidden')
+  };
 }
 ```
+
+### Elicitation Modes (2025-11-25)
+
+**Form mode** (original, still supported):
+```json
+{ "method": "elicitation/create", "params": { "mode": "form", "requestedSchema": { "type": "object", "properties": {} } } }
+```
+
+**URL mode** (NEW in 2025-11-25, SEP-1036 — REQUIRED for OAuth, API keys, payments):
+```json
+{ "method": "elicitation/create", "params": { "mode": "url", "url": "https://...", "elicitationId": "<uuid>" } }
+```
+- Capability: `{ "elicitation": { "form": {}, "url": {} } }`
+- Error code `-32042` (`URLElicitationRequiredError`) when URL auth is required before tool call
+- MUST NOT use form mode for passwords, tokens, or payment credentials
+
+### Tasks (SEP-1686, experimental)
+
+Tool declares `execution.taskSupport: "optional"` or `"required"`. Client passes `params.task: { ttl }` in `tools/call`. Server returns `CreateTaskResult` immediately (not the tool result). Client polls with `tasks/get` or blocks with `tasks/result`. All task-associated messages MUST include `_meta["io.modelcontextprotocol/related-task"] = { taskId }`.
+
+### Sampling With Tools (SEP-1577)
+
+`sampling/createMessage` now accepts `tools` and `toolChoice` — server can request tool-calling LLM inference.
 
 ### Error Handling (Critical)
 

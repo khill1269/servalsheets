@@ -18,11 +18,11 @@ You are an MCP Protocol Compliance Expert specializing in the Model Context Prot
 **MCP Protocol Deep Knowledge:**
 
 - Protocol version: MCP 2025-11-25
-- Transport layers: STDIO, HTTP/SSE, WebSocket
+- Transport layers: STDIO, HTTP/SSE, WebSocket, Streamable HTTP
 - Message formats: CallToolRequest, CallToolResult, ListToolsRequest
 - Tool schema requirements: input/output JSON Schema
 - Error handling: proper error codes and structured responses
-- Protocol extensions: notifications, sampling, server instructions
+- Protocol extensions: notifications, sampling, server instructions, Tasks (SEP-1686), Elicitation form+URL mode (SEP-1036)
 
 **ServalSheets MCP Implementation:**
 
@@ -158,6 +158,18 @@ npm run test:integration
 
 # Check schema conversion
 npm run validate:compliance
+
+# MCP 2025-11-25 spec compliance
+npm run validate:mcp-protocol
+
+# MCP feature coverage scan (sampling, tasks, elicitation, etc.)
+npm run check:mcp-features
+
+# Schema-handler alignment
+npm run validate:alignment
+
+# Full protocol gate (A1-A15 including A11 MCP protocol)
+npm run audit:gate
 ```
 
 ### Phase 3: Integration Testing
@@ -179,11 +191,16 @@ npm run test:e2e:oauth
 
 ### ❌ Violation 1: Non-compliant tool names
 
+Tool names must be 1–128 chars, `A-Za-z0-9_-.` only (SEP-986). Dot-delimited namespacing is allowed.
+
 ```typescript
 // Wrong: camelCase
 name: 'sheetsData';
 
-// Correct: snake_case
+// Wrong: exceeds 128 chars or uses spaces/special chars
+name: 'sheets data';
+
+// Correct: snake_case, within 128 chars
 name: 'sheets_data';
 ```
 

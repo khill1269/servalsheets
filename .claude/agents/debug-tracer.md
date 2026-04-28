@@ -54,6 +54,62 @@ Layer 4: Service / Google API
 | `403 PERMISSION_DENIED`        | 4     | OAuth scope missing                                    | Check `src/config/oauth-scopes.ts`         |
 | `429 RESOURCE_EXHAUSTED`       | 4     | Quota exceeded                                         | Add field masks, use batch operations      |
 
+## Observability & Debug Tools
+
+### Environment-Based Debug Filtering
+
+```bash
+# Filter debug logs to one tool/action (in tool-handlers.ts ~line 220)
+DEBUG_TOOL=sheets_data npm run test:fast
+DEBUG_TOOL=sheets_data DEBUG_ACTION=read npm run test:fast
+DEBUG_TOOL=sheets_data DEBUG_ACTION=read DEBUG_VERBOSE=true npm run test:fast
+# DEBUG_VERBOSE=true adds full request/response payloads to logs
+```
+
+### Live Observability (HTTP mode only)
+
+```bash
+# Health + readiness (includes circuit breaker states, cache hit rate)
+curl http://localhost:3000/health/ready
+
+# Prometheus metrics (50+ metrics: latency, errors, quota, cache, circuit breaker)
+curl http://localhost:9464/metrics | grep servalsheets_
+
+# MCP Inspector — test all 409 actions interactively without writing test code
+# See claude_desktop_config.example.json for server config
+npx @modelcontextprotocol/inspector -- node dist/cli.js
+# Browser UI: http://localhost:6274   |   Proxy: http://localhost:6277
+
+# Full observability stack (Prometheus + Grafana + Loki + Tempo)
+# cd deployment/observability && docker compose up -d
+# Then: OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 npm run dev
+# Grafana: http://localhost:3001 (admin/admin) | See .env.local.observability for full setup
+```
+
+### MCP Resources (Read Live Data From Claude Code)
+
+```
+ReadMcpResourceTool("schema://tools/sheets_data")   → full live Zod schema
+ReadMcpResourceTool("schema://actions/sheets_data") → action-level annotations  
+ReadMcpResourceTool("metrics://servalsheets/health") → real-time server health JSON
+ReadMcpResourceTool("guide://tool-selection")        → routing decision tree
+ReadMcpResourceTool("guide://error-reference")       → all error codes + recovery
+```
+
+### Key Observability Files
+
+- `src/observability/tracing.ts` — W3C trace context; every request gets `traceId`+`spanId` in logs
+- `src/observability/metrics.ts` — 50+ Prometheus counters/histograms/gauges
+- `src/utils/logger.ts` — Winston + AsyncLocalStorage; `requestId`, `traceId`, `spanId` on every log line
+- `src/utils/request-context.ts` — `getRequestContext()` for current trace IDs anywhere in call stack
+- `src/services/sampling-health-probe.ts` — LLM fallback reachability (5-min TTL, circuit breaker)
+
+### Structured Log Output
+
+All logs include: `{ service, version, environment, requestId, traceId, spanId, tool, action }`. Use `LOG_LEVEL=debug` for verbose output (default in dev).
+
+---
+
 ## Debug Workflow
 
 ### Step 1: Run the failing test with verbose output

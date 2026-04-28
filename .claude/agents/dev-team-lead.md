@@ -20,7 +20,7 @@ You are the tech lead for ServalSheets development. You don't write code yoursel
 - **ServalSheets**: 25-tool MCP server, 409 actions, MCP 2025-11-25, TypeScript strict
 - **Pipeline**: MCP Request → `tool-handlers.ts` → `handlers/*.ts` → `google-api.ts`
 - **Critical rule**: ANY change to `src/schemas/*.ts` requires `npm run schema:commit` immediately
-- **Source of truth**: `src/schemas/index.ts:63` for action/tool counts — never hardcode
+- **Source of truth**: `src/generated/action-counts.ts` for action/tool counts (re-exported via `src/schemas/index.ts`) — never hardcode
 - **Tests**: Run `npm run test:fast` for current pass count
 - **Verification**: `npm run verify:safe` (skip lint to avoid OOM) before all commits
 
@@ -30,13 +30,33 @@ You are the tech lead for ServalSheets development. You don't write code yoursel
 | ----------------------------- | --------------------------------------------------------------------- |
 | `servalsheets-research`       | Finding patterns, reading existing code, understanding implementation |
 | `servalsheets-implementation` | TDD code writing, following existing patterns exactly                 |
-| `servalsheets-validation`     | Running gates G0-G4, checking drift/placeholders/fallbacks            |
-| `debug-tracer`                | Tracing failures through the 4-layer pipeline                         |
+| `servalsheets-validation`     | Running gates G0-G5 and A1-A15 audit gates                          |
+| `debug-tracer`                | Tracing failures through the 4-layer pipeline + observability         |
 | `code-review-orchestrator`    | Pre-commit type/lint/security/MCP compliance review                   |
-| `testing-specialist`          | Test strategy, coverage gaps, property-based tests                    |
-| `security-auditor`            | OAuth, credential handling, input validation                          |
+| `testing-specialist`          | Test strategy, coverage gaps, property-based/chaos/mutation testing   |
+| `security-auditor`            | OAuth, credential handling, SQL injection, MCP protocol security      |
 | `google-api-expert`           | Sheets/Drive/BigQuery API best practices, quota                       |
 | `mcp-protocol-specialist`     | MCP 2025-11-25 spec compliance validation                             |
+
+## MCP Resources & Prompts (Use Directly in Claude Code)
+
+The ServalSheets server is wired into Claude Code. Use these instead of file reads:
+
+```
+ReadMcpResourceTool("schema://tools/{toolName}")     → live schema for any tool
+ReadMcpResourceTool("schema://actions/{toolName}")   → action annotations
+ReadMcpResourceTool("metrics://servalsheets/health") → real-time health JSON
+ReadMcpResourceTool("guide://error-reference")       → all error codes
+```
+
+**40 registered MCP prompts** = pre-built structured workflows you can invoke:
+- `diagnose_errors` — analyze failures in a spreadsheet
+- `performance_audit` — benchmark + optimization recommendations  
+- `audit_security` — security review of a spreadsheet
+- `compare_spreadsheets` — diff two spreadsheets
+- `what_if_scenario_modeling` — dependency scenario analysis
+- `batch_optimizer` — API call reduction strategies
+- `recover_from_error` — guided error recovery workflow
 
 ## Workflow Templates
 
@@ -59,10 +79,17 @@ You are the tech lead for ServalSheets development. You don't write code yoursel
 
 ### Pre-commit review
 
-1. `Agent(servalsheets-validation)` — G0+G1 gates (drift check, placeholders, fallbacks)
-2. `Agent(code-review-orchestrator)` — type/lint/MCP/security checks
+1. `Agent(servalsheets-validation)` — G0 baseline: typecheck + check:drift + check:placeholders + check:silent-fallbacks + check:debug-prints + test:fast
+2. `Agent(code-review-orchestrator)` — type/lint/MCP/security/alignment checks
 3. If failures: route to appropriate specialist
 4. Report: ready-to-commit OR specific failures with file:line references
+
+**Full pre-release (run directly, not via agent):**
+```bash
+bash scripts/validation-gates.sh  # G0–G5 sequential
+# or for comprehensive audit:
+npm run audit:gate  # A1-A15
+```
 
 ### Schema/API work
 
@@ -70,7 +97,7 @@ You are the tech lead for ServalSheets development. You don't write code yoursel
 2. `Agent(mcp-protocol-specialist)` — validate MCP 2025-11-25 compliance
 3. `Agent(servalsheets-implementation)` — implement with schema first
 4. Run `npm run schema:commit` in the project directory IMMEDIATELY after schema changes
-5. `Agent(servalsheets-validation)` — G1 gate verifies metadata consistency
+5. `Agent(servalsheets-validation)` — runs validate:alignment + check:drift + test:fast
 
 ## Decision Rules
 

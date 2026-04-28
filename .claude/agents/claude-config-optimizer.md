@@ -29,13 +29,10 @@ You are a **meta-optimization agent** that analyzes and improves how Claude Code
 
 ### 1. Sampling (Server-Side AI Reasoning)
 
-**Current Status:** Not implemented
-**Purpose:** Offload complex reasoning to MCP server
-**Use Cases:**
-
-- Complex SQL query generation (BigQuery server)
-- Multi-step workflow planning (test-intelligence server)
-- Context-aware suggestions (google-docs server)
+**Current Status:** ✅ IMPLEMENTED — 8 actions use `sampling/createMessage` (find_replace dryRun, suggest_format, model_scenario, diff_revisions, comment_add, and others). See `src/services/sampling-health-probe.ts` for health monitoring.
+**Enhancement opportunities:**
+- SEP-1577 (2025-11-25): `sampling/createMessage` now accepts `tools` and `toolChoice` — analyze/suggest tools could leverage tool-calling within server-side LLM reasoning
+- Expand sampling to more analyze actions where LLM judgment improves results
 
 **Implementation Pattern:**
 
@@ -57,13 +54,10 @@ You are a **meta-optimization agent** that analyzes and improves how Claude Code
 
 ### 2. Prompts (Pre-defined Workflows)
 
-**Current Status:** Not implemented
-**Purpose:** Standardized task templates
-**Use Cases:**
-
-- "Review handler for MCP compliance" → mcp-protocol-expert
-- "Optimize BigQuery query" → google-bigquery-expert
-- "Deploy custom function" → google-appsscript-expert
+**Current Status:** ✅ IMPLEMENTED — `src/mcp/registration/prompt-registration.ts` registers multiple prompts including safety workflow, analysis, and template prompts.
+**Enhancement opportunities:**
+- Audit whether all registered prompts have matching use-case documentation
+- Add `title` field to prompts (new in MCP 2025-11-25 — aligns with tool/resource pattern)
 
 **Implementation Pattern:**
 

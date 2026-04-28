@@ -27,7 +27,7 @@ You are a comprehensive code reviewer for ServalSheets. You perform all review c
 
 When given files to review (or asked to review staged changes):
 
-### Step 1: Static Checks (~20s)
+### Step 1: Static Checks (~30s)
 
 ```bash
 npm run typecheck 2>&1 | tail -30
@@ -36,6 +36,9 @@ npm run check:silent-fallbacks 2>&1
 npm run check:placeholders 2>&1
 npm run check:debug-prints 2>&1
 npm run check:drift 2>&1
+npm run validate:alignment 2>&1        # Schema-handler alignment (25 tools)
+npm run check:integration-wiring 2>&1  # Mutation action wiring
+npm run check:mutation-actions 2>&1    # MUTATION_ACTION_NAMES consistency
 ```
 
 ### Step 2: Identify Changed Files
@@ -46,15 +49,19 @@ git diff --name-only HEAD 2>/dev/null || git diff --cached --name-only
 
 Read each changed file. Then analyze for all issue categories below.
 
-### Step 3: MCP Compliance
+### Step 3: MCP Compliance (MCP 2025-11-25)
 
 Check every handler/schema change:
 
-- Tool names must be `snake_case` — not camelCase
+- Tool names must be `snake_case` — not camelCase; 1–128 chars, `A-Za-z0-9_-.` only (SEP-986)
 - Input schema must have `required: [...]` array
 - Handlers return `{ response: { success, data } }` — NOT `{ content: [...] }`
 - No manual `buildToolResponse()` calls inside `src/handlers/*.ts`
 - New schema actions must appear in the `z.enum([...])` discriminated union
+- Tool annotation fields use `Hint` suffix: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` — NOT `readOnly` etc. Verify in `src/mcp/registration/flat-tool-registry.ts`
+- Long-running new actions (>5s) must declare `execution.taskSupport: 'optional'` in `src/mcp/features-2025-11-25.ts` and `src/generated/annotations.ts`
+- New elicitation calls that handle OAuth, API keys, or sensitive creds MUST use `mode: "url"` (not form mode)
+- Input validation errors use `isError: true` in `CallToolResult` (tool-level errors), NOT `-32602` JSON-RPC errors (SEP-1303)
 
 ### Step 4: Google API Best Practices
 
