@@ -1,0 +1,168 @@
+name: MCP Protocol Test
+
+# Tests all 409 actions via actual MCP JSON-RPC wire protocol.
+# No Google credentials needed — validates routing, schema, and error handling.
+# Runs on every PR to catch protocol-level regressions before merge.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/handlers/**'
+      - 'src/schemas/**'
+      - 'src/mcp/**'
+      - 'scripts/mcp-protocol-smoke.mjs'
+  push:
+    branches: [main]
+    paths:
+      - 'src/handlers/**'
+      - 'src/schemas/**'
+      - 'src/mcp/**'
+  workflow_dispatch:
+    inputs:
+      tool_filter:
+        description: 'Test only this tool (leave empty for all)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: mcp-protocol-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  mcp-protocol-smoke:
+    name: MCP Protocol Smoke Test (409 actions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run MCP protocol smoke test
+        id: mcp-test
+        env:
+          NODE_ENV: test
+          SESSION_STORE_TYPE: memory
+          ALLOW_MEMORY_SESSIONS: 'true'
+          CACHE_REDIS_ENABLED: 'false'
+          LOG_LEVEL: error
+          SKIP_PREFLIGHT: 'true'
+        run: |
+          TOOL_ARG="${{ github.event.inputs.tool_filter }}"
+          if [ -n "$TOOL_ARG" ]; then
+            node scripts/mcp-protocol-smoke.mjs --tool "$TOOL_ARG" --json > mcp-results.json
+          else
+            node scripts/mcp-protocol-smoke.mjs --json > mcp-results.json
+          fi
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Parse results
+        id: parse
+        if: always()
+        run: |
+          if [ -f mcp-results.json ]; then
+            PASSED=$(node -p "require('./mcp-results.json').passed")
+            FAILED=$(node -p "require('./mcp-results.json').failed")
+            SKIPPED=$(node -p "require('./mcp-results.json').skipped")
+            TOTAL=$(node -p "require('./mcp-results.json').actionsTotal")
+            PASS_RATE=$(node -p "require('./mcp-results.json').passRate")
+            TOOLS=$(node -p "require('./mcp-results.json').toolsVerified")
+
+            echo "passed=$PASSED" >> $GITHUB_OUTPUT
+            echo "failed=$FAILED" >> $GITHUB_OUTPUT
+            echo "skipped=$SKIPPED" >> $GITHUB_OUTPUT
+            echo "total=$TOTAL" >> $GITHUB_OUTPUT
+            echo "pass_rate=$PASS_RATE" >> $GITHUB_OUTPUT
+            echo "tools=$TOOLS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('mcp-results.json')) return;
+
+            const results = JSON.parse(fs.readFileSync('mcp-results.json', 'utf-8'));
+            const failures = results.actionResults?.filter(r => r.status === 'fail') ?? [];
+            const status = results.failed === 0 ? '✅' : '❌';
+
+            let body = `## ${status} MCP Protocol Test\n\n`;
+            body += `| Metric | Value |\n|---|---|\n`;
+            body += `| Tools verified | ${results.toolsVerified}/25 |\n`;
+            body += `| Actions tested | ${results.actionsTotal} |\n`;
+            body += `| Passed | ${results.passed} |\n`;
+            body += `| Failed | ${results.failed} |\n`;
+            body += `| Skipped | ${results.skipped} |\n`;
+            body += `| Pass rate | ${results.passRate} |\n\n`;
+
+            if (failures.length > 0) {
+              body += `### ❌ Failures\n\n`;
+              for (const f of failures.slice(0, 20)) {
+                body += `- \`${f.tool}.${f.action}\`: ${f.detail}\n`;
+              }
+              if (failures.length > 20) body += `\n_...and ${failures.length - 20} more_\n`;
+            }
+
+            body += `\n_[MCP 2025-11-25 protocol smoke test — tests JSON-RPC wire format for all ${results.actionsTotal} actions]_`;
+
+            // Find and update existing comment or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes('MCP Protocol Test'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
+        with:
+          name: mcp-protocol-results-${{ github.sha }}
+          path: mcp-results.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail on protocol violations
+        if: steps.parse.outputs.failed != '0'
+        run: |
+          echo "❌ ${{ steps.parse.outputs.failed }} MCP protocol failures detected"
+          echo "Check mcp-results.json artifact for details"
+          exit 1

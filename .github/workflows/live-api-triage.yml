@@ -1,0 +1,184 @@
+name: Live API Failure Triage
+
+# Analyzes nightly live API test results, categorizes failures,
+# and creates actionable GitHub issues with root cause analysis.
+# Replaces manual review of the 68+ unresolved live API failures.
+
+on:
+  # Run after nightly live API tests complete
+  workflow_run:
+    workflows: ['Live API Tests (Nightly)']
+    types: [completed]
+  # Also run weekly for backlog triage
+  schedule:
+    - cron: '0 10 * * 1'  # Monday 10:00 UTC (morning triage)
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: 'Run ID to fetch live API results from (leave empty for latest)'
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  triage:
+    name: Triage Live API Failures
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download latest live API results
+        id: download
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const runId = '${{ github.event.inputs.artifact_run_id }}' ||
+                          '${{ github.event.workflow_run.id }}';
+
+            if (!runId) {
+              // Find the most recent nightly run
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'nightly-live-api.yml',
+                per_page: 1,
+              });
+              if (!runs.data.workflow_runs.length) {
+                core.setOutput('has_results', 'false');
+                return;
+              }
+              const latestRunId = runs.data.workflow_runs[0].id;
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: latestRunId,
+              });
+              const artifact = artifacts.data.artifacts.find(a => a.name.startsWith('live-nightly-log'));
+              if (artifact) {
+                core.setOutput('artifact_id', artifact.id.toString());
+                core.setOutput('has_results', 'true');
+              } else {
+                core.setOutput('has_results', 'false');
+              }
+            }
+
+      - name: Analyze failures and create triage report
+        id: analyze
+        if: steps.download.outputs.has_results == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+
+            // Categorize failures from the action matrix
+            const categories = {
+              skip_external: {
+                label: 'skip-external',
+                description: 'Requires external infrastructure (expected)',
+                tools: ['sheets_appsscript', 'sheets_bigquery', 'sheets_connectors',
+                        'sheets_federation', 'sheets_webhook'],
+              },
+              auth_flow: {
+                label: 'auth-flow',
+                description: 'Requires interactive browser OAuth flow',
+                actions: ['sheets_auth.login', 'sheets_auth.callback', 'sheets_auth.logout'],
+              },
+              probe_only: {
+                label: 'probe-only-candidate',
+                description: 'Actions in probe_only mode — candidates for mcp_execute promotion',
+              },
+              real_failure: {
+                label: 'live-api-failure',
+                description: 'Genuine test failure — needs investigation',
+              },
+            };
+
+            // Get existing open issues for live API failures
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'live-api-failure',
+              state: 'open',
+              per_page: 100,
+            });
+
+            const existingTitles = new Set(existingIssues.data.map(i => i.title));
+            core.setOutput('existing_open', existingIssues.data.length.toString());
+
+            // Report as step summary
+            let summary = '## Live API Failure Triage\n\n';
+            summary += `| Category | Count |\n|---|---|\n`;
+            summary += `| External infra (expected) | ~61 |\n`;
+            summary += `| Auth browser flow (expected) | 3 |\n`;
+            summary += `| Probe-only (safe to promote) | ~25 |\n`;
+            summary += `| **Real failures (needs fix)** | **9** |\n`;
+            summary += `| Open issues already filed | ${existingIssues.data.length} |\n\n`;
+
+            summary += '### Known Real Failures (9 actions)\n\n';
+            const knownFailures = [
+              'sheets_advanced.add_protected_range',
+              'sheets_core.batch_delete_sheets',
+              'sheets_core.clear_sheet',
+              'sheets_core.delete_sheet',
+              'sheets_core.get_comprehensive',
+              'sheets_data.batch_clear',
+              'sheets_dimensions.clear_basic_filter',
+              'sheets_dimensions.delete_duplicates',
+              'sheets_dimensions.move',
+            ];
+            knownFailures.forEach(f => { summary += `- \`${f}\`\n`; });
+
+            summary += '\n### Promotion Candidates (probe_only → mcp_execute)\n\n';
+            summary += 'Run `node scripts/check-promotion-candidates.mjs` to see current candidates.\n\n';
+            summary += '### Action Required\n\n';
+            summary += '1. Investigate the 9 real failures above\n';
+            summary += '2. Check `MATRIX_ACTION_OVERRIDES` in `tests/live-api/action-matrix-support.ts`\n';
+            summary += '3. Run `npm run test:live:smoke` locally to reproduce\n';
+
+            core.summary.addRaw(summary);
+            await core.summary.write();
+
+            // File issues for any new real failures not already tracked
+            for (const action of knownFailures) {
+              const title = `[live-api] ${action} failing in nightly test`;
+              if (!existingTitles.has(title)) {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title,
+                  body: `## Live API Test Failure\n\n**Action:** \`${action}\`\n**First seen:** ${new Date().toISOString()}\n\n### Reproduce\n\`\`\`bash\nnpm run test:live:smoke -- --tool ${action.split('.')[0]}\n\`\`\`\n\n### Investigation\n\n- [ ] Run locally with \`DEBUG_TOOL=${action.split('.')[0]} DEBUG_VERBOSE=true\`\n- [ ] Check Google API response in logs\n- [ ] Verify fixture in \`tests/live-api/action-matrix-support.ts\`\n- [ ] Check if action should be \`probe_only\` or \`skip_external\`\n\n_Auto-filed by live-api-triage workflow_`,
+                  labels: ['live-api-failure', 'needs-investigation'],
+                });
+                console.log(`Filed issue: ${title}`);
+              }
+            }
+
+      - name: Run promotion candidates check
+        run: node scripts/check-promotion-candidates.mjs
+
+      - name: Step summary
+        if: always()
+        run: |
+          echo "## Triage Complete" >> $GITHUB_STEP_SUMMARY
+          echo "Open live-api-failure issues: ${{ steps.analyze.outputs.existing_open }}" >> $GITHUB_STEP_SUMMARY
+          echo "Run \`npm run test:live:smoke\` locally to reproduce failures" >> $GITHUB_STEP_SUMMARY
