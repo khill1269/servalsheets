@@ -217,6 +217,10 @@ export const EnvSchema = z
     // instead of defaulting to allow. Set RBAC_STRICT=true in production
     // when RBAC is the primary authorization layer.
     RBAC_STRICT: StrictBooleanSchema.default(false),
+    // SEP-835: Enforce OAuth scope requirements at action execution time.
+    // When false (default), scopes are only validated at token issuance.
+    // Enable in production after verifying all clients have the required scopes.
+    ENABLE_SCOPE_ENFORCEMENT: StrictBooleanSchema.default(false),
     DATA_DIR: z.string().default('/tmp/servalsheets'),
     PROFILE_STORAGE_DIR: z.string().optional(),
     CHECKPOINT_DIR: z.string().optional(),

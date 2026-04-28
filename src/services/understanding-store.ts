@@ -188,12 +188,19 @@ export interface SpreadsheetUnderstanding {
  * Manages progressive understanding of spreadsheets
  */
 export class UnderstandingStore {
-  /** In-memory store keyed by spreadsheetId */
+  /** In-memory store keyed by [userId:]spreadsheetId for multi-tenant isolation */
   private store = new BoundedCache<string, SpreadsheetUnderstanding>({
     maxSize: 200,
     ttl: 60 * 60 * 1000,
   });
   private hypothesisCounter = 0;
+
+  constructor(private readonly getUserId?: () => string | undefined) {}
+
+  private storeKey(spreadsheetId: string): string {
+    const uid = this.getUserId?.();
+    return uid ? `${uid}:${spreadsheetId}` : spreadsheetId;
+  }
 
   /**
    * Initialize understanding from a scout result
@@ -204,7 +211,7 @@ export class UnderstandingStore {
     sheets: Array<{ sheetId: number; title: string }>,
     confidence: ConfidenceAssessment
   ): SpreadsheetUnderstanding {
-    const existing = this.store.get(spreadsheetId);
+    const existing = this.store.get(this.storeKey(spreadsheetId));
     if (existing) {
       // Update existing
       return this.updateConfidence(spreadsheetId, confidence, 'scout');
@@ -243,7 +250,7 @@ export class UnderstandingStore {
     const hypotheses = this.generateInitialHypotheses(confidence);
     understanding.hypotheses = hypotheses;
 
-    this.store.set(spreadsheetId, understanding);
+    this.store.set(this.storeKey(spreadsheetId), understanding);
 
     logger.info('UnderstandingStore: Initialized', {
       spreadsheetId,
@@ -268,7 +275,7 @@ export class UnderstandingStore {
       columnTypes?: Array<{ index: number; header: string | null; type: string }>;
     }
   ): SpreadsheetUnderstanding {
-    let understanding = this.store.get(spreadsheetId);
+    let understanding = this.store.get(this.storeKey(spreadsheetId));
     if (!understanding) {
       // Auto-init if not yet created
       understanding = this.initFromScout(spreadsheetId, '', [], confidence);
@@ -325,7 +332,7 @@ export class UnderstandingStore {
       changes,
     });
 
-    this.store.set(spreadsheetId, understanding);
+    this.store.set(this.storeKey(spreadsheetId), understanding);
     return understanding;
   }
 
@@ -337,7 +344,7 @@ export class UnderstandingStore {
     confidence: ConfidenceAssessment,
     context: UserProvidedContext
   ): SpreadsheetUnderstanding {
-    const understanding = this.store.get(spreadsheetId);
+    const understanding = this.store.get(this.storeKey(spreadsheetId));
     if (!understanding) {
       throw new NotFoundError('understanding', spreadsheetId);
     }
@@ -398,7 +405,7 @@ export class UnderstandingStore {
       changes,
     });
 
-    this.store.set(spreadsheetId, understanding);
+    this.store.set(this.storeKey(spreadsheetId), understanding);
     return understanding;
   }
 
@@ -406,14 +413,14 @@ export class UnderstandingStore {
    * Get current understanding for a spreadsheet
    */
   get(spreadsheetId: string): SpreadsheetUnderstanding | undefined {
-    return this.store.get(spreadsheetId);
+    return this.store.get(this.storeKey(spreadsheetId));
   }
 
   /**
    * Get a summary of understanding suitable for inclusion in tool responses
    */
   getSummary(spreadsheetId: string): UnderstandingSummary | undefined {
-    const understanding = this.store.get(spreadsheetId);
+    const understanding = this.store.get(this.storeKey(spreadsheetId));
     if (!understanding) return undefined; // OK: Explicit empty
 
     return {
@@ -437,12 +444,12 @@ export class UnderstandingStore {
    * Update the semantic index built from comprehensive analysis
    */
   updateSemanticIndex(spreadsheetId: string, index: SemanticIndex): void {
-    const understanding = this.store.get(spreadsheetId);
+    const understanding = this.store.get(this.storeKey(spreadsheetId));
     if (!understanding) return;
     understanding.semanticIndex = index;
     understanding.inferredPurpose = understanding.inferredPurpose ?? index.workbookType;
     understanding.lastUpdatedAt = Date.now();
-    this.store.set(spreadsheetId, understanding);
+    this.store.set(this.storeKey(spreadsheetId), understanding);
     logger.info('UnderstandingStore: Semantic index updated', {
       spreadsheetId,
       workbookType: index.workbookType,
@@ -454,7 +461,7 @@ export class UnderstandingStore {
    * Serialize understanding for session persistence
    */
   serialize(spreadsheetId: string): string | undefined {
-    const understanding = this.store.get(spreadsheetId);
+    const understanding = this.store.get(this.storeKey(spreadsheetId));
     if (!understanding) return undefined; // OK: Explicit empty
     return JSON.stringify(understanding);
   }
@@ -466,7 +473,7 @@ export class UnderstandingStore {
     try {
       const understanding = JSON.parse(data) as SpreadsheetUnderstanding;
       if (understanding.spreadsheetId) {
-        this.store.set(understanding.spreadsheetId, understanding);
+        this.store.set(this.storeKey(understanding.spreadsheetId), understanding);
         logger.info('UnderstandingStore: Restored', {
           spreadsheetId: understanding.spreadsheetId,
           interactionCount: understanding.interactionCount,
@@ -481,7 +488,7 @@ export class UnderstandingStore {
    * Clear understanding for a spreadsheet
    */
   clear(spreadsheetId: string): void {
-    this.store.delete(spreadsheetId);
+    this.store.delete(this.storeKey(spreadsheetId));
   }
 
   /**
@@ -586,7 +593,7 @@ export class UnderstandingStore {
     confidence: ConfidenceAssessment,
     trigger: UnderstandingEvent['trigger']
   ): SpreadsheetUnderstanding {
-    const understanding = this.store.get(spreadsheetId)!;
+    const understanding = this.store.get(this.storeKey(spreadsheetId))!;
     const prevConfidence = understanding.latestConfidence?.overallScore ?? 0;
 
     understanding.latestConfidence = confidence;
@@ -601,7 +608,7 @@ export class UnderstandingStore {
       changes: [`Updated from ${trigger}`],
     });
 
-    this.store.set(spreadsheetId, understanding);
+    this.store.set(this.storeKey(spreadsheetId), understanding);
     return understanding;
   }
 }

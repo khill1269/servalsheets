@@ -16,6 +16,7 @@
 
 import { createRequire } from 'node:module';
 import { ServiceError } from '../core/errors.js';
+import { logger } from '../utils/logger.js';
 
 const require = createRequire(import.meta.url);
 
@@ -215,8 +216,11 @@ export function buildFormulaSamplingRequest(
           .map((p) => `Pattern: ${p.template}\nExample: ${p.example}\nUse case: ${p.description}`)
           .join('\n\n');
     }
-  } catch {
-    // Pattern injection is best-effort; never block formula generation
+  } catch (err) {
+    logger.warn('Formula pattern injection skipped', {
+      description: description.slice(0, 100),
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const prompt = `Generate a Google Sheets formula for the following requirement:

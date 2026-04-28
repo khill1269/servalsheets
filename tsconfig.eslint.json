@@ -5,12 +5,7 @@
     "rootDir": "."
   },
   "include": [
-    "src/**/*.ts",
-    "tests/**/*.ts",
-    "vitest.config.ts",
-    "tests/config/vitest.config.chaos.ts",
-    "tests/config/vitest.config.live.ts",
-    "tests/config/vitest.config.load.ts"
+    "src/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "exclude": ["node_modules", "dist", "coverage", "src/ui/tracing-dashboard"]
 }

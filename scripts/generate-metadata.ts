@@ -575,6 +575,8 @@ const serverJson = {
     'https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json',
   name: pkg.mcpName || pkg.name,
   version: pkg.version,
+  license: 'MIT',
+  categories: ['productivity', 'google-workspace', 'data-analysis', 'spreadsheet', 'ai'],
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
   icons: [
     {

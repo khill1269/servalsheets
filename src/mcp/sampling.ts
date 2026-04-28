@@ -81,6 +81,11 @@ export {
 } from '../utils/sampling-consent.js';
 export type { SamplingOperation } from '../utils/sampling-consent.js';
 import { assertSamplingConsent, withSamplingTimeout } from '../utils/sampling-consent.js';
+import {
+  buildSamplingCacheKey,
+  getSamplingResult,
+  setSamplingResult,
+} from '../services/sampling-result-cache.js';
 
 // ============================================================================
 // Types
@@ -369,7 +374,7 @@ export async function enrichSystemPromptWithContext(
   baseSystemPrompt: string
 ): Promise<string> {
   try {
-    const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId);
+    const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId, getRequestContext()?.principalId);
     const hint = formatContextForPrompt(ctx);
     return hint ? `${hint}\n\n${baseSystemPrompt}` : baseSystemPrompt;
   } catch {
@@ -481,7 +486,8 @@ Be concise but thorough.`,
 Generate formulas using Google Sheets syntax (not Excel).
 Available functions include: QUERY, ARRAYFORMULA, IMPORTRANGE, GOOGLEFINANCE, etc.
 Return ONLY the formula unless asked for explanation.
-Use modern array formulas when appropriate.`,
+Use modern array formulas when appropriate.
+If the user message includes a "Relevant formula patterns" section, treat those as authoritative reference examples preferred over generic defaults.`,
 
   dataCleaning: `You are a data quality specialist.
 Identify issues like: inconsistent formats, duplicates, missing values, typos, outliers.
@@ -636,7 +642,7 @@ Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% 
   let schemaContext = params.context ?? '';
   if (!schemaContext && sheetsApi && spreadsheetId) {
     try {
-      const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId);
+      const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId, getRequestContext()?.principalId);
       schemaContext = formatContextForPrompt(ctx);
     } catch {
       // Non-blocking: schema context enrichment is best-effort
@@ -741,6 +747,18 @@ Output: =SUM($B$2:B2)`;
     ? { hints: [{ name: 'claude-sonnet-4-6' }], temperature: 0.1 }
     : DEFAULT_MODEL_HINTS['formulaGeneration']!;
 
+  // Cache lookup: generateFormula is highly deterministic (temperature=0.1)
+  const _formulaCacheKey = buildSamplingCacheKey({
+    operation: 'generateFormula',
+    systemPrompt: formulaSystemPrompt,
+    userText: prompt,
+  });
+  const _cachedFormula = getSamplingResult(_formulaCacheKey);
+  if (_cachedFormula) {
+    recordSamplingRequest('generateFormula', 'success');
+    return _cachedFormula;
+  }
+
   const result = await withSamplingTimeout(() =>
     server.createMessage({
       messages: [createUserMessage(prompt)],
@@ -765,6 +783,7 @@ Output: =SUM($B$2:B2)`;
     }
   }
 
+  setSamplingResult(_formulaCacheKey, formula); // No spreadsheetId — TTL-only eviction
   recordSamplingRequest('generateFormula', 'success');
   return formula;
 }

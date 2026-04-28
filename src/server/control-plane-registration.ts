@@ -7,6 +7,7 @@ import { logger as baseLogger } from '../utils/logger.js';
 import {
   completeAction,
   completeRangeContextAware,
+  completeSheetName,
   completeSpreadsheetId,
   TOOL_ACTIONS,
 } from '../mcp/completions.js';
@@ -177,7 +178,27 @@ export function registerToolCompletionHandler(params: {
           return { completion: { values: [], hasMore: false } };
         }
 
-        // For ref/resource and any future unknown ref types, return empty.
+        // Handle ref/resource — route by argument name to the same completers used
+        // for ref/tool and ref/prompt. Without this branch, resource template
+        // arguments (e.g. spreadsheetId in a resource URI) returned empty completions.
+        if (ref?.type === 'ref/resource') {
+          const argName = arg?.name ?? '';
+          if (argName === 'spreadsheetId' || argName === 'uri') {
+            const values = completeSpreadsheetId(partial);
+            return { completion: { values, hasMore: false } };
+          }
+          if (argName === 'sheetName' || argName === 'sheet') {
+            const values = completeSheetName(partial);
+            return { completion: { values, hasMore: false } };
+          }
+          if (argName === 'range' || argName === 'ranges') {
+            const values = completeRangeContextAware(partial);
+            return { completion: { values, hasMore: false } };
+          }
+          return { completion: { values: [], hasMore: false } };
+        }
+
+        // For any future unknown ref types, return empty.
         return { completion: { values: [], hasMore: false } };
       }
     );

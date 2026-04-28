@@ -41,9 +41,11 @@ const cache = new BoundedCache<string, SpreadsheetContext>({
  */
 export async function getSpreadsheetContext(
   sheetsApi: sheets_v4.Sheets,
-  spreadsheetId: string
+  spreadsheetId: string,
+  userId?: string
 ): Promise<SpreadsheetContext> {
-  const cached = cache.get(spreadsheetId);
+  const cacheKey = userId ? `${userId}:${spreadsheetId}` : spreadsheetId;
+  const cached = cache.get(cacheKey);
   if (cached) return cached;
 
   try {
@@ -86,7 +88,7 @@ export async function getSpreadsheetContext(
       fetchedAt: Date.now(),
     };
 
-    cache.set(spreadsheetId, context);
+    cache.set(cacheKey, context);
     return context;
   } catch (error) {
     logger.warn('Failed to fetch spreadsheet context for cache', {
@@ -134,8 +136,9 @@ function detectColumnTypes(rows: sheets_v4.Schema$RowData[], colCount: number): 
 /**
  * Invalidate cached context for a spreadsheet (call after mutations).
  */
-export function invalidateContext(spreadsheetId: string): void {
-  cache.delete(spreadsheetId);
+export function invalidateContext(spreadsheetId: string, userId?: string): void {
+  const cacheKey = userId ? `${userId}:${spreadsheetId}` : spreadsheetId;
+  cache.delete(cacheKey);
 }
 
 /**

@@ -2,6 +2,14 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
+  "license": "MIT",
+  "categories": [
+    "productivity",
+    "google-workspace",
+    "data-analysis",
+    "spreadsheet",
+    "ai"
+  ],
   "description": "Production-grade Google Sheets MCP server with 25 tools and 410 actions",
   "icons": [
     {

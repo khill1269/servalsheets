@@ -291,8 +291,8 @@ export class SessionContextManager {
   private readonly maxDescriptionLength = 500; // Limit operation descriptions
   private readonly maxStateStringLength = 10_000_000; // 10MB limit for JSON state
 
-  /** Progressive understanding store for confidence-aware analysis (keyed by spreadsheetId) */
-  readonly understandingStore = new UnderstandingStore();
+  /** Progressive understanding store for confidence-aware analysis (keyed by [userId:]spreadsheetId) */
+  readonly understandingStore = new UnderstandingStore(() => this.currentUserId);
 
   // Quota tracking for predictive quota management
   private quotaTracking = {

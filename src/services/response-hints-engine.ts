@@ -418,6 +418,97 @@ export function generateScenarioHints(cascadeEffects?: unknown[]): ResponseHints
 }
 
 /**
+ * Generate CoT `_hints` for format mutation operations.
+ * Surfaces cell count and action-specific next-phase guidance.
+ */
+export function generateFormatHints(
+  cellsFormatted: number,
+  actionName: string
+): ResponseHints | null {
+  if (cellsFormatted === 0) return null;
+  const plural = cellsFormatted !== 1 ? 's' : '';
+  let nextPhase: string;
+  if (actionName === 'batch_format') {
+    nextPhase = 'Batch format complete → use sheets_analyze.analyze_structure to confirm layout consistency';
+  } else if (actionName === 'apply_preset') {
+    nextPhase = 'Preset applied → consider batch_format to apply uniform style across multiple ranges';
+  } else if (actionName === 'clear_format') {
+    nextPhase = 'Format cleared → re-apply with apply_preset or set_format as needed';
+  } else {
+    nextPhase = 'Format applied → verify with sheets_format.suggest_format to audit remaining opportunities';
+  }
+  return {
+    dataShape: `Formatted ${cellsFormatted} cell${plural} via ${actionName}`,
+    riskLevel: 'none',
+    nextPhase,
+  };
+}
+
+/**
+ * Generate CoT `_hints` for dimension mutation operations (insert, delete, move, etc.).
+ * Surfaces row/column count, dimension, and action-specific risk and guidance.
+ */
+export function generateDimensionHints(
+  count: number,
+  dimension: 'ROWS' | 'COLUMNS',
+  actionName: string
+): ResponseHints | null {
+  if (count === 0) return null;
+  const label = dimension === 'ROWS' ? 'row' : 'column';
+  const plural = count !== 1 ? 's' : '';
+  let nextPhase: string;
+  let riskLevel: ResponseHints['riskLevel'];
+  switch (actionName) {
+    case 'insert':
+      nextPhase = `Inserted → verify formula references did not shift unexpectedly (sheets_deps.analyze_impact)`;
+      riskLevel = 'low';
+      break;
+    case 'delete':
+      nextPhase = `Deleted permanently → verify dependent formulas (sheets_deps.analyze_impact)`;
+      riskLevel = count > 10 ? 'high' : 'medium';
+      break;
+    case 'move':
+      nextPhase = 'Reordered → check that sorted formulas still point to correct indices';
+      riskLevel = 'low';
+      break;
+    case 'sort_range':
+      nextPhase = 'Sorted → verify relative formula references (OFFSET, ROW()-based) are still correct';
+      riskLevel = 'low';
+      break;
+    case 'delete_duplicates':
+      nextPhase = `Duplicates removed (${count} ${label}${plural} deleted permanently)`;
+      riskLevel = count > 0 ? 'medium' : 'none';
+      break;
+    case 'hide':
+    case 'show':
+      nextPhase = `Visibility changed → hidden ${label}${plural} still participate in formulas`;
+      riskLevel = 'none';
+      break;
+    case 'freeze':
+      nextPhase = `Frozen ${count} ${label}${plural} → scroll to verify header alignment`;
+      riskLevel = 'none';
+      break;
+    case 'group':
+    case 'update_dimension_group':
+      nextPhase = `Grouped → collapse/expand via outline controls or sheets_dimensions.hide`;
+      riskLevel = 'none';
+      break;
+    case 'ungroup':
+      nextPhase = 'Ungrouped → outline controls removed for this range';
+      riskLevel = 'none';
+      break;
+    default:
+      nextPhase = 'Dimension operation complete';
+      riskLevel = 'none';
+  }
+  return {
+    dataShape: `${actionName}: ${count} ${label}${plural}`,
+    riskLevel,
+    nextPhase,
+  };
+}
+
+/**
  * Generate CoT `_hints` from response cell values.
  * Returns null when there is not enough data to generate meaningful hints.
  */

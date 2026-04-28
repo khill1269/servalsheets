@@ -77,6 +77,7 @@
     "validate:compliance": "node --import tsx scripts/validate-api-mcp-compliance.ts",
     "validate:server-json": "node scripts/validate-server-json.mjs",
     "validate:server-json-extended": "node --import tsx scripts/validate-server-json-extended.ts",
+    "validate:registry": "node scripts/validate-server-json.mjs && node --import tsx scripts/validate-server-json-extended.ts",
     "check:metadata-strict": "node --import tsx scripts/check-metadata-strict.ts",
     "check:zod-markers": "node scripts/check-zod-markers.mjs",
     "check:architecture": "bash scripts/check-architecture.sh",

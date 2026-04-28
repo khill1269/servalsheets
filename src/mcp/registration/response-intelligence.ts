@@ -12,8 +12,11 @@ import {
   generateResponseHints,
   generateWriteHints,
   generateScenarioHints,
+  generateFormatHints,
+  generateDimensionHints,
   type ResponseHints,
 } from '../../services/response-hints-engine.js';
+import { getSessionContext } from '../../services/session-context.js';
 import { compressSheetForLLM } from '../../utils/response-compactor.js';
 import { selfCorrectionsTotal } from '../../observability/metrics.js';
 
@@ -68,6 +71,43 @@ const BATCHING_HINTS: Partial<Record<string, string>> = {
   'sheets_format.set_text_format': 'For 3+ cells, use batch_format — single API call.',
   'sheets_core.get': 'For 2+ spreadsheets, use sheets_core.batch_get — single API call.',
 };
+
+const BATCH_DETECT_THRESHOLD = 3;
+
+/**
+ * Detect whether the session history shows a repeated pattern of the same single-item
+ * operation that has a batch alternative. Returns an enriched hint when pattern is confirmed,
+ * or undefined if the pattern hasn't fired or the action has no batch equivalent.
+ *
+ * Guards: action must have a BATCHING_HINTS entry; last N ops must target same spreadsheet.
+ */
+function detectBatchPattern(
+  toolName: string,
+  actionName: string,
+  spreadsheetId: string | undefined
+): string | undefined {
+  const staticHint = BATCHING_HINTS[`${toolName}.${actionName}`];
+  if (!staticHint) return undefined;
+
+  let history: import('../../services/session-context.js').OperationRecord[];
+  try {
+    history = getSessionContext().getOperationHistory(20);
+  } catch {
+    return undefined;
+  }
+
+  const matchingOps = history.filter(
+    (op) =>
+      op.tool === toolName &&
+      op.action === actionName &&
+      (spreadsheetId === undefined || op.spreadsheetId === spreadsheetId)
+  );
+
+  if (matchingOps.length >= BATCH_DETECT_THRESHOLD) {
+    return `${staticHint} (detected ${matchingOps.length} repeated ${toolName}.${actionName} calls this session)`;
+  }
+  return undefined; // OK: no batch pattern detected — caller omits the hint
+}
 
 /**
  * Action-specific gotcha warnings injected into successful responses.
@@ -1140,6 +1180,34 @@ export function applyResponseIntelligence(
         riskLevel: 'low' as const,
       };
     }
+  } else if (options.toolName === 'sheets_format') {
+    const FORMAT_MUTATIONS = new Set([
+      'set_format', 'set_background', 'set_text_format', 'set_number_format',
+      'set_alignment', 'set_borders', 'batch_format', 'apply_preset', 'clear_format', 'set_rich_text',
+    ]);
+    if (FORMAT_MUTATIONS.has(actionName)) {
+      const cellsFormatted =
+        typeof responseRecord['cellsFormatted'] === 'number' ? responseRecord['cellsFormatted'] : 0;
+      const hints = generateFormatHints(cellsFormatted, actionName);
+      if (hints) responseRecord['_hints'] = hints;
+    }
+  } else if (options.toolName === 'sheets_dimensions') {
+    const DIM_MUTATIONS = new Set([
+      'insert', 'delete', 'move', 'hide', 'show', 'freeze', 'group', 'ungroup',
+      'resize', 'auto_resize', 'sort_range', 'delete_duplicates', 'update_dimension_group',
+    ]);
+    if (DIM_MUTATIONS.has(actionName)) {
+      const rowsAffected =
+        typeof responseRecord['rowsAffected'] === 'number' ? responseRecord['rowsAffected'] : null;
+      const colsAffected =
+        typeof responseRecord['columnsAffected'] === 'number'
+          ? responseRecord['columnsAffected']
+          : null;
+      const count = rowsAffected ?? colsAffected ?? 0;
+      const dimension: 'ROWS' | 'COLUMNS' = rowsAffected !== null ? 'ROWS' : 'COLUMNS';
+      const hints = generateDimensionHints(count, dimension, actionName);
+      if (hints) responseRecord['_hints'] = hints;
+    }
   }
 
   // Inject action-specific gotcha warnings to prevent common LLM mistakes
@@ -1181,7 +1249,12 @@ export function applyResponseIntelligence(
   }
 
   // Return batching hint for the caller to inject into _meta
-  const batchingHint = BATCHING_HINTS[`${options.toolName}.${actionName}`];
+  const dynamicBatchingHint =
+    !options.hasFailure && options.toolName && actionName
+      ? detectBatchPattern(options.toolName, actionName, options.spreadsheetId)
+      : undefined;
+  const batchingHint =
+    dynamicBatchingHint ?? BATCHING_HINTS[`${options.toolName}.${actionName}`];
   return {
     ...(batchingHint ? { batchingHint } : {}),
     ...(options.aiMode ? { aiMode: options.aiMode } : {}),

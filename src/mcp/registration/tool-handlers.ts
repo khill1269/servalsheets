@@ -120,6 +120,8 @@ import { isLikelyMutationAction, withWriteLock } from '../../middleware/write-lo
 import { checkRateLimit } from '../../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../../middleware/mutation-safety-middleware.js';
 import { getRbacManager } from '../../services/rbac-manager.js';
+import { ScopeValidator } from '../../security/incremental-scope.js';
+import { OPERATION_SCOPES } from '../../security/operation-scopes-map.js';
 import { startKeepalive } from '../../utils/keepalive.js';
 import { createTaskAwareSamplingServer } from '../sampling.js';
 import {
@@ -1283,6 +1285,40 @@ function createToolCallHandler(
                     }
                   }
 
+                // SEP-835 scope enforcement — applies to all transports including STDIO.
+                // Guarded by ENABLE_SCOPE_ENFORCEMENT (default false) for gradual rollout.
+                // Non-OAuth auth types (service account, ADC) are bypassed via getGrantedScopes() returning [].
+                if (getEnv()['ENABLE_SCOPE_ENFORCEMENT'] && googleClient) {
+                  const operationKey = `${tool.name}.${action}`;
+                  const operationDef = OPERATION_SCOPES[operationKey];
+                  if (operationDef) {
+                    const grantedScopes = googleClient.getGrantedScopes();
+                    if (grantedScopes.length > 0) {
+                      const validator = new ScopeValidator({ scopes: grantedScopes });
+                      if (!validator.hasRequiredScopes(operationKey)) {
+                        const missingScopes = validator.getMissingScopes(operationKey);
+                        logger.warn('SEP-835: Insufficient OAuth scope for operation', {
+                          userId: principalId,
+                          operationKey,
+                          missingScopes,
+                        });
+                        return {
+                          response: {
+                            success: false,
+                            error: {
+                              code: 'SCOPE_INSUFFICIENT',
+                              message: `"${operationKey}" requires additional OAuth scopes: ${missingScopes.join(', ')}.`,
+                              retryable: false,
+                              missingScopes,
+                              hint: 'Re-authenticate with the required scopes via sheets_auth.',
+                            },
+                          },
+                        };
+                      }
+                    }
+                  }
+                }
+
                 const mutationSafetyViolation = detectMutationSafetyViolation(normalizedArgs);
                 if (mutationSafetyViolation) {
                   return {
@@ -1541,7 +1577,7 @@ function createToolCallHandler(
             shouldInvalidateSamplingContext(tool.name, action)
           ) {
             try {
-              invalidateSamplingContext(spreadsheetId);
+              invalidateSamplingContext(spreadsheetId, requestContext.principalId ?? undefined);
             } catch (error) {
               logger.debug('Sampling context invalidation skipped', {
                 tool: tool.name,

@@ -1306,6 +1306,17 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get the OAuth scopes granted in the current access token.
+   * Returns an empty array for non-OAuth auth types (service account, ADC).
+   * Used by SEP-835 scope enforcement in createToolCallHandler.
+   */
+  getGrantedScopes(): string[] {
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) return [];
+    const { scope } = this.auth.credentials;
+    return scope ? scope.split(' ').filter(Boolean) : [];
+  }
+
+  /**
    * Validate that OAuth tokens are valid by making a lightweight API call
    * Returns both validity status and any error message
    */

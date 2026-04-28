@@ -16,6 +16,7 @@ import {
   type TraceSpan,
 } from '../../services/trace-aggregator.js';
 import { invalidateContext as invalidateSamplingContext } from '../../services/sampling-context-cache.js';
+import { invalidateSamplingResults } from '../../services/sampling-result-cache.js';
 import { getSessionContext, type SessionContextManager } from '../../services/session-context.js';
 import { resourceNotifications } from '../../resources/notifications.js';
 import type { OperationHistory } from '../../types/history.js';
@@ -89,7 +90,7 @@ export interface ToolExecutionSideEffectDeps {
   recordToolCallLatencyMetric: typeof recordToolCallLatency;
   recordErrorMetric: typeof recordError;
   recordSelfCorrectionMetric: typeof recordSelfCorrection;
-  invalidateSamplingContext: (spreadsheetId: string) => void;
+  invalidateSamplingContext: (spreadsheetId: string, userId?: string) => void;
   resourceNotifications: {
     notifyCacheInvalidated(spreadsheetId?: string): void;
     notifySpreadsheetMutation(spreadsheetId: string, reason?: string): void;
@@ -403,7 +404,8 @@ export async function recordSuccessfulToolExecution(
 
     if (spreadsheetId) {
       try {
-        deps.invalidateSamplingContext(spreadsheetId);
+        deps.invalidateSamplingContext(spreadsheetId, input.principalId);
+        invalidateSamplingResults(spreadsheetId);
       } catch (error) {
         deps.log.debug('Sampling context invalidation skipped', {
           tool: input.toolName,
