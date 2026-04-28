@@ -14,6 +14,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { LRUCache } from 'lru-cache';
 import { baseLogger } from '../utils/base-logger.js';
 
 export interface SpreadsheetMetadata {
@@ -50,7 +51,10 @@ export interface MetadataCacheStats {
  * Scoped to single request - cleared after each operation
  */
 export class MetadataCache {
-  private cache: Map<string, SpreadsheetMetadata> = new Map();
+  private cache: LRUCache<string, SpreadsheetMetadata> = new LRUCache<string, SpreadsheetMetadata>({
+    max: 500,
+    ttl: 10 * 60 * 1000,
+  });
   private hits = 0;
   private misses = 0;
   private sheetsApi: sheets_v4.Sheets;

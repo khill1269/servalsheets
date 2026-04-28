@@ -28,6 +28,7 @@ import { createVerify, createPublicKey, randomBytes, createHash, KeyObject } fro
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { ConfigError } from '../core/errors.js';
+import { validateOidcDiscoveryUrl } from '../services/webhook-url-validation.js';
 
 // ============================================================================
 // Types
@@ -232,6 +233,7 @@ export class OidcProvider {
       return this.discoveryDoc;
     }
 
+    await validateOidcDiscoveryUrl(this.config.discoveryUrl);
     const res = await fetch(this.config.discoveryUrl);
     if (!res.ok) {
       throw new Error(`OIDC discovery fetch failed: ${res.status} ${res.statusText}`);

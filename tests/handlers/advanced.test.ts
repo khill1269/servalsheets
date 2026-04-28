@@ -651,6 +651,70 @@ describe('AdvancedHandler', () => {
     }
   });
 
+  it('includes tableName in the Google Sheets API request when provided', async () => {
+    mockSheetsApi.spreadsheets.values.get.mockResolvedValue({
+      data: { values: [['Col1', 'Col2']] },
+    });
+
+    mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
+      data: {
+        replies: [
+          {
+            addTable: {
+              table: {
+                tableId: 'table-named',
+                name: 'MyTable',
+                range: {
+                  sheetId: 0,
+                  startRowIndex: 0,
+                  endRowIndex: 5,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await handler.handle({
+      action: 'create_table',
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B5' },
+      tableName: 'MyTable',
+    });
+
+    expect(result.response.success).toBe(true);
+
+    // Verify tableName was sent in the API request body
+    const batchUpdateCall = mockSheetsApi.spreadsheets.batchUpdate.mock.calls[0]?.[0];
+    const tableRequest = batchUpdateCall?.requestBody?.requests?.[0]?.addTable?.table;
+    expect(tableRequest?.name).toBe('MyTable');
+  });
+
+  it('omits name from the API request when tableName is not provided', async () => {
+    mockSheetsApi.spreadsheets.values.get.mockResolvedValue({
+      data: { values: [['Col1', 'Col2']] },
+    });
+
+    mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
+      data: {
+        replies: [{ addTable: { table: { tableId: 'table-unnamed', range: { sheetId: 0 } } } }],
+      },
+    });
+
+    await handler.handle({
+      action: 'create_table',
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B5' },
+    });
+
+    const batchUpdateCall = mockSheetsApi.spreadsheets.batchUpdate.mock.calls[0]?.[0];
+    const tableRequest = batchUpdateCall?.requestBody?.requests?.[0]?.addTable?.table;
+    expect(tableRequest?.name).toBeUndefined();
+  });
+
   it('rejects create_table when the range overlaps a basic filter', async () => {
     mockSheetsApi.spreadsheets.get.mockResolvedValue({
       data: {

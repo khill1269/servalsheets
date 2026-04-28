@@ -15,6 +15,7 @@ const createMockSheetsApi = () => ({
   spreadsheets: {
     get: vi.fn(),
     values: {
+      get: vi.fn(),
       update: vi.fn(),
     },
     batchUpdate: vi.fn(),
@@ -471,6 +472,68 @@ describe('FixHandler', () => {
       // Preview mode returns operations without executing - should succeed
       expect(result.response.success).toBe(true);
       expect(result.response.operations).toBeDefined();
+    });
+  });
+
+  describe('retry wrapping for Google API calls', () => {
+    it('retries fetchRangeData on transient errors and eventually succeeds', async () => {
+      // Set up a clean action that calls fetchRangeData (the 'clean' action reads data)
+      const transientError = Object.assign(new Error('socket hang up'), {
+        code: 'ECONNRESET',
+        response: undefined,
+      });
+
+      // First call throws a transient error, second succeeds
+      mockApi.spreadsheets.values.get = vi
+        .fn()
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValueOnce({
+          data: { values: [['hello ', ' world'], ['  foo  ', 'bar ']] },
+        });
+
+      mockApi.spreadsheets.values.update = vi.fn().mockResolvedValue({ data: {} });
+
+      const result = await handler.handle({
+        action: 'clean',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B2',
+        rules: [{ id: 'trim_whitespace' }],
+        mode: 'apply',
+        safety: { createSnapshot: false },
+      });
+
+      // Should succeed (retry recovered from the transient error)
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries writeChanges on transient errors and eventually succeeds', async () => {
+      mockApi.spreadsheets.values.get = vi.fn().mockResolvedValue({
+        data: { values: [['hello ', ' world']] },
+      });
+
+      const transientError = Object.assign(new Error('socket hang up'), {
+        code: 'ECONNRESET',
+        response: undefined,
+      });
+
+      // First update call fails transiently, second succeeds
+      mockApi.spreadsheets.values.update = vi
+        .fn()
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValueOnce({ data: {} });
+
+      const result = await handler.handle({
+        action: 'clean',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B2',
+        rules: [{ id: 'trim_whitespace' }],
+        mode: 'apply',
+        safety: { createSnapshot: false },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.values.update).toHaveBeenCalledTimes(2);
     });
   });
 

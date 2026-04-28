@@ -822,7 +822,16 @@ export const InstantiateTemplateInputSchema = z.object({
     .string()
     .describe('Template spreadsheet ID (from sheets_templates or a known Google Sheets file)'),
   variables: z
-    .record(z.string(), z.string())
+    .record(
+      z
+        .string()
+        .max(200)
+        .regex(
+          /^[a-zA-Z0-9_. :-]+$/,
+          'Variable key may only contain alphanumeric characters, underscores, dots, spaces, colons, and hyphens'
+        ),
+      z.string().max(10000)
+    )
     .describe(
       'Key-value map of placeholder names to replacement values (e.g., { "companyName": "Acme Corp" })'
     ),

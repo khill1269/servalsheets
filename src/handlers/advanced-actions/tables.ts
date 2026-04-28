@@ -253,6 +253,7 @@ export async function handleCreateTableAction(
             table: {
               range: toGridRange(gridRange),
               columnProperties,
+              ...(req.tableName && { name: req.tableName }),
             },
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -269,7 +270,7 @@ export async function handleCreateTableAction(
     table: table
       ? {
           tableId: table.tableId ?? '',
-          tableName: req.tableName, // Store for client-side reference
+          tableName: req.tableName,
           range: deps.gridRangeToOutput(table.range ?? { sheetId }),
           hasHeaders,
           headerRowCount,

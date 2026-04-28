@@ -1319,7 +1319,7 @@ Work step by step:
 
 Be careful with destructive operations. Always explain your reasoning.`,
     tools,
-    toolChoice: { mode: 'auto' },
+    toolChoice: { type: 'auto' } as { mode?: 'none' | 'required' | 'auto' },
     maxTokens: 2000,
   };
 }

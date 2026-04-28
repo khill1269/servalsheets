@@ -193,3 +193,12 @@ export async function validateRemoteMcpExecutorUrl(urlString: string): Promise<v
     component: 'remote-tool-client',
   });
 }
+
+export async function validateOidcDiscoveryUrl(urlString: string): Promise<void> {
+  await validatePublicHttpsUrl(urlString, {
+    dnsStrict: getEnv()['OIDC_DNS_STRICT'] as boolean,
+    resourceLabel: 'OIDC discovery URL',
+    dnsStrictEnvVar: 'OIDC_DNS_STRICT',
+    component: 'oidc-provider',
+  });
+}

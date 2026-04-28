@@ -1536,8 +1536,8 @@ function getSessionRedisKey(): string {
   return `servalsheets:session:${process.env['SESSION_INSTANCE_ID'] ?? 'default'}:state`;
 }
 
-function getHttpSessionRedisKey(sessionId: string): string {
-  return `servalsheets:http-session:${sessionId}:state`;
+function getHttpSessionRedisKey(userId: string, sessionId: string): string {
+  return `servalsheets:http-session:${userId}:${sessionId}:state`;
 }
 
 let sessionContext: SessionContextManager | null = null;
@@ -1723,7 +1723,7 @@ export function getSessionContext(): SessionContextManager {
  * Get or create a session-scoped context manager.
  * Used by HTTP transport to isolate context per authenticated MCP session.
  */
-export function getOrCreateSessionContext(sessionId: string): SessionContextManager {
+export function getOrCreateSessionContext(sessionId: string, userId?: string): SessionContextManager {
   const existing = sessionContexts.get(sessionId);
   if (existing) {
     const idleMs = Date.now() - existing.getState().lastActivityAt;
@@ -1739,14 +1739,15 @@ export function getOrCreateSessionContext(sessionId: string): SessionContextMana
   }
 
   evictOldestSessionIfAtCapacity();
-  const created = createSessionContextManager(getHttpSessionRedisKey(sessionId));
+  const created = createSessionContextManager(getHttpSessionRedisKey(userId ?? 'anon', sessionId));
   sessionContexts.set(sessionId, created);
   hydratedSessionContexts.delete(sessionId);
   return created;
 }
 
 export async function getOrCreateSessionContextAsync(
-  sessionId: string
+  sessionId: string,
+  userId?: string
 ): Promise<SessionContextManager> {
   const existing = sessionContexts.get(sessionId);
   if (existing) {
@@ -1771,8 +1772,9 @@ export async function getOrCreateSessionContextAsync(
     return await inFlight;
   }
 
-  const manager = sessionContexts.get(sessionId) ?? getOrCreateSessionContext(sessionId);
-  const hydration = hydrateSessionContextFromRedis(manager, getHttpSessionRedisKey(sessionId), {
+  const resolvedUserId = userId ?? 'anon';
+  const manager = sessionContexts.get(sessionId) ?? getOrCreateSessionContext(sessionId, resolvedUserId);
+  const hydration = hydrateSessionContextFromRedis(manager, getHttpSessionRedisKey(resolvedUserId, sessionId), {
     sessionId,
     scope: 'http',
   })

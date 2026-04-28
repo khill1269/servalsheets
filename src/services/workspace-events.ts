@@ -73,8 +73,8 @@ interface WorkspaceEventsOperation {
   };
 }
 
-// Google documents Drive-backed Workspace Events subscriptions on the v1beta surface.
-const WORKSPACE_EVENTS_BASE_URL = 'https://workspaceevents.googleapis.com/v1beta';
+// Google Workspace Events API v1 (GA) — Drive-backed spreadsheet subscriptions.
+const WORKSPACE_EVENTS_BASE_URL = 'https://workspaceevents.googleapis.com/v1';
 const DRIVE_CONTENT_CHANGED_EVENT = 'google.workspace.drive.file.v3.contentChanged';
 const SUBSCRIPTION_TTL = '0s';
 const MAX_SUBSCRIPTIONS = 1000;

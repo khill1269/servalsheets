@@ -14,6 +14,7 @@
  * cache.set(clientId, 'elicitation', true, 300); // Cache for 5 minutes
  */
 
+import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
 import { ServiceError } from '../core/errors.js';
 
@@ -72,7 +73,10 @@ const CACHE_KEY_PREFIX = 'servalsheets:capabilities:';
  * repeated capability checks within the same session.
  */
 export class CapabilityCacheService {
-  private memoryCache: Map<string, CachedCapabilities> = new Map();
+  private memoryCache: LRUCache<string, CachedCapabilities> = new LRUCache<string, CachedCapabilities>({
+    max: 1000,
+    ttl: CACHE_TTL_SECONDS * 1000,
+  });
   private redis?: RedisClient;
 
   constructor(redis?: RedisClient) {

@@ -3143,10 +3143,13 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
             },
             "variables": {
               "additionalProperties": {
+                "maxLength": 10000,
                 "type": "string"
               },
               "description": "Key-value map of placeholder names to replacement values (e.g., { \\"companyName\\": \\"Acme Corp\\" })",
               "propertyNames": {
+                "maxLength": 200,
+                "pattern": "^[a-zA-Z0-9_. :-]+$",
                 "type": "string"
               },
               "type": "object"
@@ -5734,10 +5737,13 @@ exports[`Schema Snapshots > Input Schemas > InstantiateTemplateInputSchema shoul
     },
     "variables": {
       "additionalProperties": {
+        "maxLength": 10000,
         "type": "string"
       },
       "description": "Key-value map of placeholder names to replacement values (e.g., { \\"companyName\\": \\"Acme Corp\\" })",
       "propertyNames": {
+        "maxLength": 200,
+        "pattern": "^[a-zA-Z0-9_. :-]+$",
         "type": "string"
       },
       "type": "object"
