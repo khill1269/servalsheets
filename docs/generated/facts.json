@@ -3,17 +3,17 @@
   "package": {
     "name": "servalsheets",
     "version": "2.0.0",
-    "description": "Production-grade Google Sheets MCP server - 25 tools, 409 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+    "description": "Production-grade Google Sheets MCP server - 25 tools, 410 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
   },
   "server": {
     "name": "io.github.khill1269/servalsheets",
     "version": "2.0.0",
     "protocolVersion": "2025-11-25",
-    "description": "Production-grade Google Sheets MCP server with 25 tools and 409 actions"
+    "description": "Production-grade Google Sheets MCP server with 25 tools and 410 actions"
   },
   "counts": {
     "tools": 25,
-    "actions": 409,
+    "actions": 410,
     "prompts": 40,
     "resources": 56,
     "resourceTemplates": 12

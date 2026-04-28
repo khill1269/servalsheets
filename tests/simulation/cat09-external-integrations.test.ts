@@ -119,7 +119,16 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }) } as any,
-  auth: { scopes: ['https://www.googleapis.com/auth/bigquery'] } as any,
+  auth: {
+    scopes: [
+      'https://www.googleapis.com/auth/bigquery',
+      'https://www.googleapis.com/auth/bigquery.readonly',
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
+      'https://www.googleapis.com/auth/script.projects',
+      'https://www.googleapis.com/auth/script.scripts',
+    ],
+  } as any,
   samplingServer: undefined,
   snapshotService: {} as any,
   sessionContext: {} as any,

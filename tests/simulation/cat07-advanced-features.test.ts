@@ -47,7 +47,7 @@ const createMockContext = (): HandlerContext => ({
   googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: { resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B10' }) } as any,
-  auth: { scopes: ['https://www.googleapis.com/auth/drive.file'] } as any,
+  auth: { scopes: ['https://www.googleapis.com/auth/spreadsheets'] } as any,
   samplingServer: undefined,
   snapshotService: {} as any,
   sessionContext: {} as any,

@@ -212,6 +212,14 @@ export class ScopeValidator {
       return true;
     }
 
+    // Full BigQuery covers BigQuery readonly
+    if (
+      requiredScope === 'https://www.googleapis.com/auth/bigquery.readonly' &&
+      this.currentScopes.includes('https://www.googleapis.com/auth/bigquery')
+    ) {
+      return true;
+    }
+
     return false;
   }
 
