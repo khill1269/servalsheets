@@ -36543,6 +36543,111 @@ exports[`Schema Snapshots > Input Schemas > SheetsCoreInputSchema should match s
               "description": "True sheet reset: clears values, formats, notes, banding, filters, filter views, and tables while preserving the sheet tab",
               "type": "boolean"
             },
+            "safety": {
+              "additionalProperties": false,
+              "description": "Safety options (dryRun, confirmed, snapshot, etc.)",
+              "properties": {
+                "autoSnapshot": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "confirmed": {
+                  "description": "Pre-approval bypass for destructive operations when the MCP client does not support interactive elicitation. Pass true after reviewing the operation details out-of-band. Equivalent to answering \\"Yes, proceed\\" to the elicitation prompt. Has no effect on non-destructive operations.",
+                  "type": "boolean"
+                },
+                "dryRun": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "effectScope": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxCellsAffected": {
+                      "default": 50000,
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxColumnsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "maxRowsAffected": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "requireExplicitRange": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "maxCellsAffected",
+                    "requireExplicitRange"
+                  ],
+                  "type": "object"
+                },
+                "expectedState": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checksum": {
+                      "description": "MD5 hash of range values to verify",
+                      "type": "string"
+                    },
+                    "checksumRange": {
+                      "description": "A1 range for checksum calculation (default: A1:J10)",
+                      "type": "string"
+                    },
+                    "columnCount": {
+                      "description": "Expected total column count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "firstRowValues": {
+                      "description": "Expected header values in first row",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "rowCount": {
+                      "description": "Expected total row count",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "sheetTitle": {
+                      "description": "Sheet title that must exist",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "Specific version to validate",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sanitizeFormulas": {
+                  "default": true,
+                  "description": "When true, reject cell values containing dangerous data-exfiltration formulas (IMPORTDATA, IMPORTRANGE, IMPORTFEED, IMPORTHTML, IMPORTXML, GOOGLEFINANCE, QUERY). Returns FORMULA_INJECTION_BLOCKED error if detected.",
+                  "type": "boolean"
+                },
+                "transactionId": {
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "dryRun",
+                "autoSnapshot",
+                "sanitizeFormulas"
+              ],
+              "type": "object"
+            },
             "sheetId": {
               "description": "Numeric sheet ID to clear (use this OR sheetName)",
               "maximum": 9007199254740991,

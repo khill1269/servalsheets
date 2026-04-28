@@ -496,7 +496,7 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'clean',
         spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B2',
+        range: { a1: 'Sheet1!A1:B2' },
         rules: [{ id: 'trim_whitespace' }],
         mode: 'apply',
         safety: { createSnapshot: false },
@@ -508,8 +508,9 @@ describe('FixHandler', () => {
     });
 
     it('retries writeChanges on transient errors and eventually succeeds', async () => {
+      // Row 0 is header (skipped by engine), row 1 has whitespace to clean
       mockApi.spreadsheets.values.get = vi.fn().mockResolvedValue({
-        data: { values: [['hello ', ' world']] },
+        data: { values: [['Col1', 'Col2'], ['hello ', ' world']] },
       });
 
       const transientError = Object.assign(new Error('socket hang up'), {
@@ -526,7 +527,7 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'clean',
         spreadsheetId: 'test-id',
-        range: 'Sheet1!A1:B2',
+        range: { a1: 'Sheet1!A1:B2' },
         rules: [{ id: 'trim_whitespace' }],
         mode: 'apply',
         safety: { createSnapshot: false },

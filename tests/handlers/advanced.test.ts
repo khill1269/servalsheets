@@ -38,7 +38,10 @@ const createMockContext = (): HandlerContext => ({
     resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }),
   } as any,
   auth: {
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.file',
+    ],
   } as any,
   elicitationServer: createMockElicitationServer(),
 });
