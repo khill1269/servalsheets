@@ -878,7 +878,9 @@ async function _refreshLatencyCache(): Promise<void> {
     // ignore — cache keeps last known values
   }
 }
-setInterval(() => { void _refreshLatencyCache(); }, 30_000).unref();
+setInterval(() => {
+  void _refreshLatencyCache();
+}, 30_000).unref();
 void _refreshLatencyCache();
 
 /**

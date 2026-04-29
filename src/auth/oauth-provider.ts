@@ -752,8 +752,7 @@ export class OAuthProvider {
         });
         res.status(429).json({
           error: 'too_many_requests',
-          error_description:
-            'Too many requests for this client_id. Try again in 1 minute.',
+          error_description: 'Too many requests for this client_id. Try again in 1 minute.',
         });
         return;
       }
@@ -1048,12 +1047,11 @@ export class OAuthProvider {
         // does an atomic GETDEL (Redis) or sync get+delete (in-memory).
         // If the implementation doesn't expose consume, fall back to
         // the legacy get-then-delete pattern.
-        const stateData = (this.sessionStore.consume
-          ? ((await this.sessionStore.consume(`auth:${authCode}`)) as StateData | undefined)
-          : ((await this.sessionStore.get(`auth:${authCode}`)) as unknown as StateData | null)) as
-          | StateData
-          | null
-          | undefined;
+        const stateData = (
+          this.sessionStore.consume
+            ? ((await this.sessionStore.consume(`auth:${authCode}`)) as StateData | undefined)
+            : ((await this.sessionStore.get(`auth:${authCode}`)) as unknown as StateData | null)
+        ) as StateData | null | undefined;
 
         if (!stateData) {
           res.status(400).json({

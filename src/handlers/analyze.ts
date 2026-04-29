@@ -121,8 +121,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       if (a1) return { a1 };
       return {
         notImplemented: true,
-        reason:
-          'grid range could not be resolved — sheetId may not exist in the spreadsheet',
+        reason: 'grid range could not be resolved — sheetId may not exist in the spreadsheet',
       };
     }
     if ('semantic' in range) {

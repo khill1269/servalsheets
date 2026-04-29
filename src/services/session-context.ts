@@ -1723,7 +1723,10 @@ export function getSessionContext(): SessionContextManager {
  * Get or create a session-scoped context manager.
  * Used by HTTP transport to isolate context per authenticated MCP session.
  */
-export function getOrCreateSessionContext(sessionId: string, userId?: string): SessionContextManager {
+export function getOrCreateSessionContext(
+  sessionId: string,
+  userId?: string
+): SessionContextManager {
   const existing = sessionContexts.get(sessionId);
   if (existing) {
     const idleMs = Date.now() - existing.getState().lastActivityAt;
@@ -1773,11 +1776,16 @@ export async function getOrCreateSessionContextAsync(
   }
 
   const resolvedUserId = userId ?? 'anon';
-  const manager = sessionContexts.get(sessionId) ?? getOrCreateSessionContext(sessionId, resolvedUserId);
-  const hydration = hydrateSessionContextFromRedis(manager, getHttpSessionRedisKey(resolvedUserId, sessionId), {
-    sessionId,
-    scope: 'http',
-  })
+  const manager =
+    sessionContexts.get(sessionId) ?? getOrCreateSessionContext(sessionId, resolvedUserId);
+  const hydration = hydrateSessionContextFromRedis(
+    manager,
+    getHttpSessionRedisKey(resolvedUserId, sessionId),
+    {
+      sessionId,
+      scope: 'http',
+    }
+  )
     .catch((err: unknown) => {
       logger.warn('Failed to restore HTTP session from Redis', {
         component: 'session-context',

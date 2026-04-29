@@ -1285,7 +1285,8 @@ function createToolCallHandler(
                           success: false,
                           error: {
                             code: ErrorCodes.PERMISSION_DENIED,
-                            message: 'RBAC authorization check failed. Access denied (RBAC_STRICT=true).',
+                            message:
+                              'RBAC authorization check failed. Access denied (RBAC_STRICT=true).',
                             retryable: false,
                           },
                         },

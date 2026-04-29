@@ -507,7 +507,10 @@ export class RequestRecorder {
       const stmt = this.db.prepare('DELETE FROM recorded_requests WHERE spreadsheet_id = ?');
       const result = stmt.run(userId);
       const changes = result.changes;
-      logger.info('GDPR erasure: deleted recorded requests by userId', { userId, deleted: changes });
+      logger.info('GDPR erasure: deleted recorded requests by userId', {
+        userId,
+        deleted: changes,
+      });
       return changes;
     } catch (error) {
       logger.error('Failed to delete recorded requests by userId', {

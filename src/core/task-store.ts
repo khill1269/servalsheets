@@ -479,7 +479,9 @@ export class RedisTaskStore implements TaskStore {
 
     try {
       // Dynamic import to make Redis optional
-      const { createClient } = await import('redis').catch(() => { throw new Error('redis peer dependency not installed'); });
+      const { createClient } = await import('redis').catch(() => {
+        throw new Error('redis peer dependency not installed');
+      });
 
       this.client = createClient({
         url: this.redisUrl,

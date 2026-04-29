@@ -215,9 +215,11 @@ export class RedisSessionStore implements SessionStore {
     const fullKey = `${this.prefix}${key}`;
     try {
       // node-redis v4 exposes GETDEL directly when available.
-      const maybeGetDel = (this.client as unknown as {
-        getDel?: (k: string) => Promise<string | null>;
-      }).getDel;
+      const maybeGetDel = (
+        this.client as unknown as {
+          getDel?: (k: string) => Promise<string | null>;
+        }
+      ).getDel;
       if (typeof maybeGetDel === 'function') {
         const value = await maybeGetDel.call(this.client, fullKey);
         return value ? JSON.parse(value) : undefined;

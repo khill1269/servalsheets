@@ -1162,10 +1162,14 @@ export const RangeInputSchema = z
     z.union([
       z.object({ a1: A1NotationSchema }).describe('A1 notation range, e.g. "Sheet1!A1:D10"'),
       z.object({ namedRange: z.string() }).describe('Named range identifier, e.g. "SalesData"'),
-      z.object({ semantic: SemanticRangeQuerySchema }).describe('Natural language range description'),
-      z.object({ grid: GridRangeSchema }).describe(
-        'Grid coordinate range: { sheetId: number, startRowIndex?: number (0-based), endRowIndex?: number (exclusive), startColumnIndex?: number (0-based), endColumnIndex?: number (exclusive) }'
-      ),
+      z
+        .object({ semantic: SemanticRangeQuerySchema })
+        .describe('Natural language range description'),
+      z
+        .object({ grid: GridRangeSchema })
+        .describe(
+          'Grid coordinate range: { sheetId: number, startRowIndex?: number (0-based), endRowIndex?: number (exclusive), startColumnIndex?: number (0-based), endColumnIndex?: number (exclusive) }'
+        ),
     ])
   )
   .describe(
@@ -1217,7 +1221,9 @@ export const ErrorDetailSchema = z.object({
       explanation: z
         .string()
         .optional()
-        .describe('Same string as `suggestedFix`; duplicated here for callers that only read fixableVia'),
+        .describe(
+          'Same string as `suggestedFix`; duplicated here for callers that only read fixableVia'
+        ),
     })
     .optional()
     .describe('Structured fix suggestion with tool/action to resolve the error'),

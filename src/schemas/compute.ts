@@ -455,10 +455,7 @@ const SklearnModelActionSchema = CommonFieldsSchema.extend({
     .describe('Column name to predict'),
   featureColumns: z
     .array(
-      z
-        .string()
-        .max(256)
-        .regex(SAFE_COLUMN_NAME_PATTERN, 'Column name contains invalid characters')
+      z.string().max(256).regex(SAFE_COLUMN_NAME_PATTERN, 'Column name contains invalid characters')
     )
     .optional()
     .describe('Columns to use as features (default: all except target)'),

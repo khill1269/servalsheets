@@ -404,7 +404,11 @@ export async function handleBatchRead(
         fields: 'valueRanges(range,values)',
       })
     );
-    void ha.sendProgress(1, 1, `batch_read: fetched ${mergedRangeStrings.length} ranges via batchGet`);
+    void ha.sendProgress(
+      1,
+      1,
+      `batch_read: fetched ${mergedRangeStrings.length} ranges via batchGet`
+    );
     const mergedResults = response.data.valueRanges ?? [];
 
     valueRanges = new Array(ranges.length);

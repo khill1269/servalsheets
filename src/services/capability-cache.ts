@@ -73,7 +73,10 @@ const CACHE_KEY_PREFIX = 'servalsheets:capabilities:';
  * repeated capability checks within the same session.
  */
 export class CapabilityCacheService {
-  private memoryCache: LRUCache<string, CachedCapabilities> = new LRUCache<string, CachedCapabilities>({
+  private memoryCache: LRUCache<string, CachedCapabilities> = new LRUCache<
+    string,
+    CachedCapabilities
+  >({
     max: 1000,
     ttl: CACHE_TTL_SECONDS * 1000,
   });

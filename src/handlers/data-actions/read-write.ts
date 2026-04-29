@@ -410,7 +410,10 @@ export async function handleWrite(
       },
     });
 
-    getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+    getETagCache().invalidateSpreadsheet(
+      input.spreadsheetId,
+      ha.context.sessionContext?.getUserId()
+    );
 
     const responseData: Record<string, unknown> = {
       updatedCells: response.data.totalUpdatedCells ?? 0,
@@ -483,7 +486,10 @@ export async function handleWrite(
         },
       })) as unknown;
 
-      getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+      getETagCache().invalidateSpreadsheet(
+        input.spreadsheetId,
+        ha.context.sessionContext?.getUserId()
+      );
 
       const resultData = result as
         | {
@@ -568,7 +574,10 @@ export async function handleWrite(
         },
       })
     );
-    getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+    getETagCache().invalidateSpreadsheet(
+      input.spreadsheetId,
+      ha.context.sessionContext?.getUserId()
+    );
     const responseData: Record<string, unknown> = {
       updatedCells: cellCount,
       updatedRows: input.values.length,
@@ -753,7 +762,10 @@ export async function handleAppend(
           },
         });
 
-        getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+        getETagCache().invalidateSpreadsheet(
+          input.spreadsheetId,
+          ha.context.sessionContext?.getUserId()
+        );
 
         const responseData: Record<string, unknown> = {
           updatedCells: cellCount,
@@ -837,7 +849,10 @@ export async function handleAppend(
       },
     });
 
-    getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+    getETagCache().invalidateSpreadsheet(
+      input.spreadsheetId,
+      ha.context.sessionContext?.getUserId()
+    );
 
     const responseData: Record<string, unknown> = {
       updatedCells: cellCount,
@@ -896,7 +911,10 @@ export async function handleAppend(
         },
       })) as unknown;
 
-      getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+      getETagCache().invalidateSpreadsheet(
+        input.spreadsheetId,
+        ha.context.sessionContext?.getUserId()
+      );
 
       const resultData = result as
         | {
@@ -1124,7 +1142,10 @@ export async function handleClear(
       const duration = Date.now() - startTime;
       logger.info('Clear operation completed (dataFilter)', { duration });
 
-      getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+      getETagCache().invalidateSpreadsheet(
+        input.spreadsheetId,
+        ha.context.sessionContext?.getUserId()
+      );
 
       const clearedRanges = response.data.clearedRanges ?? [];
       if (clearedRanges.length === 0) {
@@ -1249,7 +1270,10 @@ export async function handleClear(
     const duration = Date.now() - startTime;
     logger.info('Clear operation completed', { duration, range });
 
-    getETagCache().invalidateSpreadsheet(input.spreadsheetId, ha.context.sessionContext?.getUserId());
+    getETagCache().invalidateSpreadsheet(
+      input.spreadsheetId,
+      ha.context.sessionContext?.getUserId()
+    );
 
     const analysisConfig = getBackgroundAnalysisConfig();
     if (analysisConfig.enabled) {

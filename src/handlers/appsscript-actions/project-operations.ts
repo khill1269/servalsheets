@@ -141,7 +141,10 @@ export async function handleUpdateContent(
         retryable: false,
       });
     }
-    const PATTERN_NAMES = ['ScriptApp.newTrigger', 'PropertiesService.setProperty(SERVAL_HMAC_SECRET)'];
+    const PATTERN_NAMES = [
+      'ScriptApp.newTrigger',
+      'PropertiesService.setProperty(SERVAL_HMAC_SECRET)',
+    ];
     for (let i = 0; i < DENY_PATTERNS.length; i++) {
       const pattern = DENY_PATTERNS[i];
       if (pattern && pattern.test(f.source)) {
