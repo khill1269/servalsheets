@@ -11,7 +11,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -38,6 +38,7 @@ function getPrivateField<T>(obj: unknown, key: string): T | undefined {
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(currentDir, '../..');
 const CLI_ENTRYPOINT = resolve(projectRoot, 'dist/cli.js');
+const SOURCE_CLI_ENTRYPOINT = resolve(projectRoot, 'src/cli.ts');
 
 describe('MCP Protocol Compliance', () => {
   let server: McpServer;
@@ -306,193 +307,199 @@ describe('MCP Protocol Compliance', () => {
     // (e.g. sandboxed CI runners, Docker containers without full PTY support).
     // The test spawns a real server subprocess and reads its stdout — this requires
     // functional IPC piping that not all environments provide.
-    it.skipIf(
-      !process.env['ENABLE_STDIO_PURITY_TEST']
-    )('writes only JSON-RPC messages to stdout in production stdio mode', async () => {
-      const runId = `${process.pid}-${Date.now()}`;
-      const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-purity-data-${runId}`);
-      const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-purity-profiles-${runId}`);
-      const restartStateFile = resolve(dataDir, 'restart-state.json');
-      mkdirSync(dataDir, { recursive: true });
-      mkdirSync(profileDir, { recursive: true });
+    it.skipIf(!process.env['ENABLE_STDIO_PURITY_TEST'])(
+      'writes only JSON-RPC messages to stdout in production stdio mode',
+      async () => {
+        const runId = `${process.pid}-${Date.now()}`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-purity-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-purity-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
 
-      const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
-        cwd: projectRoot,
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-          MCP_TRANSPORT: 'stdio',
-          SKIP_PREFLIGHT: 'true',
-          SERVALSHEETS_LOAD_DOTENV: 'false',
-          DATA_DIR: dataDir,
-          PROFILE_STORAGE_DIR: profileDir,
-          RESTART_STATE_FILE: restartStateFile,
-          ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-          ALLOW_MEMORY_SESSIONS: 'true',
-        },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+        const cliArgs = existsSync(CLI_ENTRYPOINT)
+          ? [CLI_ENTRYPOINT, '--stdio']
+          : ['--import', 'tsx', SOURCE_CLI_ENTRYPOINT, '--stdio'];
 
-      let stdoutBuffer = '';
-      let stderrBuffer = '';
-      let lineBuffer = '';
-      const nonJsonStdoutLines: string[] = [];
-      const pending = new Map<
-        number,
-        { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
-      >();
+        const child = spawn(process.execPath, cliArgs, {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
 
-      const onStdout = (chunk: Buffer) => {
-        const text = chunk.toString();
-        stdoutBuffer += text;
-        lineBuffer += text;
-        const lines = lineBuffer.split('\n');
-        lineBuffer = lines.pop() ?? '';
+        let stdoutBuffer = '';
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const nonJsonStdoutLines: string[] = [];
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) {
-            continue;
-          }
+        const onStdout = (chunk: Buffer) => {
+          const text = chunk.toString();
+          stdoutBuffer += text;
+          lineBuffer += text;
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
 
-          try {
-            const json = JSON.parse(trimmed) as Record<string, unknown>;
-            const id = json['id'];
-            if (typeof id === 'number') {
-              const pendingEntry = pending.get(id);
-              if (pendingEntry) {
-                pending.delete(id);
-                pendingEntry.resolve(json);
-              }
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              continue;
             }
-          } catch {
-            nonJsonStdoutLines.push(trimmed);
+
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const pendingEntry = pending.get(id);
+                if (pendingEntry) {
+                  pending.delete(id);
+                  pendingEntry.resolve(json);
+                }
+              }
+            } catch {
+              nonJsonStdoutLines.push(trimmed);
+            }
           }
-        }
-      };
+        };
 
-      const onStderr = (chunk: Buffer) => {
-        stderrBuffer += chunk.toString();
-      };
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
 
-      child.stdout?.on('data', onStdout);
-      child.stderr?.on('data', onStderr);
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
 
-      const request = (
-        payload: Record<string, unknown>,
-        timeoutMs = 20000
-      ): Promise<Record<string, unknown>> => {
-        const id = payload['id'];
-        if (typeof id !== 'number') {
-          return Promise.reject(new Error('Request payload must include numeric id'));
-        }
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
 
-        return new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            pending.delete(id);
-            reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
-          }, timeoutMs);
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
 
-          pending.set(id, {
-            resolve: (value) => {
-              clearTimeout(timeout);
-              resolve(value);
+            pending.set(id, {
+              resolve: (value) => {
+                clearTimeout(timeout);
+                resolve(value);
+              },
+              reject: (error) => {
+                clearTimeout(timeout);
+                reject(error);
+              },
+            });
+
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        const notify = (payload: Record<string, unknown>) => {
+          child.stdin?.write(JSON.stringify(payload) + '\n');
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          expect(stdoutBuffer).toBe('');
+          expect(nonJsonStdoutLines).toEqual([]);
+
+          const initializeResponse = await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: {
+                name: 'stdout-purity-test',
+                version: '1.0.0',
+              },
             },
-            reject: (error) => {
-              clearTimeout(timeout);
-              reject(error);
+          });
+          expect(initializeResponse['result']).toBeDefined();
+
+          notify({
+            jsonrpc: '2.0',
+            method: 'notifications/initialized',
+          });
+
+          const toolsListResponse = await request({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'tools/list',
+          });
+
+          const result = toolsListResponse['result'] as { tools?: unknown[] } | undefined;
+          expect(Array.isArray(result?.tools)).toBe(true);
+          expect(result?.tools?.length).toBeGreaterThan(0);
+
+          const toolCallResponse = await request({
+            jsonrpc: '2.0',
+            id: 3,
+            method: 'tools/call',
+            params: {
+              name: 'sheets_auth',
+              arguments: {
+                request: {
+                  action: 'status',
+                },
+              },
             },
           });
 
-          child.stdin?.write(JSON.stringify(payload) + '\n');
-        });
-      };
-
-      const notify = (payload: Record<string, unknown>) => {
-        child.stdin?.write(JSON.stringify(payload) + '\n');
-      };
-
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        expect(stdoutBuffer).toBe('');
-        expect(nonJsonStdoutLines).toEqual([]);
-
-        const initializeResponse = await request({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2025-11-25',
-            capabilities: {},
-            clientInfo: {
-              name: 'stdout-purity-test',
-              version: '1.0.0',
-            },
-          },
-        });
-        expect(initializeResponse['result']).toBeDefined();
-
-        notify({
-          jsonrpc: '2.0',
-          method: 'notifications/initialized',
-        });
-
-        const toolsListResponse = await request({
-          jsonrpc: '2.0',
-          id: 2,
-          method: 'tools/list',
-        });
-
-        const result = toolsListResponse['result'] as { tools?: unknown[] } | undefined;
-        expect(Array.isArray(result?.tools)).toBe(true);
-        expect(result?.tools?.length).toBeGreaterThan(0);
-
-        const toolCallResponse = await request({
-          jsonrpc: '2.0',
-          id: 3,
-          method: 'tools/call',
-          params: {
-            name: 'sheets_auth',
-            arguments: {
-              request: {
-                action: 'status',
-              },
-            },
-          },
-        });
-
-        const toolResult = toolCallResponse['result'] as
-          | {
-              content?: Array<{ type?: string; text?: string }>;
-              structuredContent?: {
-                response?: {
-                  success?: boolean;
-                  action?: string;
+          const toolResult = toolCallResponse['result'] as
+            | {
+                content?: Array<{ type?: string; text?: string }>;
+                structuredContent?: {
+                  response?: {
+                    success?: boolean;
+                    action?: string;
+                  };
                 };
-              };
-              isError?: boolean;
-            }
-          | undefined;
-        expect(toolResult?.isError).not.toBe(true);
+                isError?: boolean;
+              }
+            | undefined;
+          expect(toolResult?.isError).not.toBe(true);
 
-        const textBlock = toolResult?.content?.find((block) => block.type === 'text');
-        expect(textBlock?.text).toBeDefined();
-        expect(textBlock?.text).not.toContain('safeParseAsync');
+          const textBlock = toolResult?.content?.find((block) => block.type === 'text');
+          expect(textBlock?.text).toBeDefined();
+          expect(textBlock?.text).not.toContain('safeParseAsync');
 
-        const parsedText = JSON.parse(textBlock!.text!);
-        expect(parsedText).toEqual(toolResult?.structuredContent);
-        expect(toolResult?.structuredContent?.response?.action).toBe('status');
-        expect(typeof toolResult?.structuredContent?.response?.success).toBe('boolean');
+          const parsedText = JSON.parse(textBlock!.text!);
+          expect(parsedText).toEqual(toolResult?.structuredContent);
+          expect(toolResult?.structuredContent?.response?.action).toBe('status');
+          expect(typeof toolResult?.structuredContent?.response?.success).toBe('boolean');
 
-        expect(nonJsonStdoutLines, stderrBuffer).toEqual([]);
-      } finally {
-        child.stdout?.off('data', onStdout);
-        child.stderr?.off('data', onStderr);
-        if (!child.killed) {
-          child.kill('SIGTERM');
+          expect(nonJsonStdoutLines, stderrBuffer).toEqual([]);
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) {
+            child.kill('SIGTERM');
+          }
         }
-      }
-    }, 45000);
+      },
+      45000
+    );
   });
 });
 
