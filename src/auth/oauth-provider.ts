@@ -256,6 +256,12 @@ export class OAuthProvider {
     );
   }
 
+  async initialize(): Promise<void> {
+    if (this.sessionStore.initialize) {
+      await this.sessionStore.initialize();
+    }
+  }
+
   /**
    * Clean up expired entries (delegated to session store)
    */
@@ -1953,7 +1959,7 @@ export async function createOAuthProviderFromEnv(): Promise<OAuthProvider> {
     );
   }
 
-  return new OAuthProvider({
+  const provider = new OAuthProvider({
     issuer,
     clientId,
     clientSecret,
@@ -1968,4 +1974,6 @@ export async function createOAuthProviderFromEnv(): Promise<OAuthProvider> {
       ...(process.env['ALLOWED_REDIRECT_URIS']?.split(',') || []),
     ],
   });
+  await provider.initialize();
+  return provider;
 }

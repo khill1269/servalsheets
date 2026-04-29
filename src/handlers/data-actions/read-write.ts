@@ -16,7 +16,8 @@ import {
   getConfirmationDecision,
   requestSafetyConfirmation,
 } from '../../utils/safety-helpers.js';
-import type { DataHandlerAccess, ResponseFormat } from './internal.js';
+import type { DataHandlerAccess } from './internal.js';
+import { getResponseFormat } from './internal.js';
 import {
   a1ToGridRange,
   resolveRangeToA1,
@@ -79,7 +80,7 @@ export async function handleRead(
   ha: DataHandlerAccess,
   input: DataRequest & { action: 'read' }
 ): Promise<DataResponse> {
-  const responseFormat = (input.response_format ?? 'full') as ResponseFormat;
+  const responseFormat = getResponseFormat(input);
 
   if (input.dataFilter) {
     if (!ha.featureFlags.enableDataFilterBatch) {

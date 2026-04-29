@@ -26,6 +26,7 @@ export interface CreateHttpServerLifecycleOptions<
   readonly getSessionCount: () => number;
   readonly ensureToolIntegrityVerified: { run: () => Promise<void> };
   readonly rateLimiterReady: Promise<void>;
+  readonly initializeAuthProviders: () => Promise<void>;
   readonly initializeRbac: () => Promise<void>;
   readonly enableMetricsServer: boolean;
   readonly metricsPort: number;
@@ -138,6 +139,7 @@ export function createHttpServerLifecycle<TMetricsExporter = unknown, TMetricsSe
     start: async () => {
       await options.initTelemetry();
       await options.ensureToolIntegrityVerified.run();
+      await options.initializeAuthProviders();
       await options.initializeRbac();
       try {
         await Promise.race([

@@ -4,7 +4,7 @@ import { createHttpServer } from '../../../packages/mcp-http/src/create-http-ser
 import { ACTION_COUNT, TOOL_COUNT } from '../../../src/generated/action-counts.js';
 
 describe('@serval/mcp-http createHttpServer', () => {
-  it('orchestrates the HTTP server runtime and returns lifecycle handles', () => {
+  it('orchestrates the HTTP server runtime and returns lifecycle handles', async () => {
     const app = { use: vi.fn() };
     const envConfig = {
       ENABLE_TENANT_ISOLATION: true,
@@ -23,6 +23,7 @@ describe('@serval/mcp-http createHttpServer', () => {
     const getUserRateLimiter = vi.fn(() => null);
     const cleanupSessions = vi.fn();
     const rateLimiterReady = Promise.resolve();
+    const initializeOAuth = vi.fn(async () => {});
     const initializeRbac = vi.fn(async () => {});
     const lifecycle = {
       start: vi.fn(async () => {}),
@@ -57,7 +58,9 @@ describe('@serval/mcp-http createHttpServer', () => {
       })),
       createHealthService: vi.fn(() => ({ kind: 'health-service' })),
       registerHttpFoundationMiddleware: vi.fn(),
-      registerHttpAuthProviders: vi.fn(() => ({ oauth: { kind: 'oauth-provider' } })),
+      registerHttpAuthProviders: vi.fn(() => ({
+        oauth: { kind: 'oauth-provider', initialize: initializeOAuth },
+      })),
       prepareHttpRateLimiter: vi.fn(() => ({
         rateLimiterReady,
         getUserRateLimiter,
@@ -120,7 +123,7 @@ describe('@serval/mcp-http createHttpServer', () => {
     expect(dependencies.bootstrapHttpTransportSessions).toHaveBeenCalledWith({
       app,
       enableOAuth: true,
-      oauth: { kind: 'oauth-provider' },
+      oauth: { kind: 'oauth-provider', initialize: initializeOAuth },
       legacySseEnabled: false,
       host: '0.0.0.0',
       port: 4100,
@@ -158,6 +161,7 @@ describe('@serval/mcp-http createHttpServer', () => {
       getSessionCount: expect.any(Function),
       ensureToolIntegrityVerified,
       rateLimiterReady,
+      initializeAuthProviders: expect.any(Function),
       initializeRbac,
       enableMetricsServer: true,
       metricsPort: 9090,
@@ -171,6 +175,10 @@ describe('@serval/mcp-http createHttpServer', () => {
       actionCount: ACTION_COUNT,
       log,
     });
+
+    const lifecycleInput = dependencies.createHttpServerLifecycle.mock.calls[0]?.[0];
+    await lifecycleInput.initializeAuthProviders();
+    expect(initializeOAuth).toHaveBeenCalledOnce();
 
     expect(result).toEqual({
       app,

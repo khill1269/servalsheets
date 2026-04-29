@@ -15,6 +15,7 @@ export interface HttpOAuthServerConfig {
 }
 
 export interface OAuthProviderLike {
+  initialize?(): Promise<void>;
   createRouter(): RequestHandler;
 }
 

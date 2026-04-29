@@ -66,9 +66,6 @@ export const DEFAULT_HTTP_CORS_ORIGINS = [
   ...LOCALHOST_CORS_ORIGINS,
 ] as const;
 
-/** Production default: no localhost origins (require explicit CORS_ORIGINS config) */
-export const DEFAULT_PROD_HTTP_CORS_ORIGINS = [...REMOTE_CORS_ORIGINS] as const;
-
 /** Dev default: includes localhost origins for local MCP clients */
 export const DEFAULT_DEV_HTTP_CORS_ORIGINS = [...DEFAULT_HTTP_CORS_ORIGINS] as const;
 
@@ -87,10 +84,16 @@ export function resolveHttpServerRuntimeConfig(
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
 
-  const defaultOrigins =
-    process.env['NODE_ENV'] === 'production'
-      ? DEFAULT_PROD_HTTP_CORS_ORIGINS
-      : DEFAULT_DEV_HTTP_CORS_ORIGINS;
+  const isProduction = process.env['NODE_ENV'] === 'production';
+  if (isProduction && !options.corsOrigins && configuredCorsOrigins.length === 0) {
+    throw new Error('CORS_ORIGINS must be explicitly configured in production.');
+  }
+  if (!isProduction && process.env['NODE_ENV'] !== 'development' && process.env['NODE_ENV'] !== 'test') {
+    log.warn(
+      'NODE_ENV is not set to "production" or "development" — falling back to dev CORS origins. ' +
+        'Set NODE_ENV=production and CORS_ORIGINS in deployment to restrict allowed origins.'
+    );
+  }
 
   const legacySseEnabled = envConfig.ENABLE_LEGACY_SSE;
   if (legacySseEnabled) {
@@ -107,7 +110,7 @@ export function resolveHttpServerRuntimeConfig(
     host: options.host ?? defaultHost,
     corsOrigins:
       options.corsOrigins ??
-      (configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [...defaultOrigins]),
+      (configuredCorsOrigins.length > 0 ? configuredCorsOrigins : [...DEFAULT_DEV_HTTP_CORS_ORIGINS]),
     rateLimitWindowMs: options.rateLimitWindowMs ?? envConfig.RATE_LIMIT_WINDOW_MS,
     rateLimitMax: options.rateLimitMax ?? envConfig.RATE_LIMIT_MAX,
     trustProxy: options.trustProxy ?? false,

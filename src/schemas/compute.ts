@@ -26,6 +26,14 @@ import {
   type ToolAnnotations,
 } from './shared.js';
 
+const CONTROL_CHARACTER_RANGE = '\\x00-\\x1f';
+const SAFE_COLUMN_NAME_PATTERN = new RegExp(
+  '^[^\\n\\r\\t' + CONTROL_CHARACTER_RANGE + '`\\\\;]{1,256}$'
+);
+const SAFE_CHART_TITLE_PATTERN = new RegExp(
+  '^[^\\n\\r\\t' + CONTROL_CHARACTER_RANGE + '\\\\]{0,512}$'
+);
+
 // ============================================================================
 // Common Schemas
 // ============================================================================
@@ -178,7 +186,11 @@ const RegressionActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Absolute 1-based sheet row to use as headers when the requested range excludes the header row.'
     ),
-  xColumn: z.string().describe('Column for independent variable (letter or header name)'),
+  xColumn: z
+    .string()
+    .max(256)
+    .regex(SAFE_COLUMN_NAME_PATTERN, 'Column name contains invalid characters')
+    .describe('Column for independent variable (letter or header name)'),
   yColumn: z.string().describe('Column for dependent variable (letter or header name)'),
   type: z
     .enum(['linear', 'polynomial', 'exponential', 'logarithmic', 'power'])
@@ -436,9 +448,18 @@ const PandasProfileActionSchema = CommonFieldsSchema.extend({
 const SklearnModelActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sklearn_model').describe('Train a scikit-learn ML model on spreadsheet data'),
   range: RangeInputSchema,
-  targetColumn: z.string().describe('Column name to predict'),
+  targetColumn: z
+    .string()
+    .max(256)
+    .regex(SAFE_COLUMN_NAME_PATTERN, 'Column name contains invalid characters')
+    .describe('Column name to predict'),
   featureColumns: z
-    .array(z.string())
+    .array(
+      z
+        .string()
+        .max(256)
+        .regex(SAFE_COLUMN_NAME_PATTERN, 'Column name contains invalid characters')
+    )
     .optional()
     .describe('Columns to use as features (default: all except target)'),
   modelType: z.enum([
@@ -462,9 +483,17 @@ const MatplotlibChartActionSchema = CommonFieldsSchema.extend({
     .describe('Generate a matplotlib chart from spreadsheet data, returned as base64 PNG'),
   range: RangeInputSchema,
   chartType: z.enum(['line', 'bar', 'scatter', 'heatmap', 'histogram', 'boxplot']),
-  xColumn: z.string().optional(),
+  xColumn: z
+    .string()
+    .max(256)
+    .regex(SAFE_COLUMN_NAME_PATTERN, 'Column name contains invalid characters')
+    .optional(),
   yColumns: z.array(z.string()).optional(),
-  title: z.string().optional(),
+  title: z
+    .string()
+    .max(512)
+    .regex(SAFE_CHART_TITLE_PATTERN, 'Title contains invalid characters')
+    .optional(),
   width: z.number().default(800),
   height: z.number().default(600),
 }).strict();

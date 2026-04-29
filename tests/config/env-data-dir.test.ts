@@ -19,6 +19,18 @@ describe('env DATA_DIR durability policy', () => {
     expect(env.DATA_DIR).toBe('/tmp/servalsheets');
   });
 
+  it('provides numeric defaults for timer and throttle configuration', () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'development',
+    };
+
+    const env = validateEnv(true);
+    expect(env.REQUEST_TIMEOUT_MS).toBe(60000);
+    expect(env.TASK_WATCHDOG_MS).toBe(300000);
+    expect(env.PER_SPREADSHEET_RPS).toBe(10);
+  });
+
   it('rejects temporary DATA_DIR in production', () => {
     process.env = {
       ...originalEnv,

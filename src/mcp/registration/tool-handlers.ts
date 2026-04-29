@@ -183,6 +183,7 @@ const SheetsConnectorsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
 
 const SELF_CORRECTION_WINDOW_MS = 5 * 60 * 1000;
 const SELF_CORRECTION_MAX_ENTRIES = 10_000;
+const DEFAULT_TASK_WATCHDOG_MS = 300000;
 const recentFailuresByPrincipal = new Map<string, { action: string; timestampMs: number }>();
 type RegisteredTaskStore = Parameters<typeof registerServerTaskCancelHandler>[0]['taskStore'];
 const taskAbortControllersByStore = new WeakMap<
@@ -191,6 +192,13 @@ const taskAbortControllersByStore = new WeakMap<
 >();
 const taskWatchdogTimersByStore = new WeakMap<RegisteredTaskStore, Map<string, NodeJS.Timeout>>();
 const taskCancelHandlersRegistered = new WeakSet<RegisteredTaskStore>();
+
+function resolveTaskWatchdogMs(): number {
+  const taskWatchdogMs = Number(getEnv()['TASK_WATCHDOG_MS']);
+  return Number.isFinite(taskWatchdogMs) && taskWatchdogMs > 0
+    ? taskWatchdogMs
+    : DEFAULT_TASK_WATCHDOG_MS;
+}
 
 export interface LegacyToolRegistration {
   dispose(): void;
@@ -1417,7 +1425,13 @@ function createToolCallHandler(
 
           // Record metrics for observability
           const durationSeconds = duration / 1000;
-          recordToolCall(tool.name, action, status, durationSeconds);
+          recordToolCall(
+            tool.name,
+            action,
+            status,
+            durationSeconds,
+            status === 'error' ? (extractErrorCode(result) ?? 'unknown') : 'none'
+          );
           recordToolCallLatency(tool.name, action, durationSeconds);
           if (status === 'error') {
             recentFailuresByPrincipal.set(correctionKey, { action, timestampMs: nowMs });
@@ -1622,7 +1636,7 @@ function createToolCallHandler(
 
           // Record error metrics
           const action = extractAction(args);
-          recordToolCall(tool.name, action, 'error', duration / 1000);
+          recordToolCall(tool.name, action, 'error', duration / 1000, errorCode);
           recordError(error instanceof Error ? error.name : 'UnknownError', tool.name, action);
           const principalId = requestContext.principalId ?? 'anonymous';
           pruneSelfCorrectionFailures(Date.now());
@@ -1764,7 +1778,7 @@ export function createToolTaskHandler(
       const abortController = new AbortController();
       abortControllers.set(task.taskId, abortController);
 
-      const TASK_WATCHDOG_MS = Number(getEnv()['TASK_WATCHDOG_MS']);
+      const TASK_WATCHDOG_MS = resolveTaskWatchdogMs();
       const watchdogTimer = setTimeout(() => {
         if (abortControllers.has(task.taskId)) {
           logger.warn('Task watchdog: aborting hung task', {

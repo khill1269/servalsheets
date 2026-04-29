@@ -13,7 +13,8 @@ import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.j
 import { validateSamplingOutput } from '../../services/sampling-validator.js';
 import { parseA1Notation, toGridRange } from '../../utils/google-sheets-helpers.js';
 import { extractSheetName } from '../../utils/range-helpers.js';
-import type { DataHandlerAccess, ResponseFormat, MAX_BATCH_RANGES as _MAX } from './internal.js';
+import type { DataHandlerAccess, MAX_BATCH_RANGES as _MAX } from './internal.js';
+import { getResponseFormat } from './internal.js';
 import { MAX_BATCH_RANGES } from './internal.js';
 import {
   resolveRangeToA1,
@@ -107,7 +108,7 @@ export async function handleBatchRead(
   ha: DataHandlerAccess,
   input: DataRequest & { action: 'batch_read' }
 ): Promise<DataResponse> {
-  const responseFormat = (input.response_format ?? 'full') as ResponseFormat;
+  const responseFormat = getResponseFormat(input);
   const wantsPagination = Boolean(input.cursor || input.pageSize);
 
   if (wantsPagination) {
