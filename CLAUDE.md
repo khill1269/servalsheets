@@ -16,7 +16,7 @@ Live project state (auto-generated): @.serval/state.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 409 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 410 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline

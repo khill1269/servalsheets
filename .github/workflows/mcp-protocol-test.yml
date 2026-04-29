@@ -1,6 +1,6 @@
 name: MCP Protocol Test
 
-# Tests all 409 actions via actual MCP JSON-RPC wire protocol.
+# Tests all 410 actions via actual MCP JSON-RPC wire protocol.
 # No Google credentials needed — validates routing, schema, and error handling.
 # Runs on every PR to catch protocol-level regressions before merge.
 
@@ -38,7 +38,7 @@ env:
 
 jobs:
   mcp-protocol-smoke:
-    name: MCP Protocol Smoke Test (409 actions)
+    name: MCP Protocol Smoke Test (410 actions)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
