@@ -1740,7 +1740,6 @@ export function getOrCreateSessionContext(
       ttlMs: getSessionTtlMs(),
     });
   }
-
   evictOldestSessionIfAtCapacity();
   const created = createSessionContextManager(getHttpSessionRedisKey(userId ?? 'anon', sessionId));
   sessionContexts.set(sessionId, created);
@@ -1769,7 +1768,6 @@ export async function getOrCreateSessionContextAsync(
       hydratedSessionContexts.delete(sessionId);
     }
   }
-
   const inFlight = sessionContextHydrations.get(sessionId);
   if (inFlight) {
     return await inFlight;
