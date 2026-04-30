@@ -165,7 +165,7 @@ export function extractTitleFromDescription(description: string): string {
   if (!description?.trim()) return 'Untitled Spreadsheet';
 
   // Prefer explicit quoted title: "Q2 2026 Sales Performance"
-  const quoted = description.match(/["'"'']([^"'"'']{3,100})["'"'']/);
+  const quoted = description.match(/["'\u2018\u2019\u201C\u201D]([^"'\u2018\u2019\u201C\u201D]{3,100})["'\u2018\u2019\u201C\u201D]/);
   if (quoted?.[1]) return quoted[1].trim();
 
   // Fall back to the first clause, stripped of bootstrap verbs
