@@ -38,7 +38,7 @@ export const toolCallDuration = getOrCreate(
     new Histogram({
       name: 'servalsheets_tool_call_duration_seconds',
       help: 'Tool call duration in seconds',
-      labelNames: ['tool', 'action'],
+      labelNames: ['tool', 'action', 'success', 'error_code'],
       buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
     })
 );
@@ -725,10 +725,14 @@ export function recordToolCall(
   tool: string,
   action: string,
   status: 'success' | 'error',
-  durationSeconds: number
+  durationSeconds: number,
+  errorCode: string = 'none'
 ): void {
   toolCallsTotal.inc({ tool, action, status });
-  toolCallDuration.observe({ tool, action }, durationSeconds);
+  toolCallDuration.observe(
+    { tool, action, success: String(status === 'success'), error_code: errorCode },
+    durationSeconds
+  );
 }
 
 /**
@@ -874,7 +878,9 @@ async function _refreshLatencyCache(): Promise<void> {
     // ignore — cache keeps last known values
   }
 }
-setInterval(() => { void _refreshLatencyCache(); }, 30_000).unref();
+setInterval(() => {
+  void _refreshLatencyCache();
+}, 30_000).unref();
 void _refreshLatencyCache();
 
 /**

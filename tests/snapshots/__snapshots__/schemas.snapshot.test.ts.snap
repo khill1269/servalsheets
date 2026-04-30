@@ -28892,6 +28892,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             },
             "xColumn": {
               "description": "Column for independent variable (letter or header name)",
+              "maxLength": 256,
+              "pattern": "^[^\\\\n\\\\r\\\\t\\\\x00-\\\\x1f\`\\\\\\\\;]{1,256}$",
               "type": "string"
             },
             "yColumn": {
@@ -32079,6 +32081,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             "featureColumns": {
               "description": "Columns to use as features (default: all except target)",
               "items": {
+                "maxLength": 256,
+                "pattern": "^[^\\\\n\\\\r\\\\t\\\\x00-\\\\x1f\`\\\\\\\\;]{1,256}$",
                 "type": "string"
               },
               "type": "array"
@@ -32326,6 +32330,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
             },
             "targetColumn": {
               "description": "Column name to predict",
+              "maxLength": 256,
+              "pattern": "^[^\\\\n\\\\r\\\\t\\\\x00-\\\\x1f\`\\\\\\\\;]{1,256}$",
               "type": "string"
             },
             "testSize": {
@@ -32612,6 +32618,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
               "type": "string"
             },
             "title": {
+              "maxLength": 512,
+              "pattern": "^[^\\\\n\\\\r\\\\t\\\\x00-\\\\x1f\\\\\\\\]{0,512}$",
               "type": "string"
             },
             "verbosity": {
@@ -32629,6 +32637,8 @@ exports[`Schema Snapshots > Input Schemas > SheetsComputeInputSchema should matc
               "type": "number"
             },
             "xColumn": {
+              "maxLength": 256,
+              "pattern": "^[^\\\\n\\\\r\\\\t\\\\x00-\\\\x1f\`\\\\\\\\;]{1,256}$",
               "type": "string"
             },
             "yColumns": {
@@ -37238,7 +37248,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
             },
             "response_format": {
               "default": "full",
-              "description": "Output size profile for returned values (full, compact, preview)",
+              "description": "Deprecated alias for responseFormat. Output size profile for returned values (full, compact, preview).",
+              "enum": [
+                "full",
+                "compact",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "responseFormat": {
+              "description": "Output size profile for returned values (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.",
               "enum": [
                 "full",
                 "compact",
@@ -38737,7 +38756,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
             },
             "response_format": {
               "default": "full",
-              "description": "Output size profile for returned ranges (full, compact, preview)",
+              "description": "Deprecated alias for responseFormat. Output size profile for returned ranges (full, compact, preview).",
+              "enum": [
+                "full",
+                "compact",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "responseFormat": {
+              "description": "Output size profile for returned ranges (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.",
               "enum": [
                 "full",
                 "compact",
@@ -42842,7 +42870,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
             },
             "response_format": {
               "default": "full",
-              "description": "Output size profile for merged rows (full, compact, preview)",
+              "description": "Deprecated alias for responseFormat. Output size profile for merged rows (full, compact, preview).",
+              "enum": [
+                "full",
+                "compact",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "responseFormat": {
+              "description": "Output size profile for merged rows (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.",
               "enum": [
                 "full",
                 "compact",
@@ -43039,7 +43076,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
             },
             "response_format": {
               "default": "full",
-              "description": "Output size profile for query matches (full, compact, preview)",
+              "description": "Deprecated alias for responseFormat. Output size profile for query matches (full, compact, preview).",
+              "enum": [
+                "full",
+                "compact",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "responseFormat": {
+              "description": "Output size profile for query matches (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.",
               "enum": [
                 "full",
                 "compact",
@@ -43432,7 +43478,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsDataInputSchema should match s
             },
             "response_format": {
               "default": "full",
-              "description": "Output size profile for diff payload (full, compact, preview)",
+              "description": "Deprecated alias for responseFormat. Output size profile for diff payload (full, compact, preview).",
+              "enum": [
+                "full",
+                "compact",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "responseFormat": {
+              "description": "Output size profile for diff payload (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.",
               "enum": [
                 "full",
                 "compact",

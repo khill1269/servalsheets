@@ -12,6 +12,7 @@ import {
   SERVER_ICON_SIZES,
 } from './config/server-icon.js';
 import { MCP_PROTOCOL_VERSION } from './config/protocol.js';
+import { ACTION_COUNT, TOOL_COUNT } from './generated/action-counts.js';
 
 /** Current version - sync with package.json */
 export const VERSION = '2.0.0';
@@ -24,7 +25,7 @@ export const SERVER_INFO = {
   name: 'servalsheets',
   version: VERSION,
   protocolVersion: MCP_PROTOCOL_VERSION,
-  description: 'Production-grade MCP server for Google Sheets — 25 tools, 409 actions, MCP 2025-11-25',
+  description: `Production-grade MCP server for Google Sheets — ${TOOL_COUNT} tools, ${ACTION_COUNT} actions, MCP 2025-11-25`,
 } as const;
 
 /** Server icon metadata for client UIs (inline SVG to avoid dead GitHub asset URLs) */

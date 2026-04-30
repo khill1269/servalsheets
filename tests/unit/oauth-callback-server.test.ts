@@ -56,7 +56,31 @@ async function callUrl(url: string): Promise<{ status: number }> {
   });
 }
 
-describe('oauth-callback-server', () => {
+async function canBindLoopback(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(204);
+      res.end();
+    });
+
+    const done = (result: boolean): void => {
+      server.removeAllListeners();
+      if (server.listening) {
+        server.close(() => resolve(result));
+        return;
+      }
+      resolve(result);
+    };
+
+    server.once('error', () => done(false));
+    server.once('listening', () => done(true));
+    server.listen(0, '127.0.0.1');
+  });
+}
+
+const describeIfLoopbackAvailable = (await canBindLoopback()) ? describe : describe.skip;
+
+describeIfLoopbackAvailable('oauth-callback-server', () => {
   const openServers: http.Server[] = [];
 
   afterEach(async () => {

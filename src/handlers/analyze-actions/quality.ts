@@ -135,9 +135,10 @@ export async function handleAnalyzeQualityAction(
         return {
           type,
           internalSeverity,
-          publicSeverity: (internalSeverity === 'critical'
-            ? 'high'
-            : internalSeverity) as 'low' | 'medium' | 'high',
+          publicSeverity: (internalSeverity === 'critical' ? 'high' : internalSeverity) as
+            | 'low'
+            | 'medium'
+            | 'high',
           location: col.column,
           description: issue,
         };

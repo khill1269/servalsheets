@@ -117,6 +117,8 @@ export const EnvSchema = z
     STDIO_MODE: StrictBooleanSchema.default(false),
     HTTP_MODE: StrictBooleanSchema.default(false),
     HOST: z.string().default('0.0.0.0'),
+    REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1).default(60000),
+    TASK_WATCHDOG_MS: z.coerce.number().int().min(1).default(300000),
 
     // Logging
     LOG_LEVEL: LogLevelSchema,
@@ -164,6 +166,7 @@ export const EnvSchema = z
 
     // Concurrency
     MAX_CONCURRENT_REQUESTS: z.coerce.number().int().min(1).default(10),
+    PER_SPREADSHEET_RPS: z.coerce.number().positive().default(10),
 
     // Request deduplication + result cache — previously read raw from process.env
     // in src/utils/request-deduplication.ts bypassing Zod validation.

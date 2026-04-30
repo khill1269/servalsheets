@@ -144,10 +144,7 @@ async function getReadiness(
       // `available` now reflects the actual probe result. This is the
       // field analyze handlers / LLM clients should read.
       available: llmFallbackAvailable && samplingHealth.healthy,
-      mode:
-        llmFallbackAvailable && samplingHealth.healthy
-          ? 'llm_fallback'
-          : 'unavailable',
+      mode: llmFallbackAvailable && samplingHealth.healthy ? 'llm_fallback' : 'unavailable',
     },
     semanticSearch: {
       available: voyageApiKeyConfigured,

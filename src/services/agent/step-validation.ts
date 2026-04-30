@@ -105,7 +105,10 @@ export function validateDraftPlanStep(
  * When backfillSentinels=true (regex-fallback plans), invalid steps also get
  * `_requiredParams` listing the fields that must be provided before execution.
  */
-export function annotateAIGeneratedDraftPlan(plan: PlanState, backfillSentinels = false): PlanState {
+export function annotateAIGeneratedDraftPlan(
+  plan: PlanState,
+  backfillSentinels = false
+): PlanState {
   plan.steps = plan.steps.map((step) => {
     const annotated = validateDraftPlanStep(step, plan);
     if (!backfillSentinels || !annotated.validation || annotated.validation.valid !== false) {

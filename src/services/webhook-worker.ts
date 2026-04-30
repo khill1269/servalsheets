@@ -47,7 +47,10 @@ export class WebhookWorker {
   private running: boolean = false;
   private workers: Promise<void>[] = [];
   /** Per-URL circuit breakers — prevent hammering consistently-failing endpoints */
-  private readonly urlBreakers = new LRUCache<string, CircuitBreaker>({ max: 500, ttl: 24 * 60 * 60 * 1000 });
+  private readonly urlBreakers = new LRUCache<string, CircuitBreaker>({
+    max: 500,
+    ttl: 24 * 60 * 60 * 1000,
+  });
 
   private getOrCreateBreaker(url: string): CircuitBreaker {
     // Key on origin (scheme+host+port) to share breaker across multiple webhooks on same host

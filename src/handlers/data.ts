@@ -361,7 +361,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: ErrorCodes.INVALID_PARAMS,
           message: `Unknown action: ${exhaustiveCheck}. Use sheets_analyze.discover to list available sheets_data actions.`,
           retryable: false,
-          suggestedFix: 'Call sheets_analyze action:"discover" with toolName:"sheets_data" to see all valid actions.',
+          suggestedFix:
+            'Call sheets_analyze action:"discover" with toolName:"sheets_data" to see all valid actions.',
         });
       }
     }
