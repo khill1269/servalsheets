@@ -61,8 +61,8 @@ export const DEFAULT_THRESHOLDS: QualityThresholds = {
   nestingDepth: {
     warning: 5,
   },
-  duplicationMinLines: 10,
-  duplicationSimilarityThreshold: 0.8, // 80% similarity
+  duplicationMinLines: 15,
+  duplicationSimilarityThreshold: 0.9, // 90% similarity
 };
 
 // ============================================================================
