@@ -47,7 +47,7 @@ jobs:
         id: detect
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+            git fetch --no-tags origin "${{ github.base_ref }}"
             CHANGED_FILES=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
           elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             CHANGED_FILES=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
@@ -212,7 +212,7 @@ jobs:
         id: tool-changes
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+            git fetch --no-tags origin "${{ github.base_ref }}"
             CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
           elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")

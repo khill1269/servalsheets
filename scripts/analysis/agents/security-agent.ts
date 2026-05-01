@@ -433,7 +433,9 @@ export class SecurityAgent extends AnalysisAgent {
     const issues: AnalysisIssue[] = [];
 
     const visit = (node: ts.Node) => {
-      // Check for child_process.exec/spawn with user input
+      // Check for exec/spawn calls with user-controlled input. Intentionally broad —
+      // catches named-import, namespace-import, and direct require() patterns.
+      // The `hasUserInput` heuristic (request/input/${ template) limits false positives.
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const method = node.expression.name.text;
 
