@@ -165,6 +165,7 @@ jobs:
 
   validate-dependencies:
     runs-on: ubuntu-latest
+    # 20 min: full git history fetch (fetch-depth: 0) + up to 3 tool-server builds when changed
     timeout-minutes: 20
     needs: dependency-change-detect
     if: needs.dependency-change-detect.outputs.should_run == 'true'
