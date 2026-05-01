@@ -218,9 +218,9 @@ jobs:
           else
             CHANGED=$(git show --pretty="" --name-only "${{ github.sha }}")
           fi
-          echo "docs_changed=$(echo "$CHANGED" | grep -q '^tools/google-docs-server/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "intel_changed=$(echo "$CHANGED" | grep -q '^tools/test-intelligence-server/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "gcloud_changed=$(echo "$CHANGED" | grep -q '^tools/gcloud-console-server/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          if echo "$CHANGED" | grep -q '^tools/google-docs-server/'; then echo "docs_changed=true" >> "$GITHUB_OUTPUT"; else echo "docs_changed=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$CHANGED" | grep -q '^tools/test-intelligence-server/'; then echo "intel_changed=true" >> "$GITHUB_OUTPUT"; else echo "intel_changed=false" >> "$GITHUB_OUTPUT"; fi
+          if echo "$CHANGED" | grep -q '^tools/gcloud-console-server/'; then echo "gcloud_changed=true" >> "$GITHUB_OUTPUT"; else echo "gcloud_changed=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Build changed tool servers
         if: |
