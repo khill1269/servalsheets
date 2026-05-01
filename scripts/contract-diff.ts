@@ -83,7 +83,6 @@ const TOOLS: Array<{ schema: string; handler: string }> = [
   { schema: 'visualize', handler: 'src/handlers/visualize-actions' },
   { schema: 'webhook', handler: 'src/handlers/webhook-actions' },
   { schema: 'agent', handler: 'src/handlers/agent.ts' },
-  { schema: 'collaborate', handler: 'src/handlers/collaborate-actions' },
   { schema: 'federation', handler: 'src/handlers/federation.ts' },
   { schema: 'transaction', handler: 'src/handlers/transaction.ts' },
 ];
@@ -110,6 +109,37 @@ const SHARED_SCHEMA_FIELDS = new Set([
   'autoSnapshot',
   'createSnapshot',
   'requireConfirmation',
+]);
+
+/**
+ * JavaScript built-ins and common response/internal field names that should
+ * never be flagged as schema drift, even if accessed on a request variable.
+ */
+const BUILTIN_IDENTIFIERS = new Set([
+  'length',
+  'prototype',
+  'constructor',
+  'then',
+  'catch',
+  'finally',
+  'message',
+  'stack',
+  'code',
+  'name',
+  'type',
+  'result',
+  'error',
+  'data',
+  'value',
+  'key',
+  'id',
+  'status',
+  'success',
+  'response',
+  'body',
+  'headers',
+  'method',
+  'url',
 ]);
 
 // ─── ts-morph project ────────────────────────────────────────────────────────
@@ -463,8 +493,12 @@ function loadHandlerFiles(handlerPath: string): SourceFile[] {
       try {
         const sf = project.addSourceFileAtPath(mainFile);
         sources.push(sf);
-      } catch {
-        /* already added */
+      } catch (err) {
+        // ts-morph throws when the file was already added to the project — ignore that case
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('already exists')) {
+          process.stderr.write(`Warning: could not add handler file ${mainFile}: ${msg}\n`);
+        }
       }
     }
   }
@@ -506,38 +540,14 @@ function analyzeTool(toolDef: { schema: string; handler: string }): ToolResult |
       !UNIVERSAL_FIELDS.has(f) &&
       !SHARED_SCHEMA_FIELDS.has(f) &&
       !f.startsWith('_') &&
-      // Exclude JavaScript built-ins and common non-request identifiers
-      ![
-        'length',
-        'prototype',
-        'constructor',
-        'then',
-        'catch',
-        'finally',
-        'message',
-        'stack',
-        'code',
-        'name',
-        'type',
-        'result',
-        'error',
-        'data',
-        'value',
-        'key',
-        'id',
-        'status',
-        'success',
-        'response',
-        'body',
-        'headers',
-        'method',
-        'url',
-      ].includes(f)
+      !BUILTIN_IDENTIFIERS.has(f)
   );
 
   const actions: ActionDiff[] = [];
 
   // Per-action: fields declared in that action's schema but not accessed anywhere in handlers
+  // Tool-level used-but-undeclared is reported once on a synthetic entry to avoid redundancy.
+  let toolLevelUndeclaredReported = false;
   for (const [action, schemaFields] of actionMap) {
     const analyzableSchema = Array.from(schemaFields).filter(
       (f) => !UNIVERSAL_FIELDS.has(f) && !SHARED_SCHEMA_FIELDS.has(f)
@@ -545,8 +555,13 @@ function analyzeTool(toolDef: { schema: string; handler: string }): ToolResult |
 
     const declaredButUnused = analyzableSchema.filter((f) => !allHandlerAccesses.has(f));
 
-    // usedButUndeclared is tool-level (same list for each action to avoid duplication)
-    const usedButUndeclared = action === Array.from(actionMap.keys())[0] ? toolLevelUndeclared : [];
+    // Attach the tool-level undeclared list to the first action that has drift (or the first
+    // action overall), so it appears once in the output rather than repeated per action.
+    const usedButUndeclared =
+      !toolLevelUndeclaredReported && toolLevelUndeclared.length > 0
+        ? toolLevelUndeclared
+        : [];
+    if (usedButUndeclared.length > 0) toolLevelUndeclaredReported = true;
 
     if (declaredButUnused.length > 0 || usedButUndeclared.length > 0) {
       actions.push({
@@ -560,9 +575,9 @@ function analyzeTool(toolDef: { schema: string; handler: string }): ToolResult |
     }
   }
 
-  // If there are tool-level undeclared fields, add them to a synthetic "tool" action diff
-  // when no action diff captured them
-  if (toolLevelUndeclared.length > 0 && !actions.some((a) => a.usedButUndeclared.length > 0)) {
+  // If there are tool-level undeclared fields but no per-action drift captured them yet,
+  // add a synthetic "(tool-level)" entry so they appear in the report.
+  if (toolLevelUndeclared.length > 0 && !toolLevelUndeclaredReported) {
     actions.push({
       tool: toolDef.schema,
       action: '(tool-level)',
