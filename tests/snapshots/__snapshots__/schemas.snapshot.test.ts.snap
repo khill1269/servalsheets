@@ -162,7 +162,7 @@ exports[`Schema Snapshots > Input Schemas > BuildDashboardInputSchema should mat
             "type": "string"
           },
           "type": {
-            "description": "Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER",
+            "description": "Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER, SCORECARD",
             "type": "string"
           }
         },
@@ -3715,7 +3715,7 @@ exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match sn
                     "type": "string"
                   },
                   "type": {
-                    "description": "Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER",
+                    "description": "Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER, SCORECARD",
                     "type": "string"
                   }
                 },
@@ -17803,7 +17803,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should matc
           "properties": {
             "action": {
               "const": "semantic_search",
-              "description": "Search spreadsheet content by meaning, not exact text. Indexes cell ranges as embeddings and returns the most relevant sections for a natural language query. Example: \\"find all rows about Q4 revenue projections\\". Requires VOYAGE_API_KEY. First call on a spreadsheet triggers indexing (~2-5s). Subsequent queries on the same spreadsheet are fast (<500ms).",
+              "description": "Search spreadsheet content by meaning, not exact text. Indexes cell ranges as embeddings and returns the most relevant sections for a natural language query. Example: \\"find all rows about Q4 revenue projections\\". Requires GOOGLE_API_KEY. First call on a spreadsheet triggers indexing (~2-5s). Subsequent queries on the same spreadsheet are fast (<500ms).",
               "type": "string"
             },
             "forceReindex": {
@@ -18845,7 +18845,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAppsScriptInputSchema should m
           "properties": {
             "action": {
               "const": "create_trigger",
-              "description": "Compatibility-only trigger creation surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot manage triggers; use update_content to add ScriptApp trigger code, then deploy.",
+              "description": "Create an Apps Script trigger by delegating to the installed in-project SERVAL ScriptApp helper through scripts.run.",
               "type": "string"
             },
             "atHour": {
@@ -18922,7 +18922,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAppsScriptInputSchema should m
           "properties": {
             "action": {
               "const": "list_triggers",
-              "description": "Compatibility-only trigger listing surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot enumerate triggers; use get_content to inspect ScriptApp trigger code.",
+              "description": "List Apps Script triggers by delegating to the installed in-project SERVAL ScriptApp helper through scripts.run.",
               "type": "string"
             },
             "pageSize": {
@@ -18968,7 +18968,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAppsScriptInputSchema should m
           "properties": {
             "action": {
               "const": "delete_trigger",
-              "description": "Compatibility-only trigger deletion surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot delete triggers; use update_content to remove ScriptApp trigger code.",
+              "description": "Delete an Apps Script trigger by delegating to the installed in-project SERVAL ScriptApp helper through scripts.run.",
               "type": "string"
             },
             "scriptId": {
@@ -19008,7 +19008,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsAppsScriptInputSchema should m
           "properties": {
             "action": {
               "const": "update_trigger",
-              "description": "Compatibility-only trigger update surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot update triggers; use update_content plus deploy instead.",
+              "description": "Replace an Apps Script trigger by deleting it and creating a new trigger through the installed in-project SERVAL ScriptApp helper.",
               "type": "string"
             },
             "everyMinutes": {
@@ -19034,6 +19034,17 @@ exports[`Schema Snapshots > Input Schemas > SheetsAppsScriptInputSchema should m
             "triggerId": {
               "description": "Existing trigger ID to replace",
               "minLength": 1,
+              "type": "string"
+            },
+            "triggerType": {
+              "description": "Replacement trigger type. Defaults to CLOCK when omitted.",
+              "enum": [
+                "CLOCK",
+                "ON_OPEN",
+                "ON_EDIT",
+                "ON_FORM_SUBMIT",
+                "ON_CHANGE"
+              ],
               "type": "string"
             },
             "verbosity": {
@@ -68098,7 +68109,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsVisualizeInputSchema should ma
           "properties": {
             "action": {
               "const": "chart_add_trendline",
-              "description": "Add a trendline to an existing chart series (LINE, AREA, SCATTER, COLUMN charts)",
+              "description": "Add a trendline to an existing chart series (LINE, AREA, SCATTER charts)",
               "type": "string"
             },
             "chartId": {
@@ -139451,6 +139462,10 @@ exports[`Schema Snapshots > Output Schemas > SheetsAppsScriptOutputSchema should
               "description": "ServalSheets callback URL for formula execution",
               "type": "string"
             },
+            "deleted": {
+              "description": "Whether a trigger was deleted",
+              "type": "boolean"
+            },
             "deployment": {
               "additionalProperties": false,
               "description": "Deployment details",
@@ -139829,6 +139844,14 @@ exports[`Schema Snapshots > Output Schemas > SheetsAppsScriptOutputSchema should
               "description": "Token for next page of results",
               "type": "string"
             },
+            "previousTrigger": {
+              "additionalProperties": {},
+              "description": "Previous trigger metadata for update_trigger",
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            },
             "processes": {
               "description": "List of execution processes",
               "items": {
@@ -139978,6 +140001,29 @@ exports[`Schema Snapshots > Output Schemas > SheetsAppsScriptOutputSchema should
             "success": {
               "const": true,
               "type": "boolean"
+            },
+            "trigger": {
+              "additionalProperties": {},
+              "description": "Trigger metadata",
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "triggerId": {
+              "description": "Trigger identifier",
+              "type": "string"
+            },
+            "triggers": {
+              "description": "List of triggers",
+              "items": {
+                "additionalProperties": {},
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "type": "array"
             },
             "version": {
               "additionalProperties": false,

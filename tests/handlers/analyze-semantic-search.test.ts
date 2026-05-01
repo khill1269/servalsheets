@@ -58,15 +58,18 @@ function textToFakeEmbedding(text: string): number[] {
   return vec.map((v) => (norm > 0 ? v / norm : 0));
 }
 
-function makeFetchMock(queryText?: string) {
+function makeFetchMock() {
   return vi.fn().mockImplementation(async (url: string, opts: RequestInit) => {
-    const body = JSON.parse(opts.body as string) as { input: string[]; input_type: string };
-    const embeddings = body.input.map((text) => ({
-      embedding: textToFakeEmbedding(text),
+    expect(url).toContain('text-embedding-004:batchEmbedContents');
+    const body = JSON.parse(opts.body as string) as {
+      requests: Array<{ content: { parts: Array<{ text: string }> }; taskType: string }>;
+    };
+    const embeddings = body.requests.map((request) => ({
+      values: textToFakeEmbedding(request.content.parts[0]?.text ?? ''),
     }));
     return {
       ok: true,
-      json: async () => ({ data: embeddings }),
+      json: async () => ({ embeddings }),
     };
   });
 }
@@ -80,23 +83,23 @@ describe('sheets_analyze.semantic_search', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    originalEnv = process.env['VOYAGE_API_KEY'];
+    originalEnv = process.env['GOOGLE_API_KEY'];
     originalFetch = globalThis.fetch;
   });
 
   afterEach(() => {
     if (originalEnv === undefined) {
-      delete process.env['VOYAGE_API_KEY'];
+      delete process.env['GOOGLE_API_KEY'];
     } else {
-      process.env['VOYAGE_API_KEY'] = originalEnv;
+      process.env['GOOGLE_API_KEY'] = originalEnv;
     }
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
   describe('config error — missing API key', () => {
-    it('returns CONFIG_ERROR when VOYAGE_API_KEY is not set', async () => {
-      delete process.env['VOYAGE_API_KEY'];
+    it('returns CONFIG_ERROR when GOOGLE_API_KEY is not set', async () => {
+      delete process.env['GOOGLE_API_KEY'];
 
       // Import fresh to avoid cached module state affecting env check
       const { handleSemanticSearchAction } =
@@ -116,7 +119,7 @@ describe('sheets_analyze.semantic_search', () => {
 
   describe('successful search', () => {
     it('returns ranked results with relevanceScore and range', async () => {
-      process.env['VOYAGE_API_KEY'] = 'test-key-123';
+      process.env['GOOGLE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
       // Clear cached index so we get a fresh index call
@@ -159,7 +162,7 @@ describe('sheets_analyze.semantic_search', () => {
     });
 
     it('topK limits the number of results', async () => {
-      process.env['VOYAGE_API_KEY'] = 'test-key-123';
+      process.env['GOOGLE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
       const { clearSemanticIndex, semanticSearch } =
@@ -185,7 +188,7 @@ describe('sheets_analyze.semantic_search', () => {
     });
 
     it('caches index — second call does not re-fetch the spreadsheet', async () => {
-      process.env['VOYAGE_API_KEY'] = 'test-key-123';
+      process.env['GOOGLE_API_KEY'] = 'test-key-123';
       const fetchMock = makeFetchMock();
       globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
@@ -210,7 +213,7 @@ describe('sheets_analyze.semantic_search', () => {
     });
 
     it('forceReindex bypasses cache', async () => {
-      process.env['VOYAGE_API_KEY'] = 'test-key-123';
+      process.env['GOOGLE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
       const { clearSemanticIndex, indexSpreadsheet } =
@@ -234,7 +237,7 @@ describe('sheets_analyze.semantic_search', () => {
 
   describe('empty spreadsheet', () => {
     it('returns empty results for a spreadsheet with no content', async () => {
-      process.env['VOYAGE_API_KEY'] = 'test-key-123';
+      process.env['GOOGLE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
       const { clearSemanticIndex, semanticSearch } =
@@ -257,7 +260,7 @@ describe('sheets_analyze.semantic_search', () => {
 
   describe('embedding API error', () => {
     it('throws when the embedding API returns an error status', async () => {
-      process.env['VOYAGE_API_KEY'] = 'bad-key';
+      process.env['GOOGLE_API_KEY'] = 'bad-key';
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
@@ -279,7 +282,7 @@ describe('sheets_analyze.semantic_search', () => {
 
   describe('index stats', () => {
     it('getSemanticIndexStats reflects cached spreadsheets', async () => {
-      process.env['VOYAGE_API_KEY'] = 'test-key-123';
+      process.env['GOOGLE_API_KEY'] = 'test-key-123';
       globalThis.fetch = makeFetchMock() as unknown as typeof globalThis.fetch;
 
       const { clearSemanticIndex, indexSpreadsheet, getSemanticIndexStats } =

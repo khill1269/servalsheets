@@ -23,7 +23,6 @@ describe('sheets_data with DataFilter', () => {
     } as unknown as sheets_v4.Sheets;
 
     const featureFlags: FeatureFlags = {
-      enableDataFilterBatch: true,
       enableRequestDeduplication: false,
       enableReadMerging: false,
       enableTransactions: false,
@@ -173,11 +172,6 @@ describe('sheets_data with DataFilter', () => {
       expect(result.response.error.code).toBe('NOT_FOUND');
       expect(result.response.error.message).toContain('No data matched');
     });
-
-    // NOTE: Feature flag disabled tests are skipped because the handler
-    // reads feature flags from getEnv() in constructor, not from context.
-    // The feature is enabled by default (ENABLE_DATAFILTER_BATCH=true) and
-    // the flag check logic is straightforward, so we trust it works correctly.
 
     it('should pass valueRenderOption and majorDimension', async () => {
       const mockResponse = {
