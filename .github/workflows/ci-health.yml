@@ -24,11 +24,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          persist-credentials: false
           sparse-checkout: |
             .github
             scripts
             package.json
-
       - name: Generate CI health report
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,7 +146,7 @@ jobs:
         if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
+        run: |-
           # Check if this is 3+ consecutive failures
           RECENT_CONCLUSIONS=$(gh api repos/${{ github.repository }}/actions/runs \
             --jq '[.workflow_runs[:5] | .[] | select(.head_branch == "main" and .name == "CI") | .conclusion] | join(",")' \

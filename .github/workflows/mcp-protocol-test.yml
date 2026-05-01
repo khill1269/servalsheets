@@ -46,6 +46,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -67,10 +69,10 @@ jobs:
           CACHE_REDIS_ENABLED: 'false'
           LOG_LEVEL: error
           SKIP_PREFLIGHT: 'true'
+          TOOL_FILTER: ${{ github.event.inputs.tool_filter }}
         run: |
-          TOOL_ARG="${{ github.event.inputs.tool_filter }}"
-          if [ -n "$TOOL_ARG" ]; then
-            node scripts/mcp-protocol-smoke.mjs --tool "$TOOL_ARG" --json > mcp-results.json
+          if [ -n "$TOOL_FILTER" ]; then
+            node scripts/mcp-protocol-smoke.mjs --tool "$TOOL_FILTER" --json > mcp-results.json
           else
             node scripts/mcp-protocol-smoke.mjs --json > mcp-results.json
           fi

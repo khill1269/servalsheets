@@ -29,10 +29,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    env:
+      API_FILTER: ${{ github.event.inputs.api || 'all' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -47,7 +51,7 @@ jobs:
           DISCOVERY_API_ENABLED: 'true'
         run: |
           echo "📦 Fetching latest Google API schemas..."
-          npm run schema:fetch -- --api=${{ github.event.inputs.api || 'all' }}
+          npm run schema:fetch -- --api="$API_FILTER"
 
       - name: Compare schemas
         id: compare
@@ -56,7 +60,7 @@ jobs:
           DISCOVERY_API_ENABLED: 'true'
         run: |
           echo "🔍 Comparing schemas with current implementation..."
-          npm run schema:compare -- --api=${{ github.event.inputs.api || 'all' }} > schema-comparison.txt 2>&1
+          npm run schema:compare -- --api="$API_FILTER" > schema-comparison.txt 2>&1
           echo "comparison_output<<EOF" >> $GITHUB_OUTPUT
           cat schema-comparison.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -67,7 +71,7 @@ jobs:
           DISCOVERY_API_ENABLED: 'true'
         run: |
           echo "📝 Generating migration report..."
-          npm run schema:migration-report -- --api=${{ github.event.inputs.api || 'all' }} > migration-report.txt
+          npm run schema:migration-report -- --api="$API_FILTER" > migration-report.txt
 
       - name: Upload schema comparison artifacts
         if: steps.compare.outcome == 'failure'
