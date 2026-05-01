@@ -335,7 +335,7 @@ export class SecurityAgent extends AnalysisAgent {
                 filePath,
                 'Potential SQL injection: dynamic SQL executed without parameterization',
                 {
-                  severity: 'high',
+                  severity: 'critical',
                   line,
                   suggestion: 'Use parameterized queries or prepared statements',
                   estimatedEffort: '30min-1h',
@@ -431,52 +431,13 @@ export class SecurityAgent extends AnalysisAgent {
   ): Promise<DimensionReport> {
     const startTime = Date.now();
     const issues: AnalysisIssue[] = [];
-    const childProcessNamespaces = new Set<string>();
-
-    sourceFile.statements.forEach((statement) => {
-      if (
-        ts.isImportDeclaration(statement) &&
-        ts.isStringLiteral(statement.moduleSpecifier) &&
-        statement.moduleSpecifier.text === 'child_process'
-      ) {
-        const namedBindings = statement.importClause?.namedBindings;
-        if (namedBindings && ts.isNamespaceImport(namedBindings)) {
-          childProcessNamespaces.add(namedBindings.name.text);
-        }
-      }
-
-      if (
-        ts.isVariableStatement(statement) &&
-        statement.declarationList.declarations.length === 1
-      ) {
-        const declaration = statement.declarationList.declarations[0];
-        const initializer = declaration.initializer;
-        if (
-          ts.isIdentifier(declaration.name) &&
-          initializer &&
-          ts.isCallExpression(initializer) &&
-          ts.isIdentifier(initializer.expression) &&
-          initializer.expression.text === 'require' &&
-          initializer.arguments.length === 1 &&
-          ts.isStringLiteral(initializer.arguments[0]) &&
-          initializer.arguments[0].text === 'child_process'
-        ) {
-          childProcessNamespaces.add(declaration.name.text);
-        }
-      }
-    });
 
     const visit = (node: ts.Node) => {
-      // Check for child_process.exec/spawn with user input.
+      // Check for child_process.exec/spawn with user input
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
-        const receiver = node.expression.expression;
         const method = node.expression.name.text;
 
-        if (
-          (method === 'exec' || method === 'spawn') &&
-          ts.isIdentifier(receiver) &&
-          childProcessNamespaces.has(receiver.text)
-        ) {
+        if (method === 'exec' || method === 'spawn') {
           const firstArg = node.arguments[0];
           if (firstArg) {
             const text = firstArg.getText(sourceFile);
