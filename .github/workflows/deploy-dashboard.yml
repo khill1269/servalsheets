@@ -17,8 +17,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: 'pages-dashboard'
@@ -38,8 +36,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          fetch-depth: 0 # Full history for historical data
-
+          persist-credentials: false
+          fetch-depth: 0
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -129,6 +127,10 @@ jobs:
     needs: build-dashboard
     if: needs.build-dashboard.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
     environment:
       name: github-pages

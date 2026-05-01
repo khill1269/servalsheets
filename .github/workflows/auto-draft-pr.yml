@@ -28,8 +28,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          persist-credentials: false
           fetch-depth: 0
-
       - name: Check if PR already exists
         id: check-pr
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
@@ -59,12 +59,15 @@ jobs:
 
       - name: Create draft PR
         if: steps.check-pr.outputs.result == 'false'
+        env:
+          COMMIT_COUNT: ${{ steps.commits.outputs.count }}
+          COMMIT_SUMMARY: ${{ steps.commits.outputs.summary }}
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const branch = context.ref.replace('refs/heads/', '');
-            const commitCount = '${{ steps.commits.outputs.count }}';
-            const commitSummary = `${{ steps.commits.outputs.summary }}`;
+            const commitCount = process.env.COMMIT_COUNT;
+            const commitSummary = process.env.COMMIT_SUMMARY;
 
             // Derive a title from the branch name
             const titleRaw = branch

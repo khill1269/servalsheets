@@ -11,8 +11,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # NOTE: deploy-dashboard.yml also deploys to GitHub Pages. Each deployment
 # replaces the entire site, so the two workflows should eventually be merged.
@@ -31,8 +29,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          persist-credentials: false
           fetch-depth: 0
-
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -106,6 +104,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
