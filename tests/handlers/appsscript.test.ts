@@ -905,6 +905,51 @@ describe('SheetsAppsScriptHandler', () => {
   });
 
   describe('install_serval_function action', () => {
+    it('installs appsscript.json with UrlFetch and ScriptApp scopes plus trigger helpers', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          text: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              scriptId: 'script-123',
+              title: 'SERVAL Formula Functions',
+              parentId: 'sheet-123',
+            })
+          ),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: vi.fn().mockResolvedValue(JSON.stringify({ files: [] })),
+        });
+
+      const result = await handler.handle({
+        request: {
+          action: 'install_serval_function',
+          spreadsheetId: 'sheet-123',
+          callbackUrl: 'https://example.com',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.scriptId).toBe('script-123');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      const updateRequest = mockFetch.mock.calls[1]?.[1] as { body?: string } | undefined;
+      const body = JSON.parse(updateRequest?.body ?? '{}') as {
+        files: Array<{ name: string; type: string; source: string }>;
+      };
+      const manifest = body.files.find((file) => file.name === 'appsscript');
+      const script = body.files.find((file) => file.name === 'SERVAL');
+
+      expect(manifest?.type).toBe('JSON');
+      expect(manifest?.source).toContain('script.external_request');
+      expect(manifest?.source).toContain('script.scriptapp');
+      expect(manifest?.source).toContain('script.storage');
+      expect(script?.source).toContain('function serval_createTrigger');
+      expect(script?.source).toContain('function serval_listTriggers');
+      expect(script?.source).toContain('function serval_deleteTrigger');
+    });
+
     it('rejects callback URLs with invalid protocols before making API calls', async () => {
       const result = await handler.handle({
         request: {
@@ -1361,11 +1406,31 @@ describe('SheetsAppsScriptHandler', () => {
   });
 
   describe('trigger actions', () => {
-    it('auto-resolves scriptId from spreadsheetId before listing triggers', async () => {
+    it('auto-resolves scriptId from spreadsheetId before listing triggers through the SERVAL helper', async () => {
       mockGoogleClient.drive.files.list.mockResolvedValueOnce({
         data: {
           files: [{ id: 'script-from-drive', name: 'Bound Script' }],
         },
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            done: true,
+            response: {
+              result: {
+                triggers: [
+                  {
+                    triggerId: 'trigger-1',
+                    functionName: 'onEditHandler',
+                    eventType: 'ON_EDIT',
+                    source: 'SPREADSHEETS',
+                  },
+                ],
+              },
+            },
+          })
+        ),
       });
 
       const result = await handler.handle({
@@ -1380,10 +1445,77 @@ describe('SheetsAppsScriptHandler', () => {
           q: expect.stringContaining("'sheet-for-trigger-resolution' in parents"),
         })
       );
-      expect(result.response.success).toBe(false);
-      expect(result.response.error.code).toBe('NOT_IMPLEMENTED');
-      expect(result.response.error.message).toContain('Trigger management');
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.response.success).toBe(true);
+      expect(result.response.triggers).toEqual([
+        {
+          triggerId: 'trigger-1',
+          functionName: 'onEditHandler',
+          eventType: 'ON_EDIT',
+          source: 'SPREADSHEETS',
+        },
+      ]);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://script.googleapis.com/v1/scripts/script-from-drive:run',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            function: 'serval_listTriggers',
+            parameters: [{ pageSize: 50 }],
+            devMode: true,
+          }),
+        })
+      );
+    });
+
+    it('creates triggers through the SERVAL helper', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        text: vi.fn().mockResolvedValue(
+          JSON.stringify({
+            done: true,
+            response: {
+              result: {
+                triggerId: 'trigger-1',
+                functionName: 'onEditHandler',
+                eventType: 'ON_EDIT',
+                source: 'SPREADSHEETS',
+              },
+            },
+          })
+        ),
+      });
+
+      const result = await handler.handle({
+        request: {
+          action: 'create_trigger',
+          scriptId: 'script-123',
+          functionName: 'onEditHandler',
+          triggerType: 'ON_EDIT',
+        },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(result.response.trigger).toEqual({
+        triggerId: 'trigger-1',
+        functionName: 'onEditHandler',
+        eventType: 'ON_EDIT',
+        source: 'SPREADSHEETS',
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://script.googleapis.com/v1/scripts/script-123:run',
+        expect.objectContaining({
+          body: JSON.stringify({
+            function: 'serval_createTrigger',
+            parameters: [
+              {
+                functionName: 'onEditHandler',
+                triggerType: 'ON_EDIT',
+              },
+            ],
+            devMode: true,
+          }),
+        })
+      );
     });
   });
 

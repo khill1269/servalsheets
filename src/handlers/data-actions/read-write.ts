@@ -83,20 +83,6 @@ export async function handleRead(
   const responseFormat = getResponseFormat(input);
 
   if (input.dataFilter) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'read',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix: 'Enable the feature by setting the appropriate environment variable',
-      });
-    }
-
     const response = await ha.api.spreadsheets.values.batchGetByDataFilter({
       spreadsheetId: input.spreadsheetId,
       fields: 'valueRanges(valueRange(range,values))',
@@ -359,15 +345,6 @@ export async function handleWrite(
   const cellCount = input.values.reduce((sum: number, row: unknown[]) => sum + row.length, 0);
 
   if (input.dataFilter) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix: 'Enable the feature by setting the appropriate environment variable',
-      });
-    }
-
     if (input.safety?.dryRun) {
       const warnings = buildPayloadWarnings(ha, 'write', payloadValidation);
       const meta = warnings
@@ -1068,20 +1045,6 @@ export async function handleClear(
   }
 
   if (input.dataFilter) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'clear',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix: 'Enable the feature by setting the appropriate environment variable',
-      });
-    }
-
     if (input.safety?.dryRun) {
       return ha.makeSuccess(
         'clear',

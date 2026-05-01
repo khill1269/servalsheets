@@ -2,7 +2,7 @@
  * Semantic Search Service
  *
  * In-memory vector index for spreadsheet content using cosine similarity.
- * Embedding generation via Anthropic API (voyage-3-lite model).
+ * Embedding generation via Google Gemini text-embedding-004.
  * Index is per-spreadsheet, LRU-evicted when memory pressure arises.
  *
  * Single-tenant mode: no namespace isolation (ISSUE-174/175 deferred to ISSUE-173/SSO).
@@ -38,8 +38,8 @@ export interface SemanticSearchResult {
 // Constants
 // ============================================================================
 
-const EMBEDDING_MODEL = 'voyage-3-lite';
-const VOYAGE_API_URL = 'https://api.voyageai.com/v1/embeddings';
+const EMBEDDING_MODEL = 'text-embedding-004';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents`;
 // Max chunks per spreadsheet to keep index size manageable
 const MAX_CHUNKS_PER_SHEET = 50;
 // LRU: evict oldest when we exceed this many cached indexes
@@ -71,17 +71,22 @@ function evictIfNeeded(): void {
 // Embedding
 // ============================================================================
 
-async function embed(texts: string[], apiKey: string): Promise<number[][]> {
-  const response = await fetch(VOYAGE_API_URL, {
+async function embed(
+  texts: string[],
+  apiKey: string,
+  taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'
+): Promise<number[][]> {
+  const response = await fetch(`${GEMINI_API_URL}?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      input: texts,
-      input_type: 'document',
+      requests: texts.map((text) => ({
+        model: `models/${EMBEDDING_MODEL}`,
+        content: { parts: [{ text }] },
+        taskType,
+      })),
     }),
   });
 
@@ -90,45 +95,22 @@ async function embed(texts: string[], apiKey: string): Promise<number[][]> {
     throw new ServiceError(
       `Embedding API error ${response.status}: ${body}`,
       'UNAVAILABLE',
-      'voyage-ai',
+      'google-gemini',
       response.status === 429,
       { statusCode: response.status }
     );
   }
 
-  const data = (await response.json()) as { data: Array<{ embedding: number[] }> };
-  return data.data.map((d) => d.embedding);
+  const data = (await response.json()) as { embeddings: Array<{ values: number[] }> };
+  return data.embeddings.map((d) => d.values);
 }
 
 async function embedQuery(query: string, apiKey: string): Promise<number[]> {
-  const response = await fetch(VOYAGE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      input: [query],
-      input_type: 'query',
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new ServiceError(
-      `Embedding API error ${response.status}: ${body}`,
-      'UNAVAILABLE',
-      'voyage-ai',
-      response.status === 429,
-      { statusCode: response.status }
-    );
+  const [first] = await embed([query], apiKey, 'RETRIEVAL_QUERY');
+  if (!first) {
+    throw new ServiceError('Empty embedding response', 'UNAVAILABLE', 'google-gemini', false);
   }
-
-  const data = (await response.json()) as { data: Array<{ embedding: number[] }> };
-  const first = data.data[0];
-  if (!first) throw new ServiceError('Empty embedding response', 'UNAVAILABLE', 'voyage-ai', false);
-  return first.embedding;
+  return first;
 }
 
 // ============================================================================
@@ -289,14 +271,14 @@ export async function indexSpreadsheet(
     return emptyIndex;
   }
 
-  // Generate embeddings in batches of 32 (Voyage API rate limits)
+  // Generate embeddings in batches of 32 to keep request payloads modest.
   const BATCH_SIZE = 32;
   const embeddedChunks: IndexedChunk[] = [];
 
   for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
     const batch = allChunks.slice(i, i + BATCH_SIZE);
     const texts = batch.map((c) => c.snippet);
-    const vectors = await embed(texts, apiKey);
+    const vectors = await embed(texts, apiKey, 'RETRIEVAL_DOCUMENT');
 
     for (let j = 0; j < batch.length; j++) {
       const chunk = batch[j];

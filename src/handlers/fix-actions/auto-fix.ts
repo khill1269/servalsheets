@@ -195,13 +195,13 @@ async function generateFixForIssue(
       return fixProtection(handler, spreadsheetId, issue.sheet!);
 
     case 'FULL_COLUMN_REFS':
-      return fixFullColumnRefs(spreadsheetId, issue);
+      return fixFullColumnRefs(handler, spreadsheetId, issue);
 
     case 'NESTED_IFERROR':
       return fixNestedIferror(spreadsheetId, issue);
 
     case 'EXCESSIVE_CF_RULES':
-      return fixExcessiveCfRules(spreadsheetId, issue.sheet!);
+      return fixExcessiveCfRules(handler, spreadsheetId, issue.sheet!);
 
     default:
       return [];
@@ -345,30 +345,176 @@ async function fixProtection(
 /**
  * Fix: Replace full column references with bounded ranges
  */
-function fixFullColumnRefs(_spreadsheetId: string, _issue: IssueToFix): FixOperation[] {
-  // NOT_IMPLEMENTED: Requires formula AST parsing + rewriting (A:A → A2:A500).
-  // Full column refs trigger full grid fetch — significant perf impact — but
-  // automated rewriting needs formula-level analysis to determine safe bounds.
-  return []; // OK: Explicit empty — full column ref rewriting not yet implemented
+async function fixFullColumnRefs(
+  handler: FixHandlerAccess,
+  spreadsheetId: string,
+  issue: IssueToFix
+): Promise<FixOperation[]> {
+  const formula = getStringMetadata(issue, 'formula');
+  const cell = getStringMetadata(issue, 'cell') ?? getStringMetadata(issue, 'range');
+  if (!formula || !cell) return [];
+
+  const response = await handler.sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(title,gridProperties(rowCount))',
+  });
+  const sheet =
+    response.data.sheets?.find((s) => s.properties?.title === issue.sheet) ??
+    response.data.sheets?.[0];
+  const rowCount = sheet?.properties?.gridProperties?.rowCount ?? 1000;
+  const boundedFormula = formula.replace(
+    /\b([A-Z]{1,3}):([A-Z]{1,3})\b/g,
+    (match, start: string, end: string) =>
+      start.toUpperCase() === end.toUpperCase() ? `${start}1:${end}${rowCount}` : match
+  );
+
+  if (boundedFormula === formula) return [];
+
+  return [
+    {
+      id: `fix_full_column_refs_${Date.now()}`,
+      issueType: 'FULL_COLUMN_REFS',
+      tool: 'sheets_data',
+      action: 'write',
+      parameters: {
+        spreadsheetId,
+        range: cell,
+        values: [[boundedFormula]],
+      },
+      estimatedImpact: `Replace full-column references in ${cell} with bounded ranges using row count ${rowCount}`,
+      risk: 'medium',
+    },
+  ];
 }
 
 /**
  * Fix: Simplify nested IFERROR
  */
-function fixNestedIferror(_spreadsheetId: string, _issue: IssueToFix): FixOperation[] {
-  // NOT_IMPLEMENTED: Requires formula AST analysis to simplify nested IFERROR chains
-  // (e.g., IFERROR(IFERROR(A,B),C) → IFERROR(A,IFERROR(B,C))) while preserving semantics.
-  return []; // OK: Explicit empty — nested IFERROR simplification not yet implemented
+function fixNestedIferror(spreadsheetId: string, issue: IssueToFix): FixOperation[] {
+  const formula = getStringMetadata(issue, 'formula');
+  const cell = getStringMetadata(issue, 'cell') ?? getStringMetadata(issue, 'range');
+  if (!formula || !cell) return [];
+
+  const rewrite = simplifyNestedIferror(formula);
+  if (!rewrite) return [];
+
+  return [
+    {
+      id: `fix_nested_iferror_${Date.now()}`,
+      issueType: 'NESTED_IFERROR',
+      tool: 'sheets_data',
+      action: 'write',
+      parameters: {
+        spreadsheetId,
+        range: cell,
+        values: [[rewrite.formula]],
+      },
+      estimatedImpact: `Simplify nested IFERROR in ${cell}`,
+      risk: rewrite.sameFallback ? 'low' : 'high',
+    },
+  ];
 }
 
 /**
  * Fix: Consolidate excessive CF rules
  */
-function fixExcessiveCfRules(_spreadsheetId: string, _sheetName: string): FixOperation[] {
-  // NOT_IMPLEMENTED: Requires reading all CF rules, identifying overlapping/duplicate
-  // conditions, and merging them without changing visual behavior. Complex rule interaction
-  // analysis needed (priority ordering, stop-if-true semantics).
-  return []; // OK: Explicit empty — conditional format rule deduplication not yet implemented
+async function fixExcessiveCfRules(
+  handler: FixHandlerAccess,
+  spreadsheetId: string,
+  sheetName: string
+): Promise<FixOperation[]> {
+  const response = await handler.sheetsApi.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties(title,sheetId),sheets.conditionalFormats',
+  });
+  const sheet = response.data.sheets?.find((s) => s.properties?.title === sheetName);
+  const sheetId = sheet?.properties?.sheetId;
+  if (sheetId === undefined || !sheet) return [];
+
+  const seen = new Map<string, number>();
+  const duplicateIndexes: number[] = [];
+  for (const [index, rule] of (sheet.conditionalFormats ?? []).entries()) {
+    const fingerprint = JSON.stringify(rule);
+    if (seen.has(fingerprint)) {
+      duplicateIndexes.push(index);
+    } else {
+      seen.set(fingerprint, index);
+    }
+  }
+
+  return duplicateIndexes
+    .sort((a, b) => b - a)
+    .map((ruleIndex) => ({
+      id: `fix_duplicate_cf_rule_${sheetId}_${ruleIndex}`,
+      issueType: 'EXCESSIVE_CF_RULES' as const,
+      tool: 'sheets_format',
+      action: 'delete_conditional_format_rule',
+      parameters: {
+        spreadsheetId,
+        sheetId,
+        ruleIndex,
+      },
+      estimatedImpact: `Delete duplicate conditional format rule ${ruleIndex} from "${sheetName}"`,
+      risk: 'low' as const,
+    }));
+}
+
+function getStringMetadata(issue: IssueToFix, key: string): string | undefined {
+  const value = issue.metadata?.[key];
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function splitTopLevelArgs(input: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let quote: '"' | "'" | undefined;
+  let start = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (quote) {
+      if (char === quote && input[i - 1] !== '\\') quote = undefined;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '(') depth++;
+    else if (char === ')') depth--;
+    else if (char === ',' && depth === 0) {
+      args.push(input.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+
+  args.push(input.slice(start).trim());
+  return args;
+}
+
+function parseIferror(formula: string): [string, string] | undefined {
+  const trimmed = formula.trim();
+  const normalized = trimmed.startsWith('=') ? trimmed.slice(1).trim() : trimmed;
+  if (!normalized.toUpperCase().startsWith('IFERROR(') || !normalized.endsWith(')')) {
+    return undefined;
+  }
+  const args = splitTopLevelArgs(normalized.slice('IFERROR('.length, -1));
+  return args.length === 2 ? [args[0]!, args[1]!] : undefined;
+}
+
+function simplifyNestedIferror(
+  formula: string
+): { formula: string; sameFallback: boolean } | undefined {
+  const outer = parseIferror(formula);
+  if (!outer) return undefined;
+  const inner = parseIferror(outer[0]);
+  if (!inner) return undefined;
+
+  const sameFallback = inner[1] === outer[1];
+  const nextFormula = sameFallback
+    ? `=IFERROR(${inner[0]},${outer[1]})`
+    : `=IFERROR(${inner[0]},IFERROR(${inner[1]},${outer[1]}))`;
+  return { formula: nextFormula, sameFallback };
 }
 
 /**
@@ -480,6 +626,24 @@ async function executeOperation(handler: FixHandlerAccess, op: FixOperation): Pr
                       sheetId: 0,
                     },
                   },
+                },
+              },
+            ],
+          },
+        });
+      }
+      break;
+
+    case 'sheets_format':
+      if (action === 'delete_conditional_format_rule') {
+        await handler.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId: parameters['spreadsheetId'] as string,
+          requestBody: {
+            requests: [
+              {
+                deleteConditionalFormatRule: {
+                  sheetId: parameters['sheetId'] as number,
+                  index: parameters['ruleIndex'] as number,
                 },
               },
             ],

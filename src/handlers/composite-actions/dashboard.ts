@@ -6,9 +6,78 @@
  */
 
 import { getRequestLogger } from '../../utils/request-context.js';
-import { buildGridRangeInput, toGridRange } from '../../utils/google-sheets-helpers.js';
+import {
+  buildGridRangeInput,
+  parseA1Notation,
+  toGridRange,
+} from '../../utils/google-sheets-helpers.js';
 import type { CompositeBuildDashboardInput, CompositeOutput } from '../../schemas/composite.js';
 import type { CompositeHandlerAccess } from './internal.js';
+import type { sheets_v4 } from 'googleapis';
+
+function buildChartDataSources(
+  dataRange: string,
+  dataSheetId: number,
+  sheetIdByTitle: Map<string, number>
+): sheets_v4.Schema$GridRange[] {
+  const parsed = parseA1Notation(dataRange);
+  const sourceSheetId =
+    parsed.sheetName !== undefined ? (sheetIdByTitle.get(parsed.sheetName) ?? dataSheetId) : dataSheetId;
+  return [
+    toGridRange(
+      buildGridRangeInput(
+        sourceSheetId,
+        parsed.startRow,
+        parsed.endRow,
+        parsed.startCol,
+        parsed.endCol
+      )
+    ),
+  ];
+}
+
+function buildDashboardChartSpec(
+  chart: NonNullable<CompositeBuildDashboardInput['charts']>[number],
+  dataSheetId: number,
+  sheetIdByTitle: Map<string, number>
+): sheets_v4.Schema$ChartSpec {
+  const sources = buildChartDataSources(chart.dataRange, dataSheetId, sheetIdByTitle);
+  const source = sources[0]!;
+  const chartType = chart.type.toUpperCase();
+
+  if (chartType === 'SCORECARD') {
+    return {
+      title: chart.title,
+      scorecardChart: {
+        keyValueData: { sourceRange: { sources } },
+      },
+    };
+  }
+
+  const startColumnIndex = source.startColumnIndex ?? 0;
+  const endColumnIndex = source.endColumnIndex ?? startColumnIndex + 1;
+  const domainRange = {
+    ...source,
+    startColumnIndex,
+    endColumnIndex: Math.min(startColumnIndex + 1, endColumnIndex),
+  };
+  const seriesStartColumnIndex = Math.min(startColumnIndex + 1, endColumnIndex - 1);
+  const seriesRange = {
+    ...source,
+    startColumnIndex: seriesStartColumnIndex,
+    endColumnIndex,
+  };
+
+  return {
+    title: chart.title,
+    basicChart: {
+      chartType,
+      headerCount: 1,
+      domains: [{ domain: { sourceRange: { sources: [domainRange] } } }],
+      series: [{ series: { sourceRange: { sources: [seriesRange] } } }],
+    },
+  };
+}
 
 /**
  * Decomposed action handler for `build_dashboard`.
@@ -103,11 +172,7 @@ export async function handleBuildDashboardAction(
         addChart: {
           chart: {
             spec: {
-              title: chart.title,
-              basicChart: {
-                chartType: chart.type,
-                series: [{ series: { sourceRange: { sources: [] } } }],
-              },
+              ...buildDashboardChartSpec(chart, dataSheetId, sheetIdByTitle),
             },
             position: {
               overlayPosition: {

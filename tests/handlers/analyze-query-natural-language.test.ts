@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleQueryNaturalLanguageAction } from '../../src/handlers/analyze-actions/query-natural-language.js';
 
 describe('query_natural_language action', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
   it('honors an explicit range and uses header rows for schema inference', async () => {
     const createMessage = vi.fn().mockResolvedValue({
       content: {
@@ -180,6 +185,83 @@ describe('query_natural_language action', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.queryResult?.answer).toContain('Revenue is increasing');
+    }
+  });
+
+  it('uses LLM fallback when sampling server is unavailable', async () => {
+    vi.stubEnv('LLM_PROVIDER', 'google');
+    vi.stubEnv('GOOGLE_API_KEY', 'test-key');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    answer: 'The sheet contains 2 revenue rows.',
+                    followUpQuestions: [],
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const sheetsApi = {
+      spreadsheets: {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            spreadsheetId: 'sheet-123',
+            sheets: [
+              {
+                properties: {
+                  sheetId: 1,
+                  title: 'Summary',
+                  index: 0,
+                  gridProperties: { rowCount: 100, columnCount: 2 },
+                },
+              },
+            ],
+          },
+        }),
+        values: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              values: [
+                ['Revenue', 'Cost'],
+                [100, 40],
+                [200, 80],
+              ],
+            },
+          }),
+        },
+      },
+    } as any;
+
+    const result = await handleQueryNaturalLanguageAction(
+      {
+        spreadsheetId: 'sheet-123',
+        query: 'How many revenue rows are there?',
+        range: 'Summary!A1:B3',
+      },
+      {
+        checkSamplingCapability: vi.fn().mockResolvedValue(null),
+        sheetsApi,
+      }
+    );
+
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('generativelanguage.googleapis.com'),
+      expect.any(Object)
+    );
+    if (result.success) {
+      expect(result.queryResult?.answer).toContain('2 revenue rows');
     }
   });
 });

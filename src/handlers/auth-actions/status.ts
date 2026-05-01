@@ -100,7 +100,7 @@ async function getReadiness(
   const llmFallbackAvailable = isLLMFallbackAvailable();
   const webhooksConfigured = Boolean(process.env['REDIS_URL']);
 
-  const voyageApiKeyConfigured = Boolean(process.env['VOYAGE_API_KEY']);
+  const googleApiKeyConfigured = Boolean(process.env['GOOGLE_API_KEY']);
 
   // AUDIT-2026-04-23 (Root C partial): replace env-var-presence-only check
   // with a real reachability probe. The probe is cached for 5 minutes so
@@ -150,11 +150,11 @@ async function getReadiness(
           : 'unavailable',
     },
     semanticSearch: {
-      available: voyageApiKeyConfigured,
-      apiKeyConfigured: voyageApiKeyConfigured,
-      description: voyageApiKeyConfigured
-        ? 'Semantic search is available via sheets_analyze.semantic_search (Voyage AI embeddings).'
-        : 'Semantic search requires VOYAGE_API_KEY. Get one at voyageai.com and set it in your environment to enable sheets_analyze.semantic_search.',
+      available: googleApiKeyConfigured,
+      apiKeyConfigured: googleApiKeyConfigured,
+      description: googleApiKeyConfigured
+        ? 'Semantic search is available via sheets_analyze.semantic_search (Gemini text-embedding-004).'
+        : 'Semantic search requires GOOGLE_API_KEY with Gemini text-embedding-004 access.',
     },
     connectors: {
       available: connectors.length,

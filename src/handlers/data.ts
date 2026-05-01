@@ -69,9 +69,6 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const contextFlags = (context as HandlerContext & { featureFlags?: Record<string, unknown> })
       .featureFlags;
     this.featureFlags = {
-      enableDataFilterBatch:
-        (contextFlags?.['enableDataFilterBatch'] as boolean | undefined) ??
-        (Boolean(env['ENABLE_DATAFILTER_BATCH']) as boolean),
       enableTableAppends:
         (contextFlags?.['enableTableAppends'] as boolean | undefined) ??
         (Boolean(env['ENABLE_TABLE_APPENDS']) as boolean),
