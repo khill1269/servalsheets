@@ -2,7 +2,7 @@
   "name": "servalsheets",
   "mcpName": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade MCP server for Google Sheets — 25 tools, 410 actions",
+  "description": "Production-grade MCP server for Google Sheets \u2014 25 tools, 410 actions",
   "bin": {
     "servalsheets": "dist/server.js"
   },
@@ -47,9 +47,9 @@
     "test:fast": "vitest --run tests/unit tests/contracts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "verify": "npm run typecheck && npm run lint && npm run test:run && npm run check:drift",
+    "verify": "npm run typecheck && npm run lint && npm run test:run && npm run check:drift && npm run verify:contracts",
     "verify:release": "bash scripts/verify-release-readiness.sh",
-    "verify:safe": "npm run typecheck && npm run test:run && npm run check:drift",
+    "verify:safe": "npm run typecheck && npm run test:run && npm run check:drift && npm run verify:contracts",
     "verify:build": "npm run build && npm run verify",
     "release:audit": "bash scripts/release-audit.sh",
     "skill:docs": "node scripts/generate-skill-docs.mjs",
@@ -128,7 +128,8 @@
     "test:all:skip-live": "node scripts/run-full-test-suite.mjs --skip-live",
     "test:report": "node scripts/run-full-test-suite.mjs --json > test-results.json",
     "live:setup": "node scripts/live-test-setup.mjs",
-    "live:probe": "node .tmp-live-test.mjs"
+    "live:probe": "node .tmp-live-test.mjs",
+    "verify:contracts": "tsx scripts/contract-diff.ts"
   },
   "keywords": [
     "mcp",
