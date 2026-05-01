@@ -238,6 +238,16 @@ const BUILTIN_IDENTIFIERS = new Set([
   'substring',
   'padStart',
   'padEnd',
+  'at',
+  'lastIndexOf',
+  'repeat',
+  'search',
+  'substr',
+  'toLocaleLowerCase',
+  'toLocaleUpperCase',
+  'trimStart',
+  'trimEnd',
+  'findIndex',
 ]);
 
 // ─── ts-morph project ────────────────────────────────────────────────────────
@@ -820,8 +830,16 @@ function extractHandlerFieldAccesses(sf: SourceFile): Set<string> {
 
 /**
  * Load all TypeScript source files under a handler path (file or directory).
- * Returns an array of ts-morph SourceFile objects; deduplicates by resolved path
- * so the same file is never returned twice even when called for multiple tools.
+ * Returns an array of ts-morph SourceFile objects.
+ *
+ * Two-level deduplication:
+ *  1. `seenPaths` (call-scoped Set): prevents the same physical path appearing twice in
+ *     the returned array within a single invocation (e.g. if mainHandlerOverride happens
+ *     to be inside the handler directory).
+ *  2. `project.getSourceFile()` (project-scoped): re-uses a SourceFile that was already
+ *     added to the ts-morph Project by a prior `loadHandlerFiles` call (e.g. shared
+ *     helper modules or the same file referenced by two tools). This avoids ts-morph
+ *     errors and ensures each file is parsed only once across the full analysis run.
  *
  * @param handlerPath - relative path to a handler file or directory
  * @param mainHandlerOverride - explicit path for the top-level handler file when the
@@ -904,7 +922,8 @@ function analyzeTool(toolDef: {
     // Surface a warning so CI doesn't silently skip a registered tool
     process.stderr.write(
       `Warning [${toolDef.schema}]: no actions extracted from schema — tool skipped.\n` +
-        `  Ensure the schema uses z.discriminatedUnion('action', [...]) or z.object({action: z.enum([...])})\n`
+        `  Ensure the schema uses z.discriminatedUnion('action', [...]),\n` +
+        `  z.object({action: z.enum([...])}), or z.object({action: z.literal('...')})\n`
     );
     return null;
   }
@@ -1032,9 +1051,9 @@ function printHumanReport(results: ToolResult[], errors: string[]): void {
   }
 
   if (errors.length > 0) {
-    console.log(`\n⚠️  Analysis errors (${errors.length}):\n`);
-    errors.forEach((e) => console.log(`   ${e}`));
-    console.log('');
+    console.error(`\n⚠️  Analysis errors (${errors.length}):\n`);
+    errors.forEach((e) => console.error(`   ${e}`));
+    console.error('');
   }
 
   console.log('─────────────────────────────────────────────────────────────');
