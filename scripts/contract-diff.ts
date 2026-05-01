@@ -34,9 +34,26 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const WARN_ONLY = args.includes('--warn-only');
 const JSON_OUTPUT = args.includes('--json');
+
+function exitWithUsage(message: string): never {
+  console.error(message);
+  console.error('Usage:');
+  console.error('  npm run verify:contracts');
+  console.error('  npx tsx scripts/contract-diff.ts');
+  console.error('  npx tsx scripts/contract-diff.ts --warn-only');
+  console.error('  npx tsx scripts/contract-diff.ts --json');
+  console.error('  npx tsx scripts/contract-diff.ts --tool history');
+  process.exit(2);
+}
+
 const toolFilter = (() => {
   const idx = args.indexOf('--tool');
-  return idx !== -1 ? args[idx + 1] : undefined;
+  if (idx === -1) return undefined;
+  const value = args[idx + 1];
+  if (!value || value.startsWith('--')) {
+    exitWithUsage('Error: --tool requires a tool name argument.');
+  }
+  return value;
 })();
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -65,10 +82,11 @@ const TOOLS: Array<{ schema: string; handler: string }> = [
   { schema: 'analyze', handler: 'src/handlers/analyze-actions' },
   { schema: 'appsscript', handler: 'src/handlers/appsscript-actions' },
   { schema: 'auth', handler: 'src/handlers/auth-actions' },
-  { schema: 'bigquery', handler: 'src/handlers/bigquery.ts' },
+  { schema: 'bigquery', handler: 'src/handlers/bigquery-actions' },
   { schema: 'collaborate', handler: 'src/handlers/collaborate-actions' },
   { schema: 'composite', handler: 'src/handlers/composite-actions' },
   { schema: 'compute', handler: 'src/handlers/compute-actions' },
+  { schema: 'confirm', handler: 'src/handlers/confirm.ts' },
   { schema: 'connectors', handler: 'src/handlers/connectors-actions' },
   { schema: 'core', handler: 'src/handlers/core-actions' },
   { schema: 'data', handler: 'src/handlers/data-actions' },
@@ -302,11 +320,16 @@ function resolveSchemaFields(
 /**
  * Given a schema source file, extract all actions defined in the discriminated union
  * along with their declared fields.
+ *
+ * Supports two patterns:
+ *  1. z.discriminatedUnion('action', [...]) — the primary pattern
+ *  2. z.object({ action: z.enum([...]) | z.literal('...'), ...fields }) — enum-action tools
+ *     (also handles the nested `request: z.object({ action: ... })` wrapper variant)
  */
 function extractActionsFromSchema(sf: SourceFile): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
 
-  // Find z.discriminatedUnion('action', [...]) calls ONLY
+  // ── Pass 1: discriminatedUnion('action', [...]) ──────────────────────────────
   sf.forEachDescendant((node) => {
     if (node.getKind() !== SyntaxKind.CallExpression) return;
     const call = node.asKindOrThrow(SyntaxKind.CallExpression);
@@ -342,18 +365,192 @@ function extractActionsFromSchema(sf: SourceFile): Map<string, Set<string>> {
     }
   });
 
-  // Also handle z.enum action patterns (federation, single-action tools)
-  if (result.size === 0) {
-    // Try to find actions from a direct action enum
-    sf.forEachDescendant((node) => {
-      if (node.getKind() !== SyntaxKind.CallExpression) return;
-      const call = node.asKindOrThrow(SyntaxKind.CallExpression);
-      const text = call.getText();
-      if (!text.startsWith('z.enum') && !text.includes("z.literal('")) return;
-    });
+  if (result.size > 0) return result;
+
+  // ── Pass 2: enum-action fallback ─────────────────────────────────────────────
+  // Handles tools where the input schema is a plain z.object with action: z.enum([...])
+  // (e.g. federation) or action: z.literal('...') (single-action tools).
+  // Also handles the `{ request: z.object({ action: z.enum([...]) }) }` wrapper variant.
+  for (const decl of sf.getVariableDeclarations()) {
+    const init = decl.getInitializer();
+    if (!init) continue;
+
+    // Try the direct object: z.object({ action: z.enum([...] | z.literal('...')), ...fields })
+    const directResult = tryExtractEnumActionsFromObjectExpr(init);
+    if (directResult) {
+      for (const [action, fields] of directResult) result.set(action, fields);
+    }
+
+    // Try the wrapped variant: z.object({ request: z.object({ action: ... }) })
+    if (result.size === 0) {
+      const wrappedResult = tryExtractEnumActionsFromWrappedRequest(init);
+      if (wrappedResult) {
+        for (const [action, fields] of wrappedResult) result.set(action, fields);
+      }
+    }
+
+    if (result.size > 0) break;
   }
 
   return result;
+}
+
+/**
+ * Try to extract actions+fields from a z.object({action: z.enum([...])|z.literal('...'), ...}).
+ * Returns a Map<action, fields> if successful, null if the pattern doesn't match.
+ */
+function tryExtractEnumActionsFromObjectExpr(
+  node: Node
+): Map<string, Set<string>> | null {
+  if (node.getKind() !== SyntaxKind.CallExpression) return null;
+  const call = node.asKindOrThrow(SyntaxKind.CallExpression);
+  const expr = call.getExpression();
+  if (expr.getKind() !== SyntaxKind.PropertyAccessExpression) return null;
+  const pa = expr.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+  if (pa.getName() !== 'object') return null;
+
+  const args = call.getArguments();
+  if (!args[0] || args[0].getKind() !== SyntaxKind.ObjectLiteralExpression) return null;
+  const objLit = args[0].asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
+
+  const allFields = new Set<string>();
+  const actions: string[] = [];
+
+  for (const prop of objLit.getProperties()) {
+    if (prop.getKind() !== SyntaxKind.PropertyAssignment) continue;
+    const assignment = prop.asKindOrThrow(SyntaxKind.PropertyAssignment);
+    const propName = assignment.getName().replace(/^['"]|['"]$/g, '');
+    allFields.add(propName);
+
+    if (propName !== 'action') continue;
+
+    // Look for z.literal('...') or z.enum([...]) (possibly wrapped in .describe())
+    const actionValues = extractActionValuesFromZodExpr(assignment.getInitializer());
+    actions.push(...actionValues);
+
+    // Also handle reference to a named const (e.g. `action: FederationActionSchema`)
+    if (actionValues.length === 0) {
+      const refName = assignment.getInitializer()?.getText().trim() ?? '';
+      if (refName && !refName.startsWith('z.')) {
+        // It's a reference — try to resolve literal values from the named const
+        const resolved = resolveZodEnumValues(refName, assignment.getSourceFile());
+        actions.push(...resolved);
+      }
+    }
+  }
+
+  if (actions.length === 0) return null;
+
+  const resultMap = new Map<string, Set<string>>();
+  for (const action of new Set(actions)) {
+    resultMap.set(action, new Set(allFields));
+  }
+  return resultMap;
+}
+
+/**
+ * Try to extract actions+fields from a z.object({ request: z.object({ action: ... }) }) wrapper.
+ */
+function tryExtractEnumActionsFromWrappedRequest(
+  node: Node
+): Map<string, Set<string>> | null {
+  if (node.getKind() !== SyntaxKind.CallExpression) return null;
+  const call = node.asKindOrThrow(SyntaxKind.CallExpression);
+  const expr = call.getExpression();
+  if (expr.getKind() !== SyntaxKind.PropertyAccessExpression) return null;
+  if (expr.asKindOrThrow(SyntaxKind.PropertyAccessExpression).getName() !== 'object') return null;
+
+  const args = call.getArguments();
+  if (!args[0] || args[0].getKind() !== SyntaxKind.ObjectLiteralExpression) return null;
+  const outerObj = args[0].asKindOrThrow(SyntaxKind.ObjectLiteralExpression);
+
+  for (const prop of outerObj.getProperties()) {
+    if (prop.getKind() !== SyntaxKind.PropertyAssignment) continue;
+    const assignment = prop.asKindOrThrow(SyntaxKind.PropertyAssignment);
+    if (assignment.getName().replace(/^['"]|['"]$/g, '') !== 'request') continue;
+
+    // Walk the initializer to find the inner z.object(...)
+    const innerObject = findZodObjectCall(assignment.getInitializer());
+    if (!innerObject) continue;
+
+    return tryExtractEnumActionsFromObjectExpr(innerObject);
+  }
+
+  return null;
+}
+
+/**
+ * Walk a call-chain node (e.g. z.object({...}).superRefine(...).describe(...)) to find
+ * the innermost z.object call expression and return it.
+ */
+function findZodObjectCall(node: Node | undefined): Node | null {
+  if (!node) return null;
+
+  if (node.getKind() === SyntaxKind.CallExpression) {
+    const call = node.asKindOrThrow(SyntaxKind.CallExpression);
+    const expr = call.getExpression();
+    if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
+      const pa = expr.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+      if (pa.getName() === 'object') return node; // found it
+      // Keep walking up the chain
+      return findZodObjectCall(pa.getExpression());
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract literal string action values from a Zod expression:
+ *   z.literal('foo')           → ['foo']
+ *   z.enum(['foo','bar'])      → ['foo','bar']
+ *   z.enum([...]).describe()   → ['foo','bar']
+ */
+function extractActionValuesFromZodExpr(node: Node | undefined): string[] {
+  if (!node) return [];
+
+  // Unwrap chained methods (.describe(), .optional(), etc.)
+  if (node.getKind() === SyntaxKind.CallExpression) {
+    const call = node.asKindOrThrow(SyntaxKind.CallExpression);
+    const expr = call.getExpression();
+    if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
+      const pa = expr.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+      const methodName = pa.getName();
+
+      if (methodName === 'literal') {
+        const arg = call.getArguments()[0];
+        if (!arg) return [];
+        const val = arg.getText().replace(/^['"]|['"]$/g, '');
+        return val ? [val] : [];
+      }
+
+      if (methodName === 'enum') {
+        const arg = call.getArguments()[0];
+        if (!arg || arg.getKind() !== SyntaxKind.ArrayLiteralExpression) return [];
+        return arg
+          .asKindOrThrow(SyntaxKind.ArrayLiteralExpression)
+          .getElements()
+          .map((e) => e.getText().replace(/^['"]|['"]$/g, ''))
+          .filter(Boolean);
+      }
+
+      // Chained call — recurse into the base
+      return extractActionValuesFromZodExpr(pa.getExpression());
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Resolve the string values of a named Zod enum constant (e.g. `FederationActionSchema`).
+ */
+function resolveZodEnumValues(constName: string, sf: SourceFile): string[] {
+  const decl = sf.getVariableDeclaration(constName);
+  if (!decl) return [];
+  const init = decl.getInitializer();
+  if (!init) return [];
+  return extractActionValuesFromZodExpr(init);
 }
 
 /**
@@ -486,8 +683,9 @@ function loadHandlerFiles(handlerPath: string): SourceFile[] {
       const sf = project.addSourceFileAtPath(path.join(abs, entry));
       sources.push(sf);
     }
-    // Also add the main handler file (e.g. src/handlers/history.ts) if it exists
-    const toolName = path.basename(handlerPath);
+    // Also add the main handler file (e.g. src/handlers/history-actions/ → history.ts).
+    // Strip the '-actions' suffix that subdirectory names use.
+    const toolName = path.basename(handlerPath).replace(/-actions$/, '');
     const mainFile = path.join(PROJECT_ROOT, 'src', 'handlers', `${toolName}.ts`);
     if (fs.existsSync(mainFile)) {
       try {
@@ -515,7 +713,14 @@ function analyzeTool(toolDef: { schema: string; handler: string }): ToolResult |
   const sf = project.addSourceFileAtPath(schemaFile);
   const actionMap = extractActionsFromSchema(sf);
 
-  if (actionMap.size === 0) return null;
+  if (actionMap.size === 0) {
+    // Surface a warning so CI doesn't silently skip a registered tool
+    process.stderr.write(
+      `Warning [${toolDef.schema}]: no actions extracted from schema — tool skipped.\n` +
+        `  Ensure the schema uses z.discriminatedUnion('action', [...]) or z.object({action: z.enum([...])})\n`
+    );
+    return null;
+  }
 
   const handlerSources = loadHandlerFiles(toolDef.handler);
   if (handlerSources.length === 0) return null;
