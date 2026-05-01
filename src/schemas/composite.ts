@@ -1302,7 +1302,9 @@ export const BuildDashboardInputSchema = z
     charts: z
       .array(
         z.object({
-          type: z.string().describe('Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER'),
+          type: z
+            .string()
+            .describe('Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER, SCORECARD'),
           dataRange: z
             .string()
             .describe('A1 notation range for chart data. Example: "\'Sales Data\'!A1:B12"'),

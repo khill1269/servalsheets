@@ -29,7 +29,6 @@ export function getResponseFormat(input: {
 }
 
 export type DataFeatureFlags = {
-  enableDataFilterBatch: boolean;
   enableTableAppends: boolean;
   enablePayloadValidation: boolean;
 };

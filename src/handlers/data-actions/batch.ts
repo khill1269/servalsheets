@@ -197,21 +197,6 @@ export async function handleBatchRead(
   }
 
   if (input.dataFilters && input.dataFilters.length > 0) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'batch_read',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter batch reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix:
-          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-      });
-    }
-
     const response = await ha.api.spreadsheets.values.batchGetByDataFilter({
       spreadsheetId: input.spreadsheetId,
       fields: 'valueRanges(valueRange(range,values))',
@@ -537,21 +522,6 @@ export async function handleBatchWrite(
   const hasDataFilters = input.data.some((d) => (d as { dataFilter?: unknown }).dataFilter);
   const hasRanges = input.data.some((d) => (d as { range?: unknown }).range);
 
-  if (hasDataFilters && !ha.featureFlags.enableDataFilterBatch) {
-    ha.context.metrics?.recordFeatureFlagBlock({
-      flag: 'dataFilterBatch',
-      tool: ha.toolName,
-      action: 'batch_write',
-    });
-    return ha.makeError({
-      code: ErrorCodes.FEATURE_UNAVAILABLE,
-      message: 'DataFilter batch writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-      retryable: false,
-      suggestedFix:
-        'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-    });
-  }
-
   if (hasDataFilters && !hasRanges) {
     const data = input.data.map((d) => ({
       dataFilter: (d as { dataFilter: sheets_v4.Schema$DataFilter }).dataFilter,
@@ -829,21 +799,6 @@ export async function handleBatchClear(
   }
 
   if (input.dataFilters && input.dataFilters.length > 0) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'batch_clear',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter batch clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix:
-          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-      });
-    }
-
     if (input.safety?.dryRun) {
       return ha.makeSuccess(
         'batch_clear',

@@ -217,7 +217,6 @@ const createMockContext = (): HandlerContext =>
       }),
     } as any,
     featureFlags: {
-      enableDataFilterBatch: true,
       enableTableAppends: true,
       enablePayloadValidation: true,
     },

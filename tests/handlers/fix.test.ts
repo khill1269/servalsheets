@@ -130,6 +130,134 @@ describe('FixHandler', () => {
       expect(operation).toHaveProperty('risk');
       expect(operation.estimatedImpact).toContain('Freeze');
     });
+
+    it('should generate bounded formula rewrites for full-column references', async () => {
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: {
+                title: 'Sheet1',
+                gridProperties: { rowCount: 500 },
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'FULL_COLUMN_REFS',
+            severity: 'medium',
+            sheet: 'Sheet1',
+            description: 'Full column refs',
+            metadata: {
+              cell: 'Sheet1!C2',
+              formula: '=SUM(A:A)+COUNT(B:B)',
+            },
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations[0].parameters.values).toEqual([
+        ['=SUM(A1:A500)+COUNT(B1:B500)'],
+      ]);
+    });
+
+    it('should simplify nested IFERROR with same fallback as low risk', async () => {
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'NESTED_IFERROR',
+            severity: 'low',
+            description: 'Nested IFERROR',
+            metadata: {
+              cell: 'Sheet1!D2',
+              formula: '=IFERROR(IFERROR(A2/B2,0),0)',
+            },
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations[0]).toMatchObject({
+        risk: 'low',
+        parameters: { values: [['=IFERROR(A2/B2,0)']] },
+      });
+    });
+
+    it('should preserve different IFERROR fallbacks and mark the rewrite high risk', async () => {
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'NESTED_IFERROR',
+            severity: 'medium',
+            description: 'Nested IFERROR',
+            metadata: {
+              cell: 'Sheet1!D2',
+              formula: '=IFERROR(IFERROR(A2/B2,"inner"),"outer")',
+            },
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations[0]).toMatchObject({
+        risk: 'high',
+        parameters: { values: [['=IFERROR(A2/B2,IFERROR("inner","outer"))']] },
+      });
+    });
+
+    it('should delete exact duplicate conditional format rules highest index first', async () => {
+      const duplicateRule = {
+        ranges: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 10 }],
+        booleanRule: { condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: 'x' }] } },
+      };
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              conditionalFormats: [
+                duplicateRule,
+                { ranges: [{ sheetId: 0, startRowIndex: 10, endRowIndex: 20 }] },
+                duplicateRule,
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'EXCESSIVE_CF_RULES',
+            severity: 'low',
+            sheet: 'Sheet1',
+            description: 'Duplicate conditional format rules',
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations.map((op: any) => op.parameters.ruleIndex)).toEqual([
+        2,
+      ]);
+    });
   });
 
   afterEach(() => {

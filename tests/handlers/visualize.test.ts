@@ -791,6 +791,47 @@ describe('VisualizeHandler', () => {
       expect(result.response.error?.code).toBe('FEATURE_UNAVAILABLE');
     });
 
+    it('should surface FEATURE_UNAVAILABLE when Sheets reports an invalid trendline value', async () => {
+      mockApi.spreadsheets.get.mockResolvedValueOnce({
+        data: {
+          sheets: [
+            {
+              charts: [
+                {
+                  chartId: 123,
+                  spec: {
+                    basicChart: {
+                      chartType: 'SCATTER',
+                      legendPosition: 'BOTTOM_LEGEND',
+                      axis: [],
+                      domains: [{ domain: {} }],
+                      series: [{ series: {} }],
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      mockApi.spreadsheets.batchUpdate.mockRejectedValueOnce(
+        new Error('Invalid value at requests[0].updateChartSpec.spec.basicChart.series[0]')
+      );
+
+      const result = await handler.handle({
+        action: 'chart_add_trendline',
+        spreadsheetId: 'test-spreadsheet-id',
+        chartId: 123,
+        seriesIndex: 0,
+        trendline: {
+          type: 'LINEAR',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('FEATURE_UNAVAILABLE');
+    });
+
     it('should error when series index out of range', async () => {
       const result = await handler.handle({
         action: 'chart_add_trendline',
