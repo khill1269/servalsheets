@@ -51,11 +51,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const runId = '${{ github.event.inputs.artifact_run_id }}' ||
-                          '${{ github.event.workflow_run.id }}';
+            // Resolve the run to fetch artifacts from:
+            // 1. Explicit artifact_run_id input (manual override)
+            // 2. workflow_run trigger (the nightly run that just completed)
+            // 3. Fall back to latest nightly run (schedule / dispatch without input)
+            let targetRunId = '${{ github.event.inputs.artifact_run_id }}' ||
+                              '${{ github.event.workflow_run.id }}';
 
-            if (!runId) {
-              // Find the most recent nightly run
+            if (!targetRunId) {
               const runs = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -66,19 +69,22 @@ jobs:
                 core.setOutput('has_results', 'false');
                 return;
               }
-              const latestRunId = runs.data.workflow_runs[0].id;
-              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: latestRunId,
-              });
-              const artifact = artifacts.data.artifacts.find(a => a.name.startsWith('live-nightly-log'));
-              if (artifact) {
-                core.setOutput('artifact_id', artifact.id.toString());
-                core.setOutput('has_results', 'true');
-              } else {
-                core.setOutput('has_results', 'false');
-              }
+              targetRunId = runs.data.workflow_runs[0].id;
+            }
+
+            // Fetch artifacts from the resolved run (works for all trigger paths)
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: Number(targetRunId),
+            });
+            const artifact = artifacts.data.artifacts.find(a => a.name.startsWith('live-nightly-log'));
+            if (artifact) {
+              core.setOutput('artifact_id', artifact.id.toString());
+              core.setOutput('run_id', String(targetRunId));
+              core.setOutput('has_results', 'true');
+            } else {
+              core.setOutput('has_results', 'false');
             }
 
       - name: Analyze failures and create triage report
