@@ -435,7 +435,8 @@ export class SecurityAgent extends AnalysisAgent {
     const visit = (node: ts.Node) => {
       // Check for exec/spawn calls with user-controlled input. Intentionally broad —
       // catches named-import, namespace-import, and direct require() patterns.
-      // The `hasUserInput` heuristic (request/input/${ template) limits false positives.
+      // False positives are constrained by the hasUserInput heuristic below
+      // (argument text contains 'request', 'input', or a template literal '${').
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const method = node.expression.name.text;
 
