@@ -7,7 +7,7 @@ name: Live API Failure Triage
 on:
   # Run after nightly live API tests complete
   workflow_run:
-    workflows: ['Live API Tests (Nightly)']
+    workflows: ['Nightly Live API']
     types: [completed]
   # Also run weekly for backlog triage
   schedule:
@@ -34,10 +34,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -47,7 +47,7 @@ jobs:
 
       - name: Download latest live API results
         id: download
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -84,7 +84,7 @@ jobs:
       - name: Analyze failures and create triage report
         id: analyze
         if: steps.download.outputs.has_results == 'true'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
