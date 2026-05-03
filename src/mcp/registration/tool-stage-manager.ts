@@ -3,14 +3,14 @@
  *
  * Manages stage-based dynamic tool registration.
  *
- * When SERVAL_STAGED_REGISTRATION=true, tools are registered in 3 stages:
+ * Enabled by default (SERVAL_STAGED_REGISTRATION!='false'). Tools register in 3 stages:
  * - Stage 1 (bootstrap): Auth, core, session, analyze, confirm — immediate
  * - Stage 2 (active): Data, format, dimensions, history, quality, fix — after spreadsheet active
  * - Stage 3 (full): All remaining tools — on demand
  *
- * When disabled (default), all tools are registered at once (backwards-compatible).
+ * Set SERVAL_STAGED_REGISTRATION=false to disable (all tools registered at once).
  *
- * Stage transitions emit notifications/tools/list_changed so the LLM discovers new tools.
+ * Stage transitions emit tool-list change notifications so the LLM discovers new tools.
  *
  * Design: Singleton class with explicit lifecycle (initialize → advance → advance).
  * No auto-advancement — callers trigger stage changes via advanceToStage().
@@ -105,7 +105,7 @@ export class ToolStageManager {
   }
 
   /**
-   * Get tool definitions for the initial registration.
+   * Get the initial registration set.
    *
    * If staging is enabled, returns only Stage 1 tools.
    * If disabled, returns all tools (backwards-compatible).
@@ -131,7 +131,7 @@ export class ToolStageManager {
    * Advance to a target stage, registering all tools up to and including that stage.
    *
    * If already at or past the target stage, this is a no-op.
-   * Emits notifications/tools/list_changed for each stage transition.
+   * Emits tool-list change notifications for each stage transition.
    *
    * @param targetStage - Stage to advance to (2 or 3)
    * @returns Tools that were newly registered, or empty array if no change
