@@ -38,6 +38,7 @@ describe('http server lifecycle helper', () => {
     const ensureToolIntegrityVerified = {
       run: vi.fn(async () => undefined),
     };
+    const initializeAuthProviders = vi.fn(async () => undefined);
     const initializeRbac = vi.fn(async () => undefined);
     const createMetricsExporter = vi.fn(() => ({ kind: 'exporter' }));
     const startMetricsServer = vi.fn(async () => ({ kind: 'metrics-server' }));
@@ -61,6 +62,7 @@ describe('http server lifecycle helper', () => {
       getSessionCount: () => 0,
       ensureToolIntegrityVerified,
       rateLimiterReady: Promise.resolve(),
+      initializeAuthProviders,
       initializeRbac,
       enableMetricsServer: true,
       metricsPort: 3001,
@@ -79,6 +81,7 @@ describe('http server lifecycle helper', () => {
 
     expect(initTelemetry).toHaveBeenCalledOnce();
     expect(ensureToolIntegrityVerified.run).toHaveBeenCalledOnce();
+    expect(initializeAuthProviders).toHaveBeenCalledOnce();
     expect(initializeRbac).toHaveBeenCalledOnce();
     expect(app.listen).toHaveBeenCalledWith(3000, '127.0.0.1');
     expect(createMetricsExporter).toHaveBeenCalledOnce();
@@ -120,6 +123,7 @@ describe('http server lifecycle helper', () => {
         run: vi.fn(async () => undefined),
       },
       rateLimiterReady: Promise.resolve(),
+      initializeAuthProviders: vi.fn(async () => undefined),
       initializeRbac: vi.fn(async () => undefined),
       enableMetricsServer: true,
       metricsPort: 3001,

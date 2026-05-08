@@ -1,6 +1,7 @@
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { RELATED_TASK_META_KEY } from '@modelcontextprotocol/sdk/types.js';
+// SEP-1686 Tasks — experimental path stable since SDK 1.8.0; verify exists after each SDK upgrade
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { getEnv } from '../../config/env.js';
 import { registerServerTaskCancelHandler } from '../../server/control-plane-registration.js';
@@ -10,6 +11,15 @@ import { buildToolResponse } from './tool-response.js';
 import { ServiceError } from '../../core/errors.js';
 
 type RegisteredTaskStore = Parameters<typeof registerServerTaskCancelHandler>[0]['taskStore'];
+
+const DEFAULT_TASK_WATCHDOG_MS = 300000;
+
+function resolveTaskWatchdogMs(): number {
+  const taskWatchdogMs = Number(getEnv()['TASK_WATCHDOG_MS']);
+  return Number.isFinite(taskWatchdogMs) && taskWatchdogMs > 0
+    ? taskWatchdogMs
+    : DEFAULT_TASK_WATCHDOG_MS;
+}
 
 const taskAbortControllersByStore = new WeakMap<
   RegisteredTaskStore,
@@ -133,7 +143,7 @@ export function createToolTaskHandler(
       const abortController = new AbortController();
       abortControllers.set(task.taskId, abortController);
 
-      const taskWatchdogMs = Number(getEnv()['TASK_WATCHDOG_MS']);
+      const taskWatchdogMs = resolveTaskWatchdogMs();
       const watchdogTimer = setTimeout(() => {
         if (abortControllers.has(task.taskId)) {
           logger.warn('Task watchdog: aborting hung task', {

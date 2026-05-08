@@ -1129,7 +1129,7 @@ const DiagnoseErrorsActionSchema = CommonFieldsSchema.extend({
 /**
  * Semantic search across spreadsheet contents using natural language.
  * Indexes cell ranges as embeddings and retrieves the most relevant sections
- * for a given query. Requires VOYAGE_API_KEY environment variable.
+ * for a given query. Requires GOOGLE_API_KEY environment variable.
  */
 const SemanticSearchActionSchema = CommonFieldsSchema.extend({
   action: z
@@ -1138,7 +1138,7 @@ const SemanticSearchActionSchema = CommonFieldsSchema.extend({
       'Search spreadsheet content by meaning, not exact text. ' +
         'Indexes cell ranges as embeddings and returns the most relevant sections for a natural language query. ' +
         'Example: "find all rows about Q4 revenue projections". ' +
-        'Requires VOYAGE_API_KEY. First call on a spreadsheet triggers indexing (~2-5s). ' +
+        'Requires GOOGLE_API_KEY. First call on a spreadsheet triggers indexing (~2-5s). ' +
         'Subsequent queries on the same spreadsheet are fast (<500ms).'
     ),
   query: z

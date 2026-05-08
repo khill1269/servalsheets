@@ -1,9 +1,9 @@
 /**
  * Trigger Operations — create_trigger, list_triggers, delete_trigger, update_trigger
  *
- * NOTE: These return NOT_IMPLEMENTED because the Apps Script API
- * projects.triggers endpoint is not available for external clients. Triggers
- * must be managed in-script via ScriptApp APIs.
+ * Apps Script does not expose trigger CRUD through REST. SERVAL installs small
+ * in-project helper functions that use ScriptApp, and these handlers delegate
+ * to those helpers through scripts.run.
  */
 
 import { ErrorCodes } from '../error-codes.js';
@@ -16,58 +16,148 @@ import type {
   AppsScriptResponse,
 } from '../../schemas/index.js';
 
-export function handleCreateTrigger(
+interface ScriptRunResponse {
+  done?: boolean;
+  response?: {
+    result?: unknown;
+  };
+  error?: {
+    message?: string;
+    details?: Array<{
+      errorMessage?: string;
+      errorType?: string;
+    }>;
+  };
+}
+
+interface TriggerRunResult {
+  triggers?: unknown[];
+  nextPageToken?: string | null;
+  trigger?: unknown;
+  deleted?: boolean;
+  triggerId?: string;
+}
+
+async function runTriggerHelper(
   access: AppsScriptHandlerAccess,
-  _req: AppsScriptCreateTriggerInput
-): AppsScriptResponse {
-  return access.error({
-    code: ErrorCodes.NOT_IMPLEMENTED,
-    message:
-      'Trigger management requires in-script ScriptApp.newTrigger(). ' +
-      'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-      'Use update_content to add trigger code to your script, then deploy it.',
-    retryable: false,
+  scriptId: string,
+  functionName: string,
+  parameters: Record<string, unknown>
+): Promise<AppsScriptResponse | TriggerRunResult> {
+  const result = await access.apiRequest<ScriptRunResponse>('POST', `/scripts/${scriptId}:run`, {
+    function: functionName,
+    parameters: [parameters],
+    devMode: true,
+  });
+
+  if (result.error) {
+    const detail = result.error.details?.[0];
+    return access.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message:
+        detail?.errorMessage ?? result.error.message ?? `Apps Script helper ${functionName} failed`,
+      retryable: false,
+      details: detail?.errorType ? { errorType: detail.errorType } : undefined,
+    });
+  }
+
+  return (result.response?.result ?? {}) as TriggerRunResult;
+}
+
+export async function handleCreateTrigger(
+  access: AppsScriptHandlerAccess,
+  req: AppsScriptCreateTriggerInput & { scriptId: string }
+): Promise<AppsScriptResponse> {
+  const helperResult = await runTriggerHelper(access, req.scriptId, 'serval_createTrigger', {
+    functionName: req.functionName,
+    triggerType: req.triggerType,
+    everyMinutes: req.everyMinutes,
+    atHour: req.atHour,
+    weekDay: req.weekDay,
+  });
+  if ('success' in helperResult) {
+    return helperResult;
+  }
+
+  return access.success('create_trigger', {
+    scriptId: req.scriptId,
+    trigger: helperResult,
   });
 }
 
-export function handleListTriggers(
+export async function handleListTriggers(
   access: AppsScriptHandlerAccess,
-  _req: AppsScriptListTriggersInput
-): AppsScriptResponse {
-  return access.error({
-    code: ErrorCodes.NOT_IMPLEMENTED,
-    message:
-      'Trigger management requires in-script ScriptApp APIs. ' +
-      'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-      'Use get_content to inspect trigger setup code in the script project.',
-    retryable: false,
+  req: AppsScriptListTriggersInput & { scriptId: string }
+): Promise<AppsScriptResponse> {
+  const helperResult = await runTriggerHelper(access, req.scriptId, 'serval_listTriggers', {
+    pageSize: req.pageSize ?? 50,
+    pageToken: req.pageToken,
+  });
+  if ('success' in helperResult) {
+    return helperResult;
+  }
+
+  return access.success('list_triggers', {
+    scriptId: req.scriptId,
+    triggers: helperResult.triggers ?? [],
+    nextPageToken: helperResult.nextPageToken ?? undefined,
   });
 }
 
-export function handleDeleteTrigger(
+export async function handleDeleteTrigger(
   access: AppsScriptHandlerAccess,
-  _req: AppsScriptDeleteTriggerInput
-): AppsScriptResponse {
-  return access.error({
-    code: ErrorCodes.NOT_IMPLEMENTED,
-    message:
-      'Trigger management requires in-script ScriptApp APIs. ' +
-      'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-      'Use update_content to modify trigger code in the script project.',
-    retryable: false,
+  req: AppsScriptDeleteTriggerInput & { scriptId: string }
+): Promise<AppsScriptResponse> {
+  const helperResult = await runTriggerHelper(access, req.scriptId, 'serval_deleteTrigger', {
+    triggerId: req.triggerId,
+  });
+  if ('success' in helperResult) {
+    return helperResult;
+  }
+
+  return access.success('delete_trigger', {
+    scriptId: req.scriptId,
+    deleted: helperResult.deleted ?? false,
+    trigger: helperResult.trigger,
+    triggerId: helperResult.triggerId ?? req.triggerId,
   });
 }
 
-export function handleUpdateTrigger(
+export async function handleUpdateTrigger(
   access: AppsScriptHandlerAccess,
-  _req: AppsScriptUpdateTriggerInput
-): AppsScriptResponse {
-  return access.error({
-    code: ErrorCodes.NOT_IMPLEMENTED,
-    message:
-      'Trigger management requires in-script ScriptApp APIs. ' +
-      'The Apps Script API projects.triggers endpoint is not available for external clients. ' +
-      'Use update_content to modify trigger code in the script project.',
-    retryable: false,
+  req: AppsScriptUpdateTriggerInput & { scriptId: string }
+): Promise<AppsScriptResponse> {
+  if (!req.functionName) {
+    return access.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message:
+        'update_trigger requires functionName because Apps Script trigger metadata does not expose enough schedule details to reconstruct an existing trigger.',
+      retryable: false,
+      suggestedFix:
+        'Call delete_trigger, then create_trigger with functionName and the desired trigger schedule.',
+    });
+  }
+
+  const deleteResult = await runTriggerHelper(access, req.scriptId, 'serval_deleteTrigger', {
+    triggerId: req.triggerId,
+  });
+  if ('success' in deleteResult) {
+    return deleteResult;
+  }
+
+  const createResult = await runTriggerHelper(access, req.scriptId, 'serval_createTrigger', {
+    functionName: req.functionName,
+    triggerType: req.triggerType ?? 'CLOCK',
+    everyMinutes: req.everyMinutes,
+  });
+  if ('success' in createResult) {
+    return createResult;
+  }
+
+  return access.success('update_trigger', {
+    scriptId: req.scriptId,
+    deleted: deleteResult.deleted ?? false,
+    previousTrigger: deleteResult.trigger,
+    trigger: createResult,
   });
 }

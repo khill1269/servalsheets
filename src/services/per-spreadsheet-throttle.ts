@@ -12,6 +12,13 @@
 
 import { getEnv } from '../config/env.js';
 
+const DEFAULT_PER_SPREADSHEET_RPS = 10;
+
+function normalizeRps(value: unknown): number {
+  const rps = Number(value);
+  return Number.isFinite(rps) && rps > 0 ? rps : DEFAULT_PER_SPREADSHEET_RPS;
+}
+
 // ============================================================================
 // TOKEN BUCKET (internal, not exported)
 // ============================================================================
@@ -64,7 +71,7 @@ export class PerSpreadsheetThrottle {
   }
 
   private get rps(): number {
-    return getEnv()['PER_SPREADSHEET_RPS'] as number;
+    return normalizeRps(getEnv()['PER_SPREADSHEET_RPS']);
   }
 
   async throttle(spreadsheetId: string): Promise<void> {

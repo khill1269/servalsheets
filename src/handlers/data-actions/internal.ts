@@ -21,8 +21,14 @@ export const MAX_BATCH_RANGES = 50;
 
 export type ResponseFormat = 'full' | 'compact' | 'preview';
 
+export function getResponseFormat(input: {
+  responseFormat?: ResponseFormat;
+  response_format?: ResponseFormat;
+}): ResponseFormat {
+  return input.responseFormat ?? input.response_format ?? 'full';
+}
+
 export type DataFeatureFlags = {
-  enableDataFilterBatch: boolean;
   enableTableAppends: boolean;
   enablePayloadValidation: boolean;
 };

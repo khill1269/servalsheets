@@ -2,7 +2,7 @@
  * Handler for sheets_analyze.semantic_search (ISSUE-174/175)
  *
  * Natural language search across spreadsheet content using vector embeddings.
- * Requires VOYAGE_API_KEY environment variable.
+ * Requires GOOGLE_API_KEY environment variable.
  */
 
 import type { sheets_v4 } from 'googleapis';
@@ -25,16 +25,16 @@ export async function handleSemanticSearchAction(
   input: SemanticSearchRequest,
   deps: SemanticSearchDeps
 ): Promise<AnalyzeResponse> {
-  const apiKey = process.env['VOYAGE_API_KEY'];
+  const apiKey = process.env['GOOGLE_API_KEY'];
   if (!apiKey) {
     return {
       success: false,
       error: {
         code: 'CONFIG_ERROR',
         message:
-          'VOYAGE_API_KEY environment variable is not set. ' +
-          'Semantic search requires a Voyage AI API key. ' +
-          'Get one at https://www.voyageai.com and set VOYAGE_API_KEY in your environment.',
+          'GOOGLE_API_KEY environment variable is not set. ' +
+          'Semantic search requires Google Gemini text-embedding-004 access. ' +
+          'Set GOOGLE_API_KEY in your environment.',
         retryable: false,
       },
     } as unknown as AnalyzeResponse;
@@ -92,7 +92,7 @@ export async function handleSemanticSearchAction(
       error: {
         code: isApiError ? 'UNAVAILABLE' : 'INTERNAL_ERROR',
         message: isApiError
-          ? `Embedding service error: ${message}. Check VOYAGE_API_KEY validity.`
+          ? `Embedding service error: ${message}. Check GOOGLE_API_KEY validity.`
           : `Semantic search failed: ${message}`,
         retryable: isApiError,
       },

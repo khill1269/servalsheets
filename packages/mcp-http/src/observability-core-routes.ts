@@ -171,9 +171,15 @@ export function registerHttpObservabilityCoreRoutes<
     });
   });
 
-  app.head('/health', (_req: Request, res: Response) => res.status(200).end());
+  app.head('/health', async (_req: Request, res: Response) => {
+    const health = await healthService.checkReadiness();
+    res.status(health.status === 'unhealthy' ? 503 : 200).end();
+  });
   app.head('/health/live', (_req: Request, res: Response) => res.status(200).end());
-  app.head('/health/ready', (_req: Request, res: Response) => res.status(200).end());
+  app.head('/health/ready', async (_req: Request, res: Response) => {
+    const health = await healthService.checkReadiness();
+    res.status(health.status === 'unhealthy' ? 503 : 200).end();
+  });
   app.head('/info', (_req: Request, res: Response) => res.status(200).end());
 
   log.info('HTTP observability core routes registered');

@@ -7,7 +7,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { zodToJsonSchemaCompat } from '../../src/utils/schema-compat.js';
+import { isZodSchemaLike, zodToJsonSchemaCompat } from '../../src/utils/schema-compat.js';
+import { z } from '../../src/lib/schema.js';
 import { SheetsDataInputSchema } from '../../src/schemas/data.js';
 import { SheetsCoreInputSchema } from '../../src/schemas/core.js';
 
@@ -40,5 +41,15 @@ describe('Zod v4 JSON Schema compat (zodToJsonSchemaCompat)', () => {
     const hasRoot =
       json['type'] !== undefined || json['anyOf'] !== undefined || json['$ref'] !== undefined;
     expect(hasRoot).toBe(true);
+  });
+
+  it('throws instead of publishing an empty object schema when conversion fails', () => {
+    expect(() => zodToJsonSchemaCompat(z.bigint())).toThrow();
+  });
+
+  it('detects Zod schemas without treating plain JSON Schema objects as Zod', () => {
+    expect(isZodSchemaLike(z.object({ value: z.string() }))).toBe(true);
+    expect(isZodSchemaLike({ type: 'object', properties: {} })).toBe(false);
+    expect(isZodSchemaLike(null)).toBe(false);
   });
 });

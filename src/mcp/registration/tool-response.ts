@@ -634,6 +634,7 @@ export function buildToolResponse(
         {
           type: 'text',
           text: JSON.stringify(budgetContent, null, 2),
+          annotations: { audience: ASSISTANT_AUDIENCE },
         },
       ],
       structuredContent: budgetContent,
@@ -672,6 +673,7 @@ export function buildToolResponse(
         {
           type: 'text',
           text: JSON.stringify(fallbackContent, null, 2),
+          annotations: { audience: ASSISTANT_AUDIENCE },
         },
       ],
       structuredContent: fallbackContent,

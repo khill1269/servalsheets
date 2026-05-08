@@ -69,7 +69,10 @@ export function suggestFix(
   // is known to be something the suggester can't meaningfully recover —
   // ai_service failures (malformed outbound LLM requests, provider 5xx)
   // should never route to sheets_data.read.
-  if (errorSource === 'ai_service' && (errorCode === 'INTERNAL_ERROR' || errorCode === 'SERVICE_UNAVAILABLE')) {
+  if (
+    errorSource === 'ai_service' &&
+    (errorCode === 'INTERNAL_ERROR' || errorCode === 'SERVICE_UNAVAILABLE')
+  ) {
     return null;
   }
   const fix = suggestFixInternal(errorCode, errorMessage, toolName, action, params, errorSource);

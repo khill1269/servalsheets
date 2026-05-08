@@ -541,12 +541,50 @@ export function createSamlProviderFromEnv(
     return null; // Not configured
   }
 
+  // SEC-015: Enforce a minimum entropy floor for SSO_JWT_SECRET (parity with
+  // JWT_SECRET — see src/auth/oauth-provider.ts:createOAuthProviderFromEnv).
+  // SSO tokens authenticate users across the SAML/OIDC integration boundary;
+  // a weak signing key allows offline forgery from any single signed token.
+  // Production: throw. Development: warn.
+  const MIN_SSO_JWT_SECRET_BYTES = 32; // 256 bits
+  const ssoEstimatedBytes = Math.max(
+    /^[0-9a-fA-F]+$/.test(SSO_JWT_SECRET) ? Math.floor(SSO_JWT_SECRET.length / 2) : 0,
+    /^[A-Za-z0-9+/=_-]+$/.test(SSO_JWT_SECRET) ? Math.floor((SSO_JWT_SECRET.length * 3) / 4) : 0,
+    Buffer.byteLength(SSO_JWT_SECRET, 'utf8')
+  );
+  if (ssoEstimatedBytes < MIN_SSO_JWT_SECRET_BYTES) {
+    const message =
+      `SSO_JWT_SECRET has insufficient entropy (estimated ${ssoEstimatedBytes} bytes, ` +
+      `required ≥ ${MIN_SSO_JWT_SECRET_BYTES}). ` +
+      'Generate with: openssl rand -hex 32  (or: openssl rand -base64 32)';
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new ConfigError(message, 'SSO_JWT_SECRET');
+    }
+    logger.warn(message);
+  }
+
   const sigAlg = env.SAML_SIGNATURE_ALGORITHM;
   if (sigAlg === 'sha1') {
     throw new ConfigError(
       'SAML_SIGNATURE_ALGORITHM=sha1 is not allowed (broken algorithm, SHATTERED 2017). ' +
         'Must be sha256 or sha512.',
       'SAML_SIGNATURE_ALGORITHM'
+    );
+  }
+
+  const allowedRedirectOrigins = env.SAML_ALLOWED_REDIRECT_ORIGINS
+    ? env.SAML_ALLOWED_REDIRECT_ORIGINS.split(',').map((s) => s.trim())
+    : [];
+  // Warn operators that omitting SAML_ALLOWED_REDIRECT_ORIGINS silently blocks all
+  // RelayState-based redirects (returns 400). All SSO flows will fall back to
+  // defaultRedirectUrl ('/') instead. Set SAML_ALLOWED_REDIRECT_ORIGINS to enable
+  // deep-link redirects after authentication.
+  if (allowedRedirectOrigins.length === 0) {
+    logger.warn(
+      '[ServalSheets] SAML_ALLOWED_REDIRECT_ORIGINS is not configured. ' +
+        'All post-authentication RelayState redirects will be blocked (returns 400). ' +
+        'Users will be redirected to the app root ("/") after login. ' +
+        'Set SAML_ALLOWED_REDIRECT_ORIGINS to enable deep-link redirects.'
     );
   }
 
@@ -561,8 +599,6 @@ export function createSamlProviderFromEnv(
     signatureAlgorithm: (sigAlg === 'sha512' ? 'sha512' : 'sha256') as 'sha256' | 'sha512',
     jwtTtl: env.SSO_JWT_TTL ? parseInt(env.SSO_JWT_TTL, 10) : 3600,
     clockSkew: env.SSO_ALLOWED_CLOCK_SKEW ? parseInt(env.SSO_ALLOWED_CLOCK_SKEW, 10) : 60,
-    allowedRedirectOrigins: env.SAML_ALLOWED_REDIRECT_ORIGINS
-      ? env.SAML_ALLOWED_REDIRECT_ORIGINS.split(',').map((s) => s.trim())
-      : [],
+    allowedRedirectOrigins,
   });
 }

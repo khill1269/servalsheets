@@ -26,6 +26,10 @@ export interface TestDataOptions {
 
 const DEFAULT_TEST_PREFIX = 'SERVAL_TEST_';
 
+export interface TestSpreadsheetManagerOptions {
+  usePool?: boolean;
+}
+
 /**
  * Manages test spreadsheet lifecycle for live API tests
  */
@@ -34,10 +38,16 @@ export class TestSpreadsheetManager {
   private createdSpreadsheets: Set<string> = new Set();
   private borrowedFromPool: Set<string> = new Set();
   private testPrefix: string;
+  private usePool: boolean;
 
-  constructor(client: LiveApiClient, testPrefix = DEFAULT_TEST_PREFIX) {
+  constructor(
+    client: LiveApiClient,
+    testPrefix = DEFAULT_TEST_PREFIX,
+    options: TestSpreadsheetManagerOptions = {}
+  ) {
     this.client = client;
     this.testPrefix = testPrefix;
+    this.usePool = options.usePool ?? true;
   }
 
   /**
@@ -46,7 +56,7 @@ export class TestSpreadsheetManager {
    */
   async createTestSpreadsheet(suffix?: string): Promise<TestSpreadsheet> {
     // Borrow from pool if it's been initialized (global setup wires this up)
-    if (spreadsheetPool.isInitialized()) {
+    if (this.usePool && spreadsheetPool.isInitialized()) {
       const testName = suffix ? `${this.testPrefix}${suffix}` : this.testPrefix;
       const pooled = await spreadsheetPool.borrow(testName);
 

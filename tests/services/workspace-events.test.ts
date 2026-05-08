@@ -152,7 +152,7 @@ describe('WorkspaceEventsService', () => {
     });
     const fetchMock = vi.mocked(fetch);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      'https://workspaceevents.googleapis.com/v1beta/operations/create-123'
+      'https://workspaceevents.googleapis.com/v1/operations/create-123'
     );
     service.destroy();
   });
@@ -245,10 +245,10 @@ describe('WorkspaceEventsService', () => {
     const fetchMock = vi.mocked(fetch);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      'https://workspaceevents.googleapis.com/v1beta/subscriptions/restart-test?updateMask=ttl'
+      'https://workspaceevents.googleapis.com/v1/subscriptions/restart-test?updateMask=ttl'
     );
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
-      'https://workspaceevents.googleapis.com/v1beta/operations/renew-1'
+      'https://workspaceevents.googleapis.com/v1/operations/renew-1'
     );
     restored.destroy();
   });
@@ -417,12 +417,12 @@ describe('WorkspaceEventsService', () => {
 
     expect(reactivated.state).toBe('ACTIVE');
     expect(vi.mocked(fetch).mock.calls[1]?.[0]).toBe(
-      'https://workspaceevents.googleapis.com/v1beta/subscriptions/reactivate-test:reactivate'
+      'https://workspaceevents.googleapis.com/v1/subscriptions/reactivate-test:reactivate'
     );
 
     await vi.advanceTimersByTimeAsync(7 * 24 * 60 * 60 * 1000);
     expect(vi.mocked(fetch).mock.calls[2]?.[0]).toBe(
-      'https://workspaceevents.googleapis.com/v1beta/subscriptions/reactivate-test?updateMask=ttl'
+      'https://workspaceevents.googleapis.com/v1/subscriptions/reactivate-test?updateMask=ttl'
     );
     service.destroy();
   });

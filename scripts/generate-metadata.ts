@@ -576,7 +576,34 @@ const serverJson = {
   name: pkg.mcpName || pkg.name,
   version: pkg.version,
   license: 'MIT',
-  categories: ['productivity', 'google-workspace', 'data-analysis', 'spreadsheet', 'ai'],
+  tags: ['productivity', 'google-workspace', 'data-analysis', 'spreadsheet', 'ai'],
+  categories: (() => {
+    const toolNames = analyses
+      .filter((a) => a.actionCount > 0)
+      .map((a) => a.toolName)
+      .sort();
+    const categorizedToolNames = METADATA_TOOL_CATEGORIES.flatMap(
+      (category) => category.tools
+    ).sort();
+    const missingTools = toolNames.filter((tool) => !categorizedToolNames.includes(tool));
+    const extraTools = categorizedToolNames.filter((tool) => !toolNames.includes(tool));
+    const duplicateTools = categorizedToolNames.filter(
+      (tool, index, array) => array.indexOf(tool) !== index
+    );
+
+    if (missingTools.length > 0 || extraTools.length > 0 || duplicateTools.length > 0) {
+      throw new Error(
+        `Metadata category drift detected. Missing: ${missingTools.join(', ') || 'none'}; ` +
+          `extra: ${extraTools.join(', ') || 'none'}; ` +
+          `duplicates: ${Array.from(new Set(duplicateTools)).join(', ') || 'none'}`
+      );
+    }
+
+    return METADATA_TOOL_CATEGORIES.map(
+      (category) =>
+        `${category.label} (${category.tools.length} ${category.tools.length === 1 ? 'tool' : 'tools'}): ${category.tools.join(', ')}`
+    );
+  })(),
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
   icons: [
     {
@@ -624,33 +651,6 @@ const serverJson = {
   metadata: {
     toolCount: TOOL_COUNT,
     actionCount: ACTION_COUNT,
-    categories: (() => {
-      const toolNames = analyses
-        .filter((a) => a.actionCount > 0)
-        .map((a) => a.toolName)
-        .sort();
-      const categorizedToolNames = METADATA_TOOL_CATEGORIES.flatMap(
-        (category) => category.tools
-      ).sort();
-      const missingTools = toolNames.filter((tool) => !categorizedToolNames.includes(tool));
-      const extraTools = categorizedToolNames.filter((tool) => !toolNames.includes(tool));
-      const duplicateTools = categorizedToolNames.filter(
-        (tool, index, array) => array.indexOf(tool) !== index
-      );
-
-      if (missingTools.length > 0 || extraTools.length > 0 || duplicateTools.length > 0) {
-        throw new Error(
-          `Metadata category drift detected. Missing: ${missingTools.join(', ') || 'none'}; ` +
-            `extra: ${extraTools.join(', ') || 'none'}; ` +
-            `duplicates: ${Array.from(new Set(duplicateTools)).join(', ') || 'none'}`
-        );
-      }
-
-      return METADATA_TOOL_CATEGORIES.map(
-        (category) =>
-          `${category.label} (${category.tools.length} ${category.tools.length === 1 ? 'tool' : 'tools'}): ${category.tools.join(', ')}`
-      );
-    })(),
   },
   author: {
     name: 'Thomas Lee Cahill',

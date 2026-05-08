@@ -22,14 +22,11 @@ import type { LiveApiClient } from '../setup/live-api-client.js';
 // Skip all tests if not running against real API
 const runLiveTests = shouldRunIntegrationTests();
 
-describe.skipIf(!runLiveTests)('OAuth Incremental Consent', () => {
+describe.skipIf(!runLiveTests || !process.env['TEST_SPREADSHEET_ID'])('OAuth Incremental Consent', () => {
   const testSpreadsheetId = process.env['TEST_SPREADSHEET_ID'];
   let liveClient: LiveApiClient;
 
   beforeAll(async () => {
-    if (!testSpreadsheetId) {
-      throw new Error('TEST_SPREADSHEET_ID environment variable is required');
-    }
     liveClient = await getLiveApiClient();
   });
 

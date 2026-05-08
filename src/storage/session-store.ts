@@ -12,6 +12,7 @@ export interface SessionStoreStats {
 }
 
 export interface SessionStore {
+  initialize?(): Promise<void>;
   set(key: string, value: SessionData, options?: { ttlMs?: number }): Promise<void>;
   get(key: string): Promise<SessionData | undefined>;
   delete(key: string): Promise<boolean>;
@@ -115,12 +116,15 @@ export class RedisSessionStore implements SessionStore {
   }
 
   // node-redis v4 requires an explicit connect() before any commands.
-  // This lazy guard is called at the start of every public method so the
-  // synchronous createSessionStore() factory doesn't need to become async.
-  private async ensureConnected(): Promise<void> {
+  async initialize(): Promise<void> {
     if (!this.client.isOpen) {
       await this.client.connect();
     }
+  }
+
+  // This lazy guard remains for direct store usage outside managed startup.
+  private async ensureConnected(): Promise<void> {
+    await this.initialize();
   }
 
   // Non-blocking SCAN replacement for redis.keys() (O(1) amortized per iteration
@@ -211,9 +215,11 @@ export class RedisSessionStore implements SessionStore {
     const fullKey = `${this.prefix}${key}`;
     try {
       // node-redis v4 exposes GETDEL directly when available.
-      const maybeGetDel = (this.client as unknown as {
-        getDel?: (k: string) => Promise<string | null>;
-      }).getDel;
+      const maybeGetDel = (
+        this.client as unknown as {
+          getDel?: (k: string) => Promise<string | null>;
+        }
+      ).getDel;
       if (typeof maybeGetDel === 'function') {
         const value = await maybeGetDel.call(this.client, fullKey);
         return value ? JSON.parse(value) : undefined;

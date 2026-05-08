@@ -257,6 +257,7 @@ export async function handleDeleteSheetAction(
       isDestructive: true,
       spreadsheetId: input.spreadsheetId,
     },
+    preConfirmed: input.safety?.confirmed === true,
   });
 
   if (!confirmation.confirmed) {

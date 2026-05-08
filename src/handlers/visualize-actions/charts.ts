@@ -798,7 +798,7 @@ export async function handleChartAddTrendlineAction(
   deps: ChartsDeps
 ): Promise<VisualizeResponse> {
   // Trendlines are only supported on certain chart types
-  const compatibleTypes = ['LINE', 'AREA', 'SCATTER', 'STEPPED_AREA', 'COLUMN'];
+  const compatibleTypes = ['LINE', 'AREA', 'SCATTER'];
 
   // Fetch existing chart spec
   const getResponse = await deps.sheetsApi.spreadsheets.get({
@@ -828,7 +828,7 @@ export async function handleChartAddTrendlineAction(
   if (!compatibleTypes.includes(chartType)) {
     return deps.error({
       code: ErrorCodes.INVALID_PARAMS,
-      message: `Trendlines are not supported on ${chartType} charts. Use LINE, AREA, SCATTER, STEPPED_AREA, or COLUMN charts.`,
+      message: `Trendlines are not supported on ${chartType} charts. Use LINE, AREA, or SCATTER charts.`,
       retryable: false,
       suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
     });
@@ -921,7 +921,11 @@ export async function handleChartAddTrendlineAction(
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('trendline') || message.includes('Unknown name')) {
+    if (
+      message.includes('trendline') ||
+      message.includes('Unknown name') ||
+      message.includes('Invalid value')
+    ) {
       return deps.error({
         code: ErrorCodes.FEATURE_UNAVAILABLE,
         message:

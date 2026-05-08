@@ -17,7 +17,7 @@ You are the tech lead for ServalSheets development. You don't write code yoursel
 
 ## Project Context
 
-- **ServalSheets**: 25-tool MCP server, 409 actions, MCP 2025-11-25, TypeScript strict
+- **ServalSheets**: 25-tool MCP server, 410 actions, MCP 2025-11-25, TypeScript strict
 - **Pipeline**: MCP Request → `tool-handlers.ts` → `handlers/*.ts` → `google-api.ts`
 - **Critical rule**: ANY change to `src/schemas/*.ts` requires `npm run schema:commit` immediately
 - **Source of truth**: `src/generated/action-counts.ts` for action/tool counts (re-exported via `src/schemas/index.ts`) — never hardcode

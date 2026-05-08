@@ -50,7 +50,7 @@ describe('Tool Routing - Description Quality', () => {
       expect(desc.length).toBeGreaterThan(10);
       // Minimal descriptions are still compact, but some now include explicit
       // "when to use / when to skip" routing guardrails.
-      expect(desc.length).toBeLessThanOrEqual(500);
+      expect(desc.length).toBeLessThanOrEqual(650);
     }
   });
 

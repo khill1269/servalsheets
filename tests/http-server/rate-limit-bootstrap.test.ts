@@ -179,6 +179,54 @@ describe('http rate limit bootstrap', () => {
     expect(next).toHaveBeenCalledTimes(2);
   });
 
+  it('keys authenticated users independently even when they share an IP', async () => {
+    const seenUserIds: string[] = [];
+    const checkLimit = vi.fn(async (userId: string) => {
+      seenUserIds.push(userId);
+      return {
+        allowed: true,
+        remaining: userId.includes(createHash('sha256').update('token-a').digest('hex').substring(0, 16))
+          ? 3
+          : 9,
+        resetAt: new Date('2026-03-23T20:00:00.000Z'),
+      };
+    });
+    const middleware = createHttpPerUserRateLimitMiddleware({
+      getUserRateLimiter: () => ({ checkLimit }),
+    });
+    const next = vi.fn();
+
+    const responseA = createMockResponse();
+    await middleware(
+      {
+        path: '/mcp',
+        headers: { authorization: 'Bearer token-a' },
+        ip: '203.0.113.10',
+      } as never,
+      responseA as never,
+      next
+    );
+
+    const responseB = createMockResponse();
+    await middleware(
+      {
+        path: '/mcp',
+        headers: { authorization: 'Bearer token-b' },
+        ip: '203.0.113.10',
+      } as never,
+      responseB as never,
+      next
+    );
+
+    expect(seenUserIds).toEqual([
+      `user:${createHash('sha256').update('token-a').digest('hex').substring(0, 16)}`,
+      `user:${createHash('sha256').update('token-b').digest('hex').substring(0, 16)}`,
+    ]);
+    expect(responseA.headers.get('X-RateLimit-User-Remaining')).toBe('3');
+    expect(responseB.headers.get('X-RateLimit-User-Remaining')).toBe('9');
+    expect(next).toHaveBeenCalledTimes(2);
+  });
+
   it('returns 429 for exhausted users and 503 for limiter failures', async () => {
     const deniedResponse = createMockResponse();
     const next = vi.fn();

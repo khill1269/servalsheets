@@ -155,7 +155,11 @@ export class GenericRestConnector implements SpreadsheetConnector {
       const headers = this.buildHeaders();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), CONNECTOR_REQUEST_TIMEOUT_MS);
-      const resp = await fetch(url.toString(), { headers, method: 'HEAD', signal: controller.signal })
+      const resp = await fetch(url.toString(), {
+        headers,
+        method: 'HEAD',
+        signal: controller.signal,
+      })
         .catch(() => fetch(url.toString(), { headers, method: 'GET', signal: controller.signal }))
         .finally(() => clearTimeout(timeoutId));
 

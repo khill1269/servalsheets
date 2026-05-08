@@ -374,8 +374,15 @@ export class AgentHandler {
                       success: true,
                       action: 'get_status',
                       planId: req.planId,
-                      status: task.status === 'working' ? 'executing' : (task.status as import('../services/agent/types.js').PlanStatus),
-                      progress: { completedSteps: 0, totalSteps: 1, percentage: task.status === 'completed' ? 100 : 0 },
+                      status:
+                        task.status === 'working'
+                          ? 'executing'
+                          : (task.status as import('../services/agent/types.js').PlanStatus),
+                      progress: {
+                        completedSteps: 0,
+                        totalSteps: 1,
+                        percentage: task.status === 'completed' ? 100 : 0,
+                      },
                       executionTimeMs: Date.now() - startTime,
                     },
                   };

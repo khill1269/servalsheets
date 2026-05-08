@@ -25,7 +25,7 @@ const runLiveTests = shouldRunIntegrationTests();
 // Skip these tests when no real webhook endpoint is configured.
 const hasWebhookEndpoint = Boolean(process.env['WEBHOOK_ENDPOINT']);
 
-describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
+describe.skipIf(!runLiveTests || !process.env['TEST_SPREADSHEET_ID'])('Drive API Webhook Integration', () => {
   const testSpreadsheetId = process.env['TEST_SPREADSHEET_ID'];
   const webhookEndpoint =
     process.env['WEBHOOK_ENDPOINT'] ?? 'https://example.com/webhook/drive-callback';
@@ -34,10 +34,6 @@ describe.skipIf(!runLiveTests)('Drive API Webhook Integration', () => {
   let googleApi: GoogleApiClient;
 
   beforeAll(async () => {
-    if (!testSpreadsheetId) {
-      throw new Error('TEST_SPREADSHEET_ID environment variable is required');
-    }
-
     // Reset singletons so re-init works across test runs
     resetWebhookManager();
     resetWebhookQueue();

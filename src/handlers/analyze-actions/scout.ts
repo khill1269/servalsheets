@@ -75,8 +75,7 @@ export async function handleScoutAction(
         const sheetId = s.properties?.sheetId;
         if (sheetId === undefined || sheetId === null) continue;
         const hasCharts = Array.isArray(s.charts) && s.charts.length > 0;
-        const hasProtectedRanges =
-          Array.isArray(s.protectedRanges) && s.protectedRanges.length > 0;
+        const hasProtectedRanges = Array.isArray(s.protectedRanges) && s.protectedRanges.length > 0;
         const hasBasicFilter = Boolean(s.basicFilter);
         const hasFilterViews = Array.isArray(s.filterViews) && s.filterViews.length > 0;
         // Formula probe: scan the narrow grid data we fetched for any formulaValue.

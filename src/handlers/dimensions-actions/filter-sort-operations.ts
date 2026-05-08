@@ -270,6 +270,7 @@ export async function handleClearBasicFilter(
       spreadsheetId: input.spreadsheetId,
     },
     logger: ha.context.logger,
+    preConfirmed: input.safety?.confirmed === true,
   });
   if (!confirmation.confirmed) {
     return ha.error({
@@ -494,6 +495,7 @@ export async function handleDeleteDuplicates(
       spreadsheetId: input.spreadsheetId,
     },
     logger: ha.context.logger,
+    preConfirmed: input.safety?.confirmed === true,
   });
   if (!confirmation.confirmed) {
     return ha.error({

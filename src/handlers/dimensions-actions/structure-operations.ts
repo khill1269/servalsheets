@@ -37,7 +37,8 @@ export async function handleInsert(
       [isRows ? 'affectedRows' : 'affectedColumns']: count,
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
-    }
+    },
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
@@ -121,7 +122,8 @@ export async function handleDelete(
   const confirmed = await ha.confirmOperation(
     `Delete ${isRows ? 'Rows' : 'Columns'}`,
     `You are about to delete ${count} ${label} (${label} ${input.startIndex + 1}-${input.endIndex}).\n\nAll data, formatting, and formulas will be permanently removed.`,
-    safetyContext
+    safetyContext,
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
@@ -170,8 +172,7 @@ export async function handleDelete(
 
   // Trigger background quality analysis after destructive operation
   const analysisConfig = getBackgroundAnalysisConfig();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (analysisConfig.enabled && count >= (analysisConfig as any).minCells) {
+  if (analysisConfig.enabled && count >= analysisConfig.minCells) {
     const analyzer = getBackgroundAnalyzer();
     // Estimate affected cells (conservative: rows * 26 columns OR columns * 1000 rows)
     const estimatedCells = isRows ? count * 26 : count * 1000;
@@ -182,10 +183,8 @@ export async function handleDelete(
       ha.sheetsApi,
       {
         qualityThreshold: 70,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        minCellsChanged: (analysisConfig as any).minCells,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        debounceMs: (analysisConfig as any).debounceMs,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
       }
     );
   }
@@ -260,7 +259,8 @@ export async function handleMove(
       [isRows ? 'affectedRows' : 'affectedColumns']: count,
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
-    }
+    },
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
@@ -481,7 +481,8 @@ export async function handleAppend(
       [isRows ? 'affectedRows' : 'affectedColumns']: count,
       isDestructive: false,
       spreadsheetId: input.spreadsheetId,
-    }
+    },
+    { preConfirmed: input.safety?.confirmed === true }
   );
 
   if (!confirmed) {
