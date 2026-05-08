@@ -184,6 +184,84 @@ describe('Composite Handler', () => {
     });
   });
 
+  describe('build_dashboard action', () => {
+    it('wires chart data ranges into embedded chart series', async () => {
+      const result = await handler.handle({
+        action: 'build_dashboard',
+        spreadsheetId: 'test123',
+        dataSheet: 'Sheet1',
+        dashboardSheet: 'Dashboard',
+        layout: 'full_analytics',
+        charts: [
+          {
+            type: 'LINE',
+            dataRange: 'Sheet1!A1:C10',
+            title: 'Revenue Trend',
+          },
+        ],
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const chartCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls.find(
+        ([arg]: any[]) => arg.requestBody?.requests?.[0]?.addChart
+      );
+      const chartSpec = chartCall?.[0].requestBody.requests[0].addChart.chart.spec.basicChart;
+
+      expect(chartSpec.series[0].series.sourceRange.sources).toEqual([
+        {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 10,
+          startColumnIndex: 1,
+          endColumnIndex: 3,
+        },
+      ]);
+      expect(chartSpec.domains[0].domain.sourceRange.sources).toEqual([
+        {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 10,
+          startColumnIndex: 0,
+          endColumnIndex: 1,
+        },
+      ]);
+    });
+
+    it('creates scorecard charts for KPI tiles', async () => {
+      const result = await handler.handle({
+        action: 'build_dashboard',
+        spreadsheetId: 'test123',
+        dataSheet: 'Sheet1',
+        dashboardSheet: 'Dashboard',
+        layout: 'full_analytics',
+        charts: [
+          {
+            type: 'SCORECARD',
+            dataRange: 'Sheet1!B2:B2',
+            title: 'Total Revenue',
+          },
+        ],
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const chartCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls.find(
+        ([arg]: any[]) => arg.requestBody?.requests?.[0]?.addChart
+      );
+      const chartSpec = chartCall?.[0].requestBody.requests[0].addChart.chart.spec;
+
+      expect(chartSpec.basicChart).toBeUndefined();
+      expect(chartSpec.scorecardChart.keyValueData.sourceRange.sources).toEqual([
+        {
+          sheetId: 0,
+          startRowIndex: 1,
+          endRowIndex: 2,
+          startColumnIndex: 1,
+          endColumnIndex: 2,
+        },
+      ]);
+    });
+  });
+
   // ============================================================================
   // IMPORT_CSV Tests
   // ============================================================================

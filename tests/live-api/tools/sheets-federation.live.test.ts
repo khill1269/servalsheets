@@ -49,23 +49,16 @@ describe.skipIf(!runLiveTests)('sheets_federation Live API Tests', () => {
         },
       });
 
-      if (!federationEnabled) {
-        // Federation disabled — expect structured error response, not an exception
-        expect(result.response.success).toBe(false);
-        if (!result.response.success) {
-          const errResp = result.response as FederationErrorShape;
-          expect(typeof errResp.error).toBe('string');
-          expect(errResp.error.length).toBeGreaterThan(0);
-          if (errResp.errorDetail) {
-            expect(typeof errResp.errorDetail.code).toBe('string');
-          }
-        }
+      expect(typeof result.response.success).toBe('boolean');
+      if (result.response.success) {
+        const resp = result.response as { servers: unknown[] };
+        expect(Array.isArray(resp.servers)).toBe(true);
       } else {
-        // Federation enabled — may be empty array if no servers configured
-        expect(typeof result.response.success).toBe('boolean');
-        if (result.response.success) {
-          const resp = result.response as { servers: unknown[] };
-          expect(Array.isArray(resp.servers)).toBe(true);
+        const errResp = result.response as FederationErrorShape;
+        expect(typeof errResp.error).toBe('string');
+        expect(errResp.error.length).toBeGreaterThan(0);
+        if (errResp.errorDetail) {
+          expect(typeof errResp.errorDetail.code).toBe('string');
         }
       }
     });

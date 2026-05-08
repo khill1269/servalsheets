@@ -1647,7 +1647,7 @@ const ACTION_HINT_OVERRIDES: Record<string, Record<string, ActionHintOverride>> 
       required: ['spreadsheetId', 'query'],
       optional: ['topK', 'sheetName', 'forceReindex'],
       description:
-        'Vector search across spreadsheet content using embeddings. Requires VOYAGE_API_KEY env. Results ranked by cosine similarity. Use forceReindex:true after data changes.',
+        'Vector search across spreadsheet content using Gemini text-embedding-004. Requires GOOGLE_API_KEY env. Results ranked by cosine similarity. Use forceReindex:true after data changes.',
     },
   },
   sheets_fix: {

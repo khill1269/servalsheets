@@ -6,6 +6,7 @@
  */
 
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
+import { executeWithRetry } from '../utils/retry.js';
 import type { Intent } from '../core/intent.js';
 import type { sheets_v4 } from 'googleapis';
 import type {
@@ -165,11 +166,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     spreadsheetId: string,
     range: string
   ): Promise<(string | number | boolean | null)[][]> {
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-      valueRenderOption: 'UNFORMATTED_VALUE',
-    });
+    const response = await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      })
+    );
 
     return (response.data.values ?? []) as (string | number | boolean | null)[][];
   }
@@ -202,14 +205,16 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     }
 
     // Write the entire updated range back
-    await this.sheetsApi.spreadsheets.values.update({
-      spreadsheetId,
-      range,
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: updatedData,
-      },
-    });
+    await executeWithRetry(() =>
+      this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId,
+        range,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: updatedData,
+        },
+      })
+    );
   }
 
   /**

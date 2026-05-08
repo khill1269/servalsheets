@@ -160,15 +160,19 @@ describe('Action Matrix Support', () => {
         counts[capability.mode] += 1;
         return counts;
       },
-      { mcp_execute: 0, probe_only: 0, skip_external: 0 }
+      { mcp_execute: 0, staged_mcp_execute: 0, probe_only: 0, external_pack: 0 }
     );
 
     expect(modeCounts.mcp_execute).toBeGreaterThan(0);
+    expect(modeCounts.staged_mcp_execute).toBeGreaterThan(0);
     expect(modeCounts.probe_only).toBeGreaterThan(0);
-    expect(modeCounts.skip_external).toBeGreaterThan(0);
-    expect(modeCounts.mcp_execute + modeCounts.probe_only + modeCounts.skip_external).toBe(
-      fixtures.length
-    );
+    expect(modeCounts.external_pack).toBeGreaterThan(0);
+    expect(
+      modeCounts.mcp_execute +
+        modeCounts.staged_mcp_execute +
+        modeCounts.probe_only +
+        modeCounts.external_pack
+    ).toBe(fixtures.length);
   });
 
   it('keeps action overrides in sync with the generated fixture set', () => {
@@ -264,8 +268,8 @@ describe('Action Matrix Support', () => {
         tool: 'sheets_bigquery',
         action: 'connect',
         actionKey: 'sheets_bigquery.connect',
-        mode: 'skip_external',
-        assertionSource: 'skip_policy',
+        mode: 'external_pack',
+        assertionSource: 'external_policy',
         reason: 'skip',
         success: false,
         gated: false,
@@ -278,8 +282,9 @@ describe('Action Matrix Support', () => {
 
     expect(summary.totalActions).toBe(4);
     expect(summary.executed).toBe(2);
+    expect(summary.stagedExecuted).toBe(0);
     expect(summary.probed).toBe(1);
-    expect(summary.skipped).toBe(1);
+    expect(summary.external).toBe(1);
     expect(summary.gatedActions).toBe(3);
     expect(summary.passed).toBe(2);
     expect(summary.failed).toBe(1);

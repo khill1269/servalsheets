@@ -135,8 +135,9 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     console.log('═══════════════════════════════════════');
     console.log(`Total:    ${report.totalActions}`);
     console.log(`Executed: ${report.executed}`);
+    console.log(`Staged:   ${report.stagedExecuted}`);
     console.log(`Probed:   ${report.probed}`);
-    console.log(`Skipped:  ${report.skipped}`);
+    console.log(`External: ${report.external}`);
     console.log(`Passed:   ${report.passed}`);
     console.log(`Failed:   ${report.failed}`);
     console.log(`Rate:     ${report.passRate}`);
@@ -227,7 +228,9 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     );
 
     expect(results).toHaveLength(MATRIX_FIXTURES.length);
-    expect(report.executed + report.probed + report.skipped).toBe(MATRIX_FIXTURES.length);
+    expect(report.executed + report.stagedExecuted + report.probed + report.external).toBe(
+      MATRIX_FIXTURES.length
+    );
   });
 
   it('overall: pass rate >= 95% for executed and probed actions', () => {
@@ -248,7 +251,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     fixture: ActionFixture,
     capability: ActionCapability
   ): Promise<MatrixActionResult> {
-    if (capability.mode === 'skip_external') {
+    if (capability.mode === 'external_pack') {
       return {
         tool: fixture.tool,
         action: fixture.action,
@@ -262,6 +265,9 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         latencyMs: 0,
         attemptCount: 0,
         retryCount: 0,
+        quotaEstimate: capability.executionProfile.quotaEstimate,
+        setupPack: capability.setupPack,
+        failureCategory: 'external_missing_config',
       };
     }
 
@@ -283,6 +289,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         assertionSource: 'google_probe',
         probeStrategy: capability.probeStrategy ?? 'spreadsheet_metadata',
         executionProfile: DEFAULT_PROBE_EXECUTION_PROFILE,
+        cascadeDowngraded: true,
       };
     }
 
@@ -323,11 +330,16 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         errorMessage: err.message,
         attemptCount: 0,
         retryCount: 0,
+        quotaEstimate: effectiveCapability.executionProfile.quotaEstimate,
+        setupPack: effectiveCapability.setupPack,
+        cascadeDowngraded: effectiveCapability.cascadeDowngraded,
+        failureCategory: 'fixture',
       };
     }
 
     try {
-      return effectiveCapability.mode === 'mcp_execute'
+      return effectiveCapability.mode === 'mcp_execute' ||
+        effectiveCapability.mode === 'staged_mcp_execute'
         ? await executeMcpAction(fixture, effectiveCapability, executionContext)
         : await executeProbe(fixture, effectiveCapability, executionContext);
     } finally {
@@ -342,7 +354,14 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
     capability: ActionCapability,
     context: MatrixExecutionContext
   ): Promise<MatrixActionResult> {
-    const requestEnvelope = materializeFixtureRequest(fixture, getMaterializeOptions(context));
+    const resourceIds =
+      capability.mode === 'staged_mcp_execute'
+        ? await ensureStagedResources(client, capability, context)
+        : undefined;
+    const requestEnvelope = materializeFixtureRequest(fixture, {
+      ...getMaterializeOptions(context),
+      resourceIds,
+    });
 
     const start = Date.now();
     const profile = capability.executionProfile;
@@ -383,6 +402,9 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
             latencyMs: Date.now() - start,
             attemptCount,
             retryCount: attemptCount - 1,
+            quotaEstimate: capability.executionProfile.quotaEstimate,
+            setupPack: capability.setupPack,
+            cascadeDowngraded: capability.cascadeDowngraded,
           };
         }
 
@@ -401,10 +423,17 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
           attemptCount,
           retryCount: attemptCount - 1,
           mcpError: parsed.mcpError,
+          quotaEstimate: capability.executionProfile.quotaEstimate,
+          setupPack: capability.setupPack,
+          cascadeDowngraded: capability.cascadeDowngraded,
+          failureCategory: categorizeMcpFailure(parsed),
         };
 
         const retryDelayMs = resolveMcpRetryDelay(capability, parsed);
         if (retryDelayMs !== null && attempt < profile.maxAttempts) {
+          failure.retryReason = isRetryableRateLimitMcpOutcome(parsed)
+            ? 'rate_limit'
+            : 'transport_timeout';
           lastFailure = failure;
           await waitForExecutionSlot(capability);
           continue;
@@ -429,10 +458,15 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
           attemptCount,
           retryCount: attemptCount - 1,
           transportError,
+          quotaEstimate: capability.executionProfile.quotaEstimate,
+          setupPack: capability.setupPack,
+          cascadeDowngraded: capability.cascadeDowngraded,
+          failureCategory: categorizeTransportFailure(transportError),
         };
 
         const retryDelayMs = resolveTransportRetryDelay(capability, transportError);
         if (retryDelayMs !== null && attempt < profile.maxAttempts) {
+          failure.retryReason = 'transport_timeout';
           lastFailure = failure;
           await waitForExecutionSlot(capability);
           continue;
@@ -457,6 +491,10 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         errorMessage: 'Matrix retry loop exited without a terminal result',
         attemptCount,
         retryCount: Math.max(0, attemptCount - 1),
+        quotaEstimate: capability.executionProfile.quotaEstimate,
+        setupPack: capability.setupPack,
+        cascadeDowngraded: capability.cascadeDowngraded,
+        failureCategory: 'unknown',
       }
     );
   }
@@ -487,6 +525,9 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         httpStatus: response.status,
         attemptCount: 1,
         retryCount: 0,
+        quotaEstimate: capability.executionProfile.quotaEstimate,
+        setupPack: capability.setupPack,
+        cascadeDowngraded: capability.cascadeDowngraded,
       };
     } catch (error) {
       recordExecutionEstimate(capability);
@@ -508,6 +549,10 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         attemptCount: 1,
         retryCount: 0,
         transportError,
+        quotaEstimate: capability.executionProfile.quotaEstimate,
+        setupPack: capability.setupPack,
+        cascadeDowngraded: capability.cascadeDowngraded,
+        failureCategory: categorizeTransportFailure(transportError),
       };
     }
   }
@@ -529,7 +574,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   }
 
   async function applyInterActionDelay(capability: ActionCapability): Promise<void> {
-    if (capability.mode === 'skip_external') {
+    if (capability.mode === 'external_pack') {
       return;
     }
 
@@ -730,6 +775,191 @@ async function cleanupExecutionContext(
   for (const spreadsheetId of spreadsheetIds) {
     await manager.deleteSpreadsheet(spreadsheetId as string);
   }
+}
+
+async function ensureStagedResources(
+  client: LiveApiClient,
+  capability: ActionCapability,
+  context: MatrixExecutionContext
+): Promise<Record<string, string | number> | undefined> {
+  switch (capability.setupPack) {
+    case 'named_range_lifecycle':
+      return ensureNamedRange(client, context);
+    case 'protected_range_lifecycle':
+      return ensureProtectedRange(client, context);
+    case 'filter_view_lifecycle':
+      return ensureFilterView(client, context);
+    case 'chart_lifecycle':
+      return ensureChart(client, context);
+    default:
+      return undefined;
+  }
+}
+
+async function ensureNamedRange(
+  client: LiveApiClient,
+  context: MatrixExecutionContext
+): Promise<Record<string, string | number>> {
+  const response = await client.executeRead('matrix.stage.namedRange.get', async () =>
+    client.sheets.spreadsheets.get({
+      spreadsheetId: context.primary.id,
+      fields: 'namedRanges(namedRangeId,name)',
+    })
+  );
+  const namedRange =
+    response.data.namedRanges?.find((range) => range.name === 'TestRange') ??
+    response.data.namedRanges?.[0];
+
+  if (!namedRange?.namedRangeId) {
+    throw new Error('Staged named range setup did not produce a namedRangeId');
+  }
+
+  return { namedRangeId: namedRange.namedRangeId };
+}
+
+async function ensureProtectedRange(
+  client: LiveApiClient,
+  context: MatrixExecutionContext
+): Promise<Record<string, string | number>> {
+  const response = await client.executeWrite('matrix.stage.protectedRange.create', async () =>
+    client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: context.primary.id,
+      requestBody: {
+        requests: [
+          {
+            addProtectedRange: {
+              protectedRange: {
+                range: {
+                  sheetId: context.primary.sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 2,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+                description: `Matrix protected range ${Date.now()}`,
+                warningOnly: true,
+              },
+            },
+          },
+        ],
+      },
+    })
+  );
+  const protectedRangeId = response.data.replies?.[0]?.addProtectedRange?.protectedRange?.protectedRangeId;
+  if (protectedRangeId === undefined || protectedRangeId === null) {
+    throw new Error('Staged protected range setup did not produce a protectedRangeId');
+  }
+  return { protectedRangeId };
+}
+
+async function ensureFilterView(
+  client: LiveApiClient,
+  context: MatrixExecutionContext
+): Promise<Record<string, string | number>> {
+  const response = await client.executeWrite('matrix.stage.filterView.create', async () =>
+    client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: context.primary.id,
+      requestBody: {
+        requests: [
+          {
+            addFilterView: {
+              filter: {
+                title: `Matrix Filter ${Date.now()}`,
+                range: {
+                  sheetId: context.primary.sheetId,
+                  startRowIndex: 0,
+                  endRowIndex: 6,
+                  startColumnIndex: 0,
+                  endColumnIndex: 6,
+                },
+              },
+            },
+          },
+        ],
+      },
+    })
+  );
+  const filterViewId = response.data.replies?.[0]?.addFilterView?.filter?.filterViewId;
+  if (filterViewId === undefined || filterViewId === null) {
+    throw new Error('Staged filter view setup did not produce a filterViewId');
+  }
+  return { filterViewId };
+}
+
+async function ensureChart(
+  client: LiveApiClient,
+  context: MatrixExecutionContext
+): Promise<Record<string, string | number>> {
+  const response = await client.executeWrite('matrix.stage.chart.create', async () =>
+    client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: context.primary.id,
+      requestBody: {
+        requests: [
+          {
+            addChart: {
+              chart: {
+                spec: {
+                  title: `Matrix Chart ${Date.now()}`,
+                  basicChart: {
+                    chartType: 'COLUMN',
+                    legendPosition: 'BOTTOM_LEGEND',
+                    domains: [
+                      {
+                        domain: {
+                          sourceRange: {
+                            sources: [
+                              {
+                                sheetId: context.primary.sheetId,
+                                startRowIndex: 0,
+                                endRowIndex: 6,
+                                startColumnIndex: 0,
+                                endColumnIndex: 1,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                    series: [
+                      {
+                        series: {
+                          sourceRange: {
+                            sources: [
+                              {
+                                sheetId: context.primary.sheetId,
+                                startRowIndex: 0,
+                                endRowIndex: 6,
+                                startColumnIndex: 1,
+                                endColumnIndex: 2,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+                position: {
+                  overlayPosition: {
+                    anchorCell: {
+                      sheetId: context.primary.sheetId,
+                      rowIndex: 8,
+                      columnIndex: 0,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    })
+  );
+  const chartId = response.data.replies?.[0]?.addChart?.chart?.chartId;
+  if (chartId === undefined || chartId === null) {
+    throw new Error('Staged chart setup did not produce a chartId');
+  }
+  return { chartId };
 }
 
 async function createMatrixSpreadsheet(
@@ -1152,6 +1382,42 @@ function isRetryableTimeoutMcpOutcome(parsed: ParsedMcpOutcome): boolean {
 
 function isTransportTimeoutError(error: { message: string; status?: number }): boolean {
   return error.status === 408 || /timed out|deadline exceeded|request timeout/i.test(error.message);
+}
+
+function categorizeMcpFailure(parsed: ParsedMcpOutcome): MatrixActionResult['failureCategory'] {
+  if (isRetryableRateLimitMcpOutcome(parsed) || isRetryableTimeoutMcpOutcome(parsed)) {
+    return 'quota_or_transient';
+  }
+
+  const code = parsed.mcpError?.code ?? parsed.errorCode ?? '';
+  const message = parsed.mcpError?.message ?? parsed.errorMessage ?? '';
+
+  if (/invalid|validation|missing|required|precondition/i.test(code) || /fixture|invalid|missing|required/i.test(message)) {
+    return 'fixture';
+  }
+  if (/not found|unsupported|unknown field|bad request/i.test(message)) {
+    return 'google_api_drift';
+  }
+  if (/internal|exception|failed/i.test(code) || /internal|exception/i.test(message)) {
+    return 'server_bug';
+  }
+  return 'unknown';
+}
+
+function categorizeTransportFailure(error: {
+  message: string;
+  status?: number;
+}): MatrixActionResult['failureCategory'] {
+  if (error.status === 429 || error.status === 408 || error.status === 500 || error.status === 502 || error.status === 503 || error.status === 504) {
+    return 'quota_or_transient';
+  }
+  if (error.status === 400 || error.status === 404) {
+    return 'google_api_drift';
+  }
+  if (/invalid|missing|required|fixture/i.test(error.message)) {
+    return 'fixture';
+  }
+  return 'unknown';
 }
 
 process.on('exit', () => {

@@ -73,6 +73,7 @@ vi.mock('../../src/security/incremental-scope.js', () => {
   const MockScopeValidator = vi.fn().mockImplementation(function (this: any) {
     this.requireScope = vi.fn();
     this.hasScope = vi.fn().mockReturnValue(true);
+    this.hasRequiredScopes = vi.fn().mockReturnValue(true);
     this.validateOperation = vi.fn();
     this.getOperationRequirements = vi.fn().mockReturnValue(null);
     this.generateIncrementalAuthUrl = vi.fn().mockReturnValue('https://auth.example.com');
@@ -81,6 +82,10 @@ vi.mock('../../src/security/incremental-scope.js', () => {
   return {
     ScopeValidator: MockScopeValidator,
     IncrementalScopeRequiredError: class extends Error {},
+    InsufficientScopeError: class extends Error { readonly code = 'INSUFFICIENT_PERMISSIONS'; },
+    // Empty map so checkOperationScopes returns early for all operations (no scope requirements)
+    OPERATION_SCOPES: {},
+    ScopeCategory: {},
   };
 });
 

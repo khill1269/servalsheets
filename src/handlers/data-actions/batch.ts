@@ -13,7 +13,8 @@ import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.j
 import { validateSamplingOutput } from '../../services/sampling-validator.js';
 import { parseA1Notation, toGridRange } from '../../utils/google-sheets-helpers.js';
 import { extractSheetName } from '../../utils/range-helpers.js';
-import type { DataHandlerAccess, ResponseFormat, MAX_BATCH_RANGES as _MAX } from './internal.js';
+import type { DataHandlerAccess, MAX_BATCH_RANGES as _MAX } from './internal.js';
+import { getResponseFormat } from './internal.js';
 import { MAX_BATCH_RANGES } from './internal.js';
 import {
   resolveRangeToA1,
@@ -107,7 +108,7 @@ export async function handleBatchRead(
   ha: DataHandlerAccess,
   input: DataRequest & { action: 'batch_read' }
 ): Promise<DataResponse> {
-  const responseFormat = (input.response_format ?? 'full') as ResponseFormat;
+  const responseFormat = getResponseFormat(input);
   const wantsPagination = Boolean(input.cursor || input.pageSize);
 
   if (wantsPagination) {
@@ -196,21 +197,6 @@ export async function handleBatchRead(
   }
 
   if (input.dataFilters && input.dataFilters.length > 0) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'batch_read',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter batch reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix:
-          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-      });
-    }
-
     const response = await ha.api.spreadsheets.values.batchGetByDataFilter({
       spreadsheetId: input.spreadsheetId,
       fields: 'valueRanges(valueRange(range,values))',
@@ -403,7 +389,11 @@ export async function handleBatchRead(
         fields: 'valueRanges(range,values)',
       })
     );
-    void ha.sendProgress(1, 1, `batch_read: fetched ${mergedRangeStrings.length} ranges via batchGet`);
+    void ha.sendProgress(
+      1,
+      1,
+      `batch_read: fetched ${mergedRangeStrings.length} ranges via batchGet`
+    );
     const mergedResults = response.data.valueRanges ?? [];
 
     valueRanges = new Array(ranges.length);
@@ -531,21 +521,6 @@ export async function handleBatchWrite(
 
   const hasDataFilters = input.data.some((d) => (d as { dataFilter?: unknown }).dataFilter);
   const hasRanges = input.data.some((d) => (d as { range?: unknown }).range);
-
-  if (hasDataFilters && !ha.featureFlags.enableDataFilterBatch) {
-    ha.context.metrics?.recordFeatureFlagBlock({
-      flag: 'dataFilterBatch',
-      tool: ha.toolName,
-      action: 'batch_write',
-    });
-    return ha.makeError({
-      code: ErrorCodes.FEATURE_UNAVAILABLE,
-      message: 'DataFilter batch writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-      retryable: false,
-      suggestedFix:
-        'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-    });
-  }
 
   if (hasDataFilters && !hasRanges) {
     const data = input.data.map((d) => ({
@@ -812,7 +787,8 @@ export async function handleBatchClear(
     'batch_clear',
     `Clear ${batchClearTargets} range(s) in spreadsheet ${input.spreadsheetId}. All cell values in the specified ranges will be permanently erased. This action cannot be undone.`,
     Math.max(batchClearTargets, 1),
-    0
+    0,
+    input.safety?.confirmed === true
   );
   if (!batchClearConfirmation.proceed) {
     return ha.makeError({
@@ -823,21 +799,6 @@ export async function handleBatchClear(
   }
 
   if (input.dataFilters && input.dataFilters.length > 0) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'batch_clear',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter batch clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix:
-          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
-      });
-    }
-
     if (input.safety?.dryRun) {
       return ha.makeSuccess(
         'batch_clear',

@@ -75,7 +75,7 @@ curl http://localhost:3000/health/ready
 # Prometheus metrics (50+ metrics: latency, errors, quota, cache, circuit breaker)
 curl http://localhost:9464/metrics | grep servalsheets_
 
-# MCP Inspector — test all 409 actions interactively without writing test code
+# MCP Inspector — test all 410 actions interactively without writing test code
 # See claude_desktop_config.example.json for server config
 npx @modelcontextprotocol/inspector -- node dist/cli.js
 # Browser UI: http://localhost:6274   |   Proxy: http://localhost:6277

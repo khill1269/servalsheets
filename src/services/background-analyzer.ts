@@ -8,6 +8,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { LRUCache } from 'lru-cache';
 import { logger } from '../utils/logger.js';
 import { getSessionContext } from './session-context.js';
 
@@ -26,7 +27,7 @@ interface BackgroundAnalysisResult {
 
 export class BackgroundAnalyzer {
   private pendingAnalyses = new Map<string, NodeJS.Timeout>();
-  private analysisHistory = new Map<string, number[]>(); // spreadsheetId → quality scores
+  private analysisHistory = new LRUCache<string, number[]>({ max: 1000, ttl: 60 * 60 * 1000 }); // spreadsheetId → quality scores
 
   private readonly defaultConfig: AnalysisConfig = {
     qualityThreshold: 70,

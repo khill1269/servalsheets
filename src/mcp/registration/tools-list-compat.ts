@@ -12,7 +12,7 @@ import { DEFER_SCHEMAS, getEffectiveToolMode } from '../../config/constants.js';
 import { getEnv } from '../../config/env.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { logger } from '../../utils/logger.js';
-import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
+import { isZodSchemaLike, zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
 import { getSessionContext } from '../../services/session-context.js';
 import { ACTION_COUNTS } from '../../schemas/action-counts.js';
 import { TOOL_ACTIONS } from '../../schemas/index.js';
@@ -64,26 +64,6 @@ interface ToolsListCursor {
   offset: number;
 }
 
-/**
- * Detect Zod schemas by their internal shape markers.
- *
- * `_def` is the private metadata property on all Zod v3 schemas.
- * `_zod` is the equivalent marker introduced in Zod v4.
- * Both are undocumented internals — if Zod releases a breaking change that
- * removes both markers, this check will return false and toJsonSchema() will
- * fall through to the EMPTY_OBJECT_JSON_SCHEMA fallback (safe degradation).
- *
- * If upgrading Zod and flat-tool schemas start rendering as {} for all tools,
- * this is the first place to check.
- */
-function isZodSchema(schema: unknown): boolean {
-  return Boolean(
-    schema &&
-    typeof schema === 'object' &&
-    ('_def' in (schema as Record<string, unknown>) || '_zod' in (schema as Record<string, unknown>))
-  );
-}
-
 function toJsonSchema(
   schema: unknown,
   options?: { toolName?: string; schemaType?: 'input' | 'output' }
@@ -94,12 +74,12 @@ function toJsonSchema(
 
   const { toolName, schemaType = 'input' } = options ?? {};
   const schemaForSerialization =
-    toolName && isZodSchema(schema)
+    toolName && isZodSchemaLike(schema)
       ? prepareSchemaForRegistrationCached(toolName, schema as z.ZodType, schemaType)
       : schema;
 
   let result: Record<string, unknown>;
-  if (isZodSchema(schemaForSerialization)) {
+  if (isZodSchemaLike(schemaForSerialization)) {
     try {
       result = zodSchemaToJsonSchema(schemaForSerialization as unknown as import('zod').ZodTypeAny);
     } catch (err) {

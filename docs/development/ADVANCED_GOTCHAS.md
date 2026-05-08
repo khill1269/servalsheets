@@ -54,7 +54,7 @@ const source = inferErrorSource(error); // 'google_api' | 'ai_service' | 'valida
 The sync `convertRangeInput` private method was removed from `AnalyzeHandler`. All callers now use `convertRangeInputAsync(spreadsheetId, range)` which:
 
 - Handles `grid` branch via `convertGridRangeToA1`
-- Returns `{ notImplemented: true, reason }` for `semantic` (caller must emit `NOT_IMPLEMENTED`)
+- Handles `semantic` branch via `RangeResolver`
 - Handles `a1` and `namedRange` synchronously (same as before)
 
 Deps interfaces that used to accept `(range) => ConvertedRangeInput | undefined` now accept `(range) => Promise<ConvertedRangeInput | { notImplemented: true; reason: string } | undefined>`.

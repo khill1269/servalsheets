@@ -463,17 +463,19 @@ export class RequestDeduplicator {
  * Config sourced from Zod-validated env (getEnv) so invalid values are
  * caught at startup rather than silently using wrong defaults at runtime.
  */
-export const requestDeduplicator = new RequestDeduplicator((() => {
-  const env = getEnv();
-  return {
-    enabled: env['DEDUPLICATION_ENABLED'],
-    timeout: env['DEDUPLICATION_TIMEOUT'],
-    maxPendingRequests: env['DEDUPLICATION_MAX_PENDING'],
-    resultCacheEnabled: env['RESULT_CACHE_ENABLED'],
-    resultCacheTTL: env['RESULT_CACHE_TTL'],
-    resultCacheMaxSize: env['RESULT_CACHE_MAX_SIZE'],
-  };
-})());
+export const requestDeduplicator = new RequestDeduplicator(
+  (() => {
+    const env = getEnv();
+    return {
+      enabled: env['DEDUPLICATION_ENABLED'],
+      timeout: env['DEDUPLICATION_TIMEOUT'],
+      maxPendingRequests: env['DEDUPLICATION_MAX_PENDING'],
+      resultCacheEnabled: env['RESULT_CACHE_ENABLED'],
+      resultCacheTTL: env['RESULT_CACHE_TTL'],
+      resultCacheMaxSize: env['RESULT_CACHE_MAX_SIZE'],
+    };
+  })()
+);
 
 /**
  * Helper: Create a request key from parameters

@@ -32,7 +32,7 @@ describe.skipIf(!runLiveTests)('sheets_auth Live API Tests', () => {
       throw new Error('Test credentials not available');
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
-    manager = new TestSpreadsheetManager(client);
+    manager = new TestSpreadsheetManager(client, undefined, { usePool: false });
   });
 
   afterAll(async () => {

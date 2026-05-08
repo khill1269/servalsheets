@@ -87,6 +87,26 @@ export function isZodObject(schema: unknown): schema is z.ZodObject<z.ZodRawShap
 }
 
 /**
+ * Detects any Zod schema instance.
+ *
+ * Zod does not expose one public cross-version predicate for every schema
+ * kind. Prefer `instanceof z.ZodType` for the active runtime; retain the
+ * private marker fallback in this isolated helper so version-compatibility
+ * risk is covered by tests and not duplicated across registration code.
+ */
+export function isZodSchemaLike(schema: unknown): schema is ZodTypeAny {
+  if (!schema || typeof schema !== 'object') {
+    return false;
+  }
+
+  if (schema instanceof z.ZodType) {
+    return true;
+  }
+
+  return '_def' in schema || '_zod' in schema;
+}
+
+/**
  * Unwraps Zod wrappers like preprocess/pipe/effects to their output schema.
  *
  * This helps schema detection work with z.preprocess and z.pipe wrappers.
@@ -207,15 +227,14 @@ export function zodSchemaToJsonSchema(
       component: 'schema-compat',
       schemaType: typeof jsonSchema,
     });
-    return { type: 'object', properties: {} };
+    throw new Error(`Unexpected JSON Schema format from z.toJSONSchema: ${typeof jsonSchema}`);
   } catch (error) {
     logger.error('JSON Schema conversion failed', {
       component: 'schema-compat',
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
-    // Fallback for conversion failures
-    return { type: 'object', properties: {} };
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 

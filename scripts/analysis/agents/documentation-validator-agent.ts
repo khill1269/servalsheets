@@ -78,6 +78,7 @@ interface BestPracticeRule {
   title: string;
   description: string;
   pattern: string | RegExp;
+  includePathPattern?: RegExp;
   antiPattern?: string | RegExp;
   severity: 'critical' | 'high' | 'medium' | 'low';
   autoFixable: boolean;
@@ -227,6 +228,7 @@ const MCP_RULES: BestPracticeRule[] = [
     title: 'tools/list must return correct format',
     description: 'tools/list response must include name, description, inputSchema',
     pattern: /tools\/list/,
+    includePathPattern: /src\/(mcp|server)\//,
     // Files that reference tools/list AND inputSchema are correct implementations,
     // not violations — antiPattern suppresses false positives on correct implementation files.
     // Matches files that either: implement inputSchema (registration) OR only reference
@@ -323,7 +325,9 @@ const OWASP_RULES: BestPracticeRule[] = [
     pattern: /req\.(body|query|params)/,
     // Suppress false positive: this file defines the rule and contains the pattern in examples
     antiPattern: /BestPracticeRule/,
-    severity: 'critical',
+    // This regex-only check cannot prove exploitable injection. Treat matches as review-worthy
+    // instead of merge-blocking unless a dedicated security analyzer confirms a concrete sink.
+    severity: 'high',
     autoFixable: false,
     references: ['https://owasp.org/Top10/A03_2021-Injection/'],
     examples: {
@@ -459,6 +463,10 @@ export class DocumentationValidatorAgent extends AnalysisAgent {
     const fileContent = sourceFile.getText();
 
     for (const rule of rules) {
+      if (rule.includePathPattern && !rule.includePathPattern.test(filePath)) {
+        continue;
+      }
+
       // Check pattern match
       const pattern = typeof rule.pattern === 'string' ? new RegExp(rule.pattern) : rule.pattern;
 

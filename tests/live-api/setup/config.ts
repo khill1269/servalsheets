@@ -175,7 +175,7 @@ function getPoolConfig(): TestPoolConfig {
     healthCheckIntervalMs: getEnvNumber('TEST_POOL_HEALTH_CHECK_MS', 60000),
     maxBorrowWaitMs: getEnvNumber('TEST_POOL_MAX_BORROW_WAIT_MS', 30000),
     maxSpreadsheetAgeMs: getEnvNumber('TEST_POOL_MAX_AGE_MS', 24 * 60 * 60 * 1000),
-    spreadsheetPrefix: process.env['TEST_SPREADSHEET_PREFIX'] ?? 'ServalSheets_Test_',
+    spreadsheetPrefix: process.env['TEST_SPREADSHEET_PREFIX'] ?? 'SERVAL_TEST_',
   };
 }
 

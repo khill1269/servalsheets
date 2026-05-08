@@ -31,10 +31,7 @@ function hasNestedQuantifiers(pattern: string): boolean {
  * Validates a regex pattern for safety before compiling it.
  * Throws ValidationError with a user-readable message if unsafe.
  */
-export function validateRegexPattern(
-  pattern: string,
-  source: 'user' | 'api' = 'user'
-): void {
+export function validateRegexPattern(pattern: string, source: 'user' | 'api' = 'user'): void {
   const maxLength = source === 'user' ? MAX_PATTERN_LENGTH_USER : MAX_PATTERN_LENGTH_API;
 
   if (pattern.length > maxLength) {

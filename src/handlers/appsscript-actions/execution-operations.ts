@@ -149,7 +149,8 @@ export async function handleRun(
   if (!runTarget) {
     return access.error({
       code: ErrorCodes.INVALID_PARAMS,
-      message: 'run requires deploymentId unless devMode:true. When devMode:true, scriptId is used as the run target.',
+      message:
+        'run requires deploymentId unless devMode:true. When devMode:true, scriptId is used as the run target.',
       retryable: false,
     });
   }

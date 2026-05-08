@@ -822,7 +822,16 @@ export const InstantiateTemplateInputSchema = z.object({
     .string()
     .describe('Template spreadsheet ID (from sheets_templates or a known Google Sheets file)'),
   variables: z
-    .record(z.string(), z.string())
+    .record(
+      z
+        .string()
+        .max(200)
+        .regex(
+          /^[a-zA-Z0-9_. :-]+$/,
+          'Variable key may only contain alphanumeric characters, underscores, dots, spaces, colons, and hyphens'
+        ),
+      z.string().max(10000)
+    )
     .describe(
       'Key-value map of placeholder names to replacement values (e.g., { "companyName": "Acme Corp" })'
     ),
@@ -1293,7 +1302,9 @@ export const BuildDashboardInputSchema = z
     charts: z
       .array(
         z.object({
-          type: z.string().describe('Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER'),
+          type: z
+            .string()
+            .describe('Chart type. Examples: BAR, LINE, PIE, COLUMN, SCATTER, SCORECARD'),
           dataRange: z
             .string()
             .describe('A1 notation range for chart data. Example: "\'Sales Data\'!A1:B12"'),

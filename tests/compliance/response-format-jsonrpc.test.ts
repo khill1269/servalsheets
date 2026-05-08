@@ -73,6 +73,26 @@ describe('Response Format Compliance (JSON-RPC)', () => {
   }
 
   describe('structuredContent Field', () => {
+    it('returns tool execution error for invalid tool input instead of JSON-RPC error', async () => {
+      const response = (await sendJsonRpcRequest('tools/call', {
+        name: 'sheets_auth',
+        arguments: {
+          request: { action: 'definitely_not_a_real_action' },
+        },
+      })) as {
+        error?: { code: number; message: string };
+        result?: {
+          content?: Array<{ type: string; text: string }>;
+          isError?: boolean;
+        };
+      };
+
+      expect(response.error).toBeUndefined();
+      expect(response.result?.isError).toBe(true);
+      expect(response.result?.content?.[0]?.type).toBe('text');
+      expect(response.result?.content?.[0]?.text).toContain('Input validation error');
+    });
+
     it('should include structuredContent in tools/call response', async () => {
       const response = (await sendJsonRpcRequest('tools/call', {
         name: 'sheets_auth',

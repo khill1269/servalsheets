@@ -87,8 +87,8 @@ export function registerFlatToolCallInterceptor(mcpServer: {
   if (!handlers || !(handlers instanceof Map)) {
     throw new Error(
       '[FlatToolInterceptor] Cannot register flat tools/call routing: MCP SDK _requestHandlers map is not accessible. ' +
-      'This may indicate an SDK upgrade that changed internal structure. ' +
-      'Check @modelcontextprotocol/sdk changelog and update the interceptor accordingly.'
+        'This may indicate an SDK upgrade that changed internal structure. ' +
+        'Check @modelcontextprotocol/sdk changelog and update the interceptor accordingly.'
     );
   }
 

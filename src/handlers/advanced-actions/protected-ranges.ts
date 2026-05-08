@@ -125,6 +125,7 @@ export async function handleAddProtectedRangeAction(
       isDestructive: false,
       spreadsheetId: req.spreadsheetId,
     },
+    preConfirmed: req.safety?.confirmed === true,
   });
 
   if (!addConfirmation.confirmed) {
@@ -216,6 +217,17 @@ export async function handleUpdateProtectedRangeAction(
     const gridRange = await deps.rangeToGridRange(req.spreadsheetId!, req.range);
     update.range = toGridRange(gridRange);
     fields.push('range');
+  }
+
+  if (fields.length === 0) {
+    return deps.error({
+      code: ErrorCodes.INVALID_PARAMS,
+      message: 'No protected range fields were provided to update.',
+      retryable: false,
+      details: { protectedRangeId: req.protectedRangeId },
+      suggestedFix:
+        'Provide at least one of description, warningOnly, editors, or range when updating a protected range.',
+    });
   }
 
   try {

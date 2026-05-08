@@ -862,12 +862,12 @@ describe('Redis session persistence (SCALE-01)', () => {
       activatedAt: 1704067200000,
       sheetNames: ['Dashboard'],
     });
-    stored['servalsheets:http-session:http-session-123:state'] = manager.exportState();
+    stored['servalsheets:http-session:anon:http-session-123:state'] = manager.exportState();
 
     initSessionRedis(mockRedis);
     const ctx = await getOrCreateSessionContextAsync('http-session-123');
 
-    expect(mockRedis.get).toHaveBeenCalledWith('servalsheets:http-session:http-session-123:state');
+    expect(mockRedis.get).toHaveBeenCalledWith('servalsheets:http-session:anon:http-session-123:state');
     expect(ctx.getActiveSpreadsheet()?.spreadsheetId).toBe('http-session-sheet');
   });
 
@@ -885,7 +885,7 @@ describe('Redis session persistence (SCALE-01)', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(mockRedis.set).toHaveBeenCalled();
-    expect(stored['servalsheets:http-session:persist-on-write:state']).toContain(
+    expect(stored['servalsheets:http-session:anon:persist-on-write:state']).toContain(
       'write-through-sheet'
     );
     expect(getOrCreateSessionContext('persist-on-write')).toBe(ctx);

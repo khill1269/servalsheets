@@ -23,6 +23,7 @@ export interface SafetyOptions {
   createSnapshot?: boolean;
   autoSnapshot?: boolean;
   requireConfirmation?: boolean;
+  confirmed?: boolean;
 }
 
 export interface SafetyContext {
@@ -173,6 +174,7 @@ export async function requestSafetyConfirmation(params: {
   details: string;
   context: SafetyContext;
   skipIfElicitationUnavailable?: boolean;
+  preConfirmed?: boolean;
   logger?: {
     warn?: (message: string, ...args: unknown[]) => void;
     error?: (message: string, ...args: unknown[]) => void;
@@ -186,6 +188,16 @@ export async function requestSafetyConfirmation(params: {
       required: false,
       reason: decision.reason,
       outcome: 'not_required',
+      source: decision.source,
+    };
+  }
+
+  if (params.preConfirmed) {
+    return {
+      confirmed: true,
+      required: true,
+      reason: 'Operation was pre-confirmed with safety.confirmed.',
+      outcome: 'accepted',
       source: decision.source,
     };
   }
