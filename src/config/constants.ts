@@ -325,13 +325,14 @@ export const STRIP_SCHEMA_DESCRIPTIONS = process.env['SERVAL_STRIP_SCHEMA_DESCRI
  * - Stage 3 (full): All remaining tools — registered on demand or after first tool call
  *
  * Benefits:
- * - Stage 1 payload is ~40% of full payload (~4 tools vs 24)
+ * - Stage 1: 5 bootstrap tools (auth, core, session, analyze, confirm) — always visible
+ * - Stage 2: +6 tools on set_active (data, format, dimensions, history, quality, fix)
+ * - Stage 3: remaining tools loaded on demand via ensureToolAvailable()
  * - LLM gets essential tools instantly, remaining tools arrive via tools/list_changed
- * - Backwards-compatible: disabled by default (all tools registered at once)
  *
- * Set via SERVAL_STAGED_REGISTRATION=true environment variable.
+ * Enabled by default. Set SERVAL_STAGED_REGISTRATION=false to disable (load all tools at once).
  */
-export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] === 'true';
+export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] !== 'false';
 
 // ============================================================================
 // Tool Presentation Mode
@@ -342,18 +343,21 @@ export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] ===
  *
  * Controls how tools are exposed to LLM clients:
  *
- * - 'bundled' (legacy): 25 compound tools with discriminated union schemas.
+ * - 'bundled': 25 compound tools with discriminated union schemas.
  *   Each tool contains multiple actions selected via an 'action' parameter.
- *   Compatible with existing integrations but violates MCP's 1-tool-1-operation
- *   convention and causes LLM routing confusion.
+ *   Recommended default — fits comfortably in any client's context window.
  *
- * - 'flat': ~408 individual tools, one per action, each with a flat z.object()
- *   schema. All but ~15 core tools are marked defer_loading: true for on-demand
- *   discovery via tool_search / sheets_discover. Follows MCP best practices.
- *   Token cost: ~1,500 tokens (vs ~53K bundled).
+ * - 'flat': ~410 individual tools, one per action, each with a flat z.object()
+ *   schema. Requires explicit opt-in via SERVAL_TOOL_MODE=flat.
+ *
+ *   WARNING: The 'x-defer-loading' extension field (removed) was NOT an MCP
+ *   spec field. The Anthropic Messages API's `defer_loading` is a separate
+ *   mechanism that Claude Desktop does NOT currently implement via MCP.
+ *   In flat mode, all ~410 tools load into context unconditionally.
+ *   Only use flat mode with clients that natively support tool deferral.
  *
  * - 'auto' (default): Detects transport/runtime context.
- *   - MCP_TRANSPORT=stdio → 'flat' (optimized for Claude Desktop / Claude Code)
+ *   - MCP_TRANSPORT=stdio → 'bundled' (Claude Desktop: all flat tools load)
  *   - MCP_TRANSPORT=http and other explicit non-stdio transports → 'bundled'
  *   - Direct HTTP entry points (`--http`, `http-server.js`) → 'bundled'
  *   - Unattached/in-memory server instances default to 'bundled'
@@ -375,23 +379,21 @@ export const TOOL_MODE: ToolMode = resolveToolMode();
 
 /**
  * Resolve the effective tool mode at runtime.
- * 'auto' resolves based on transport type.
+ *
+ * `auto` (the default when SERVAL_TOOL_MODE is unset) always resolves to
+ * `bundled`. No client we currently support — Claude Desktop (STDIO),
+ * HTTP clients, in-memory test clients — implements per-tool deferral
+ * via the MCP protocol, so flat mode would always blow ~410 tools into
+ * the context window. `flat` therefore must be opt-in via env override.
+ *
+ * History: the previous implementation branched on transport/entrypoint
+ * but both branches returned `bundled`, leaving an unreachable `isHttp`
+ * detection block. The JSDoc claim that "STDIO → flat" was never true
+ * in code. Behavior is unchanged; the dead branch is removed.
  */
 export function getEffectiveToolMode(): 'flat' | 'bundled' {
   if (TOOL_MODE === 'flat') return 'flat';
-  if (TOOL_MODE === 'bundled') return 'bundled';
-  const transport = process.env['MCP_TRANSPORT']?.toLowerCase();
-  if (transport === 'stdio') {
-    return 'flat';
-  }
-  if (transport) {
-    return 'bundled';
-  }
-  // Fallback to entrypoint detection for direct HTTP launches without MCP_TRANSPORT.
-  const entry = path.basename(process.argv[1] ?? '');
-  const isHttp =
-    process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
-  return isHttp ? 'bundled' : 'flat';
+  return 'bundled';
 }
 export type ToolStage = 1 | 2 | 3;
 
