@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import { STAGE_1_TOOLS } from '../../src/config/constants.js';
 import { registerServalSheetsResources } from '../../src/mcp/registration/resource-registration.js';
 import { registerToolsListCompatibilityHandler } from '../../src/mcp/registration/tools-list-compat.js';
-import { resetAvailableToolNames } from '../../src/mcp/tool-registry-state.js';
+import {
+  replaceAvailableToolNames,
+  resetAvailableToolNames,
+} from '../../src/mcp/tool-registry-state.js';
 
 function createMockResourceServer() {
   return {
@@ -73,6 +77,7 @@ describe('MCP wire output contracts', () => {
 
   it('keeps stdio tools/list payload under the wire-size budget', async () => {
     vi.stubEnv('MCP_TRANSPORT', 'stdio');
+    replaceAvailableToolNames(STAGE_1_TOOLS);
 
     const mock = createMockToolsListServer();
 
