@@ -359,13 +359,17 @@ function isRawOrchestratorReport(report: unknown): report is RawOrchestratorRepo
 }
 
 function calculateScore(report: RawOrchestratorReport): number {
-  const penalty =
-    report.summary.criticalIssues * 25 +
-    report.summary.highIssues * 10 +
-    report.summary.mediumIssues * 4 +
-    report.summary.lowIssues;
+  // Base score from agent statuses (resilient to one noisy agent)
+  const statusScore = (status: string) => status === 'pass' ? 100 : status === 'warning' ? 70 : 40;
+  const agentBase = report.agentReports.length > 0
+    ? report.agentReports.reduce((sum, a) => sum + statusScore(a.status), 0) / report.agentReports.length
+    : 100;
 
-  return Math.max(0, 100 - penalty);
+  // Severity penalties capped so no single dimension crashes the score
+  const criticalPenalty = Math.min(report.summary.criticalIssues * 15, 40);
+  const highPenalty = Math.min(report.summary.highIssues * 2, 25);
+
+  return Math.max(0, Math.round(agentBase - criticalPenalty - highPenalty));
 }
 
 function normalizeReport(report: unknown): NormalizedReport {

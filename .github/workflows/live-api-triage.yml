@@ -7,7 +7,7 @@ name: Live API Failure Triage
 on:
   # Run after nightly live API tests complete
   workflow_run:
-    workflows: ['Live API Tests (Nightly)']
+    workflows: ['Nightly Live API']
     types: [completed]
   # Also run weekly for backlog triage
   schedule:
@@ -34,10 +34,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -47,15 +47,18 @@ jobs:
 
       - name: Download latest live API results
         id: download
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const runId = '${{ github.event.inputs.artifact_run_id }}' ||
-                          '${{ github.event.workflow_run.id }}';
+            // Resolve the run to fetch artifacts from:
+            // 1. Explicit artifact_run_id input (manual override)
+            // 2. workflow_run trigger (the nightly run that just completed)
+            // 3. Fall back to latest nightly run (schedule / dispatch without input)
+            let targetRunId = '${{ github.event.inputs.artifact_run_id }}' ||
+                              '${{ github.event.workflow_run.id }}';
 
-            if (!runId) {
-              // Find the most recent nightly run
+            if (!targetRunId) {
               const runs = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -66,25 +69,28 @@ jobs:
                 core.setOutput('has_results', 'false');
                 return;
               }
-              const latestRunId = runs.data.workflow_runs[0].id;
-              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: latestRunId,
-              });
-              const artifact = artifacts.data.artifacts.find(a => a.name.startsWith('live-nightly-log'));
-              if (artifact) {
-                core.setOutput('artifact_id', artifact.id.toString());
-                core.setOutput('has_results', 'true');
-              } else {
-                core.setOutput('has_results', 'false');
-              }
+              targetRunId = runs.data.workflow_runs[0].id;
+            }
+
+            // Fetch artifacts from the resolved run (works for all trigger paths)
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: Number(targetRunId),
+            });
+            const artifact = artifacts.data.artifacts.find(a => a.name.startsWith('live-nightly-log'));
+            if (artifact) {
+              core.setOutput('artifact_id', artifact.id.toString());
+              core.setOutput('run_id', String(targetRunId));
+              core.setOutput('has_results', 'true');
+            } else {
+              core.setOutput('has_results', 'false');
             }
 
       - name: Analyze failures and create triage report
         id: analyze
         if: steps.download.outputs.has_results == 'true'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

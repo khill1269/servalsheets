@@ -38,10 +38,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -66,7 +66,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-turbo-
 
@@ -156,6 +156,17 @@ jobs:
       - name: Check for hardcoded count references
         run: bash scripts/check-hardcoded-counts.sh
 
+      - name: Verify docs/agents match source action count (no stale 409 references)
+        run: |
+          ACTUAL=$(node -e "const {ACTION_COUNT}=require('./dist/schemas/index.js'); process.stdout.write(String(ACTION_COUNT))")
+          STALE=$(grep -rn "409 actions\|409-action\|409\/409\|all 409\b\|: 409\b" README.md CLAUDE.md .claude/agents/ 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$STALE" -gt "0" ]; then
+            echo "❌ Found $STALE stale '409 actions' references (source says $ACTUAL):"
+            grep -rn "409 actions\|409-action\|409\/409\|all 409\b\|: 409\b" README.md CLAUDE.md .claude/agents/ 2>/dev/null
+            exit 1
+          fi
+          echo "✅ Docs action count consistent with source ($ACTUAL actions)"
+
       - name: Validate exact tool count
         run: |
           node --input-type=module -e "
@@ -205,8 +216,20 @@ jobs:
       - name: Check JWT scope (security - no jwt.sign outside auth/)
         run: npm run check:jwt-scope
 
+      - name: MCP protocol smoke test (no credentials required)
+        run: node scripts/mcp-protocol-smoke.mjs --fail-fast
+        timeout-minutes: 3
+
+      - name: MCP protocol smoke test (flat tool mode)
+        run: SERVAL_TOOL_MODE=flat node scripts/mcp-protocol-smoke.mjs --fail-fast
+        timeout-minutes: 3
+
+      - name: Audit gate (A1-A14, skip mutation)
+        run: SKIP_MUTATION_TESTING=true npm run audit:gate
+        timeout-minutes: 8
+
       - name: Upload dist artifact for downstream jobs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: dist-build
           path: dist/
@@ -238,10 +261,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -286,10 +309,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -321,13 +344,26 @@ jobs:
           echo "fail_count=$FAIL" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
 
-      - name: Report simulation results
+      - name: Run chaos resilience tests
+        id: chaos_tests
+        run: |
+          npm run test:chaos -- --reporter=verbose 2>&1 | tee chaos-output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          CHAOS_PASS=$(grep -c ' ✓ ' chaos-output.txt 2>/dev/null || echo 0)
+          CHAOS_FAIL=$(grep -c ' ✗ \| × ' chaos-output.txt 2>/dev/null || echo 0)
+          echo "chaos_pass=$CHAOS_PASS" >> $GITHUB_OUTPUT
+          echo "chaos_fail=$CHAOS_FAIL" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Report simulation + chaos results
         if: always()
         run: |
           echo "## Simulation Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Passed:** ${{ steps.sim_tests.outputs.pass_count }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Failed:** ${{ steps.sim_tests.outputs.fail_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Simulation Passed:** ${{ steps.sim_tests.outputs.pass_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Simulation Failed:** ${{ steps.sim_tests.outputs.fail_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Chaos Passed:** ${{ steps.chaos_tests.outputs.chaos_pass }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Chaos Failed:** ${{ steps.chaos_tests.outputs.chaos_fail }}" >> $GITHUB_STEP_SUMMARY
 
   snapshot-tests:
     name: Snapshot Tests
@@ -337,10 +373,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -382,10 +418,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -415,7 +451,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-test-${{ matrix.shard }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-test-${{ matrix.shard }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-turbo-test-${{ matrix.shard }}-
             ${{ runner.os }}-turbo-test-
@@ -440,10 +476,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -478,10 +514,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -516,10 +552,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -561,10 +597,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
 
@@ -602,10 +638,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -652,12 +688,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -715,7 +751,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: coverage-report
           path: coverage/
@@ -815,10 +851,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -912,3 +948,58 @@ jobs:
 
           console.log('All required CI jobs passed.');
           EOF
+
+  ci-test-summary:
+    name: CI Test Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    if: always()
+    needs:
+      - ci-required
+      - test-fast
+      - simulation-tests
+      - snapshot-tests
+      - test-integration
+      - coverage
+
+    steps:
+      - name: Post consolidated test summary
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const needs = ${{ toJSON(needs) }};
+
+            const jobs = [
+              { name: 'Unit + Contracts',  job: 'test-fast' },
+              { name: 'Simulation + Chaos', job: 'simulation-tests' },
+              { name: 'Snapshots',          job: 'snapshot-tests' },
+              { name: 'Integration',        job: 'test-integration' },
+              { name: 'Coverage',           job: 'coverage' },
+              { name: 'CI Gate',            job: 'ci-required' },
+            ];
+
+            const icon = (result) =>
+              result === 'success' ? '✅' :
+              result === 'skipped' ? '⏭️' :
+              result === 'cancelled' ? '⛔' : '❌';
+
+            const rows = jobs.map(({ name, job }) => {
+              const r = needs[job]?.result ?? 'unknown';
+              return `| ${icon(r)} **${name}** | ${r} |`;
+            });
+
+            const summary = [
+              '## 🧪 CI Test Suite Summary',
+              '',
+              '| Suite | Result |',
+              '|-------|--------|',
+              ...rows,
+              '',
+              `_Generated at ${new Date().toUTCString()}_`,
+            ].join('\n');
+
+            const fs = await import('node:fs');
+            if (process.env.GITHUB_STEP_SUMMARY) {
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n');
+            }
+            core.info(summary);
