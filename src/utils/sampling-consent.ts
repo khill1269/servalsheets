@@ -10,6 +10,7 @@
 import { createRequestAbortError, getRequestContext } from './request-context.js';
 import { getEnv } from '../config/env.js';
 import { ServiceError } from '../core/errors.js';
+import { logger } from './logger.js';
 
 // ============================================================================
 // ISSUE-117: GDPR consent gate for Sampling calls
@@ -91,25 +92,43 @@ export async function assertSamplingConsent(): Promise<void> {
     await _consentChecker();
     _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs });
     // GDPR Article 7: log that consent was verified so it can be demonstrated on request.
-    // Non-blocking — audit failure must never block sampling.
+    // Audit failure must never block sampling — errors are caught and logged.
     if (getEnv()['ENABLE_AUDIT_LOGGING']) {
-      void (async () => {
-        try {
-          const { getAuditLogger } = await import('../services/audit-logger.js');
-          await getAuditLogger().logToolCall({
-            tool: 'sheets_session',
-            action: 'sampling_consent_verified',
-            userId: cacheKey,
-            outcome: 'success',
-          });
-        } catch {
-          // Audit logging is non-critical
-        }
-      })();
+      try {
+        const { getAuditLogger } = await import('../services/audit-logger.js');
+        await getAuditLogger().logToolCall({
+          tool: 'sheets_session',
+          action: 'sampling_consent_verified',
+          userId: cacheKey,
+          outcome: 'success',
+        });
+      } catch (auditError) {
+        logger.warn('Audit log failed for sampling_consent_verified', {
+          component: 'sampling-consent',
+          error: auditError instanceof Error ? auditError.message : String(auditError),
+        });
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     _consentCache.set(cacheKey, { expiresAt: nowMs + ttlMs, errorMessage: message });
+    // GDPR Article 7: log consent denials so they can be demonstrated on request.
+    if (getEnv()['ENABLE_AUDIT_LOGGING']) {
+      try {
+        const { getAuditLogger } = await import('../services/audit-logger.js');
+        await getAuditLogger().logToolCall({
+          tool: 'sheets_session',
+          action: 'sampling_consent_denied',
+          userId: cacheKey,
+          outcome: 'failure',
+        });
+      } catch (auditError) {
+        logger.warn('Audit log failed for sampling_consent_denied', {
+          component: 'sampling-consent',
+          error: auditError instanceof Error ? auditError.message : String(auditError),
+        });
+      }
+    }
     throw error;
   }
 }

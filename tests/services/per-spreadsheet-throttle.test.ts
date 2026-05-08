@@ -7,15 +7,18 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
+let mockEnv: Record<string, unknown> = { PER_SPREADSHEET_RPS: 3 };
+
 // Mock env to control RPS without touching real config
 vi.mock('../../src/config/env.js', () => ({
-  getEnv: () => ({ PER_SPREADSHEET_RPS: 3 }),
+  getEnv: () => mockEnv,
 }));
 
 import { PerSpreadsheetThrottle } from '../../src/services/per-spreadsheet-throttle.js';
 
 describe('PerSpreadsheetThrottle', () => {
   beforeEach(() => {
+    mockEnv = { PER_SPREADSHEET_RPS: 3 };
     vi.useFakeTimers();
   });
 
@@ -110,5 +113,19 @@ describe('PerSpreadsheetThrottle', () => {
     const timersBefore = vi.getTimerCount();
     await throttle.throttle('s2');
     expect(vi.getTimerCount()).toBe(timersBefore);
+  });
+
+  it('falls back to the default RPS when env value is absent', async () => {
+    mockEnv = {};
+    const throttle = new PerSpreadsheetThrottle();
+
+    for (let i = 0; i < 10; i++) {
+      await throttle.throttle('sheet-default-rps');
+    }
+
+    const p = throttle.throttle('sheet-default-rps');
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    await vi.runAllTimersAsync();
+    await p;
   });
 });

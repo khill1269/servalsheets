@@ -374,7 +374,11 @@ export async function enrichSystemPromptWithContext(
   baseSystemPrompt: string
 ): Promise<string> {
   try {
-    const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId, getRequestContext()?.principalId);
+    const ctx = await getSpreadsheetContext(
+      sheetsApi,
+      spreadsheetId,
+      getRequestContext()?.principalId
+    );
     const hint = formatContextForPrompt(ctx);
     return hint ? `${hint}\n\n${baseSystemPrompt}` : baseSystemPrompt;
   } catch {
@@ -642,7 +646,11 @@ Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% 
   let schemaContext = params.context ?? '';
   if (!schemaContext && sheetsApi && spreadsheetId) {
     try {
-      const ctx = await getSpreadsheetContext(sheetsApi, spreadsheetId, getRequestContext()?.principalId);
+      const ctx = await getSpreadsheetContext(
+        sheetsApi,
+        spreadsheetId,
+        getRequestContext()?.principalId
+      );
       schemaContext = formatContextForPrompt(ctx);
     } catch {
       // Non-blocking: schema context enrichment is best-effort
@@ -1319,7 +1327,7 @@ Work step by step:
 
 Be careful with destructive operations. Always explain your reasoning.`,
     tools,
-    toolChoice: { mode: 'auto' },
+    toolChoice: { type: 'auto' } as { mode?: 'none' | 'required' | 'auto' },
     maxTokens: 2000,
   };
 }

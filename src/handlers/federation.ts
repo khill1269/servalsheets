@@ -234,17 +234,13 @@ export class FederationHandler {
     // can be polled. Fast calls (<5s) complete synchronously and return the
     // result directly (no API change). Slow calls return a taskId instead.
     if (this.taskStore) {
-      const task = await this.taskStore.createTask(
-        { ttl: 3600000 },
-        'federation-call-remote',
-        {
-          method: 'tools/call',
-          params: {
-            name: 'sheets_federation',
-            arguments: { action: 'call_remote', serverName, toolName, toolInput },
-          },
-        }
-      );
+      const task = await this.taskStore.createTask({ ttl: 3600000 }, 'federation-call-remote', {
+        method: 'tools/call',
+        params: {
+          name: 'sheets_federation',
+          arguments: { action: 'call_remote', serverName, toolName, toolInput },
+        },
+      });
 
       const callPromise = this.circuitBreaker
         .execute(async () => client.callRemoteTool(serverName, toolName, toolInput || {}))
@@ -266,12 +262,17 @@ export class FederationHandler {
       const timeoutHandle = new Promise<'timeout'>((res) =>
         setTimeout(() => res('timeout'), FEDERATION_TASK_THRESHOLD_MS)
       );
-      const race = await Promise.race([callPromise.then((r) => ({ ok: true as const, result: r })), timeoutHandle]);
+      const race = await Promise.race([
+        callPromise.then((r) => ({ ok: true as const, result: r })),
+        timeoutHandle,
+      ]);
 
       if (race === 'timeout') {
         // Call is still running in background — return taskId for polling
         logger.info('Federation call exceeded threshold, returning task handle', {
-          taskId: task.taskId, serverName, toolName,
+          taskId: task.taskId,
+          serverName,
+          toolName,
         });
         return {
           response: {

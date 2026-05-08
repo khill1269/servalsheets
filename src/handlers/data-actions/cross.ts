@@ -6,7 +6,8 @@ import type { DataResponse, SheetsDataInput } from '../../schemas/data.js';
 import type { ValuesArray } from '../../schemas/index.js';
 import { generateAIInsight } from '../../mcp/sampling.js';
 import { recordCrossSpreadsheetOp } from '../../observability/metrics.js';
-import type { DataHandlerAccess, ResponseFormat } from './internal.js';
+import type { DataHandlerAccess } from './internal.js';
+import { getResponseFormat } from './internal.js';
 import {
   shapeValuesByResponseFormat,
   shapeListByResponseFormat,
@@ -22,7 +23,7 @@ export async function handleCrossRead(
   ha: DataHandlerAccess,
   req: DataRequest & { action: 'cross_read' }
 ): Promise<DataResponse> {
-  const responseFormat = (req.response_format ?? 'full') as ResponseFormat;
+  const responseFormat = getResponseFormat(req);
   await ha.sendProgress(0, req.sources.length, `Reading from ${req.sources.length} spreadsheet(s)`);
   const { crossRead } = await import('../../services/cross-spreadsheet.js');
 
@@ -98,7 +99,7 @@ export async function handleCrossQuery(
   ha: DataHandlerAccess,
   req: DataRequest & { action: 'cross_query' }
 ): Promise<DataResponse> {
-  const responseFormat = (req.response_format ?? 'full') as ResponseFormat;
+  const responseFormat = getResponseFormat(req);
   const { crossQuery } = await import('../../services/cross-spreadsheet.js');
 
   // Extract A1 notation from RangeInput for each source
@@ -219,7 +220,7 @@ export async function handleCrossCompare(
   ha: DataHandlerAccess,
   req: DataRequest & { action: 'cross_compare' }
 ): Promise<DataResponse> {
-  const responseFormat = (req.response_format ?? 'full') as ResponseFormat;
+  const responseFormat = getResponseFormat(req);
   const compareColumns = req.compareColumns;
   await ha.sendProgress(0, 1, `Comparing data between spreadsheets`);
   const { crossCompare } = await import('../../services/cross-spreadsheet.js');

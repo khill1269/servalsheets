@@ -1,8 +1,33 @@
-# Default ownership
+# Default ownership — all files require review from the repo owner
 * @khill1269
 
-# GitHub automation and release surfaces
-/.github/ @khill1269
+# CI/CD configuration — changes here affect all pipelines
+/.github/workflows/ @khill1269
+/.github/dependabot.yml @khill1269
+/.github/CODEOWNERS @khill1269
+
+# Package manifests — dependency and version changes
 /package.json @khill1269
 /package-lock.json @khill1269
+/packages/*/package.json @khill1269
+
+# Container and deployment configuration
 /Dockerfile @khill1269
+/deployment/ @khill1269
+/fly.toml @khill1269
+
+# Schema source of truth — changes require schema:commit run
+/src/schemas/ @khill1269
+/src/generated/ @khill1269
+
+# MCP registration layer — tool definitions and protocol compliance
+/src/mcp/registration/ @khill1269
+
+# Security-sensitive code
+/src/security/ @khill1269
+/src/auth/ @khill1269
+/src/startup/lifecycle.ts @khill1269
+
+# Release and audit scripts
+/scripts/audit-with-exceptions.mjs @khill1269
+/SECURITY_EXCEPTIONS.md @khill1269

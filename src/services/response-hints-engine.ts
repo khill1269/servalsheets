@@ -429,13 +429,16 @@ export function generateFormatHints(
   const plural = cellsFormatted !== 1 ? 's' : '';
   let nextPhase: string;
   if (actionName === 'batch_format') {
-    nextPhase = 'Batch format complete → use sheets_analyze.analyze_structure to confirm layout consistency';
+    nextPhase =
+      'Batch format complete → use sheets_analyze.analyze_structure to confirm layout consistency';
   } else if (actionName === 'apply_preset') {
-    nextPhase = 'Preset applied → consider batch_format to apply uniform style across multiple ranges';
+    nextPhase =
+      'Preset applied → consider batch_format to apply uniform style across multiple ranges';
   } else if (actionName === 'clear_format') {
     nextPhase = 'Format cleared → re-apply with apply_preset or set_format as needed';
   } else {
-    nextPhase = 'Format applied → verify with sheets_format.suggest_format to audit remaining opportunities';
+    nextPhase =
+      'Format applied → verify with sheets_format.suggest_format to audit remaining opportunities';
   }
   return {
     dataShape: `Formatted ${cellsFormatted} cell${plural} via ${actionName}`,
@@ -472,7 +475,8 @@ export function generateDimensionHints(
       riskLevel = 'low';
       break;
     case 'sort_range':
-      nextPhase = 'Sorted → verify relative formula references (OFFSET, ROW()-based) are still correct';
+      nextPhase =
+        'Sorted → verify relative formula references (OFFSET, ROW()-based) are still correct';
       riskLevel = 'low';
       break;
     case 'delete_duplicates':

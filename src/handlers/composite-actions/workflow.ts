@@ -1,4 +1,5 @@
 import { ErrorCodes } from '../error-codes.js';
+import { createSafeRegex } from '../../utils/safe-regex-factory.js';
 import type { drive_v3, sheets_v4 } from 'googleapis';
 import type {
   ColumnMapping,
@@ -479,12 +480,30 @@ export async function handleDataPipelineAction(
  * Decomposed action handler for `instantiate_template`.
  * Preserves original behavior while moving logic out of the main CompositeHandler class.
  */
+/** Safe variable key pattern — must match schema constraint in src/schemas/composite.ts */
+const SAFE_VARIABLE_KEY_RE = /^[a-zA-Z0-9_. :-]+$/;
+
 export async function handleInstantiateTemplateAction(
   input: CompositeInstantiateTemplateInput,
   deps: WorkflowDeps
 ): Promise<CompositeOutput['response']> {
   const logger = getRequestLogger();
   logger.info('Instantiating template', { templateId: input.templateId });
+
+  // Validate variable keys at runtime (defense in depth — schema also enforces this).
+  // Prevents ReDoS when variable names are embedded in RegExp patterns.
+  for (const varName of Object.keys(input.variables ?? {})) {
+    if (varName.length > 200 || !SAFE_VARIABLE_KEY_RE.test(varName)) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCodes.INVALID_PARAMS,
+          message: `Invalid variable key "${varName}": keys may only contain alphanumeric characters, underscores, dots, spaces, colons, and hyphens (max 200 chars)`,
+          retryable: false,
+        },
+      };
+    }
+  }
 
   const templateSheetInfo = await deps.sheetsApi.spreadsheets.get({
     spreadsheetId: input.templateId,
@@ -509,7 +528,8 @@ export async function handleInstantiateTemplateAction(
       if (typeof cell !== 'string') return cell;
       let result = cell;
       for (const [varName, varValue] of Object.entries(input.variables)) {
-        const pattern = new RegExp(`\\{\\{${varName}\\}\\}`, 'g');
+        const escapedVarName = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = createSafeRegex(`\\{\\{${escapedVarName}\\}\\}`, 'g');
         const prev = result;
         result = result.replace(pattern, varValue);
         if (result !== prev) substitutionsApplied++;

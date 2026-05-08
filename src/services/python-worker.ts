@@ -200,7 +200,9 @@ async function runPython(): Promise<void> {
     const HEAVY_PACKAGES = ['numpy', 'pandas', 'scipy', 'matplotlib'];
     const neededPackages = HEAVY_PACKAGES.filter((pkg) => {
       // Match "import pkg", "from pkg import", "import pkg.sub"
-      return new RegExp(`(?:^|\\n)\\s*(?:import|from)\\s+${pkg}(?:\\s|\\.|,|$)`, 'm').test(req.code);
+      return new RegExp(`(?:^|\\n)\\s*(?:import|from)\\s+${pkg}(?:\\s|\\.|,|$)`, 'm').test(
+        req.code
+      );
     });
     if (neededPackages.length > 0) {
       await py.loadPackage(neededPackages, {

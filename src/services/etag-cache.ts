@@ -330,7 +330,11 @@ export class ETagCache {
     }
 
     if (count > 0) {
-      logger.debug('Invalidated spreadsheet ETags', { spreadsheetId, userId: userId ?? 'all', count });
+      logger.debug('Invalidated spreadsheet ETags', {
+        spreadsheetId,
+        userId: userId ?? 'all',
+        count,
+      });
     }
   }
 

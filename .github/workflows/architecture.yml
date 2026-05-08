@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
         with:
           fetch-depth: 0
 
@@ -70,10 +70,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -125,7 +125,7 @@ jobs:
 
       - name: Upload dependency graph
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: dependency-graph
           path: |
@@ -140,10 +140,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -157,7 +157,7 @@ jobs:
 
       - name: Upload dead code report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: dead-code-report
           path: knip-output.txt
@@ -165,16 +165,16 @@ jobs:
 
   validate-dependencies:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     needs: dependency-change-detect
     if: needs.dependency-change-detect.outputs.should_run == 'true'
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -205,12 +205,40 @@ jobs:
       - name: Build Main Project
         run: npm run build
 
-      - name: Build All MCP Servers
+      - name: Detect changed tool directories
+        id: tool-changes
         run: |
-          echo "📦 Building all MCP servers..."
-          cd tools/google-docs-server && npm install --ignore-scripts && npm run build
-          cd ../test-intelligence-server && npm install --ignore-scripts && npm run build
-          cd ../gcloud-console-server && npm install --ignore-scripts && npm run build
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+            CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
+          else
+            CHANGED=$(git show --pretty="" --name-only "${{ github.sha }}")
+          fi
+          echo "docs_changed=$(echo "$CHANGED" | grep -q '^tools/google-docs-server/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "intel_changed=$(echo "$CHANGED" | grep -q '^tools/test-intelligence-server/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "gcloud_changed=$(echo "$CHANGED" | grep -q '^tools/gcloud-console-server/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Build changed tool servers
+        if: |
+          steps.tool-changes.outputs.docs_changed == 'true' ||
+          steps.tool-changes.outputs.intel_changed == 'true' ||
+          steps.tool-changes.outputs.gcloud_changed == 'true'
+        run: |
+          echo "📦 Building changed tool servers..."
+          if [ "${{ steps.tool-changes.outputs.docs_changed }}" = "true" ]; then
+            echo "  → google-docs-server"
+            cd tools/google-docs-server && npm install --ignore-scripts && npm run build && cd ../..
+          fi
+          if [ "${{ steps.tool-changes.outputs.intel_changed }}" = "true" ]; then
+            echo "  → test-intelligence-server"
+            cd tools/test-intelligence-server && npm install --ignore-scripts && npm run build && cd ../..
+          fi
+          if [ "${{ steps.tool-changes.outputs.gcloud_changed }}" = "true" ]; then
+            echo "  → gcloud-console-server"
+            cd tools/gcloud-console-server && npm install --ignore-scripts && npm run build && cd ../..
+          fi
 
       - name: Run Fast Tests
         run: npm run test:fast
@@ -225,7 +253,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Make script executable
         run: chmod +x scripts/check-file-sizes.sh

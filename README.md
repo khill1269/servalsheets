@@ -310,7 +310,7 @@ ServalSheets uses deployment-aware OAuth scopes to balance functionality and Goo
 
 | Mode               | Actions Available | Use Case                | Google Verification Time |
 | ------------------ | ----------------- | ----------------------- | ------------------------ |
-| **full** (default) | 409/409           | Self-hosted, enterprise | 4-6 weeks                |
+| **full** (default) | 410/410           | Self-hosted, enterprise | 4-6 weeks                |
 | **standard**       | Reduced subset    | SaaS, marketplace apps  | 3-5 days                 |
 | **minimal**        | Basic subset      | Basic operations only   | 3-5 days                 |
 | **readonly**       | Read-only subset  | Analysis/reporting only | 3-5 days                 |
@@ -2208,7 +2208,7 @@ ServalSheets implements the MCP 2025-11-25 server features it advertises in disc
 
 #### Tools (25 tools ✅)
 
-All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-409-actions) above for current per-tool action counts.
+All 25 tools are implemented and exercised in the test suite. See the [Tool Summary](#tool-summary-25-tools-410-actions) above for current per-tool action counts.
 
 **Discriminated Union Schema** ✅:
 

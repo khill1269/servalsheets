@@ -26,9 +26,10 @@ export async function handleAnalyzeStructureAction(
     });
 
     const allSheets = spreadsheet.data.sheets ?? [];
-    const sheets = input.sheetId !== undefined
-      ? allSheets.filter((s) => s.properties?.sheetId === input.sheetId)
-      : allSheets;
+    const sheets =
+      input.sheetId !== undefined
+        ? allSheets.filter((s) => s.properties?.sheetId === input.sheetId)
+        : allSheets;
     const namedRanges = spreadsheet.data.namedRanges ?? [];
 
     const sheetTitleById = new Map<number, string>(

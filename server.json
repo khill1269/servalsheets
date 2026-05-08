@@ -3,12 +3,26 @@
   "name": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
   "license": "MIT",
-  "categories": [
+  "tags": [
     "productivity",
     "google-workspace",
     "data-analysis",
     "spreadsheet",
     "ai"
+  ],
+  "categories": [
+    "Core Operations (5 tools): auth, core, data, format, dimensions",
+    "Visual Analytics (1 tool): visualize",
+    "Collaboration & Governance (1 tool): collaborate",
+    "Advanced Sheet Structures (1 tool): advanced",
+    "Reliability & Recovery (3 tools): transaction, quality, history",
+    "AI-Native Workflows (3 tools): confirm, analyze, fix",
+    "Productivity & Composition (2 tools): composite, session",
+    "Templates & Integrations (3 tools): templates, bigquery, appsscript",
+    "Automation & Events (1 tool): webhook",
+    "Formula Intelligence (1 tool): dependencies",
+    "Federation & Compute (2 tools): federation, compute",
+    "Agentic Execution & Connectors (2 tools): agent, connectors"
   ],
   "description": "Production-grade Google Sheets MCP server with 25 tools and 410 actions",
   "icons": [
@@ -620,21 +634,7 @@
   ],
   "metadata": {
     "toolCount": 25,
-    "actionCount": 410,
-    "categories": [
-      "Core Operations (5 tools): auth, core, data, format, dimensions",
-      "Visual Analytics (1 tool): visualize",
-      "Collaboration & Governance (1 tool): collaborate",
-      "Advanced Sheet Structures (1 tool): advanced",
-      "Reliability & Recovery (3 tools): transaction, quality, history",
-      "AI-Native Workflows (3 tools): confirm, analyze, fix",
-      "Productivity & Composition (2 tools): composite, session",
-      "Templates & Integrations (3 tools): templates, bigquery, appsscript",
-      "Automation & Events (1 tool): webhook",
-      "Formula Intelligence (1 tool): dependencies",
-      "Federation & Compute (2 tools): federation, compute",
-      "Agentic Execution & Connectors (2 tools): agent, connectors"
-    ]
+    "actionCount": 410
   },
   "author": {
     "name": "Thomas Lee Cahill",

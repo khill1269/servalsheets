@@ -114,7 +114,12 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .describe('Maximum number of rows per page (default: 1000, max: 10000)'),
   response_format: ResponseFormatSchema.optional()
     .default('full')
-    .describe('Output size profile for returned values (full, compact, preview)'),
+    .describe(
+      'Deprecated alias for responseFormat. Output size profile for returned values (full, compact, preview).'
+    ),
+  responseFormat: ResponseFormatSchema.optional().describe(
+    'Output size profile for returned values (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.'
+  ),
 });
 // Note: range/dataFilter mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
@@ -231,7 +236,12 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
   pageSize: z.coerce.number().int().positive().max(10000).optional().describe('Rows per page'),
   response_format: ResponseFormatSchema.optional()
     .default('full')
-    .describe('Output size profile for returned ranges (full, compact, preview)'),
+    .describe(
+      'Deprecated alias for responseFormat. Output size profile for returned ranges (full, compact, preview).'
+    ),
+  responseFormat: ResponseFormatSchema.optional().describe(
+    'Output size profile for returned ranges (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.'
+  ),
 });
 // Note: ranges/dataFilters mutual-exclusion is enforced in the handler (Zod 3.25 ZodEffects cannot be in discriminatedUnion)
 
@@ -522,7 +532,12 @@ const CrossReadActionSchema = z.object({
     ),
   response_format: ResponseFormatSchema.optional()
     .default('full')
-    .describe('Output size profile for merged rows (full, compact, preview)'),
+    .describe(
+      'Deprecated alias for responseFormat. Output size profile for merged rows (full, compact, preview).'
+    ),
+  responseFormat: ResponseFormatSchema.optional().describe(
+    'Output size profile for merged rows (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.'
+  ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -552,7 +567,12 @@ const CrossQueryActionSchema = z.object({
     .describe('Maximum number of matching rows to return (default 100, max 500)'),
   response_format: ResponseFormatSchema.optional()
     .default('full')
-    .describe('Output size profile for query matches (full, compact, preview)'),
+    .describe(
+      'Deprecated alias for responseFormat. Output size profile for query matches (full, compact, preview).'
+    ),
+  responseFormat: ResponseFormatSchema.optional().describe(
+    'Output size profile for query matches (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.'
+  ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -601,7 +621,12 @@ const CrossCompareActionSchema = z.object({
     .describe('Column header to use as row key for aligned comparison (omit for row-by-row)'),
   response_format: ResponseFormatSchema.optional()
     .default('full')
-    .describe('Output size profile for diff payload (full, compact, preview)'),
+    .describe(
+      'Deprecated alias for responseFormat. Output size profile for diff payload (full, compact, preview).'
+    ),
+  responseFormat: ResponseFormatSchema.optional().describe(
+    'Output size profile for diff payload (full, compact, preview). Prefer this camelCase field; response_format remains accepted as a deprecated alias.'
+  ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()

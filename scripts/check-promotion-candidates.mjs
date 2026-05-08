@@ -157,19 +157,19 @@ const MATRIX_TOOL_DEFAULTS = {
   sheets_advanced:    { mode: 'mcp_execute' },
   sheets_agent:       { mode: 'probe_only' },
   sheets_analyze:     { mode: 'probe_only' },
-  sheets_appsscript:  { mode: 'skip_external' },
+  sheets_appsscript:  { mode: 'external_pack' },
   sheets_auth:        { mode: 'mcp_execute' },
-  sheets_bigquery:    { mode: 'skip_external' },
+  sheets_bigquery:    { mode: 'external_pack' },
   sheets_collaborate: { mode: 'probe_only' },
   sheets_composite:   { mode: 'probe_only' },
   sheets_compute:     { mode: 'probe_only' },
   sheets_confirm:     { mode: 'probe_only' },
-  sheets_connectors:  { mode: 'skip_external' },
+  sheets_connectors:  { mode: 'external_pack' },
   sheets_core:        { mode: 'mcp_execute' },
   sheets_data:        { mode: 'mcp_execute' },
   sheets_dependencies:{ mode: 'mcp_execute' },
   sheets_dimensions:  { mode: 'mcp_execute' },
-  sheets_federation:  { mode: 'skip_external' },
+  sheets_federation:  { mode: 'external_pack' },
   sheets_fix:         { mode: 'probe_only' },
   sheets_format:      { mode: 'mcp_execute' },
   sheets_history:     { mode: 'probe_only' },
@@ -178,15 +178,15 @@ const MATRIX_TOOL_DEFAULTS = {
   sheets_templates:   { mode: 'probe_only' },
   sheets_transaction: { mode: 'mcp_execute' },
   sheets_visualize:   { mode: 'probe_only' },
-  sheets_webhook:     { mode: 'skip_external' },
+  sheets_webhook:     { mode: 'external_pack' },
 };
 
 // ─── MATRIX_ACTION_OVERRIDES (from tests/live-api/action-matrix-support.ts) ─
 
 const MATRIX_ACTION_OVERRIDES = {
-  'sheets_auth.callback':                     { mode: 'skip_external' },
-  'sheets_auth.login':                        { mode: 'skip_external' },
-  'sheets_auth.logout':                       { mode: 'skip_external' },
+  'sheets_auth.callback':                     { mode: 'external_pack' },
+  'sheets_auth.login':                        { mode: 'external_pack' },
+  'sheets_auth.logout':                       { mode: 'external_pack' },
   'sheets_auth.setup_feature':                { mode: 'probe_only' },
   'sheets_confirm.get_stats':                 { mode: 'mcp_execute' },
   'sheets_core.copy':                         { mode: 'probe_only' },
@@ -214,6 +214,35 @@ const MATRIX_ACTION_OVERRIDES = {
   'sheets_visualize.suggest_pivot':           { mode: 'probe_only' },
 };
 
+const MATRIX_PROMOTION_OVERRIDES = new Set([
+  'sheets_agent.list_plans',
+  'sheets_analyze.analyze_quality',
+  'sheets_analyze.analyze_structure',
+  'sheets_analyze.comprehensive',
+  'sheets_analyze.detect_patterns',
+  'sheets_analyze.diagnose_errors',
+  'sheets_analyze.discover_action',
+  'sheets_analyze.explain_analysis',
+  'sheets_analyze.formula_health_check',
+  'sheets_analyze.query_natural_language',
+  'sheets_analyze.quick_insights',
+  'sheets_analyze.scout',
+  'sheets_analyze.suggest_visualization',
+  'sheets_collaborate.list_access_proposals',
+  'sheets_collaborate.share_get_link',
+  'sheets_collaborate.share_list',
+  'sheets_composite.preview_generation',
+  'sheets_compute.evaluate',
+  'sheets_compute.explain_formula',
+  'sheets_fix.detect_anomalies',
+  'sheets_fix.suggest_cleaning',
+  'sheets_history.get',
+  'sheets_templates.get',
+  'sheets_templates.preview',
+  'sheets_visualize.suggest_chart',
+  'sheets_visualize.suggest_pivot',
+]);
+
 // ─── READ_ONLY_ACTION_NAMES (from tests/live-api/action-matrix-support.ts) ──
 
 const READ_ONLY_ACTION_NAMES = new Set([
@@ -238,6 +267,9 @@ const READ_ONLY_ACTION_NAMES = new Set([
 /** Resolve the effective mode for a given tool.action pair. */
 function effectiveMode(tool, action) {
   const actionKey = `${tool}.${action}`;
+  if (MATRIX_PROMOTION_OVERRIDES.has(actionKey)) {
+    return 'mcp_execute';
+  }
   if (MATRIX_ACTION_OVERRIDES[actionKey]) {
     return MATRIX_ACTION_OVERRIDES[actionKey].mode;
   }
@@ -255,9 +287,10 @@ for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
     if (!READ_ONLY_ACTION_NAMES.has(action)) continue; // must be read-only
 
     const actionKey = `${tool}.${action}`;
+    if (MATRIX_PROMOTION_OVERRIDES.has(actionKey)) continue; // already promoted
     const override = MATRIX_ACTION_OVERRIDES[actionKey];
     if (override && override.mode === 'mcp_execute') continue; // already promoted
-    if (override && override.mode === 'skip_external') continue; // explicitly excluded
+    if (override && override.mode === 'external_pack') continue; // explicitly excluded
 
     // effective mode is probe_only (tool default, no mcp_execute override)
     safeToPromote.push(actionKey);

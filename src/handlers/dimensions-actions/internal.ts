@@ -35,7 +35,7 @@ export type DimensionsHandlerAccess = {
     operation: string,
     details: string,
     safetyContext: SafetyContext,
-    options?: { skipIfElicitationUnavailable?: boolean }
+    options?: { skipIfElicitationUnavailable?: boolean; preConfirmed?: boolean }
   ) => Promise<boolean>;
   getSafetyWarnings: (safetyContext: SafetyContext, safety?: SafetyOptions) => SafetyWarning[];
   formatWarnings: (warnings: SafetyWarning[]) => string[];
