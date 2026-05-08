@@ -114,7 +114,105 @@ function serval_setup() {
     Browser.msgBox('SERVAL setup complete. The SERVAL() formula is ready to use.');
   }
 }
+
+function serval_triggerToObject(trigger) {
+  return {
+    triggerId: trigger.getUniqueId(),
+    functionName: trigger.getHandlerFunction(),
+    eventType: String(trigger.getEventType()),
+    source: String(trigger.getTriggerSource())
+  };
+}
+
+function serval_createTrigger(config) {
+  config = config || {};
+  if (!config.functionName) {
+    throw new Error('functionName is required');
+  }
+  if (!config.triggerType) {
+    throw new Error('triggerType is required');
+  }
+
+  var builder = ScriptApp.newTrigger(config.functionName);
+  switch (config.triggerType) {
+    case 'CLOCK':
+      builder = builder.timeBased();
+      if (config.weekDay) {
+        builder = builder.onWeekDay(ScriptApp.WeekDay[config.weekDay]).everyWeeks(1);
+        if (config.atHour !== undefined && config.atHour !== null) builder = builder.atHour(config.atHour);
+      } else if (config.atHour !== undefined && config.atHour !== null) {
+        builder = builder.atHour(config.atHour).everyDays(1);
+      } else {
+        builder = builder.everyMinutes(config.everyMinutes || 60);
+      }
+      break;
+    case 'ON_OPEN':
+      builder = builder.forSpreadsheet(SpreadsheetApp.getActive()).onOpen();
+      break;
+    case 'ON_EDIT':
+      builder = builder.forSpreadsheet(SpreadsheetApp.getActive()).onEdit();
+      break;
+    case 'ON_FORM_SUBMIT':
+      builder = builder.forSpreadsheet(SpreadsheetApp.getActive()).onFormSubmit();
+      break;
+    case 'ON_CHANGE':
+      builder = builder.forSpreadsheet(SpreadsheetApp.getActive()).onChange();
+      break;
+    default:
+      throw new Error('Unsupported triggerType: ' + config.triggerType);
+  }
+
+  return serval_triggerToObject(builder.create());
+}
+
+function serval_listTriggers(config) {
+  config = config || {};
+  var pageSize = Math.min(Math.max(Number(config.pageSize || 50), 1), 100);
+  var start = Math.max(Number(config.pageToken || 0), 0);
+  var triggers = ScriptApp.getProjectTriggers().map(serval_triggerToObject);
+  var page = triggers.slice(start, start + pageSize);
+  return {
+    triggers: page,
+    nextPageToken: start + pageSize < triggers.length ? String(start + pageSize) : null
+  };
+}
+
+function serval_deleteTrigger(config) {
+  config = config || {};
+  if (!config.triggerId) {
+    throw new Error('triggerId is required');
+  }
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getUniqueId() === config.triggerId) {
+      var deleted = serval_triggerToObject(triggers[i]);
+      ScriptApp.deleteTrigger(triggers[i]);
+      return { deleted: true, trigger: deleted };
+    }
+  }
+  return { deleted: false, triggerId: config.triggerId };
+}
 `.trim();
+
+  const manifestSource = JSON.stringify(
+    {
+      timeZone: 'Etc/UTC',
+      exceptionLogging: 'STACKDRIVER',
+      runtimeVersion: 'V8',
+      executionApi: {
+        access: 'MYSELF',
+      },
+      oauthScopes: [
+        'https://www.googleapis.com/auth/script.external_request',
+        'https://www.googleapis.com/auth/script.scriptapp',
+        'https://www.googleapis.com/auth/script.storage',
+        'https://www.googleapis.com/auth/spreadsheets.currentonly',
+        'https://www.googleapis.com/auth/script.container.ui',
+      ],
+    },
+    null,
+    2
+  );
 
   const project = await access.apiRequest<CreateProjectResponse>('POST', '/projects', {
     title: 'SERVAL Formula Functions',
@@ -125,6 +223,11 @@ function serval_setup() {
 
   await access.apiRequest<UpdateContentResponse>('PUT', `/projects/${scriptId}/content`, {
     files: [
+      {
+        name: 'appsscript',
+        type: 'JSON',
+        source: manifestSource,
+      },
       {
         name: 'SERVAL',
         type: 'SERVER_JS',

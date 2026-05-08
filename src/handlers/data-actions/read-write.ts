@@ -83,20 +83,6 @@ export async function handleRead(
   const responseFormat = getResponseFormat(input);
 
   if (input.dataFilter) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'read',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix: 'Enable the feature by setting the appropriate environment variable',
-      });
-    }
-
     const response = await ha.api.spreadsheets.values.batchGetByDataFilter({
       spreadsheetId: input.spreadsheetId,
       fields: 'valueRanges(valueRange(range,values))',
@@ -359,15 +345,6 @@ export async function handleWrite(
   const cellCount = input.values.reduce((sum: number, row: unknown[]) => sum + row.length, 0);
 
   if (input.dataFilter) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix: 'Enable the feature by setting the appropriate environment variable',
-      });
-    }
-
     if (input.safety?.dryRun) {
       const warnings = buildPayloadWarnings(ha, 'write', payloadValidation);
       const meta = warnings
@@ -510,15 +487,12 @@ export async function handleWrite(
 
       const analysisConfig = getBackgroundAnalysisConfig();
       const cellsAffected = (responseData['updatedCells'] as number | undefined) ?? cellCount;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (analysisConfig.enabled && cellsAffected >= (analysisConfig as any).minCells) {
+      if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
         const analyzer = getBackgroundAnalyzer();
         analyzer.analyzeInBackground(input.spreadsheetId, writeRange, cellsAffected, ha.api, {
           qualityThreshold: 70,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          minCellsChanged: (analysisConfig as any).minCells,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          debounceMs: (analysisConfig as any).debounceMs,
+          minCellsChanged: analysisConfig.minCells,
+          debounceMs: analysisConfig.debounceMs,
         });
       }
 
@@ -629,15 +603,12 @@ export async function handleWrite(
 
   const analysisConfig = getBackgroundAnalysisConfig();
   const cellsAffected = response.data.updatedCells ?? 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (analysisConfig.enabled && cellsAffected >= (analysisConfig as any).minCells) {
+  if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
     const analyzer = getBackgroundAnalyzer();
     analyzer.analyzeInBackground(input.spreadsheetId, writeRange, cellsAffected, ha.api, {
       qualityThreshold: 70,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      minCellsChanged: (analysisConfig as any).minCells,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      debounceMs: (analysisConfig as any).debounceMs,
+      minCellsChanged: analysisConfig.minCells,
+      debounceMs: analysisConfig.debounceMs,
     });
   }
 
@@ -779,15 +750,12 @@ export async function handleAppend(
         };
 
         const analysisConfig = getBackgroundAnalysisConfig();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (analysisConfig.enabled && cellCount >= (analysisConfig as any).minCells) {
+        if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
           const analyzer = getBackgroundAnalyzer();
           analyzer.analyzeInBackground(input.spreadsheetId, range ?? 'A1', cellCount, ha.api, {
             qualityThreshold: 70,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            minCellsChanged: (analysisConfig as any).minCells,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            debounceMs: (analysisConfig as any).debounceMs,
+            minCellsChanged: analysisConfig.minCells,
+            debounceMs: analysisConfig.debounceMs,
           });
         }
 
@@ -863,15 +831,12 @@ export async function handleAppend(
     };
 
     const analysisConfig = getBackgroundAnalysisConfig();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (analysisConfig.enabled && cellCount >= (analysisConfig as any).minCells) {
+    if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
       const analyzer = getBackgroundAnalyzer();
       analyzer.analyzeInBackground(input.spreadsheetId, range ?? 'A1', cellCount, ha.api, {
         qualityThreshold: 70,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        minCellsChanged: (analysisConfig as any).minCells,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        debounceMs: (analysisConfig as any).debounceMs,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
       });
     }
 
@@ -938,15 +903,12 @@ export async function handleAppend(
 
       const analysisConfig = getBackgroundAnalysisConfig();
       const affectedCells = (updates?.updatedCells as number | undefined) ?? cellCount;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (analysisConfig.enabled && affectedCells >= (analysisConfig as any).minCells) {
+      if (analysisConfig.enabled && affectedCells >= analysisConfig.minCells) {
         const analyzer = getBackgroundAnalyzer();
         analyzer.analyzeInBackground(input.spreadsheetId, range, affectedCells, ha.api, {
           qualityThreshold: 70,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          minCellsChanged: (analysisConfig as any).minCells,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          debounceMs: (analysisConfig as any).debounceMs,
+          minCellsChanged: analysisConfig.minCells,
+          debounceMs: analysisConfig.debounceMs,
         });
       }
 
@@ -993,15 +955,12 @@ export async function handleAppend(
 
   const analysisConfig = getBackgroundAnalysisConfig();
   const affectedCells = updates?.updatedCells ?? 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (analysisConfig.enabled && affectedCells >= (analysisConfig as any).minCells) {
+  if (analysisConfig.enabled && affectedCells >= analysisConfig.minCells) {
     const analyzer = getBackgroundAnalyzer();
     analyzer.analyzeInBackground(input.spreadsheetId, range, affectedCells, ha.api, {
       qualityThreshold: 70,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      minCellsChanged: (analysisConfig as any).minCells,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      debounceMs: (analysisConfig as any).debounceMs,
+      minCellsChanged: analysisConfig.minCells,
+      debounceMs: analysisConfig.debounceMs,
     });
   }
 
@@ -1086,20 +1045,6 @@ export async function handleClear(
   }
 
   if (input.dataFilter) {
-    if (!ha.featureFlags.enableDataFilterBatch) {
-      ha.context.metrics?.recordFeatureFlagBlock({
-        flag: 'dataFilterBatch',
-        tool: ha.toolName,
-        action: 'clear',
-      });
-      return ha.makeError({
-        code: ErrorCodes.FEATURE_UNAVAILABLE,
-        message: 'DataFilter clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
-        retryable: false,
-        suggestedFix: 'Enable the feature by setting the appropriate environment variable',
-      });
-    }
-
     if (input.safety?.dryRun) {
       return ha.makeSuccess(
         'clear',
@@ -1163,10 +1108,8 @@ export async function handleClear(
         const analyzer = getBackgroundAnalyzer();
         analyzer.analyzeInBackground(input.spreadsheetId, clearedRanges[0]!, 100, ha.api, {
           qualityThreshold: 70,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          minCellsChanged: (analysisConfig as any).minCells,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          debounceMs: (analysisConfig as any).debounceMs,
+          minCellsChanged: analysisConfig.minCells,
+          debounceMs: analysisConfig.debounceMs,
         });
       }
 

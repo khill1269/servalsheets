@@ -30,14 +30,21 @@ name: Nightly Live API
 
 on:
   schedule:
-    # 07:00 UTC daily
+    # 07:00 UTC daily (full correctness suite)
     - cron: '0 7 * * *'
+    # 08:00 UTC Sunday only (optimization benchmarks — timing-sensitive, warn-only)
+    - cron: '0 8 * * 0'
   workflow_dispatch:
     inputs:
       spreadsheet_id:
         description: 'Override TEST_SPREADSHEET_ID (optional)'
         required: false
         type: string
+      run_optimizations:
+        description: 'Also run optimization benchmarks'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -68,10 +75,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -156,17 +163,30 @@ jobs:
         if: steps.live.outputs.status == '0'
         run: npx tsx tests/live-api/guards/breaking-change-detector.ts --update-baseline
 
-      - name: Upload live-api log
+      - name: Compute per-action flake rates
+        if: always()
+        continue-on-error: true
+        run: |
+          node scripts/compute-flake-rates.mjs --top 10 2>&1 | tee .tmp/flake-rates.txt || true
+          echo "## Per-Action Flake Rates (Top 10 Unstable)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat .tmp/flake-rates.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(no data)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload live-api log and failure traces
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: live-nightly-log
-          path: .tmp/live-nightly.log
+          path: |
+            .tmp/live-nightly.log
+            .tmp/flake-rates.txt
+            .tmp/traces/
           retention-days: 14
 
       - name: Open issue on failure
         if: steps.live.outputs.status != '0'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
             const fs = require('fs');
@@ -200,3 +220,21 @@ jobs:
         run: |
           echo "::error::Nightly live-api failed. See artifact + auto-filed issue."
           exit 1
+
+      - name: Run optimization benchmarks (Sundays + manual opt-in — warn-only)
+        if: |
+          (github.event_name == 'schedule' && startsWith(github.event.schedule, '0 8 * * 0')) ||
+          (github.event_name == 'workflow_dispatch' && inputs.run_optimizations == 'true')
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          TEST_REAL_API: 'true'
+          TEST_SPREADSHEET_ID: ${{ inputs.spreadsheet_id || secrets.TEST_SPREADSHEET_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: |
+          npm run test:live:optimizations -- --reporter=verbose 2>&1 | tee .tmp/live-optimizations.log || true
+          echo "## Optimization Benchmarks" >> $GITHUB_STEP_SUMMARY
+          echo "Timing benchmarks excluded from nightly — warn-only (flake-prone)." >> $GITHUB_STEP_SUMMARY
+          tail -30 .tmp/live-optimizations.log >> $GITHUB_STEP_SUMMARY 2>/dev/null || true

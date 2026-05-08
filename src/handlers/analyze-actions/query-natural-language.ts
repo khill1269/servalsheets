@@ -13,6 +13,11 @@ import {
   extractCitationsFromResponse,
   type SamplingServer,
 } from '../../mcp/sampling.js';
+import {
+  createMessageWithFallback,
+  isLLMFallbackAvailable,
+  type LLMMessage,
+} from '../../services/llm-fallback.js';
 
 type QueryNaturalLanguageRequest = {
   spreadsheetId: string;
@@ -49,6 +54,14 @@ type QueryResultData = {
   headers: string[];
   rows: QueryCellValue[][];
 };
+type QuerySamplingRequest = {
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: unknown;
+  }>;
+  systemPrompt?: string;
+  maxTokens?: number;
+};
 
 function parseQueryResultChartType(value: unknown): QueryResultChartType | undefined {
   if (typeof value !== 'string') {
@@ -62,7 +75,7 @@ function parseQueryResultChartType(value: unknown): QueryResultChartType | undef
 
 export interface QueryNaturalLanguageDeps {
   checkSamplingCapability: () => Promise<AnalyzeResponse | null>;
-  server: SamplingServer;
+  server?: SamplingServer;
   sheetsApi: sheets_v4.Sheets;
   sessionContext?: Pick<SessionContextManager, 'understandingStore'>;
 }
@@ -100,6 +113,45 @@ function extractSheetName(range: string | undefined): string | undefined {
 
 function quoteSheetName(sheetName: string): string {
   return /[\s'!]/.test(sheetName) ? `'${sheetName.replace(/'/g, "''")}'` : sheetName;
+}
+
+async function createNaturalLanguageQueryMessage(
+  server: SamplingServer | undefined,
+  samplingRequest: QuerySamplingRequest
+): Promise<string> {
+  if (server?.createMessage) {
+    await assertSamplingConsent();
+    const samplingResult = await withSamplingTimeout(() =>
+      server.createMessage(samplingRequest as Parameters<SamplingServer['createMessage']>[0])
+    );
+    const contentBlocks = Array.isArray(samplingResult.content)
+      ? samplingResult.content
+      : [samplingResult.content];
+    const textBlock = contentBlocks.find(
+      (block): block is { type: 'text'; text: string } =>
+        block.type === 'text' && 'text' in block && typeof block.text === 'string'
+    );
+    return textBlock?.text ?? '';
+  }
+
+  const llmMessages: LLMMessage[] = samplingRequest.messages.map((message) => ({
+    role: message.role,
+    content:
+      typeof message.content === 'string'
+        ? message.content
+        : typeof message.content === 'object' &&
+            message.content !== null &&
+            'text' in message.content &&
+            typeof (message.content as { text?: unknown }).text === 'string'
+          ? (message.content as { text: string }).text
+          : JSON.stringify(message.content),
+  }));
+  const fallbackResult = await createMessageWithFallback(null, {
+    messages: llmMessages,
+    systemPrompt: samplingRequest.systemPrompt,
+    maxTokens: samplingRequest.maxTokens,
+  });
+  return fallbackResult.content;
 }
 
 /**
@@ -229,37 +281,43 @@ export async function handleQueryNaturalLanguageAction(
 
     const samplingRequest = buildNLQuerySamplingRequest(input.query, context);
 
-    let samplingResult;
+    let contentText = '';
     try {
-      await assertSamplingConsent();
-      samplingResult = await withSamplingTimeout(() => deps.server.createMessage(samplingRequest));
+      contentText = await createNaturalLanguageQueryMessage(deps.server, samplingRequest);
     } catch (samplingError) {
-      logger.error('Sampling call failed for query_natural_language', {
-        component: 'analyze-handler',
-        action: 'query_natural_language',
-        error: samplingError instanceof Error ? samplingError.message : String(samplingError),
-      });
-      return {
-        success: false,
-        error: {
-          code: ErrorCodes.FEATURE_UNAVAILABLE,
-          message:
-            'AI analysis service unavailable. This feature requires MCP Sampling support or an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
-          retryable: false,
-          suggestedFix:
-            'Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY in your environment, or use an MCP client that supports the Sampling capability (MCP 2025-11-25+).',
-        },
-      };
-    }
+      if (deps.server?.createMessage && isLLMFallbackAvailable()) {
+        try {
+          contentText = await createNaturalLanguageQueryMessage(undefined, samplingRequest);
+        } catch (fallbackError) {
+          logger.error('LLM fallback failed for query_natural_language', {
+            component: 'analyze-handler',
+            action: 'query_natural_language',
+            error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          });
+        }
+      }
 
-    const contentBlocks = Array.isArray(samplingResult.content)
-      ? samplingResult.content
-      : [samplingResult.content];
-    const textBlock = contentBlocks.find(
-      (block): block is { type: 'text'; text: string } =>
-        block.type === 'text' && 'text' in block && typeof block.text === 'string'
-    );
-    const contentText = textBlock?.text ?? '';
+      if (contentText) {
+        // Continue through normal JSON parsing below.
+      } else {
+        logger.error('Sampling call failed for query_natural_language', {
+          component: 'analyze-handler',
+          action: 'query_natural_language',
+          error: samplingError instanceof Error ? samplingError.message : String(samplingError),
+        });
+        return {
+          success: false,
+          error: {
+            code: ErrorCodes.FEATURE_UNAVAILABLE,
+            message:
+              'AI analysis service unavailable. This feature requires MCP Sampling support or an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
+            retryable: false,
+            suggestedFix:
+              'Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY in your environment, or use an MCP client that supports the Sampling capability (MCP 2025-11-25+).',
+          },
+        };
+      }
+    }
 
     const jsonMatch = contentText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {

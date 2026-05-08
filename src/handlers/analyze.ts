@@ -28,6 +28,7 @@ import type {
   AnalyzeResponse,
   ComprehensiveInput,
 } from '../schemas/analyze.js';
+import type { RangeInput } from '../schemas/shared.js';
 import { getCapabilitiesWithCache } from '../services/capability-cache.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
 import { type ScoutResult } from '../analysis/scout.js';
@@ -86,9 +87,7 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
   /**
    * AUDIT-2026-04-23 (Root A full): async variant of convertRangeInput
    * that handles the `grid` branch by translating GridRange → A1 using
-   * `convertGridRangeToA1`. The `semantic` branch returns a structured
-   * error marker (`{ notImplemented: true, reason }`) so callers can emit
-   * a proper NOT_IMPLEMENTED response instead of silently falling back.
+   * `convertGridRangeToA1`, and delegates semantic ranges to RangeResolver.
    *
    * Callers that accept `range: GridRange` should use this variant.
    * Pure-a1/namedRange callers can keep using `convertRangeInput`.
@@ -125,10 +124,10 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
       };
     }
     if ('semantic' in range) {
+      const resolved = await this.context.rangeResolver.resolve(spreadsheetId, range as RangeInput);
       return {
-        notImplemented: true,
-        reason:
-          'semantic range resolution is not yet implemented. Use {a1: "..."}, {namedRange: "..."}, or {grid: {...}} instead.',
+        a1: resolved.a1Notation,
+        sheetName: resolved.sheetName,
       };
     }
     return undefined; // OK: Explicit empty — unknown union branch (defensive); upstream Zod validates the union
