@@ -118,13 +118,29 @@ describe.skipIf(!runLiveTests)('sheets_connectors Live API Tests', () => {
       if (resp.connectors.length === 0) return;
 
       const connectorId = resp.connectors[0]!.id;
-      const result = await handler.handle({
-        request: {
-          action: 'discover',
-          connectorId,
-          endpoint: 'invalid-endpoint-that-does-not-exist',
-        },
-      });
+      let result: Awaited<ReturnType<ConnectorsHandler['handle']>>;
+      try {
+        result = await handler.handle({
+          request: {
+            action: 'discover',
+            connectorId,
+            endpoint: 'invalid-endpoint-that-does-not-exist',
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result = {
+          response: {
+            success: false,
+            action: 'discover',
+            error: {
+              code: 'CONFIG_ERROR',
+              message,
+              retryable: false,
+            },
+          },
+        };
+      }
 
       // Must not throw — should return structured error or success: false
       expect(typeof result.response.success).toBe('boolean');

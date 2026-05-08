@@ -1,10 +1,20 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_HTTP_CORS_ORIGINS,
   resolveHttpServerRuntimeConfig,
 } from '../../src/http-server/runtime-config.js';
 
 describe('http runtime config helper', () => {
+  const originalNodeEnv = process.env['NODE_ENV'];
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) {
+      delete process.env['NODE_ENV'];
+    } else {
+      process.env['NODE_ENV'] = originalNodeEnv;
+    }
+  });
+
   it('uses explicit overrides and env-backed event store settings', () => {
     const result = resolveHttpServerRuntimeConfig({
       envConfig: {
@@ -92,5 +102,45 @@ describe('http runtime config helper', () => {
     });
 
     expect(result.corsOrigins).toEqual(['https://a.example', 'https://b.example']);
+  });
+
+  it('requires explicit CORS origins in production', () => {
+    process.env['NODE_ENV'] = 'production';
+
+    expect(() =>
+      resolveHttpServerRuntimeConfig({
+        envConfig: {
+          CORS_ORIGINS: ' , ',
+          RATE_LIMIT_WINDOW_MS: 60000,
+          RATE_LIMIT_MAX: 100,
+          ENABLE_LEGACY_SSE: false,
+          REDIS_URL: undefined,
+          STREAMABLE_HTTP_EVENT_TTL_MS: 1000,
+          STREAMABLE_HTTP_EVENT_MAX_EVENTS: 10,
+        },
+        defaultPort: 3000,
+        defaultHost: '127.0.0.1',
+      })
+    ).toThrow('CORS_ORIGINS must be explicitly configured in production');
+  });
+
+  it('allows explicit CORS origins in production', () => {
+    process.env['NODE_ENV'] = 'production';
+
+    const result = resolveHttpServerRuntimeConfig({
+      envConfig: {
+        CORS_ORIGINS: 'https://prod.example',
+        RATE_LIMIT_WINDOW_MS: 60000,
+        RATE_LIMIT_MAX: 100,
+        ENABLE_LEGACY_SSE: false,
+        REDIS_URL: undefined,
+        STREAMABLE_HTTP_EVENT_TTL_MS: 1000,
+        STREAMABLE_HTTP_EVENT_MAX_EVENTS: 10,
+      },
+      defaultPort: 3000,
+      defaultHost: '127.0.0.1',
+    });
+
+    expect(result.corsOrigins).toEqual(['https://prod.example']);
   });
 });

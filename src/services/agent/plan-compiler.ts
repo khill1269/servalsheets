@@ -501,9 +501,8 @@ export async function compilePlanAI(
     steps,
     now,
     spreadsheetId,
-    planningContextSummary: [summarizePlanningContext(context), regexNote]
-      .filter(Boolean)
-      .join(' | ') || undefined,
+    planningContextSummary:
+      [summarizePlanningContext(context), regexNote].filter(Boolean).join(' | ') || undefined,
   });
 
   // Annotate all plans; for regex-fallback plans also backfill _requiredParams

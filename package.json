@@ -2,7 +2,18 @@
   "name": "servalsheets",
   "mcpName": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade MCP server for Google Sheets — 25 tools, 410 actions",
+  "description": "Production-grade MCP server for Google Sheets \u2014 25 tools, 410 actions",
+  "bin": {
+    "servalsheets": "dist/server.js"
+  },
+  "homepage": "https://github.com/khill1269/servalsheets#readme",
+  "bugs": {
+    "url": "https://github.com/khill1269/servalsheets/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khill1269/servalsheets.git"
+  },
   "type": "module",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
@@ -77,7 +88,7 @@
     "validate:compliance": "node --import tsx scripts/validate-api-mcp-compliance.ts",
     "validate:server-json": "node scripts/validate-server-json.mjs",
     "validate:server-json-extended": "node --import tsx scripts/validate-server-json-extended.ts",
-    "validate:registry": "node scripts/validate-server-json.mjs && node --import tsx scripts/validate-server-json-extended.ts",
+    "validate:registry": "npm run validate:server-json && npm run validate:server-json-extended && node scripts/check-registry-readiness.mjs",
     "check:metadata-strict": "node --import tsx scripts/check-metadata-strict.ts",
     "check:zod-markers": "node scripts/check-zod-markers.mjs",
     "check:architecture": "bash scripts/check-architecture.sh",
@@ -106,9 +117,18 @@
     "test:mcp-http-task-contract": "vitest --run tests/packages/mcp-http",
     "test:http-transport-failover": "vitest --run tests/http-server/http-transport-failover.test.ts",
     "test:coverage:tracking": "vitest --run --coverage",
+    "test:simulation": "vitest run tests/simulation/",
+    "test:simulation:full": "vitest run tests/simulation/ tests/contracts/ tests/compliance/",
+    "stress:catalog": "npx tsx tests/stress/scenario-catalog.ts --print",
+    "stress:run": "STRESS_TEST=1 vitest run tests/live-api/zstress/ --timeout=300000",
     "clean": "rm -rf dist",
     "prepare": "npm run build",
-    "pretest": "npm run typecheck"
+    "pretest": "npm run typecheck",
+    "test:all": "node scripts/run-full-test-suite.mjs",
+    "test:all:skip-live": "node scripts/run-full-test-suite.mjs --skip-live",
+    "test:report": "node scripts/run-full-test-suite.mjs --json > test-results.json",
+    "live:setup": "node scripts/live-test-setup.mjs",
+    "live:probe": "node .tmp-live-test.mjs"
   },
   "keywords": [
     "mcp",

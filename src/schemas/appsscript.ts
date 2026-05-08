@@ -455,7 +455,7 @@ const CreateTriggerActionSchema = z.object({
   action: z
     .literal('create_trigger')
     .describe(
-      'Compatibility-only trigger creation surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot manage triggers; use update_content to add ScriptApp trigger code, then deploy.'
+      'Create an Apps Script trigger by delegating to the installed in-project SERVAL ScriptApp helper through scripts.run.'
     ),
   scriptId: ScriptIdSchema.optional().describe(
     'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -501,7 +501,7 @@ const ListTriggersActionSchema = z.object({
   action: z
     .literal('list_triggers')
     .describe(
-      'Compatibility-only trigger listing surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot enumerate triggers; use get_content to inspect ScriptApp trigger code.'
+      'List Apps Script triggers by delegating to the installed in-project SERVAL ScriptApp helper through scripts.run.'
     ),
   scriptId: ScriptIdSchema.optional().describe(
     'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -529,7 +529,7 @@ const DeleteTriggerActionSchema = z.object({
   action: z
     .literal('delete_trigger')
     .describe(
-      'Compatibility-only trigger deletion surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot delete triggers; use update_content to remove ScriptApp trigger code.'
+      'Delete an Apps Script trigger by delegating to the installed in-project SERVAL ScriptApp helper through scripts.run.'
     ),
   scriptId: ScriptIdSchema.optional().describe(
     'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -549,7 +549,7 @@ const UpdateTriggerActionSchema = z.object({
   action: z
     .literal('update_trigger')
     .describe(
-      'Compatibility-only trigger update surface. Currently returns NOT_IMPLEMENTED because external Apps Script REST clients cannot update triggers; use update_content plus deploy instead.'
+      'Replace an Apps Script trigger by deleting it and creating a new trigger through the installed in-project SERVAL ScriptApp helper.'
     ),
   scriptId: ScriptIdSchema.optional().describe(
     'Apps Script project ID. If omitted, provide spreadsheetId to auto-resolve.'
@@ -562,6 +562,10 @@ const UpdateTriggerActionSchema = z.object({
     ),
   triggerId: z.string().min(1).describe('Existing trigger ID to replace'),
   functionName: z.string().min(1).optional().describe('New function name (if changing)'),
+  triggerType: z
+    .enum(['CLOCK', 'ON_OPEN', 'ON_EDIT', 'ON_FORM_SUBMIT', 'ON_CHANGE'])
+    .optional()
+    .describe('Replacement trigger type. Defaults to CLOCK when omitted.'),
   everyMinutes: z.coerce
     .number()
     .int()
@@ -708,6 +712,15 @@ const AppsScriptResponseSchema = z.discriminatedUnion('success', [
       })
       .optional()
       .describe('Usage metrics'),
+    // Trigger results
+    trigger: z.record(z.string(), z.any()).optional().describe('Trigger metadata'),
+    triggers: z.array(z.record(z.string(), z.any())).optional().describe('List of triggers'),
+    deleted: z.boolean().optional().describe('Whether a trigger was deleted'),
+    triggerId: z.string().optional().describe('Trigger identifier'),
+    previousTrigger: z
+      .record(z.string(), z.any())
+      .optional()
+      .describe('Previous trigger metadata for update_trigger'),
     // Pagination
     nextPageToken: z.string().optional().describe('Token for next page of results'),
     // SERVAL formula installer results

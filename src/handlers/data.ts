@@ -69,9 +69,6 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const contextFlags = (context as HandlerContext & { featureFlags?: Record<string, unknown> })
       .featureFlags;
     this.featureFlags = {
-      enableDataFilterBatch:
-        (contextFlags?.['enableDataFilterBatch'] as boolean | undefined) ??
-        (Boolean(env['ENABLE_DATAFILTER_BATCH']) as boolean),
       enableTableAppends:
         (contextFlags?.['enableTableAppends'] as boolean | undefined) ??
         (Boolean(env['ENABLE_TABLE_APPENDS']) as boolean),
@@ -361,7 +358,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: ErrorCodes.INVALID_PARAMS,
           message: `Unknown action: ${exhaustiveCheck}. Use sheets_analyze.discover to list available sheets_data actions.`,
           retryable: false,
-          suggestedFix: 'Call sheets_analyze action:"discover" with toolName:"sheets_data" to see all valid actions.',
+          suggestedFix:
+            'Call sheets_analyze action:"discover" with toolName:"sheets_data" to see all valid actions.',
         });
       }
     }

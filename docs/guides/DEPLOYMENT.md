@@ -670,7 +670,6 @@ GOOGLE_TOKEN_STORE_PATH=/opt/servalsheets/data/tokens.enc
 ENCRYPTION_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
 
 # Feature flags (staged rollout)
-ENABLE_DATAFILTER_BATCH=true
 ENABLE_TABLE_APPENDS=true
 ENABLE_PAYLOAD_VALIDATION=true
 ENABLE_LEGACY_SSE=true

@@ -21,7 +21,7 @@ Analyze the ServalSheets MCP server codebase to discover patterns, extract infor
 
 **ServalSheets Structure:**
 
-- 25 tools with 409 actions
+- 25 tools with 410 actions
 - MCP Protocol: 2025-11-25
 - Handlers: src/handlers/\*.ts (25 files)
 - Schemas: src/schemas/\*.ts (25 files)

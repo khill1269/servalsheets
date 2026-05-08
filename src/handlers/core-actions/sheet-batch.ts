@@ -110,6 +110,7 @@ export async function handleBatchDeleteSheetsAction(
       affectedCells: sheetsToDelete.length,
       spreadsheetId: input.spreadsheetId,
     },
+    preConfirmed: input.safety?.confirmed === true,
   });
   if (!deleteConfirmation.confirmed) {
     return deps.error({
@@ -345,6 +346,8 @@ export async function handleClearSheetAction(
       isDestructive: true,
       spreadsheetId: input.spreadsheetId,
     },
+    preConfirmed:
+      (input as typeof input & { safety?: { confirmed?: boolean } }).safety?.confirmed === true,
   });
 
   if (!clearConfirmation.confirmed) {

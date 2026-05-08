@@ -114,7 +114,7 @@ describe('Metadata Consistency Contract', () => {
   it('server.json metadata categories cover every tool exactly once', () => {
     const serverJson = JSON.parse(readFileSync('server.json', 'utf-8'));
 
-    const categorizedToolNames = serverJson.metadata.categories.flatMap((category: string) => {
+    const categorizedToolNames = (serverJson.categories ?? serverJson.metadata?.categories ?? []).flatMap((category: string) => {
       const separatorIndex = category.indexOf(':');
       if (separatorIndex === -1) {
         return [];

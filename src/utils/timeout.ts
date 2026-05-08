@@ -10,6 +10,13 @@
 import { getEnv } from '../config/env.js';
 import { logger as baseLogger } from './logger.js';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 60000;
+
+function normalizeTimeoutMs(timeoutMs: unknown): number {
+  const parsed = Number(timeoutMs);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
 /**
  * Timeout error with operation details
  */
@@ -46,13 +53,18 @@ export async function withTimeout<T>(
   operationName: string = 'operation'
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const resolvedTimeoutMs = normalizeTimeoutMs(timeoutMs);
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       reject(
-        new TimeoutError(`Operation timed out after ${timeoutMs}ms`, operationName, timeoutMs)
+        new TimeoutError(
+          `Operation timed out after ${resolvedTimeoutMs}ms`,
+          operationName,
+          resolvedTimeoutMs
+        )
       );
-    }, timeoutMs);
+    }, resolvedTimeoutMs);
   });
 
   try {
@@ -61,7 +73,7 @@ export async function withTimeout<T>(
     if (error instanceof TimeoutError) {
       baseLogger.error('Operation timeout', {
         operationName,
-        timeoutMs,
+        timeoutMs: resolvedTimeoutMs,
       });
     }
     throw error;

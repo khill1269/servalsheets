@@ -141,9 +141,15 @@ export async function handleSuggestVisualizationAction(
   const startTime = Date.now();
   const rangeStr = deps.resolveAnalyzeRange(input.range);
   const sheetName = deps.getSheetNameFromRange(rangeStr);
-  const sheetId = await deps.resolveSheetId(input.spreadsheetId, sheetName);
   const anchorCell = sheetName ? buildA1Notation(sheetName, 0, 0) : 'A1';
-  const data = await deps.readData(input.spreadsheetId, rangeStr);
+  // resolveSheetId and readData are independent: neither feeds the other.
+  // Run them in parallel to save ~200-500ms of serial Google API latency.
+  // Note: PerSpreadsheetThrottle in google-api.ts is only applied for Drive
+  // operations, not for spreadsheets.get/values.get, so Promise.all is safe.
+  const [sheetId, data] = await Promise.all([
+    deps.resolveSheetId(input.spreadsheetId, sheetName),
+    deps.readData(input.spreadsheetId, rangeStr),
+  ]);
 
   if (data.length === 0) {
     return {

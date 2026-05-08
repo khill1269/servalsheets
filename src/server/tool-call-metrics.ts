@@ -18,6 +18,7 @@ function pruneOldSelfCorrectionFailures(nowMs: number): void {
 function isToolResultError(result: unknown): {
   isError: boolean;
   errorDetail: unknown;
+  errorCode: string;
 } {
   const response =
     typeof result === 'object' && result !== null
@@ -31,8 +32,14 @@ function isToolResultError(result: unknown): {
       (result as { success?: boolean }).success === false);
   const errorDetail =
     response?.success === false ? response.error : (result as { error?: unknown }).error;
+  const errorCode =
+    typeof errorDetail === 'object' &&
+    errorDetail !== null &&
+    typeof (errorDetail as { code?: unknown }).code === 'string'
+      ? (errorDetail as { code: string }).code
+      : 'unknown';
 
-  return { isError, errorDetail };
+  return { isError, errorDetail, errorCode };
 }
 
 export function recordToolExecutionResult(params: {
@@ -47,14 +54,14 @@ export function recordToolExecutionResult(params: {
   const nowMs = Date.now();
   pruneOldSelfCorrectionFailures(nowMs);
   const correctionKey = buildSelfCorrectionKey(principalId, toolName);
-  const { isError, errorDetail } = isToolResultError(result);
+  const { isError, errorDetail, errorCode } = isToolResultError(result);
 
   if (isError) {
     warn('Tool call failed', {
       tool: toolName,
       error: errorDetail,
     });
-    recordToolCall(toolName, action, 'error', durationSeconds);
+    recordToolCall(toolName, action, 'error', durationSeconds, errorCode);
     recentToolFailures.set(correctionKey, { action, timestampMs: nowMs });
     return;
   }
@@ -76,7 +83,7 @@ export function recordToolExecutionException(params: {
   const { toolName, action, durationSeconds, principalId } = params;
   const nowMs = Date.now();
 
-  recordToolCall(toolName, action, 'error', durationSeconds);
+  recordToolCall(toolName, action, 'error', durationSeconds, 'exception');
   pruneOldSelfCorrectionFailures(nowMs);
 
   const correctionKey = buildSelfCorrectionKey(principalId, toolName);

@@ -150,6 +150,7 @@ export interface CreateHttpServerDependencies<
     getSessionCount: () => number;
     ensureToolIntegrityVerified: EnsureToolIntegrityVerifier;
     rateLimiterReady: Promise<void>;
+    initializeAuthProviders: () => Promise<void>;
     initializeRbac: () => Promise<void>;
     enableMetricsServer: boolean;
     metricsPort: number;
@@ -270,6 +271,17 @@ export function createHttpServer<
     log: dependencies.log,
   });
 
+  const initializeAuthProviders = async (): Promise<void> => {
+    if (
+      oauth &&
+      typeof oauth === 'object' &&
+      'initialize' in oauth &&
+      typeof oauth.initialize === 'function'
+    ) {
+      await oauth.initialize();
+    }
+  };
+
   app.use(perUserRateLimitMiddleware);
 
   dependencies.registerHttpRequestContextMiddleware(app);
@@ -322,6 +334,7 @@ export function createHttpServer<
     getSessionCount: () => sessions.size,
     ensureToolIntegrityVerified,
     rateLimiterReady,
+    initializeAuthProviders,
     initializeRbac,
     enableMetricsServer: envConfig.ENABLE_METRICS_SERVER,
     metricsPort: envConfig.METRICS_PORT,

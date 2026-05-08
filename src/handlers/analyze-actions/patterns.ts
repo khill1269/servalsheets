@@ -185,7 +185,9 @@ export async function handleDetectPatternsAction(
       aiInsight,
       message: [
         `Found ${anomalies.length} anomalies, ${trends.length} trends, ${correlations.length} correlations`,
-        ...(anomalies.length === 0 ? ['No anomalies: z-score threshold 3.0 (values must be >3σ from column mean)'] : []),
+        ...(anomalies.length === 0
+          ? ['No anomalies: z-score threshold 3.0 (values must be >3σ from column mean)']
+          : []),
         ...(trends.length === 0 ? ['No trends: insufficient numeric data or slope < 0.1'] : []),
         ...(correlations.length === 0 ? ['No correlations: no column pairs with |r| > 0.3'] : []),
       ].join('. '),

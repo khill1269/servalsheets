@@ -616,6 +616,43 @@ describe('CompositeHandler (P14-C1 Workflow Actions)', () => {
       expect(response.success).toBe(false);
       expect(response.error).toBeDefined();
     });
+
+    it('should reject variable keys with regex metacharacters (ReDoS prevention)', async () => {
+      // A key like ((a+)+)b would cause catastrophic backtracking in naive new RegExp(`{{${key}}}`)
+      const start = Date.now();
+      const result = await handler.handle({
+        request: {
+          action: 'instantiate_template',
+          templateId: 'template-id',
+          variables: { '((a+)+)b': 'x' },
+        },
+      } as any);
+      const elapsed = Date.now() - start;
+
+      const response = result.response as any;
+      expect(response.success).toBe(false);
+      // Must fail fast — not hang due to backtracking
+      expect(elapsed).toBeLessThan(500);
+    });
+
+    it('should accept variable keys with safe characters only', async () => {
+      const result = await handler.handle({
+        request: {
+          action: 'instantiate_template',
+          templateId: 'template-spreadsheet-id',
+          variables: {
+            company_name: 'Acme Corp',
+            'fiscal.year': '2026',
+            'cost-center': 'CC-001',
+          },
+          targetSpreadsheetId: 'target-id',
+          targetSheetName: 'Sheet1',
+        },
+      } as any);
+
+      const response = result.response as any;
+      expect(response.success).toBe(true);
+    });
   });
 
   // =========================================================================

@@ -1,6 +1,6 @@
 ---
 name: servalsheets-comprehensive-tester
-description: "Elite MCP QA agent. Tests all 25 tools + 409 actions end-to-end. Executes live API test suite, validates MCP compliance across all tools, catches integration gaps. Examples: 'run comprehensive test suite', 'execute live API tests', 'validate all tools', 'check MCP compliance for all 25 tools'"
+description: "Elite MCP QA agent. Tests all 25 tools + 410 actions end-to-end. Executes live API test suite, validates MCP compliance across all tools, catches integration gaps. Examples: 'run comprehensive test suite', 'execute live API tests', 'validate all tools', 'check MCP compliance for all 25 tools'"
 model: sonnet
 tools:
   - Bash
@@ -19,7 +19,7 @@ Treats the entire 25-tool server as a black box and validates it end-to-end: sch
 
 ## Role
 
-You are an elite MCP QA specialist. Your job is to test the entire ServalSheets server — all 25 tools, 409 actions — as an integrated system. You validate:
+You are an elite MCP QA specialist. Your job is to test the entire ServalSheets server — all 25 tools, 410 actions — as an integrated system. You validate:
 
 1. **MCP Compliance** — Does the server implement MCP 2025-11-25 correctly?
 2. **Schema Structure** — Are all 25 tools properly registered with correct action schemas?
@@ -42,7 +42,7 @@ Validates: Schema parsing, handler dispatch, error codes, response shapes
 
 ### Mode 2: Live API Tests (Connected MCP Server)
 
-Tests all 25 tools + 409 actions via real MCP calls to a running ServalSheets server.
+Tests all 25 tools + 410 actions via real MCP calls to a running ServalSheets server.
 Requires: Google Sheets authenticated session, test spreadsheet
 
 Plan: `tests/manual/TEST_PLAN.md` (25 tools, organized by category)
@@ -86,7 +86,7 @@ For each of the 25 tools:
 
 ## Required Test Files
 
-- `tests/manual/TEST_PLAN.md` — Full test plan (25 tools, 409 actions)
+- `tests/manual/TEST_PLAN.md` — Full test plan (25 tools, 410 actions)
 - `tests/contracts/` — Schema + response format validation
 - `tests/audit/` — Coverage, performance, memory profiles
 
@@ -151,7 +151,7 @@ node tests/manual/runner.js  # (if exists)
 ### Tool Functionality
 
 - [ ] All 25 tools have > 0 actions
-- [ ] All 409 actions callable
+- [ ] All 410 actions callable
 - [ ] Success path tested per action
 - [ ] Error path tested per action (at least 1)
 - [ ] Large dataset handling verified (no OOM)
@@ -176,7 +176,7 @@ node tests/manual/runner.js  # (if exists)
 ## Summary
 
 - Tools tested: 25/25 ✅
-- Actions tested: 409/409 ✅
+- Actions tested: 410/410 ✅
 - Unit tests: run `npm run test:fast` for current count
 - Live API tests: X/Y pass (X failures listed below)
 - MCP compliance: PASS ✅

@@ -1,7 +1,11 @@
 import type { ActionFixture } from '../audit/action-coverage-fixtures.js';
 
-export type ActionExecutionMode = 'mcp_execute' | 'probe_only' | 'skip_external';
-export type AssertionSource = 'mcp_tool' | 'google_probe' | 'skip_policy';
+export type ActionExecutionMode =
+  | 'mcp_execute'
+  | 'staged_mcp_execute'
+  | 'probe_only'
+  | 'external_pack';
+export type AssertionSource = 'mcp_tool' | 'google_probe' | 'external_policy';
 export type ProbeStrategy =
   | 'auth_connectivity'
   | 'spreadsheet_metadata'
@@ -14,6 +18,7 @@ export interface MaterializeRequestOptions {
   primarySheetId: number;
   secondarySpreadsheetId?: string;
   secondarySheetId?: number;
+  resourceIds?: Record<string, string | number>;
 }
 
 export interface MatrixQuotaEstimate {
@@ -42,6 +47,8 @@ export interface ActionCapability {
   mutates: boolean;
   sharedExecution: boolean;
   requiresSecondarySpreadsheet: boolean;
+  setupPack?: string;
+  cascadeDowngraded?: boolean;
   probeStrategy: ProbeStrategy | null;
   executionProfile: MatrixExecutionProfile;
 }
@@ -73,6 +80,17 @@ export interface MatrixActionResult {
     message: string;
     status?: number;
   };
+  quotaEstimate?: MatrixQuotaEstimate;
+  setupPack?: string;
+  cascadeDowngraded?: boolean;
+  retryReason?: 'rate_limit' | 'transport_timeout';
+  failureCategory?:
+    | 'fixture'
+    | 'server_bug'
+    | 'google_api_drift'
+    | 'quota_or_transient'
+    | 'external_missing_config'
+    | 'unknown';
 }
 
 export interface MatrixReportV2 {
@@ -80,8 +98,9 @@ export interface MatrixReportV2 {
   generatedAt: string;
   totalActions: number;
   executed: number;
+  stagedExecuted: number;
   probed: number;
-  skipped: number;
+  external: number;
   gatedActions: number;
   passed: number;
   failed: number;
@@ -90,8 +109,9 @@ export interface MatrixReportV2 {
   results: MatrixActionResult[];
   coverageSummary?: {
     mcp_execute: number;
+    staged_mcp_execute: number;
     probe_only: number;
-    skip_external: number;
+    external_pack: number;
     cascadeDowngraded: number;
   };
 }
@@ -348,17 +368,18 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
     reason: 'Analysis actions are covered by targeted suites; the matrix uses lightweight probes.',
   },
   sheets_appsscript: {
-    mode: 'skip_external',
+    mode: 'external_pack',
     reason:
-      'Apps Script actions require external script projects and OAuth-backed execution context.',
+      'Apps Script actions require the opt-in external live pack with script projects and OAuth-backed execution context.',
   },
   sheets_auth: {
     mode: 'mcp_execute',
     reason: 'Auth status checks are runnable in-process against the live server configuration.',
   },
   sheets_bigquery: {
-    mode: 'skip_external',
-    reason: 'BigQuery actions require external cloud resources and dataset configuration.',
+    mode: 'external_pack',
+    reason:
+      'BigQuery actions require the opt-in external live pack with cloud resources and dataset configuration.',
   },
   sheets_collaborate: {
     mode: 'probe_only',
@@ -378,8 +399,9 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
     reason: 'Confirmation flows depend on MCP elicitation-capable clients.',
   },
   sheets_connectors: {
-    mode: 'skip_external',
-    reason: 'Connector actions require external API credentials and remote endpoints.',
+    mode: 'external_pack',
+    reason:
+      'Connector actions require the opt-in external live pack with external API credentials and remote endpoints.',
   },
   sheets_core: {
     mode: 'mcp_execute',
@@ -398,8 +420,8 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
     reason: 'Dimension actions are runnable with isolated matrix spreadsheets.',
   },
   sheets_federation: {
-    mode: 'skip_external',
-    reason: 'Federation actions require configured remote MCP servers.',
+    mode: 'external_pack',
+    reason: 'Federation actions require the opt-in external live pack with remote MCP servers.',
   },
   sheets_fix: {
     mode: 'probe_only',
@@ -436,22 +458,23 @@ export const MATRIX_TOOL_DEFAULTS: Readonly<Record<string, ModeRule>> = {
     reason: 'Visualization updates often depend on pre-created chart or pivot state.',
   },
   sheets_webhook: {
-    mode: 'skip_external',
-    reason: 'Webhook actions require reachable callback infrastructure and subscription state.',
+    mode: 'external_pack',
+    reason:
+      'Webhook actions require the opt-in external live pack with reachable callback infrastructure and subscription state.',
   },
 };
 
 export const MATRIX_ACTION_OVERRIDES: Readonly<Record<string, ModeRule>> = {
   'sheets_auth.callback': {
-    mode: 'skip_external',
+    mode: 'external_pack',
     reason: 'OAuth callback handling requires an interactive browser-mediated auth flow.',
   },
   'sheets_auth.login': {
-    mode: 'skip_external',
+    mode: 'external_pack',
     reason: 'OAuth login requires an interactive browser-mediated auth flow.',
   },
   'sheets_auth.logout': {
-    mode: 'skip_external',
+    mode: 'external_pack',
     reason: 'Logout behavior is exercised as part of interactive auth flows.',
   },
   'sheets_auth.setup_feature': {
@@ -571,6 +594,122 @@ export const MATRIX_ACTION_OVERRIDES: Readonly<Record<string, ModeRule>> = {
   },
 };
 
+export const MATRIX_PROMOTION_OVERRIDES: Readonly<Record<string, ModeRule>> = {
+  'sheets_core.get_comprehensive': {
+    mode: 'probe_only',
+    reason:
+      'Deep workbook inspection has targeted live coverage; the default matrix probes it to avoid quota-sensitive metadata/data expansion.',
+  },
+  'sheets_agent.list_plans': {
+    mode: 'mcp_execute',
+    reason: 'Read-only action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.analyze_quality': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.analyze_structure': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.comprehensive': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.detect_patterns': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.diagnose_errors': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.discover_action': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.explain_analysis': {
+    mode: 'probe_only',
+    reason:
+      'Requires MCP Sampling or an LLM API key; the default nightly matrix uses a lightweight probe unless the external sampling pack is configured.',
+  },
+  'sheets_analyze.formula_health_check': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.query_natural_language': {
+    mode: 'probe_only',
+    reason:
+      'Requires MCP Sampling or an LLM API key; the default nightly matrix uses a lightweight probe unless the external sampling pack is configured.',
+  },
+  'sheets_analyze.quick_insights': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.scout': {
+    mode: 'mcp_execute',
+    reason: 'Read-only analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_analyze.suggest_visualization': {
+    mode: 'probe_only',
+    reason:
+      'Requires MCP Sampling or an LLM API key; the default nightly matrix uses a lightweight probe unless the external sampling pack is configured.',
+  },
+  'sheets_collaborate.list_access_proposals': {
+    mode: 'mcp_execute',
+    reason: 'Read-only Drive action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_collaborate.share_get_link': {
+    mode: 'mcp_execute',
+    reason: 'Read-only Drive action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_collaborate.share_list': {
+    mode: 'mcp_execute',
+    reason: 'Read-only Drive action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_composite.preview_generation': {
+    mode: 'probe_only',
+    reason:
+      'Requires MCP Sampling; the default nightly matrix uses a lightweight probe unless the external sampling pack is configured.',
+  },
+  'sheets_compute.evaluate': {
+    mode: 'mcp_execute',
+    reason: 'Read-only compute action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_compute.explain_formula': {
+    mode: 'mcp_execute',
+    reason: 'Read-only compute action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_fix.detect_anomalies': {
+    mode: 'mcp_execute',
+    reason: 'Read-only fix-analysis action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_fix.suggest_cleaning': {
+    mode: 'mcp_execute',
+    reason: 'Read-only fix-suggestion action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_history.get': {
+    mode: 'mcp_execute',
+    reason: 'Read-only history action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_templates.get': {
+    mode: 'mcp_execute',
+    reason: 'Read-only template action promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_templates.preview': {
+    mode: 'mcp_execute',
+    reason: 'Read-only template preview promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_visualize.suggest_chart': {
+    mode: 'mcp_execute',
+    reason: 'Read-only visualization suggestion promoted from probe_only to direct MCP execution.',
+  },
+  'sheets_visualize.suggest_pivot': {
+    mode: 'mcp_execute',
+    reason: 'Read-only pivot suggestion promoted from probe_only to direct MCP execution.',
+  },
+};
+
 function getFixtureRequest(fixture: Pick<ActionFixture, 'validInput'>): Record<string, unknown> {
   const request = fixture.validInput['request'];
   if (!request || typeof request !== 'object' || Array.isArray(request)) {
@@ -666,7 +805,7 @@ export function buildMatrixExecutionProfile(
   mode: ActionExecutionMode,
   mutates: boolean
 ): MatrixExecutionProfile {
-  if (mode === 'skip_external') {
+  if (mode === 'external_pack') {
     return mergeExecutionProfile(DEFAULT_SKIP_EXECUTION_PROFILE);
   }
 
@@ -695,7 +834,7 @@ export function buildMatrixExecutionProfile(
 export function classifyActionFixture(fixture: ActionFixture): ActionCapability {
   const actionKey = `${fixture.tool}.${fixture.action}`;
   const request = getFixtureRequest(fixture);
-  const actionOverride = MATRIX_ACTION_OVERRIDES[actionKey];
+  const actionOverride = MATRIX_PROMOTION_OVERRIDES[actionKey] ?? MATRIX_ACTION_OVERRIDES[actionKey];
   const toolRule = MATRIX_TOOL_DEFAULTS[fixture.tool];
 
   if (!toolRule) {
@@ -704,11 +843,19 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
 
   let mode = actionOverride?.mode ?? toolRule.mode;
   let reason = actionOverride?.reason ?? toolRule.reason;
+  let setupPack: string | undefined;
 
   if (mode === 'mcp_execute' && hasExistingResourceReference(request)) {
-    mode = 'probe_only';
-    reason =
-      'Action requires pre-existing resource IDs or multi-step setup; the matrix uses a lightweight probe.';
+    setupPack = inferSetupPack(fixture.tool, request);
+    if (isSupportedSetupPack(setupPack)) {
+      mode = 'staged_mcp_execute';
+      reason =
+        'Action requires pre-existing resource IDs; the matrix routes it through a staged live setup pack.';
+    } else {
+      mode = 'probe_only';
+      reason =
+        'Action requires pre-existing resource IDs without a deterministic setup pack yet; the matrix uses a lightweight probe.';
+    }
   }
 
   const mutates = isMutatingAction(fixture.action);
@@ -722,13 +869,40 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
     mode,
     reason,
     assertionSource:
-      mode === 'mcp_execute' ? 'mcp_tool' : mode === 'probe_only' ? 'google_probe' : 'skip_policy',
+      mode === 'mcp_execute' || mode === 'staged_mcp_execute'
+        ? 'mcp_tool'
+        : mode === 'probe_only'
+          ? 'google_probe'
+          : 'external_policy',
     mutates,
     sharedExecution,
     requiresSecondarySpreadsheet: requiresSecondarySpreadsheet(request),
+    setupPack,
     probeStrategy: mode === 'probe_only' ? inferProbeStrategy(fixture, request) : null,
     executionProfile,
   };
+}
+
+function inferSetupPack(tool: string, request: Record<string, unknown>): string {
+  const keys = new Set(Object.keys(request));
+  if (keys.has('namedRangeId')) return 'named_range_lifecycle';
+  if (keys.has('protectedRangeId')) return 'protected_range_lifecycle';
+  if (keys.has('filterViewId')) return 'filter_view_lifecycle';
+  if (keys.has('chartId')) return 'chart_lifecycle';
+  if (keys.has('tableId')) return 'table_lifecycle';
+  if (keys.has('slicerId')) return 'slicer_lifecycle';
+  if (keys.has('commentId') || keys.has('replyId')) return 'comment_lifecycle';
+  if (keys.has('revisionId')) return 'revision_lifecycle';
+  return `${tool.replace(/^sheets_/, '')}_lifecycle`;
+}
+
+function isSupportedSetupPack(setupPack: string): boolean {
+  return (
+    setupPack === 'named_range_lifecycle' ||
+    setupPack === 'protected_range_lifecycle' ||
+    setupPack === 'filter_view_lifecycle' ||
+    setupPack === 'chart_lifecycle'
+  );
 }
 
 export function buildActionCapabilityIndex(
@@ -759,6 +933,10 @@ function replacePlaceholders(
       result[key] = replacePlaceholders(child, options, key);
     }
     return result;
+  }
+
+  if (parentKey && options.resourceIds && parentKey in options.resourceIds) {
+    return options.resourceIds[parentKey];
   }
 
   if (typeof value === 'string') {
@@ -818,6 +996,29 @@ function normalizeMatrixSpecificRequest(
         request['range'] = 'Sheet1!A1:F6';
       }
       break;
+    case 'sheets_advanced.add_protected_range':
+    case 'sheets_advanced.delete_named_range':
+    case 'sheets_advanced.delete_protected_range':
+    case 'sheets_core.delete_sheet':
+    case 'sheets_core.batch_delete_sheets':
+    case 'sheets_core.clear_sheet':
+    case 'sheets_data.batch_clear':
+    case 'sheets_dimensions.delete_filter_view':
+    case 'sheets_dimensions.move':
+    case 'sheets_dimensions.clear_basic_filter':
+    case 'sheets_dimensions.delete_duplicates':
+      request['safety'] = {
+        ...(typeof request['safety'] === 'object' && request['safety'] !== null
+          ? (request['safety'] as Record<string, unknown>)
+          : {}),
+        confirmed: true,
+      };
+      break;
+    case 'sheets_advanced.update_protected_range':
+      if (typeof request['description'] !== 'string') {
+        request['description'] = 'Matrix updated protected range';
+      }
+      break;
     case 'sheets_format.sparkline_add':
       request['targetCell'] = 'Sheet1!H3';
       request['dataRange'] = 'Sheet1!B2:B6';
@@ -866,8 +1067,9 @@ export function summarizeMatrixResults(
   cascadeDowngradedOriginalMcpExecute?: Set<string>
 ): MatrixReportV2 {
   const executed = results.filter((result) => result.mode === 'mcp_execute').length;
+  const stagedExecuted = results.filter((result) => result.mode === 'staged_mcp_execute').length;
   const probed = results.filter((result) => result.mode === 'probe_only').length;
-  const skipped = results.filter((result) => result.mode === 'skip_external').length;
+  const external = results.filter((result) => result.mode === 'external_pack').length;
   const gatedResults = results.filter((result) => result.gated);
   const passed = gatedResults.filter((result) => result.success).length;
   const failed = gatedResults.filter((result) => !result.success).length;
@@ -876,7 +1078,8 @@ export function summarizeMatrixResults(
     (result) =>
       result.gated === true &&
       result.mode === 'probe_only' &&
-      (cascadeDowngradedOriginalMcpExecute?.has(result.actionKey) ?? false)
+      (result.cascadeDowngraded ||
+        (cascadeDowngradedOriginalMcpExecute?.has(result.actionKey) ?? false))
   ).length;
 
   return {
@@ -884,8 +1087,9 @@ export function summarizeMatrixResults(
     generatedAt,
     totalActions: results.length,
     executed,
+    stagedExecuted,
     probed,
-    skipped,
+    external,
     gatedActions: gatedResults.length,
     passed,
     failed,
@@ -894,8 +1098,9 @@ export function summarizeMatrixResults(
     results,
     coverageSummary: {
       mcp_execute: executed,
+      staged_mcp_execute: stagedExecuted,
       probe_only: probed,
-      skip_external: skipped,
+      external_pack: external,
       cascadeDowngraded,
     },
   };

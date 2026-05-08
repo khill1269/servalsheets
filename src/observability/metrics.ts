@@ -38,7 +38,7 @@ export const toolCallDuration = getOrCreate(
     new Histogram({
       name: 'servalsheets_tool_call_duration_seconds',
       help: 'Tool call duration in seconds',
-      labelNames: ['tool', 'action'],
+      labelNames: ['tool', 'action', 'success', 'error_code'],
       buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
     })
 );
@@ -560,11 +560,25 @@ export function recordConcurrencyStatus(status: {
   concurrencyUtilizationGauge.set(status.utilization);
 }
 
+// Per-API 429 counter — additive alongside the global rateLimitErrorsTotal
+export const rateLimitErrorsByApiTotal = getOrCreate(
+  'servalsheets_rate_limit_errors_by_api_total',
+  () =>
+    new Counter({
+      name: 'servalsheets_rate_limit_errors_by_api_total',
+      help: 'Rate limit (429) errors broken down by Google API service',
+      labelNames: ['api'],
+      registers: [register],
+    })
+);
+
 /**
- * Helper: Record 429 rate limit error
+ * Helper: Record 429 rate limit error. Pass api name ('sheets', 'drive', 'bigquery', etc.)
+ * for per-service dashboard visibility.
  */
-export function record429Error(): void {
+export function record429Error(api = 'unknown'): void {
   rateLimitErrorsTotal.inc();
+  rateLimitErrorsByApiTotal.inc({ api });
 }
 
 /**
@@ -711,10 +725,14 @@ export function recordToolCall(
   tool: string,
   action: string,
   status: 'success' | 'error',
-  durationSeconds: number
+  durationSeconds: number,
+  errorCode: string = 'none'
 ): void {
   toolCallsTotal.inc({ tool, action, status });
-  toolCallDuration.observe({ tool, action }, durationSeconds);
+  toolCallDuration.observe(
+    { tool, action, success: String(status === 'success'), error_code: errorCode },
+    durationSeconds
+  );
 }
 
 /**
@@ -838,6 +856,33 @@ export interface HealthSnapshot {
   generatedAt: string;
 }
 
+// Background-refreshed latency cache — updated every 30s to avoid async getHealthSnapshot
+let _cachedP50Ms = 0;
+let _cachedP95Ms = 0;
+
+async function _refreshLatencyCache(): Promise<void> {
+  try {
+    const data = await toolCallLatencySummary.get();
+    let maxP50 = 0;
+    let maxP95 = 0;
+    for (const { labels, value } of data.values) {
+      if (!isFinite(value) || value === 0) continue;
+      const q = Number((labels as Record<string, string | number>)['quantile']);
+      const ms = value * 1000;
+      if (q === 0.5 && ms > maxP50) maxP50 = ms;
+      if (q === 0.95 && ms > maxP95) maxP95 = ms;
+    }
+    if (maxP50 > 0) _cachedP50Ms = Math.round(maxP50);
+    if (maxP95 > 0) _cachedP95Ms = Math.round(maxP95);
+  } catch {
+    // ignore — cache keeps last known values
+  }
+}
+setInterval(() => {
+  void _refreshLatencyCache();
+}, 30_000).unref();
+void _refreshLatencyCache();
+
 /**
  * Return a best-effort health snapshot from in-process Prometheus counters.
  * Reads real data from circuit breaker registry, cache manager, and latency metrics.
@@ -877,11 +922,9 @@ export function getHealthSnapshot(): HealthSnapshot {
       ? cacheStats.hits / (cacheStats.hits + cacheStats.misses)
       : 0;
 
-  // 3. Latency percentiles from Summary metric (if available)
-  // NOTE: toolCallLatencySummary.get() is async but getHealthSnapshot is sync.
-  // In a future refactor, make this async. For now, initialize to 0.
-  let latencyP50Ms = 0;
-  let latencyP95Ms = 0;
+  // 3. Latency percentiles — served from background-refreshed cache (updated every 30s)
+  const latencyP50Ms = _cachedP50Ms;
+  const latencyP95Ms = _cachedP95Ms;
 
   // 4. Top errors from errorsByType counter
   // NOTE: errorsByType.get() is async but getHealthSnapshot is sync.

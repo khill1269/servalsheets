@@ -383,7 +383,7 @@ const ChartUpdateDataRangeActionSchema = CommonFieldsSchema.extend({
 const ChartAddTrendlineActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('chart_add_trendline')
-    .describe('Add a trendline to an existing chart series (LINE, AREA, SCATTER, COLUMN charts)'),
+    .describe('Add a trendline to an existing chart series (LINE, AREA, SCATTER charts)'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   chartId: z.coerce.number().int().describe('Numeric chart ID to modify'),
   seriesIndex: z.coerce

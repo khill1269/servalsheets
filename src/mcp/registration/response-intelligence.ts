@@ -40,12 +40,7 @@ type ResponseIntelligenceOptions = {
    * addition to error code — preventing, e.g., AI-service 5xx failures
    * from suggesting sheets_data.read.
    */
-  errorSource?:
-    | 'google_api'
-    | 'ai_service'
-    | 'internal'
-    | 'validation'
-    | 'auth';
+  errorSource?: 'google_api' | 'ai_service' | 'internal' | 'validation' | 'auth';
   /**
    * AUDIT-2026-04-23 (Root F): optional set of "tool.action" strings
    * indicating what's actually exposed to the current client. When set,
@@ -804,8 +799,7 @@ export function applyResponseIntelligence(
     // actually provided an exposedToolSurface; otherwise we trust prior
     // behavior.
     const fixTargetInScope =
-      !options.exposedToolSurface ||
-      options.exposedToolSurface.has(`${fix?.tool}.${fix?.action}`);
+      !options.exposedToolSurface || options.exposedToolSurface.has(`${fix?.tool}.${fix?.action}`);
     if (fix && fixTargetInScope) {
       // AUDIT-2026-04-23 fix for Root B: the response Zod schema at
       // src/schemas/shared.ts:1177 declares `suggestedFix` as `z.string().optional()`.
@@ -1182,8 +1176,16 @@ export function applyResponseIntelligence(
     }
   } else if (options.toolName === 'sheets_format') {
     const FORMAT_MUTATIONS = new Set([
-      'set_format', 'set_background', 'set_text_format', 'set_number_format',
-      'set_alignment', 'set_borders', 'batch_format', 'apply_preset', 'clear_format', 'set_rich_text',
+      'set_format',
+      'set_background',
+      'set_text_format',
+      'set_number_format',
+      'set_alignment',
+      'set_borders',
+      'batch_format',
+      'apply_preset',
+      'clear_format',
+      'set_rich_text',
     ]);
     if (FORMAT_MUTATIONS.has(actionName)) {
       const cellsFormatted =
@@ -1193,8 +1195,19 @@ export function applyResponseIntelligence(
     }
   } else if (options.toolName === 'sheets_dimensions') {
     const DIM_MUTATIONS = new Set([
-      'insert', 'delete', 'move', 'hide', 'show', 'freeze', 'group', 'ungroup',
-      'resize', 'auto_resize', 'sort_range', 'delete_duplicates', 'update_dimension_group',
+      'insert',
+      'delete',
+      'move',
+      'hide',
+      'show',
+      'freeze',
+      'group',
+      'ungroup',
+      'resize',
+      'auto_resize',
+      'sort_range',
+      'delete_duplicates',
+      'update_dimension_group',
     ]);
     if (DIM_MUTATIONS.has(actionName)) {
       const rowsAffected =
@@ -1253,8 +1266,7 @@ export function applyResponseIntelligence(
     !options.hasFailure && options.toolName && actionName
       ? detectBatchPattern(options.toolName, actionName, options.spreadsheetId)
       : undefined;
-  const batchingHint =
-    dynamicBatchingHint ?? BATCHING_HINTS[`${options.toolName}.${actionName}`];
+  const batchingHint = dynamicBatchingHint ?? BATCHING_HINTS[`${options.toolName}.${actionName}`];
   return {
     ...(batchingHint ? { batchingHint } : {}),
     ...(options.aiMode ? { aiMode: options.aiMode } : {}),

@@ -16,10 +16,10 @@
  * - run: Execute script function
  * - list_processes: Get execution logs
  * - get_metrics: Get usage metrics
- * - create_trigger: Create time/event trigger (NOT_IMPLEMENTED)
- * - list_triggers: List all triggers (NOT_IMPLEMENTED)
- * - delete_trigger: Delete a trigger (NOT_IMPLEMENTED)
- * - update_trigger: Update trigger settings (NOT_IMPLEMENTED)
+ * - create_trigger: Create time/event trigger
+ * - list_triggers: List all triggers
+ * - delete_trigger: Delete a trigger
+ * - update_trigger: Update trigger settings
  * - install_serval_function: Install SERVAL() formula
  *
  * APIs Used:
@@ -281,22 +281,22 @@ export class SheetsAppsScriptHandler extends BaseHandler<
           break;
         case 'create_trigger': {
           const createTriggerReq = await this.ensureScriptId(req as AppsScriptCreateTriggerInput);
-          response = handleCreateTrigger(this.handlerAccess, createTriggerReq);
+          response = await handleCreateTrigger(this.handlerAccess, createTriggerReq);
           break;
         }
         case 'list_triggers': {
           const listTriggersReq = await this.ensureScriptId(req as AppsScriptListTriggersInput);
-          response = handleListTriggers(this.handlerAccess, listTriggersReq);
+          response = await handleListTriggers(this.handlerAccess, listTriggersReq);
           break;
         }
         case 'delete_trigger': {
           const deleteTriggerReq = await this.ensureScriptId(req as AppsScriptDeleteTriggerInput);
-          response = handleDeleteTrigger(this.handlerAccess, deleteTriggerReq);
+          response = await handleDeleteTrigger(this.handlerAccess, deleteTriggerReq);
           break;
         }
         case 'update_trigger': {
           const updateTriggerReq = await this.ensureScriptId(req as AppsScriptUpdateTriggerInput);
-          response = handleUpdateTrigger(this.handlerAccess, updateTriggerReq);
+          response = await handleUpdateTrigger(this.handlerAccess, updateTriggerReq);
           break;
         }
         case 'install_serval_function':

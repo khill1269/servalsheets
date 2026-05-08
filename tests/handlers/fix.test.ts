@@ -15,6 +15,7 @@ const createMockSheetsApi = () => ({
   spreadsheets: {
     get: vi.fn(),
     values: {
+      get: vi.fn(),
       update: vi.fn(),
     },
     batchUpdate: vi.fn(),
@@ -128,6 +129,134 @@ describe('FixHandler', () => {
       expect(operation).toHaveProperty('estimatedImpact');
       expect(operation).toHaveProperty('risk');
       expect(operation.estimatedImpact).toContain('Freeze');
+    });
+
+    it('should generate bounded formula rewrites for full-column references', async () => {
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: {
+                title: 'Sheet1',
+                gridProperties: { rowCount: 500 },
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'FULL_COLUMN_REFS',
+            severity: 'medium',
+            sheet: 'Sheet1',
+            description: 'Full column refs',
+            metadata: {
+              cell: 'Sheet1!C2',
+              formula: '=SUM(A:A)+COUNT(B:B)',
+            },
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations[0].parameters.values).toEqual([
+        ['=SUM(A1:A500)+COUNT(B1:B500)'],
+      ]);
+    });
+
+    it('should simplify nested IFERROR with same fallback as low risk', async () => {
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'NESTED_IFERROR',
+            severity: 'low',
+            description: 'Nested IFERROR',
+            metadata: {
+              cell: 'Sheet1!D2',
+              formula: '=IFERROR(IFERROR(A2/B2,0),0)',
+            },
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations[0]).toMatchObject({
+        risk: 'low',
+        parameters: { values: [['=IFERROR(A2/B2,0)']] },
+      });
+    });
+
+    it('should preserve different IFERROR fallbacks and mark the rewrite high risk', async () => {
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'NESTED_IFERROR',
+            severity: 'medium',
+            description: 'Nested IFERROR',
+            metadata: {
+              cell: 'Sheet1!D2',
+              formula: '=IFERROR(IFERROR(A2/B2,"inner"),"outer")',
+            },
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations[0]).toMatchObject({
+        risk: 'high',
+        parameters: { values: [['=IFERROR(A2/B2,IFERROR("inner","outer"))']] },
+      });
+    });
+
+    it('should delete exact duplicate conditional format rules highest index first', async () => {
+      const duplicateRule = {
+        ranges: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 10 }],
+        booleanRule: { condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: 'x' }] } },
+      };
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              conditionalFormats: [
+                duplicateRule,
+                { ranges: [{ sheetId: 0, startRowIndex: 10, endRowIndex: 20 }] },
+                duplicateRule,
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'fix',
+        spreadsheetId: 'test-id',
+        mode: 'preview',
+        issues: [
+          {
+            type: 'EXCESSIVE_CF_RULES',
+            severity: 'low',
+            sheet: 'Sheet1',
+            description: 'Duplicate conditional format rules',
+          },
+        ],
+      });
+
+      expect(result.response.success).toBe(true);
+      expect((result.response as any).operations.map((op: any) => op.parameters.ruleIndex)).toEqual([
+        2,
+      ]);
     });
   });
 
@@ -471,6 +600,69 @@ describe('FixHandler', () => {
       // Preview mode returns operations without executing - should succeed
       expect(result.response.success).toBe(true);
       expect(result.response.operations).toBeDefined();
+    });
+  });
+
+  describe('retry wrapping for Google API calls', () => {
+    it('retries fetchRangeData on transient errors and eventually succeeds', async () => {
+      // Set up a clean action that calls fetchRangeData (the 'clean' action reads data)
+      const transientError = Object.assign(new Error('socket hang up'), {
+        code: 'ECONNRESET',
+        response: undefined,
+      });
+
+      // First call throws a transient error, second succeeds
+      mockApi.spreadsheets.values.get = vi
+        .fn()
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValueOnce({
+          data: { values: [['hello ', ' world'], ['  foo  ', 'bar ']] },
+        });
+
+      mockApi.spreadsheets.values.update = vi.fn().mockResolvedValue({ data: {} });
+
+      const result = await handler.handle({
+        action: 'clean',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:B2' },
+        rules: [{ id: 'trim_whitespace' }],
+        mode: 'apply',
+        safety: { createSnapshot: false },
+      });
+
+      // Should succeed (retry recovered from the transient error)
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries writeChanges on transient errors and eventually succeeds', async () => {
+      // Row 0 is header (skipped by engine), row 1 has whitespace to clean
+      mockApi.spreadsheets.values.get = vi.fn().mockResolvedValue({
+        data: { values: [['Col1', 'Col2'], ['hello ', ' world']] },
+      });
+
+      const transientError = Object.assign(new Error('socket hang up'), {
+        code: 'ECONNRESET',
+        response: undefined,
+      });
+
+      // First update call fails transiently, second succeeds
+      mockApi.spreadsheets.values.update = vi
+        .fn()
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValueOnce({ data: {} });
+
+      const result = await handler.handle({
+        action: 'clean',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:B2' },
+        rules: [{ id: 'trim_whitespace' }],
+        mode: 'apply',
+        safety: { createSnapshot: false },
+      });
+
+      expect(result.response.success).toBe(true);
+      expect(mockApi.spreadsheets.values.update).toHaveBeenCalledTimes(2);
     });
   });
 
