@@ -60,7 +60,7 @@ jobs:
       - name: Check GitHub Pages availability
         if: steps.build.outputs.built == 'true'
         id: check-pages
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             try {
@@ -80,11 +80,11 @@ jobs:
 
       - name: Setup Pages
         if: steps.build.outputs.built == 'true' && steps.check-pages.outputs.enabled == 'true'
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload artifact
         if: steps.build.outputs.built == 'true' && steps.check-pages.outputs.enabled == 'true'
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: docs/.vitepress/dist
 

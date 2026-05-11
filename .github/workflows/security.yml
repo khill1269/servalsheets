@@ -32,7 +32,7 @@ jobs:
 
       - name: Dependency Review
         id: dependency_review
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v4
         continue-on-error: true
         with:
           fail-on-severity: moderate
@@ -110,7 +110,7 @@ jobs:
 
       - name: Open issue for overdue security exception review
         if: github.event_name == 'schedule' && failure() && steps.security_exceptions.outcome == 'failure'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const title = 'Security exception review overdue';
@@ -209,7 +209,7 @@ jobs:
 
       - name: TruffleHog OSS (diff scan)
         if: steps.trufflehog-range.outputs.mode == 'diff'
-        uses: trufflesecurity/trufflehog@47e7b7cd74f578e1e3145d48f669f22fd1330ca6 # v3.94.3
+        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           path: ./
           base: ${{ steps.trufflehog-range.outputs.base }}
@@ -218,7 +218,7 @@ jobs:
 
       - name: TruffleHog OSS (full scan)
         if: steps.trufflehog-range.outputs.mode == 'full'
-        uses: trufflesecurity/trufflehog@47e7b7cd74f578e1e3145d48f669f22fd1330ca6 # v3.94.3
+        uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           path: ./
           extra_args: --debug --only-verified
