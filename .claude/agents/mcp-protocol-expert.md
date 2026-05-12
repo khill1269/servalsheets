@@ -1,6 +1,6 @@
 ---
 name: mcp-protocol-expert
-description: MCP protocol compliance expert for ServalSheets. Validates protocol adherence, checks transport implementations, verifies SDK compatibility, and ensures spec compliance with MCP 2025-11-25. Use when implementing new tools, modifying server handlers, or debugging protocol issues.
+description: 'MCP protocol compliance expert for ServalSheets. Two modes: (1) AUDIT MODE — writes structured YAML to .serval/audit/specialists/protocol.yaml, runs npm check commands, tracks the 26 gotchas from CLAUDE.md, produces a dossier entry for the Director. (2) ADVISORY MODE — ad-hoc protocol questions during implementation. Use audit mode when: refreshing the protocol dossier, pre-release compliance sweep, schema changes. Use advisory mode when: implementing new tools, debugging protocol issues, transport questions. Note: mcp-protocol-specialist handles deeper spec research with WebSearch; this agent is for ServalSheets-specific compliance.'
 model: sonnet
 color: purple
 tools:
@@ -239,7 +239,59 @@ app.use(cors({ origin: '*', credentials: true }));
 app.post('/mcp/v1/tools/call', handler);
 ```
 
-## Output Format
+## Audit Mode — YAML Output
+
+When dispatched in audit mode (Director dispatch or explicit request to populate the dossier), write to `.serval/audit/specialists/protocol.yaml`:
+
+```yaml
+meta:
+  last_updated: "YYYY-MM-DD"
+  generated_by: "mcp-protocol-expert"
+  protocol_version: "MCP 2025-11-25"
+  evidence: "src/constants/protocol.ts:NN"
+
+compliance:
+  overall_status: "compliant|partial|non_compliant"
+  features:
+    sampling:
+      implemented: true
+      health_probe: true
+      action_count: 8
+      evidence: "src/services/sampling-health-probe.ts"
+    elicitation:
+      implemented: true
+      schema_count: N
+      evidence: ""
+    tasks:
+      implemented: true
+      operation_count: N
+      evidence: ""
+    completions:
+      implemented: true
+      evidence: "src/mcp/completions.ts"
+    prompts:
+      registered_count: N
+      evidence: ""
+      known_gaps:
+        - "SDK v1.29.0 strips icons at runtime — P21-D1"
+
+gotchas:
+  - id: 1
+    name: "Metadata drift after schema changes"
+    status: "clean|drift_detected"
+    evidence: ""
+  # ... add entries for each gotcha from CLAUDE.md
+
+last_check_commands:
+  - command: "npm run check:drift"
+    result: ""
+  - command: "npm run validate:alignment"
+    result: ""
+  - command: "npm run check:mcp-features"
+    result: ""
+```
+
+## Advisory Mode Output Format
 
 Always structure findings as:
 

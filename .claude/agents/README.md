@@ -2,8 +2,12 @@
 
 # ServalSheets Specialized Agents
 
-> 17 task-specific agents for Claude Code. Each agent provides focused expertise
+> 21 task-specific agents for Claude Code. Each agent provides focused expertise
 > and tooling for a particular aspect of the ServalSheets codebase.
+>
+> **Architecture:** Hub-and-spoke audit system. `servalsheets-director` owns the master dossier
+> at `.serval/audit/master-dossier.yaml` and dispatches the 7 audit specialists. Development agents
+> are independent and dispatched directly by `dev-team-lead`.
 
 ## Agent Index
 
@@ -36,6 +40,18 @@
 | **Google BigQuery Expert**    | `google-bigquery-expert.md`   | BigQuery API — Sheets-BigQuery integration patterns                                  |
 | **Google Drive Expert**       | `google-drive-expert.md`      | Drive API v3 — file operations, permissions, real-time docs access                   |
 
+### Strategic Audit (Director + Specialists)
+
+| Agent | File | Purpose |
+|---|---|---|
+| **ServalSheets Director** | `servalsheets-director.md` | Master audit Director — synthesizes specialist YAML, owns `master-dossier.yaml`, dispatches specialists, produces board-grade outputs |
+| **Competitive Intelligence** | `competitive-intelligence.md` | Tracks Gemini Sheets, Copilot Excel, OSS MCPs — writes `specialists/competitive.yaml` |
+| **Product Gap Analyst** | `product-gap-analyst.md` | Synthesizes functional + competitive YAML into prioritized gap matrix — writes `specialists/gaps.yaml` |
+| **Doc DX Auditor** | `doc-dx-auditor.md` | Audits docs across 3 audiences: devs, LLM agents, procurement — writes `specialists/dx.yaml` |
+
+> **Dossier:** `.serval/audit/specialists/` — YAML files written by each specialist. Director reads all and synthesizes.
+> **Other specialists** (protocol, security, testing, functional) use existing agents in audit mode — see their descriptions.
+
 ### Protocol & Configuration
 
 | Agent                       | File                         | Purpose                                                                          |
@@ -66,3 +82,8 @@ Each agent file contains its own system prompt with specialized instructions, to
 - **Google API question?** → Google API Expert (Sheets), Drive/BigQuery/Apps Script experts for those APIs
 - **MCP protocol question?** → MCP Protocol Expert or Specialist
 - **Optimizing Claude setup?** → Claude Config Optimizer
+- **"Where are we competitively?"** → ServalSheets Director (synthesizes from dossier)
+- **Refresh competitive data?** → Competitive Intelligence
+- **"What should we build next?"** → Product Gap Analyst (needs functional + competitive YAML)
+- **Docs/DX audit?** → Doc DX Auditor
+- **Full dossier refresh?** → Director dispatches all specialists
