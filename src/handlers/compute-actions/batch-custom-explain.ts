@@ -100,7 +100,8 @@ export async function handleCustomFunction(
 
 export async function handleBatchCompute(
   access: ComputeHandlerAccess,
-  req: SheetsComputeInput['request'] & { action: 'batch_compute' }
+  req: SheetsComputeInput['request'] & { action: 'batch_compute' },
+  dispatchSubAction: (input: SheetsComputeInput) => Promise<SheetsComputeOutput>
 ): Promise<SheetsComputeOutput> {
   const startMs = Date.now();
   const results: Array<{ id: string; success: boolean; result?: unknown; error?: string }> = [];
@@ -127,15 +128,7 @@ export async function handleBatchCompute(
       }
 
       const subInput: SheetsComputeInput = parsedSubInput.data;
-      // Recursively call the appropriate handler based on action type
-      const handler = await import('../compute.js').then((m) => m.ComputeHandler);
-      const computeHandler = new handler(access.sheetsApi, {
-        samplingServer: access.samplingServer,
-        duckdbEngine: access.duckdbEngine,
-        server: access.server,
-        sessionContext: access.sessionContext,
-      });
-      const subResult = await computeHandler.handle(subInput);
+      const subResult = await dispatchSubAction(subInput);
       if (subResult.response.success) {
         const {
           action: _action,

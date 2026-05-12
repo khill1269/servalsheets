@@ -87,7 +87,7 @@ export class ComputeHandler {
         case 'custom_function':
           return await handleCustomFunction(this.access, req);
         case 'batch_compute':
-          return await handleBatchCompute(this.access, req);
+          return await handleBatchCompute(this.access, req, this.handle.bind(this));
         case 'explain_formula':
           return await handleExplainFormula(this.access, req);
         case 'sql_query':
