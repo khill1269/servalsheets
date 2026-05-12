@@ -114,6 +114,13 @@ export interface MatrixReportV2 {
     external_pack: number;
     cascadeDowngraded: number;
   };
+  /** Historically flaky actions (> 20% failure rate across recent benchmark history) */
+  historicallyFlaky?: Array<{
+    actionKey: string;
+    flakeRate: number;
+    runs: number;
+    lastStatus: string;
+  }>;
 }
 
 type ModeRule = {
@@ -845,8 +852,15 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
   let reason = actionOverride?.reason ?? toolRule.reason;
   let setupPack: string | undefined;
 
+  if (mode === 'mcp_execute' && actionKey === 'sheets_dimensions.update_dimension_group') {
+    setupPack = 'dimension_group_lifecycle';
+    mode = 'staged_mcp_execute';
+    reason =
+      'Action requires an existing row/column group; the matrix creates one in a staged live setup pack.';
+  }
+
   if (mode === 'mcp_execute' && hasExistingResourceReference(request)) {
-    setupPack = inferSetupPack(fixture.tool, request);
+    setupPack = inferSetupPack(fixture.tool, fixture.action, request);
     if (isSupportedSetupPack(setupPack)) {
       mode = 'staged_mcp_execute';
       reason =
@@ -883,8 +897,11 @@ export function classifyActionFixture(fixture: ActionFixture): ActionCapability 
   };
 }
 
-function inferSetupPack(tool: string, request: Record<string, unknown>): string {
+function inferSetupPack(tool: string, action: string, request: Record<string, unknown>): string {
   const keys = new Set(Object.keys(request));
+  if (tool === 'sheets_dimensions' && action === 'update_dimension_group') {
+    return 'dimension_group_lifecycle';
+  }
   if (keys.has('namedRangeId')) return 'named_range_lifecycle';
   if (keys.has('protectedRangeId')) return 'protected_range_lifecycle';
   if (keys.has('filterViewId')) return 'filter_view_lifecycle';
@@ -901,7 +918,8 @@ function isSupportedSetupPack(setupPack: string): boolean {
     setupPack === 'named_range_lifecycle' ||
     setupPack === 'protected_range_lifecycle' ||
     setupPack === 'filter_view_lifecycle' ||
-    setupPack === 'chart_lifecycle'
+    setupPack === 'chart_lifecycle' ||
+    setupPack === 'dimension_group_lifecycle'
   );
 }
 
@@ -1060,6 +1078,44 @@ export function materializeFixtureRequest(
   };
 }
 
+/** Load historical flake rates from benchmark JSON files (best-effort, never throws) */
+function loadHistoricalFlakeRates(
+  benchmarksDir: string
+): Map<string, { flakeRate: number; runs: number; lastStatus: string }> {
+  const result = new Map<string, { flakeRate: number; runs: number; lastStatus: string }>();
+  try {
+    const { readdirSync, readFileSync } = require('node:fs');
+    const { join } = require('node:path');
+    const files = readdirSync(benchmarksDir)
+      .filter((f: string) => f.startsWith('action-matrix-v2-') && f.endsWith('.json'))
+      .sort()
+      .slice(-10); // last 10 runs for recency bias
+
+    const totals = new Map<string, { runs: number; failures: number; lastStatus: string }>();
+    for (const file of files) {
+      try {
+        const data = JSON.parse(readFileSync(join(benchmarksDir, file), 'utf-8'));
+        for (const r of data.results ?? []) {
+          if (!r.actionKey || r.mode === 'external_pack') continue;
+          const entry = totals.get(r.actionKey) ?? { runs: 0, failures: 0, lastStatus: 'unknown' };
+          entry.runs++;
+          if (!r.success && !r.gated) entry.failures++;
+          entry.lastStatus = r.success || r.gated ? 'pass' : 'fail';
+          totals.set(r.actionKey, entry);
+        }
+      } catch { /* skip unreadable files */ }
+    }
+    for (const [key, stats] of totals) {
+      result.set(key, {
+        flakeRate: stats.failures / stats.runs,
+        runs: stats.runs,
+        lastStatus: stats.lastStatus,
+      });
+    }
+  } catch { /* benchmarks dir missing or unreadable — skip silently */ }
+  return result;
+}
+
 export function summarizeMatrixResults(
   results: MatrixActionResult[],
   generatedAt: string,
@@ -1082,6 +1138,16 @@ export function summarizeMatrixResults(
         (cascadeDowngradedOriginalMcpExecute?.has(result.actionKey) ?? false))
   ).length;
 
+  // Load historical flake rates to annotate the report
+  const { join } = require('node:path');
+  const benchmarksDir = join(__dirname, '..', '..', 'benchmarks');
+  const flakeHistory = loadHistoricalFlakeRates(benchmarksDir);
+  const historicallyFlaky = [...flakeHistory.entries()]
+    .filter(([, v]) => v.flakeRate > 0.2 && v.runs >= 2)
+    .sort((a, b) => b[1].flakeRate - a[1].flakeRate)
+    .slice(0, 20)
+    .map(([actionKey, v]) => ({ actionKey, ...v }));
+
   return {
     schemaVersion: 2,
     generatedAt,
@@ -1103,6 +1169,7 @@ export function summarizeMatrixResults(
       external_pack: external,
       cascadeDowngraded,
     },
+    ...(historicallyFlaky.length > 0 ? { historicallyFlaky } : {}),
   };
 }
 

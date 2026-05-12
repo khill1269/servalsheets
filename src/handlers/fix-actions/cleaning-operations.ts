@@ -5,6 +5,7 @@
  */
 
 import { CleaningEngine, parseRangeOffset } from '../../services/cleaning-engine.js';
+import { selectField } from '../../mcp/elicitation.js';
 import { withSamplingTimeout, assertSamplingConsent } from '../../mcp/sampling.js';
 import { recordCleaningOp } from '../../observability/metrics.js';
 import { extractRangeA1 } from '../../utils/range-helpers.js';
@@ -38,12 +39,14 @@ export async function handleCleanAction(
         requestedSchema: {
           type: 'object',
           properties: {
-            mode: {
-              type: 'string',
+            mode: selectField({
               title: 'Cleaning mode',
               description: 'Preview changes first (safe) or apply directly?',
-              enum: ['preview', 'apply'],
-            },
+              options: [
+                { value: 'preview', label: 'Preview (safe — show changes first)' },
+                { value: 'apply', label: 'Apply (execute cleaning directly)' },
+              ],
+            }),
           },
         },
       });

@@ -4,6 +4,31 @@
 **Specialty:** Fast pattern analysis, code reading, implementation strategy  
 **Updated:** Session 117 (Ground Truth Registry Research)
 
+## ⭐ AI INTELLIGENCE LAYER AUDIT (NEW — Session 130)
+
+**See [`ai-intelligence-layer-audit.md`](ai-intelligence-layer-audit.md)** — Comprehensive audit of response intelligence, session context richness, and AI-optimization for Claude/LLM clients.
+
+**Key findings:**
+- **Response intelligence:** 26% of 409 actions (107 actions) have explicit hints/gotchas injected; remaining 74% get generic enrichment
+- **Error recovery params:** fixableVia object pre-fills tool+action but NOT spreadsheetId/range — forces extra LLM RTT
+- **Session context:** 8 fields returned (active sheet, last op, connectors) but missing recent history, domain classification, risk indicators
+- **Quality warnings:** Automatic on reads, but no pre-flight warnings on destructive writes/deletes
+- **CoT hints:** Excellent for financial data (revenue/cost/profit detection), weak on domain classification overall
+- **Scout action:** Returns recommendations but no pre-ordered action sequences (LLM must discover scout→clean→format→visualize order)
+- **Priority fixes:** (1) Pre-fill params in error recovery (20-40% RTT saving), (2) Add domain classification, (3) Pre-write analysis for formulas, (4) Multi-step sequences
+
+## ⭐ SDK PROMPT ICONS GAP (Session 129)
+
+**See [`sdk-prompt-icons-research.md`](sdk-prompt-icons-research.md)** — Investigation of @modelcontextprotocol/sdk@1.29.0 vs MCP 2025-11-25 spec.
+
+**Key finding:** Type assertion + manual icon insertion both fail. SDK's registerPrompt config excludes icons field; wire response (lines 412-417 mcp.js) hardcodes {name, title, description, arguments}. No workarounds preserve SDK convenience. Solution: Open issue with SDK or extend server.setRequestHandler() directly (non-standard).
+
+## ⭐ DRIFT REGRESSION TEST GAP (Session 129)
+
+**See [`drift-regression-test-research.md`](drift-regression-test-research.md)** — Coverage analysis of source-dist-consistency test.
+
+**Gap found:** Test only detects MISSING dist, not STALE dist. Current test (test.ts lines 25-46) passes if dist files exist (even with old content). Script actually DOES compare (lines 200-235) but test only checks exit code. Recommended: Add 3rd test using mkdtempSync + stale content + backup/restore pattern.
+
 ## ⭐ STRESS TEST INFRASTRUCTURE (NEW — Session 128)
 
 **See [`stress-test-infrastructure-audit.md`](stress-test-infrastructure-audit.md)** — Complete audit of performance testing, load simulation, concurrency, and fault injection. Establishes baseline and design for 50+ scenario generator targeting 1000+ concurrent AI+Sheets user flows.

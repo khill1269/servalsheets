@@ -38,6 +38,8 @@ export interface SamplingHealth {
   reason: SamplingHealthReason;
   /** Provider the probe exercised (if any). */
   provider?: string;
+  /** Model the probe used (if any). */
+  model?: string;
   /** Epoch ms of the most recent probe attempt. */
   lastProbedAt?: number;
   /** How many consecutive failures since the last success. */
@@ -166,6 +168,7 @@ async function probeOnce(): Promise<SamplingHealth> {
       healthy: true,
       reason: 'healthy',
       provider: config.provider,
+      model: config.model,
       consecutiveFailures: 0,
     };
   } catch (err) {

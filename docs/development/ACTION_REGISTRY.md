@@ -1,12 +1,12 @@
 ---
-title: ServalSheets — Action Registry (409 Actions, 25 Tools)
+title: ServalSheets — Action Registry (410 Actions, 25 Tools)
 category: development
 last_updated: 2026-04-02
 description: '> Complete action list by tool. Source of truth for counts: src/schemas/action-counts.ts.'
 version: 1.7.0
 ---
 
-# ServalSheets — Action Registry (409 Actions, 25 Tools)
+# ServalSheets — Action Registry (410 Actions, 25 Tools)
 
 > Complete action list by tool. Source of truth for counts: `src/schemas/action-counts.ts`.
 > Load this file only when working on actions, adding features, or verifying action names.
@@ -35,9 +35,9 @@ version: 1.7.0
 `clear_data_validation, list_data_validations, add_conditional_format_rule, batch_format`,
 `set_rich_text, generate_conditional_format, build_dependent_dropdown`
 
-## sheets_dimensions (30) — BaseHandler
+## sheets_dimensions (31) — BaseHandler
 
-`insert, delete, move, resize, auto_resize, hide, show, freeze, group, ungroup, append`,
+`insert, delete, move, resize, auto_resize, hide, show, freeze, group, ungroup, update_dimension_group, append`,
 `set_basic_filter, clear_basic_filter, get_basic_filter, sort_range, delete_duplicates`,
 `trim_whitespace, randomize_range, text_to_columns, auto_fill, create_filter_view`,
 `duplicate_filter_view, update_filter_view, delete_filter_view, list_filter_views`,

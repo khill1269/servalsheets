@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { type CallToolResult, type LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+// SEP-1686 Tasks — experimental path stable since SDK 1.8.0; verify exists after each SDK upgrade
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { TOOL_COUNT, ACTION_COUNT } from './schemas/index.js';
 import { readFileSync } from 'fs';

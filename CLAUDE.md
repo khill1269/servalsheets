@@ -185,7 +185,45 @@ LLM clients using ServalSheets MUST follow these patterns:
 **Rule:** Never move code from `src/http-server/` into `packages/mcp-http/` unless it has zero
 ServalSheets-specific imports. The package layer must remain product-agnostic.
 
-**See `docs/development/ADVANCED_GOTCHAS.md` for gotchas 11–18** (snapshot updates, safety.confirmed bypass, inferErrorSource utility, convertRangeInputAsync migration, annotateAIGeneratedDraftPlan backfill param, server.json generation, RBAC_STRICT mode, sql_join injection guard).
+### 19. Tool Mode: Bundled is Default, Flat is Opt-In
+
+**Default** (`SERVAL_TOOL_MODE` unset): 25 compound tools in bundled mode. All transports now default to bundled — `getEffectiveToolMode()` at `src/config/constants.ts:380`.
+
+**`SERVAL_TOOL_MODE=flat`**: Opt-in only. Exposes ~410 individual tools. Only use with clients that natively implement Anthropic Messages API `defer_loading` (NOT the same as the removed `x-defer-loading` MCP extension).
+
+**`x-defer-loading`** (removed): Was a ServalSheets custom field in MCP tool definitions. It was NOT an MCP spec field — no MCP client read it. The real `defer_loading` is an Anthropic Messages API feature, not MCP. Removed from `tools-list-compat.ts`.
+
+**Staged registration** (`SERVAL_STAGED_REGISTRATION`): Defaults **true**. Stage 1 (5 tools) → set_active triggers Stage 2 (+6) → first stage-3 tool call triggers Stage 3 (all 25). Set `SERVAL_STAGED_REGISTRATION=false` for smoke tests or clients that don't support `tools/list_changed`. Source: `src/config/constants.ts:334`, `src/server/handler-dispatch.ts:61-71`.
+
+**Server Cards** (`/.well-known/mcp/server-card.json`): SEP-2127-compatible static discovery endpoint on HTTP transport. Source: `src/http-server/observability-core-routes.ts`. **SEP-2127 is an open, unmerged PR as of 2026-05-12** — say "SEP-2127-compatible (draft)" not "compliant". Note: `src/server/well-known.ts` still cites the old SEP-1649 number and has a dead `$schema` URL — both are P21-A2/A3 work items.
+
+### 20. Error Recovery from Annotations is Injected at Runtime
+
+`ACTION_ANNOTATIONS[toolName.action].errorRecovery` contains per-error-code recovery guidance for 409/410 actions. This is now injected into runtime error responses in `src/mcp/registration/tool-execution-error.ts`. When Claude calls the right action with wrong permissions, quota issues, etc., the error response includes `recovery`, `alternativeActions`, and `diagnosticSteps` fields.
+
+### 21. taskSupport is a ServalSheets Annotation Extension
+
+`taskSupport` in `src/generated/annotations.ts` is **not in the MCP 2025-11-25 ToolAnnotations spec**. It is a ServalSheets-specific field. Per spec, clients MUST ignore unknown annotation fields. Values: `'optional'` (tool supports background task mode when client has tasks capability), `'required'` (tool must run as task), `'forbidden'` (task mode blocked — e.g., auth/confirm tools). Source: `src/mcp/features-2025-11-25.ts:274-310`. Do NOT use this to infer spec compliance.
+
+### 22. STRICT_MCP_PROTOCOL_VERSION
+
+HTTP transport accepts any client protocol version by default (`STRICT_MCP_PROTOCOL_VERSION` defaults false). Source: `src/http-server/middleware.ts:30-32`. Set `STRICT_MCP_PROTOCOL_VERSION=true` in production deployments to reject clients using older MCP protocol versions. STDIO transport is unaffected — the SDK handles version negotiation natively.
+
+### 23. Source Code is the ONLY Source of Truth
+
+**Never** cite README.md, CLAUDE.md, memory files, docs/, or session notes as proof of how the code behaves. These are documents about code — not code.
+
+Every factual claim about the codebase requires one of:
+
+- `Read(file, line)` — shows the actual code
+- `grep -rn "pattern" src/` — shows actual matches
+- `git log --oneline | grep topic` — shows what was actually committed
+
+**Memory files are snapshots.** Before citing any memory file, run `git log --oneline | grep <topic>` to verify the claim hasn't been superseded by a commit. Memory goes stale within hours. Code doesn't lie.
+
+This rule applies especially to: action counts, test results, pass rates, bug status, "we fixed X" claims.
+
+**See `docs/development/ADVANCED_GOTCHAS.md` for gotchas 11–18 and 24–26** (snapshot updates, safety.confirmed bypass, inferErrorSource utility, convertRangeInputAsync migration, annotateAIGeneratedDraftPlan backfill param, server.json generation, RBAC_STRICT mode, sql_join injection guard; registerPrompt icons SDK gap, packages/mcp-http stale tsbuildinfo, audit report empty).
 
 ## Key Files
 
@@ -296,6 +334,10 @@ Configured in `.claude/hooks.json`:
 ## Known Issues
 
 ESLint may OOM in low-memory environments (~3GB heap) — use `verify:safe`. Silent fallback checker has 0 false positives (all annotated with inline comments).
+
+`audit/protocol_compliance_report.md` is **empty (2 bytes)** as of 2026-05-12 — do not cite it. Rewrite is P21-E1.
+
+SDK v1.29.0 `registerPrompt()` **strips `icons` at runtime** (destructures only `{title, description, argsSchema}`). Even TypeScript type-casting will not help — icons are never serialized in the `prompts/list` wire response. This is a tracked SDK gap (P21-D1).
 
 ## Security Features (quick ref)
 

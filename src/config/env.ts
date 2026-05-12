@@ -89,7 +89,10 @@ const RedisSchema = z.object({
 
 const OtelSchema = z.object({
   OTEL_ENABLED: StrictBooleanSchema,
-  OTEL_EXPORTER_TYPE: z.enum(['jaeger', 'zipkin', 'honeycomb']).optional(),
+  // 'otlp' is the default — works with any OpenTelemetry Collector (Jaeger, Tempo, Honeycomb, etc.)
+  // Set OTEL_EXPORTER_OTLP_ENDPOINT to point to your collector (default: http://localhost:4318)
+  OTEL_EXPORTER_TYPE: z.enum(['jaeger', 'zipkin', 'honeycomb', 'otlp']).default('otlp'),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   OTEL_JAEGER_ENDPOINT: URLSchema.optional(),
   OTEL_ZIPKIN_ENDPOINT: URLSchema.optional(),
   OTEL_HONEYCOMB_API_KEY: z.string().optional(),
@@ -325,10 +328,13 @@ export function validateEnv(_throwOnError: boolean = false): Env {
       throw new Error(message);
     }
 
-    // OTEL must be configured for distributed tracing
+    // OTEL should be enabled in production for distributed tracing
     if (!env['OTEL_ENABLED']) {
       logger.warn(
-        'Production deployment should enable OTEL for distributed tracing (OTEL_ENABLED=true)'
+        'Production deployment should enable OTEL for distributed tracing. ' +
+          'Set OTEL_ENABLED=true — works out of the box with any OTLP collector at ' +
+          'OTEL_EXPORTER_OTLP_ENDPOINT (default: http://localhost:4318). ' +
+          'Compatible with Grafana Tempo, Jaeger, Zipkin, Honeycomb, and Datadog.'
       );
     }
 
@@ -358,12 +364,9 @@ export function validateEnv(_throwOnError: boolean = false): Env {
   // OTEL Validation
 
   if (env['OTEL_ENABLED']) {
-    if (!env['OTEL_EXPORTER_TYPE']) {
-      const message = 'OTEL_ENABLED requires OTEL_EXPORTER_TYPE (jaeger|zipkin|honeycomb)';
-      logger.error(message);
-      throw new Error(message);
-    }
-
+    // 'otlp' is the default and works without additional config (uses OTEL_EXPORTER_OTLP_ENDPOINT
+    // which defaults to http://localhost:4318 in otel-setup.ts). Only the legacy exporter
+    // types require additional endpoint/key configuration.
     if (env['OTEL_EXPORTER_TYPE'] === 'jaeger' && !env['OTEL_JAEGER_ENDPOINT']) {
       const message = 'OTEL_EXPORTER_TYPE=jaeger requires OTEL_JAEGER_ENDPOINT';
       logger.error(message);

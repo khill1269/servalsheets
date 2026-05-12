@@ -74,14 +74,14 @@ export class TestRateLimiter {
 
     const readsPerMinute = limits?.readsPerMinute ?? config.maxReadsPerMinute;
     const writesPerMinute = limits?.writesPerMinute ?? config.maxWritesPerMinute;
-    const readsPerSecond = limits?.readsPerSecond ?? Math.ceil(readsPerMinute / 60);
-    const writesPerSecond = limits?.writesPerSecond ?? Math.ceil(writesPerMinute / 60);
+    const readsPerSecond = limits?.readsPerSecond ?? readsPerMinute / 60;
+    const writesPerSecond = limits?.writesPerSecond ?? writesPerMinute / 60;
 
     this.baseReadRate = readsPerSecond;
     this.baseWriteRate = writesPerSecond;
 
     this.readBucket = {
-      tokens: readsPerSecond,
+      tokens: readsPerSecond * 2,
       lastRefill: Date.now(),
       capacity: readsPerSecond * 2,
       refillRate: readsPerSecond,
@@ -89,7 +89,7 @@ export class TestRateLimiter {
     };
 
     this.writeBucket = {
-      tokens: writesPerSecond,
+      tokens: writesPerSecond * 2,
       lastRefill: Date.now(),
       capacity: writesPerSecond * 2,
       refillRate: writesPerSecond,

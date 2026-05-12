@@ -26,7 +26,7 @@ describe.skipIf(!runLiveTests)('sheets_session Live API Tests', () => {
       throw new Error('Test credentials not available');
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
-    manager = new TestSpreadsheetManager(client);
+    manager = new TestSpreadsheetManager(client, undefined, { usePool: false });
     testSpreadsheet = await manager.createTestSpreadsheet('session');
     const meta = await client.sheets.spreadsheets.get({
       spreadsheetId: testSpreadsheet.id,

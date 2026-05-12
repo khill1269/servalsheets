@@ -60,7 +60,20 @@ export interface WebhookVerificationConfig {
   timestampHeader?: string;
   /** Whether to require signature (default: true) */
   requireSignature?: boolean;
-  /** Whether to require a fresh timestamp (default: true) */
+  /**
+   * Whether to require a fresh timestamp (default: true).
+   *
+   * SEC-013: Setting this to `false` disables replay-attack protection.
+   * When `NODE_ENV=production`, an explicit `false` is overridden back
+   * to `true` and a warning is logged — production deployments must not
+   * accept unbounded webhook delivery age. The flag is still useful in
+   * tests and local development where deterministic fixtures lack a
+   * timestamp header.
+   *
+   * @deprecated Will be removed in a future major version. Webhook
+   * consumers should always validate timestamps; gate test fixtures via
+   * env (`NODE_ENV=test`) rather than this flag.
+   */
   requireTimestamp?: boolean;
   /** Custom error response handler */
   onError?: (error: WebhookVerificationError, req: Request, res: Response) => void;
@@ -193,6 +206,19 @@ export function webhookVerificationMiddleware(
     onSuccess,
   } = config;
 
+  // SEC-013: In production, a caller cannot opt out of timestamp validation.
+  // We override the flag here once at middleware-construction time so the
+  // hot path doesn't repeat the check on every request, and we log so the
+  // misconfiguration is visible in production logs.
+  let effectiveRequireTimestamp = requireTimestamp;
+  if (process.env['NODE_ENV'] === 'production' && requireTimestamp === false) {
+    logger.warn(
+      'webhookVerificationMiddleware was constructed with requireTimestamp=false in production. ' +
+        'Replay-attack protection is non-negotiable in production; forcing requireTimestamp=true.'
+    );
+    effectiveRequireTimestamp = true;
+  }
+
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Extract headers
@@ -222,8 +248,9 @@ export function webhookVerificationMiddleware(
         return next();
       }
 
-      // Replay attack prevention: require a fresh timestamp within 5-minute window
-      if (requireTimestamp) {
+      // Replay attack prevention: require a fresh timestamp within 5-minute window.
+      // SEC-013: effectiveRequireTimestamp may be forced to true in production.
+      if (effectiveRequireTimestamp) {
         if (!timestampRaw) {
           throw new WebhookVerificationError(
             'MISSING_TIMESTAMP',

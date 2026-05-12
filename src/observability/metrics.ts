@@ -842,6 +842,20 @@ export function recordCacheEviction(reason: string): void {
   cacheEvictions.inc({ reason });
 }
 
+/**
+ * Record a Zod schema validation failure — called when an MCP client sends malformed input
+ */
+export function recordSchemaValidationError(tool: string, action: string, errorCode: string): void {
+  schemaValidationErrorsTotal.inc({ tool, action, error_code: errorCode });
+}
+
+/**
+ * Record MCP Sampling createMessage latency — isolates AI round-trip from Google API latency
+ */
+export function recordSamplingDuration(action: string, durationSeconds: number): void {
+  samplingRequestDurationSeconds.observe({ action }, durationSeconds);
+}
+
 // ============================================================================
 // HEALTH SNAPSHOT (P2-D: MCP resource)
 // ============================================================================
@@ -1278,6 +1292,29 @@ export const samplingRequestsTotal = getOrCreate(
       name: 'servalsheets_sampling_requests_total',
       help: 'Total MCP Sampling requests sent to client (P13 SEP-1577)',
       labelNames: ['action', 'status'] as const,
+      registers: [register],
+    })
+);
+
+export const samplingRequestDurationSeconds = getOrCreate(
+  'servalsheets_sampling_request_duration_seconds',
+  () =>
+    new Histogram({
+      name: 'servalsheets_sampling_request_duration_seconds',
+      help: 'Duration of MCP Sampling createMessage calls — isolates AI latency from Google API latency',
+      labelNames: ['action'] as const,
+      buckets: [0.5, 1, 2, 5, 10, 20, 30, 60],
+      registers: [register],
+    })
+);
+
+export const schemaValidationErrorsTotal = getOrCreate(
+  'servalsheets_schema_validation_errors_total',
+  () =>
+    new Counter({
+      name: 'servalsheets_schema_validation_errors_total',
+      help: 'Zod schema validation failures by tool and action — tracks malformed MCP client requests',
+      labelNames: ['tool', 'action', 'error_code'] as const,
       registers: [register],
     })
 );

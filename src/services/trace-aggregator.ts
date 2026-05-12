@@ -408,6 +408,30 @@ class TraceAggregatorImpl {
       metadata,
     };
   }
+
+  /**
+   * Export failed traces to a JSON file for CI artifact upload.
+   * Returns the file path written, or null if nothing to export.
+   */
+  exportFailedTraces(outputPath: string): string | null {
+    const failed = Array.from((this.traces as unknown as Map<string, RequestTrace>).values?.() ?? [])
+      .filter((t) => !t.success);
+
+    if (failed.length === 0) return null;
+
+    try {
+      const { writeFileSync, mkdirSync } = require('node:fs');
+      const { dirname } = require('node:path');
+      mkdirSync(dirname(outputPath), { recursive: true });
+      writeFileSync(outputPath, JSON.stringify(
+        { exportedAt: new Date().toISOString(), failedTraces: failed },
+        null, 2
+      ));
+      return outputPath;
+    } catch {
+      return null;
+    }
+  }
 }
 
 // ==================== Global Instance ====================

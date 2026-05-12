@@ -51,12 +51,15 @@ export default defineConfig({
       TEST_SPREADSHEET_ID: process.env.TEST_SPREADSHEET_ID ?? '',
       TEST_INFRASTRUCTURE_ENABLED: 'true',
       SERVAL_LIVE_TIER: 'nightly',
+      TEST_QUOTA_DELAY_MS: process.env.TEST_QUOTA_DELAY_MS ?? '2000',
+      TEST_MAX_WRITES_PER_MINUTE: process.env.TEST_MAX_WRITES_PER_MINUTE ?? '25',
+      TEST_MAX_QUOTA_DELAY_MS: process.env.TEST_MAX_QUOTA_DELAY_MS ?? '70000',
     },
     // Nightly gets generous timeouts and a single retry per test to
     // tolerate transient Google 500s — but not more than 1 retry, so
     // a real shape-drift bug still fails loudly.
     testTimeout: 90000,
-    hookTimeout: 90000,
+    hookTimeout: 180000,
     pool: 'forks',
     maxWorkers: 1,
     retry: 1,

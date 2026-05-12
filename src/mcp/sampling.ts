@@ -22,7 +22,7 @@ import type {
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { getRequestContext } from '../utils/request-context.js';
-import { recordSamplingRequest } from '../observability/metrics.js';
+import { recordSamplingRequest, recordSamplingDuration } from '../observability/metrics.js';
 import {
   getSpreadsheetContext,
   formatContextForPrompt,
@@ -86,6 +86,26 @@ import {
   getSamplingResult,
   setSamplingResult,
 } from '../services/sampling-result-cache.js';
+
+// ============================================================================
+// Timed sampling wrapper — records duration for all createMessage calls
+
+async function withTimedSampling<T>(
+  action: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const startMs = Date.now();
+  try {
+    const result = await fn();
+    recordSamplingRequest(action, 'success');
+    recordSamplingDuration(action, (Date.now() - startMs) / 1000);
+    return result;
+  } catch (error) {
+    recordSamplingRequest(action, 'error');
+    recordSamplingDuration(action, (Date.now() - startMs) / 1000);
+    throw error;
+  }
+}
 
 // ============================================================================
 // Types
@@ -661,17 +681,17 @@ Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% 
   }
   prompt += `Data:\n${formattedData}`;
 
-  const result = await withSamplingTimeout(() =>
-    server.createMessage({
-      messages: [createUserMessage(prompt)],
-      systemPrompt,
-      maxTokens,
-      ...(modelPreferences && { modelPreferences }),
-      ...(temperature !== undefined && { temperature }),
-    })
+  const result = await withTimedSampling('analyzeData', () =>
+    withSamplingTimeout(() =>
+      server.createMessage({
+        messages: [createUserMessage(prompt)],
+        systemPrompt,
+        maxTokens,
+        ...(modelPreferences && { modelPreferences }),
+        ...(temperature !== undefined && { temperature }),
+      })
+    )
   );
-
-  recordSamplingRequest('analyzeData', 'success');
   return extractTextFromResult(result);
 }
 
@@ -1319,7 +1339,7 @@ Work step by step:
 
 Be careful with destructive operations. Always explain your reasoning.`,
     tools,
-    toolChoice: { type: 'auto' } as { mode?: 'none' | 'required' | 'auto' },
+    toolChoice: { mode: 'auto' } as { mode?: 'none' | 'required' | 'auto' },
     maxTokens: 2000,
   };
 }

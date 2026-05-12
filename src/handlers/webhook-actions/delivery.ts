@@ -8,6 +8,10 @@ import type { SheetsWebhookInput } from '../../schemas/webhook.js';
 import type { WebhookEventType } from '../../schemas/webhook.js';
 import type { WebhookResponse, WebhookHandlerAccess } from './internal.js';
 import { ErrorCodes } from './internal.js';
+import {
+  setWebhookQueueDepth,
+  setWebhookSubscriptionsActive,
+} from '../../services/metrics/webhook-metrics.js';
 
 /**
  * Send test webhook delivery.
@@ -113,6 +117,10 @@ export async function handleGetStats(
         }));
       }
     }
+
+    // Update Prometheus gauges for real-time observability
+    setWebhookQueueDepth(queueStats.pendingCount ?? 0);
+    setWebhookSubscriptionsActive(activeWebhooks);
 
     const stats = {
       totalWebhooks: webhooks.length,

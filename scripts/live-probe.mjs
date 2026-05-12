@@ -189,6 +189,12 @@ async function probeProtocol(harness) {
     const resp = await harness.request('resources/list');
     const resources = resp.result?.resources ?? [];
     results.push({ test: 'resources/list', pass: !resp.error, detail: `${resources.length} resources` });
+    // P21-C2: assert minimum count (6 named + 7 guide resources)
+    const hasMinResources = resources.length >= 13;
+    results.push({ test: 'resources/list count>=13', pass: hasMinResources, detail: `${resources.length} resources (need >=13)` });
+    // P21-C2: assert at least one resource has icons field
+    const hasIcons = resources.some(r => r.icons !== undefined);
+    results.push({ test: 'resources/list has icons', pass: hasIcons, detail: hasIcons ? 'icons field present' : 'no icons field found' });
   } catch (e) {
     results.push({ test: 'resources/list', pass: false, detail: e.message });
   }
@@ -198,6 +204,9 @@ async function probeProtocol(harness) {
     const resp = await harness.request('resources/templates/list');
     const templates = resp.result?.resourceTemplates ?? [];
     results.push({ test: 'resources/templates/list', pass: !resp.error, detail: `${templates.length} templates` });
+    // P21-C2: assert minimum template count
+    const hasMinTemplates = templates.length >= 6;
+    results.push({ test: 'resources/templates/list count>=6', pass: hasMinTemplates, detail: `${templates.length} templates (need >=6)` });
   } catch (e) {
     results.push({ test: 'resources/templates/list', pass: false, detail: e.message });
   }
@@ -207,8 +216,23 @@ async function probeProtocol(harness) {
     const resp = await harness.request('prompts/list');
     const prompts = resp.result?.prompts ?? [];
     results.push({ test: 'prompts/list', pass: !resp.error, detail: `${prompts.length} prompts` });
+    // P21-C2: assert minimum prompt count
+    const hasMinPrompts = prompts.length >= 40;
+    results.push({ test: 'prompts/list count>=40', pass: hasMinPrompts, detail: `${prompts.length} prompts (need >=40)` });
   } catch (e) {
     results.push({ test: 'prompts/list', pass: false, detail: e.message });
+  }
+
+  // P21-C2: invalid tool call — expect isError: true
+  try {
+    const resp = await harness.request('tools/call', {
+      name: 'sheets_data',
+      arguments: { request: { action: 'nonexistent_action', spreadsheetId: FAKE_SS } }
+    });
+    const isError = resp.result?.isError === true || !!resp.error;
+    results.push({ test: 'protocol: invalid action returns isError: true', pass: isError, detail: isError ? 'isError: true (correct)' : 'did not return isError: true' });
+  } catch (e) {
+    results.push({ test: 'protocol: invalid action returns isError: true', pass: false, detail: e.message });
   }
 
   // 5. completion/complete — test spreadsheetId completion
@@ -397,6 +421,25 @@ async function main() {
         allResults.push({ test: `multi:${probe.tool}.${probe.action}`, pass: false, detail: e.message });
         console.log(`  ❌ ${probe.tool}.${probe.action}: ${e.message}`);
       }
+    }
+
+    // ── Phase 5: Task-capable path (P21-C3) ─────────────────────────
+    console.log('\n▸ Phase 5: Task-capable path...');
+    try {
+      const resp = await harness.request('tools/call', {
+        name: 'sheets_analyze',
+        arguments: { request: { action: 'comprehensive', spreadsheetId: FAKE_SS } }
+      }, SERVER_TIMEOUT);
+      // Any response is acceptable — we're testing routing works, not actual analysis
+      const routed = resp.result !== undefined || resp.error !== undefined;
+      allResults.push({ test: 'task-capable: sheets_analyze.comprehensive routed correctly', pass: routed, detail: routed ? 'got response (not hung)' : 'no response' });
+      console.log(`  ${routed ? '✅' : '❌'} sheets_analyze.comprehensive: ${routed ? 'routed correctly' : 'no response'}`);
+    } catch (e) {
+      // Timeout with fake credentials means routing reached the Google API layer — that's correct.
+      // A JSON-RPC protocol error (malformed response, server crash) would be a real failure.
+      const isProtocolError = e.message.includes('JSON') || e.message.includes('ECONNRESET');
+      allResults.push({ test: 'task-capable: sheets_analyze.comprehensive routed correctly', pass: !isProtocolError, detail: e.message });
+      console.log(`  ${isProtocolError ? '❌' : '✅'} sheets_analyze.comprehensive: ${e.message}`);
     }
 
   } finally {

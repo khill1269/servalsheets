@@ -767,12 +767,14 @@ function buildFlatToolListEntries(
     })
     .map((flat: FlatToolDefinition) => {
       // Deferred tools: emit minimal schema to keep tools/list payload small.
-      // x-defer-loading tells the Anthropic API not to count them against the
-      // context window. The real schema is resolved at call time by the compound
-      // handler via flat-tool-routing.ts → the compound Zod discriminated union.
-      // Original target: ~1,500 tokens for the full flat surface (5 always-loaded
-      // + ~394 deferred with minimal entries). Full schemas on deferred tools
-      // ballooned this to 1.2MB — well over the 300KB STDIO wire budget.
+      // The real schema is resolved at call time by the compound handler via
+      // flat-tool-routing.ts → the compound Zod discriminated union.
+      //
+      // NOTE: 'x-defer-loading' was removed. It was an Anthropic Messages API
+      // concept (defer_loading in the Claude API request body), NOT an MCP spec
+      // field. No MCP client reads it. Claude Desktop does not implement
+      // Messages API defer_loading — all flat tools load into context
+      // unconditionally regardless of this flag.
       if (flat.deferLoading) {
         return {
           name: flat.name,
@@ -780,7 +782,6 @@ function buildFlatToolListEntries(
           description: flat.description,
           inputSchema: { type: 'object' },
           annotations: flat.annotations,
-          'x-defer-loading': true,
         };
       }
 

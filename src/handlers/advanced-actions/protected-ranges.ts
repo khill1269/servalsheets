@@ -271,7 +271,7 @@ export async function handleDeleteProtectedRangeAction(
     server: deps.context.elicitationServer,
     operation: 'delete_protected_range',
     details: `Delete protected range (ID: ${req.protectedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove all protection settings. This action cannot be undone.`,
-    skipIfElicitationUnavailable: req.safety?.confirmed === true,
+    preConfirmed: req.safety?.confirmed === true,
     context: {
       toolName: 'sheets_advanced',
       actionName: 'delete_protected_range',

@@ -38,6 +38,11 @@ import { getWebhookManager, getWebhookWorker } from '../services/index.js';
 import { serverStartupDuration } from '../observability/metrics.js';
 import { flushStartupSummary } from './startup-profiler.js';
 import { DEFER_SCHEMAS } from '../config/constants.js';
+import {
+  enforceProductionOAuthConfig,
+  warnIfDefaultCredentialsInHttpMode,
+} from '../config/embedded-oauth.js';
+import { getSamplingHealth } from '../services/sampling-health-probe.js';
 
 // Shutdown timeout (10 seconds)
 const SHUTDOWN_TIMEOUT = 10000;
@@ -166,8 +171,22 @@ export function validateAuthExemptList(): void {
 /**
  * Validate OAuth configuration
  * Checks that required OAuth environment variables are set
+ *
+ * Also enforces:
+ * - SEC-008: Production HTTP mode must have OAUTH_REDIRECT_URI explicitly set
+ *   (delegates to enforceProductionOAuthConfig — throws ConfigError on violation)
+ * - SEC-009: Bundled OAuth credentials warning
+ *   (delegates to warnIfDefaultCredentialsInHttpMode — emits a stderr warning
+ *   when no usable client secret is configured)
  */
 export function validateOAuthConfig(): void {
+  // SEC-008: Throws ConfigError in production HTTP mode without OAUTH_REDIRECT_URI.
+  // Must run before the lighter checks below so configuration failures fail fast.
+  enforceProductionOAuthConfig();
+
+  // SEC-009: Surface a clear warning when bundled credentials are missing/sentinel.
+  warnIfDefaultCredentialsInHttpMode();
+
   const hasClientId = Boolean(process.env['OAUTH_CLIENT_ID']);
   const hasClientSecret = Boolean(process.env['OAUTH_CLIENT_SECRET']);
   const hasRedirectUri = Boolean(process.env['OAUTH_REDIRECT_URI']);
@@ -183,6 +202,34 @@ export function validateOAuthConfig(): void {
       logger.warn('OAUTH_REDIRECT_URI not set, using default: http://localhost:3000/callback');
     }
   }
+}
+
+/**
+ * Warn when STRICT_MCP_PROTOCOL_VERSION is not enabled in production.
+ *
+ * SEC-010: HTTP transport accepts any client protocol version unless this
+ * env var is set (see src/http-server/middleware.ts:30-32). Production
+ * deployments should reject older protocol versions to ensure new security
+ * features (RFC 8707 audience binding, structured outputs, etc.) cannot
+ * be bypassed by clients pinned to legacy versions.
+ *
+ * Non-fatal: emits a WARN at startup so the misconfiguration is visible
+ * in logs without breaking development workflows that intentionally allow
+ * older clients.
+ */
+export function warnIfStrictProtocolVersionDisabledInProduction(): void {
+  if (process.env['NODE_ENV'] !== 'production') return;
+
+  const raw = process.env['STRICT_MCP_PROTOCOL_VERSION'];
+  const enabled = raw === 'true' || raw === '1';
+  if (enabled) return;
+
+  logger.warn(
+    'STRICT_MCP_PROTOCOL_VERSION is not enabled in production. ' +
+      'HTTP transport will accept any client MCP protocol version, including legacy ones ' +
+      'that predate current security features. ' +
+      'Set STRICT_MCP_PROTOCOL_VERSION=true to reject non-current versions.'
+  );
 }
 
 /**
@@ -208,6 +255,42 @@ export function ensureEncryptionKey(): string {
   }
 
   return encryptionKey;
+}
+
+/**
+ * Probe sampling reachability once at startup.
+ *
+ * SAMPLING-001: The server advertises sampling capability based on env config
+ * (presence of an LLM API key), but config presence ≠ reachability. A
+ * revoked key, malformed default request, or DNS failure would only surface
+ * on the first `sheets_analyze` call, far from the operator's setup window.
+ *
+ * Running the probe at startup makes the misconfiguration visible in
+ * deployment logs immediately. The probe is intentionally fire-and-forget —
+ * a slow probe must not block startup. The result is cached inside
+ * `getSamplingHealth()` and consulted by analyze handlers.
+ */
+export async function probeSamplingHealthAtStartup(): Promise<void> {
+  try {
+    const health = await getSamplingHealth();
+    if (health.healthy) {
+      logger.info('Sampling health probe: healthy', {
+        provider: health.provider,
+        model: health.model,
+      });
+    } else {
+      logger.warn('Sampling health probe: unhealthy at startup', {
+        reason: health.reason,
+        provider: health.provider,
+        consecutiveFailures: health.consecutiveFailures,
+      });
+    }
+  } catch (error) {
+    // Probe should never throw, but defend against future regressions.
+    logger.warn('Sampling health probe threw at startup', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 /**
@@ -357,6 +440,16 @@ export async function startBackgroundTasks(options?: {
 
   // Validate OAuth configuration
   validateOAuthConfig();
+
+  // SEC-010: Warn (non-fatal) when STRICT_MCP_PROTOCOL_VERSION is unset in production
+  warnIfStrictProtocolVersionDisabledInProduction();
+
+  // SAMPLING-001: Probe sampling reachability once at startup so a missing/revoked
+  // API key, malformed request, or unreachable endpoint surfaces here in the
+  // operator's startup logs rather than on the first sheets_analyze call later.
+  // Non-fatal: the analyze handlers will gracefully fall back if the probe says
+  // sampling is unhealthy.
+  void probeSamplingHealthAtStartup();
 
   // Initialize OpenTelemetry tracing
   initializeTracing(options?.tracing);

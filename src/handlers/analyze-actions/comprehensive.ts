@@ -1,5 +1,6 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
+import { selectField } from '../../mcp/elicitation.js';
 import { ComprehensiveAnalyzer } from '../../analysis/comprehensive.js';
 import { ServiceError } from '../../core/errors.js';
 import { isHeapCritical } from '../../utils/heap-watchdog.js';
@@ -258,13 +259,17 @@ export async function handleComprehensiveAction(
         requestedSchema: {
           type: 'object',
           properties: {
-            focus: {
-              type: 'string',
+            focus: selectField({
               title: 'Analysis focus',
-              description:
-                'What to analyze: data quality, formulas, structure, performance, or everything?',
-              enum: ['data_quality', 'formulas', 'structure', 'performance', 'everything'],
-            },
+              description: 'What to analyze',
+              options: [
+                { value: 'data_quality', label: 'Data quality issues' },
+                { value: 'formulas', label: 'Formula correctness' },
+                { value: 'structure', label: 'Sheet structure' },
+                { value: 'performance', label: 'Performance optimization' },
+                { value: 'everything', label: 'Everything (comprehensive)' },
+              ],
+            }),
           },
         },
       });

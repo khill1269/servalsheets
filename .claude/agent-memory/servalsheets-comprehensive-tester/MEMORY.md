@@ -26,33 +26,12 @@
 - Invalid OAuth callback code returns "invalid_client" (misleading - should be "invalid_code")
 - Auth error responses have well-structured resolution steps with `suggestedNextStep`
 
-### Test Results (2026-02-18)
-
-- 6680 total tests: 6019 pass, 28 fail, 633 skipped (99.5% pass rate)
-- 12 failing test files, categorized:
-  - 3 contract tests: Import `src/mcp/registration.js` which was deleted
-  - 3 compliance tests: Server instructions decision tree coverage
-  - 2 compliance tests: Response truncation hints
-  - 1 chaos test: Token refresh exhaustion
-  - 1 SDK test: Action count extraction
-  - 1 util test: Webhook handler case count (expects 6, got 7)
-  - 5 google-api service tests: Mock setup issue (`google.docs is not a function`)
-  - 1 cache invalidation test: Missing invalidation rules for new actions
-
 ### MCP Resources
 
 - 68 MCP resources registered
 - Resources work even when not authenticated
 - Schema resources provide complete input/output schema definitions
 - Metrics dashboard tracks tool usage, cache, API efficiency
-
-### Performance Baseline
-
-- Server uptime: stable over 100+ minutes
-- Memory usage: ~201MB (stable)
-- Cache: 57% hit rate (schema-validation namespace)
-- Fast test suite: 3.96s (81 files, 2112 tests)
-- Full test suite: 13.48s (278 files, 6680 tests)
 
 ## Key Findings (2026-04-19) — Schema/Handler/Compliance Audit
 
@@ -71,34 +50,12 @@
 - They are intentional and documented in `src/schemas/handler-deviations.ts` lines 113-142
 - LLMs cannot discover aliases via completions (not in TOOL_ACTIONS) but calls work if guessed
 
-### agencyHint / requiredScopes — FALSE SESSION NOTE
-
-- Session 108 notes claim `agencyHint` (SEP-1792) and `requiredScopes` (SEP-1880) were added
-- These fields do NOT exist anywhere in the codebase (confirmed via full-repo grep)
-- `ToolAnnotations` interface at `src/schemas/shared.ts:1515` has only 5 standard MCP fields
-- The MEMORY.md note from Session 112 repeating this claim is also incorrect — ignore it
-
-### Stale Comment in Generated Completions
-
-- `src/generated/completions.ts` line 21 says "sheets_analyze has 23 actions"
-- Actual count: 26 (matches `ACTION_COUNTS.sheets_analyze = 26` and the 26-item array)
-- This is a stale comment in a generated file — functionally harmless but misleading
-
 ### Schema Completeness — All 25 Tools Verified
 
 - All 25 tool Zod schemas have correct discriminated unions matching ACTION_COUNTS
 - All 25 tools have output schemas registered in `tool-definitions.ts`
 - Output schema validation is ADVISORY only — gated behind `VALIDATE_OUTPUT_SCHEMAS` env var
 - Output validation is per-tool (not per-action) — no granular per-action output validation
-
-### Elicitation Wizards — All 4 Working
-
-- `chart_create`: `src/handlers/visualize-actions/charts.ts:188` — calls `deps.context.server.elicitInput()`, 2-step form
-- `add_conditional_format_rule`: `src/handlers/format-actions/conditional.ts:405` — calls `elicitConditionalFormatPreset()`
-- `core.create`: `src/handlers/core-actions/spreadsheet-ops.ts:269` — calls `elicitSpreadsheetCreation()`
-- `transaction.begin`: `src/handlers/transaction.ts:68` — calls `this.context.server.elicitInput()`
-- All 4 are non-blocking (try/catch), degrade gracefully if client doesn't support elicitation
-- `mode: 'form'` usage in charts.ts is VALID — confirmed in SDK types.d.ts line 4982
 
 ### MUTATION_ACTIONS Parity
 
@@ -112,78 +69,128 @@
 - Both `sheets_data` and `sheets_dimensions` have an `auto_fill` action
 - This is safe — routing is per-tool, action names only need uniqueness within a tool
 
-## Key Findings (2026-04-26) — Handler Test + Mutation Audit
+## Key Findings (2026-04-28) — Full Suite Audit
 
-### Handler Test Coverage — All 25 Present, 16 Failing
+### Action Count (Authoritative)
 
-- All 25 handler test files exist (`tests/handlers/{tool}.test.ts`)
-- Handler test totals: 72 files, 1642 tests, **16 failures** (1% fail rate)
-- Failure breakdown:
-  - 9 in `tests/handlers/analyze.test.ts` — SAMPLING_CONSENT_REQUIRED blocks all LLM calls
-  - 4 in `tests/handlers/composite.test.ts` — missing `values.batchUpdate` mock
-  - 2 in `tests/handlers/analyze-query-natural-language.test.ts` — same consent blocker
-  - 1 in `tests/handlers/sampling-enhancements.test.ts` — consent blocker prevents `createMessage` calls
+- `src/generated/action-counts.ts`: 25 tools, **410 actions** (not 409 — `sheets_dimensions` is 31, not 30)
+- The MCP server description says "410 actions" (correct)
+- Drift check passes: source/dist synchronized at 25 tools, 410 actions
 
-### Root Cause 1: SAMPLING_CONSENT_REQUIRED=true Breaks All Sampling Tests
+### Test Suite Totals (2026-04-28)
 
-- `src/config/env.ts:233`: `SAMPLING_CONSENT_REQUIRED` defaults to `true`
-- `vitest.config.ts` does NOT set `SAMPLING_CONSENT_REQUIRED=false` in test env
-- Tests calling any LLM path (analyze, generate_formula, suggest_chart, query_natural_language, suggest_format) get:
-  `GDPR_CONSENT_REQUIRED: SAMPLING_CONSENT_REQUIRED=true but no consent checker registered`
-- Fix: add `SAMPLING_CONSENT_REQUIRED: 'false'` to `vitest.config.ts` `env` block (line 25)
-- Affects: `tests/handlers/analyze.test.ts` (9 failures), `analyze-query-natural-language.test.ts` (2), `sampling-enhancements.test.ts` (1)
+- Total test files run: 550 (excluding live-api and simulation)
+- Total tests: 10,551 (10,189 pass, 309 skipped, 2 todo)
+- **51 failures** in 5 failing files (99.5% pass rate)
+- TypeScript: compiles cleanly with no errors
+- Metadata drift: none detected
+- Integration tests: 17 pass, 5 skipped (all pass)
+- MCP tests: 28 files, 182 pass, 4 skipped (all pass)
+- Contract tests: 42 files, 1303 pass (all pass)
+- Service tests: 81 files, 1730 pass, 22 skipped (all pass)
+- Audit tests: 4 files, 1289 pass (all pass, incl 1264 action coverage assertions)
 
-### Root Cause 2: Missing `values.batchUpdate` Mock in Composite Tests
+### Failing Tests — Root Causes (2026-04-28)
 
-- `src/services/composite-operations.ts:473`: `bulkUpdate()` calls `this.sheetsApi.spreadsheets.values.batchUpdate()`
-- `tests/handlers/composite.test.ts:83-113`: mock has `get`, `update`, `append`, `clear`, `batchGet` but NOT `batchUpdate`
-- Results in `TypeError: this.sheetsApi.spreadsheets.values.batchUpdate is not a function`
-- Returned as `INTERNAL_ERROR` with `success: false`
-- Fix: add `batchUpdate: vi.fn().mockResolvedValue({ data: { spreadsheetId: 'test123', totalUpdatedRows: 1 } })` to mock at line 83
-- Also affects `import_and_format` (same service dependency chain)
-- Affected tests: 3 `bulk_update` success paths, 1 `import_and_format`
+**File 1: `tests/handlers/advanced.test.ts` — 41/45 fail**
+- Root cause: Mock context uses `auth.scopes: ['https://www.googleapis.com/auth/drive.file']`
+- All `sheets_advanced` operations require `spreadsheets` or `spreadsheets.readonly` scope
+- Commit `b316fd90` changed `checkOperationScopes` to enforce scope checks regardless of `INCREMENTAL_CONSENT_ENABLED`
+- Previously, scope checks were skipped when `INCREMENTAL_CONSENT_ENABLED=false` (the test environment default)
+- Error returned: `INSUFFICIENT_PERMISSIONS` instead of expected success or `PRECONDITION_FAILED`
+- Fix: update test mock to use `scopes: ['https://www.googleapis.com/auth/spreadsheets']`
 
-### Root Cause 3: `PARSE_ERROR` vs `INTERNAL_ERROR` Code Mismatch
+**File 2: `tests/handlers/elicitation-wizards.test.ts` — 6/12 fail (chart_create + add_conditional_format_rule)**
+- Root cause: Test mocks `../../src/security/incremental-scope.js` but mock does NOT export `InsufficientScopeError`
+- Commit `b316fd90` added `InsufficientScopeError` to base.ts (imported from incremental-scope.js)
+- When `validator.hasRequiredScopes()` returns undefined (mock doesn't implement it), the throw path runs
+- But `InsufficientScopeError` is undefined in the mock → `TypeError: InsufficientScopeError is not a constructor`
+- `SheetsCoreHandler.create` and `TransactionHandler.begin` pass because `OPERATION_SCOPES` has no entry for those operations (unknown ops return true)
+- Fix: add `InsufficientScopeError: class extends Error {}` and `hasRequiredScopes: vi.fn().mockReturnValue(true)` to the incremental-scope mock
 
-- `tests/handlers/analyze.test.ts:251` expects `PARSE_ERROR` code on LLM parse failures
-- Actual code returned is `INTERNAL_ERROR` (fallback in `mapStandaloneError`)
-- This is a test expectation mismatch — `PARSE_ERROR` was likely a planned code that wasn't added to `ErrorCodeSchema`
-- Affected: 2 tests (`should handle parse error in LLM response`, `should handle formula parse error`)
+**File 3: `tests/handlers/fix.test.ts` — 2/22 fail**
+- Root cause: New retry tests added in commit `99a73607` use `range: 'Sheet1!A1:B2'` (bare string)
+- Handler calls `extractRangeA1(req.range)` which requires an object `{a1: '...'}` not a string
+- Fix: change test fixture to `range: { a1: 'Sheet1!A1:B2' }`
 
-### MCP Tests — 1 Failure
+**File 4: `tests/snapshots/schemas.snapshot.test.ts` — 1 fail**
+- Root cause: Uncommitted change adds `safety: SafetyOptionsSchema` to `ClearSheetActionSchema` in `src/schemas/core.ts`
+- Snapshot for `SheetsCoreInputSchema` is now stale
+- Fix: run `npx vitest run tests/snapshots -u` after committing schema change
 
-- `tests/mcp/llm-provenance-meta.test.ts`: same consent blocker as analyze tests
-- `src/utils/sampling-consent.ts:62`: throws `GDPR_CONSENT_REQUIRED` when no checker registered
-- Service tests: 77 files, 1735 tests, all pass (1713 pass, 22 skipped)
-- MCP tests: 27 files, 183 tests, 1 fail (consent blocker)
+**File 5: `tests/compliance/tool-routing.test.ts` — 1 fail**
+- Root cause: Commit `38aeeeaf` added new minimal descriptions exceeding 500-char gate
+- Offenders: `sheets_data` (584), `sheets_dimensions` (530), `sheets_composite` (588), `sheets_appsscript` (602)
+- Test expects `desc.length <= 500` for all 25 tools
+- Fix: either trim the descriptions or raise the gate to 650
 
-### Performance Benchmark Results (Stryker sandbox, representative)
+### Uncommitted Changes (2026-04-28)
 
-- Schema validation (valid inputs): `sheets_transaction` 3.5M ops/sec, `sheets_dimensions` 1.2M ops/sec
-- Schema validation (invalid rejection): 136-138K ops/sec (both tools)
-- `buildToolResponse()` small: 3.7M ops/sec; large (100x10): 57K ops/sec
-- Error response build: 4.3M ops/sec (faster than success due to no serialization overhead)
-- JSON serialize medium (1000 cells): 45x slower than small response
+4 files with unstaged changes:
+- `scripts/mcp-protocol-smoke.mjs` — minor refactor
+- `src/handlers/advanced-actions/named-ranges.ts` — `skipIfElicitationUnavailable` → `preConfirmed` fix
+- `src/handlers/dimensions-actions/filter-view-operations.ts` — 1 line addition
+- `tests/live-api/setup/test-rate-limiter.ts` — minor fix
 
-### Memory Audit
+Large batch of `safety.confirmed` / `preConfirmed` changes already committed in `92b35581`:
+- `src/handlers/base.ts`: expose `preConfirmed` option on `confirmDestructiveAction`
+- `src/utils/safety-helpers.ts`: `preConfirmed` bypass in `requestSafetyConfirmation`
+- `src/handlers/advanced-actions/protected-ranges.ts`, `src/handlers/core-actions/sheet-ops.ts`,
+  `src/handlers/core-actions/sheet-batch.ts`, `src/handlers/dimensions-actions/filter-sort-operations.ts`,
+  `src/handlers/dimensions-actions/structure-operations.ts`, `src/handlers/data-actions/batch.ts`: all wired
+- `src/schemas/core.ts`: added `safety: SafetyOptionsSchema` to `ClearSheetActionSchema` (causes snapshot failure)
 
-- `tests/audit/memory-leaks.test.ts`: 5/5 pass
-- `tests/audit/action-coverage.test.ts`: 1261/1261 pass (full 409-action coverage assertions)
-- No memory leaks detected in any of the 5 profiled scenarios
+### Scope Enforcement Architecture (b316fd90 — 2026-04-28)
 
-### Mutation Testing Status
+- `src/handlers/base.ts:checkOperationScopes()` now unconditionally enforces OAuth scopes
+- Previously guarded by `if (!INCREMENTAL_CONSENT_ENABLED) return` — tests depended on this
+- Scope map: `src/security/operation-scopes-map.ts` — 1200+ entries, all 410 actions covered
+- `ScopeValidator.hasRequiredScopes()` — checks if current scopes satisfy operation requirements
+- Scope upgrade rules: `spreadsheets` covers `spreadsheets.readonly`; `drive` covers `drive.file`
+- Tests that mock `auth.scopes: ['drive.file']` now fail for `spreadsheets`-scoped operations
 
-- `npm run mutation:critical` is ACTIVELY RUNNING (multiple Stryker workers, >42 min elapsed)
-- 8 critical security files being mutated (oauth-provider, safety middleware, write-lock, retry, circuit-breaker, python-worker, duckdb-worker, cache-invalidation-graph)
-- No prior mutation reports exist — first run appears to be in progress
-- Config at `stryker.critical.conf.mjs`: thresholds high=80, low=60, break=50; concurrency=2
+### MCP Compliance (2026-04-28)
 
-### Contract Tests (39 files)
+- MCP 2025-11-25: PASS (18/18 compliance tests)
+- 25 tools registered, all with annotations
+- All tool names follow `sheets_*` convention
+- Tools unique, no duplicates
+- Prompts and resources registered
+- STDIO purity: PASS
+- Output sanitization: PASS
+- Error code compliance: PASS
 
-- `action-metadata-raw-contract.test.ts`: 4 assertions
-- `annotations-compliance.test.ts`: 40 assertions
-- `api-contracts.test.ts`: 101 assertions
-- `error-codes.test.ts`: 156 assertions — largest contract coverage
+### Per-Tool Handler Test Status (2026-04-28)
+
+| Tool | Handler Test File | Status |
+|------|------------------|--------|
+| sheets_advanced | advanced.test.ts | FAIL (41/45) — scope mock issue |
+| sheets_agent | agent.test.ts | PASS |
+| sheets_analyze | analyze.test.ts + 7 more | PASS |
+| sheets_appsscript | appsscript.test.ts | PASS |
+| sheets_auth | auth.test.ts | PASS |
+| sheets_bigquery | bigquery.test.ts | PASS |
+| sheets_collaborate | collaborate.test.ts + 3 more | PASS |
+| sheets_composite | composite.test.ts + 3 more | PASS |
+| sheets_compute | compute.test.ts | PASS |
+| sheets_confirm | confirm.test.ts | PASS |
+| sheets_connectors | connectors.test.ts | PASS |
+| sheets_core | core.test.ts | PASS |
+| sheets_data | data.test.ts + 4 more | PASS |
+| sheets_dependencies | dependencies.test.ts | PASS |
+| sheets_dimensions | dimensions.test.ts | PASS |
+| sheets_federation | federation.test.ts | PASS |
+| sheets_fix | fix.test.ts | FAIL (2/22) — string range in new test |
+| sheets_format | format.test.ts + 4 more | PASS (elicitation cross-test fails) |
+| sheets_history | history.test.ts | PASS |
+| sheets_quality | quality.test.ts | PASS |
+| sheets_session | session.test.ts + 4 more | PASS |
+| sheets_templates | templates.test.ts | PASS |
+| sheets_transaction | transaction.test.ts | PASS |
+| sheets_visualize | visualize.test.ts | PASS (elicitation cross-test fails) |
+| sheets_webhook | webhook.test.ts + 2 more | PASS |
+
+Note: elicitation-wizards.test.ts is a cross-tool file testing chart_create (visualize) + add_conditional_format_rule (format)
 
 ## Files to Reference
 
@@ -196,3 +203,6 @@
 - Tool annotations: `src/generated/annotations.ts`
 - Tool definitions: `src/mcp/registration/tool-definitions.ts`
 - Output validation: `src/mcp/registration/tool-response.ts:222`
+- Scope map: `src/security/operation-scopes-map.ts`
+- Scope validator: `src/security/incremental-scope.ts`
+- Minimal descriptions: `src/schemas/descriptions-minimal.ts`

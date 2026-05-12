@@ -44,10 +44,12 @@ export function buildServerStdioInfrastructure(input: {
       createBaseMcpServer({
         serverInfo: {
           name,
+          title: 'ServalSheets',
           version,
           icons: SERVER_ICONS,
           description:
             'Production-grade Google Sheets MCP server with AI-powered analysis, transactions, workflows, and enterprise features',
+          websiteUrl: 'https://github.com/khill1269/servalsheets',
         },
         capabilities: createServerCapabilities(),
         instructions: SERVER_INSTRUCTIONS,

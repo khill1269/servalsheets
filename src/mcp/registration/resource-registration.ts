@@ -7,6 +7,7 @@
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { RESOURCE_ICONS, GUIDE_RESOURCE_ICON } from '../../config/resource-icons.js';
 import type { GoogleApiClient } from '../../services/google-api.js';
 import {
   completeAction,
@@ -571,6 +572,7 @@ export function registerServalSheetsResources(
       title: 'Spreadsheet',
       description: 'Google Sheets spreadsheet metadata (properties and sheet list)',
       mimeType: 'application/json',
+      icons: RESOURCE_ICONS['spreadsheet'],
     },
     async (uri, variables) => {
       const rawSpreadsheetId = variables['spreadsheetId'];
@@ -614,6 +616,7 @@ export function registerServalSheetsResources(
       title: 'Spreadsheet Range',
       description: 'Google Sheets range values (A1 notation)',
       mimeType: 'application/json',
+      icons: RESOURCE_ICONS['spreadsheet_range'],
     },
     async (uri, variables) => {
       const rawSpreadsheetId = variables['spreadsheetId'];
@@ -696,6 +699,10 @@ export function registerServalSheetsResources(
           hasMore,
         };
         if (hasMore) {
+          // NOTE: MCP 2025-11-25 defines cursor pagination for resources/LIST but not
+          // for resources/READ content. We use nextUri (custom ServalSheets convention)
+          // because the next page is a different resource URI, not the same resource.
+          // This is compatible with spec — clients call resources/read with nextUri.
           pagination['nextUri'] =
             'sheets:///' +
             spreadsheetId +
@@ -744,6 +751,7 @@ export function registerServalSheetsResources(
       description:
         'Complete spreadsheet structural metadata: sheets, charts, named ranges, protected ranges, conditional formats, filter views, slicers. Optimized field mask — no cell data.',
       mimeType: 'application/json',
+      icons: RESOURCE_ICONS['spreadsheet_context'],
     },
     async (uri, variables) => {
       const rawSpreadsheetId = variables['spreadsheetId'];
@@ -834,6 +842,7 @@ export function registerServalSheetsResources(
       description:
         'Sheet tab metadata and first 50 rows of data. Read a named tab by spreadsheetId and sheetName without needing to know its dimensions. Returns rowCount, columnCount, headers, and preview rows.',
       mimeType: 'application/json',
+      icons: RESOURCE_ICONS['sheet_tab'],
     },
     async (uri, variables) => {
       const rawSpreadsheetId = variables['spreadsheetId'];
@@ -926,6 +935,7 @@ export function registerServalSheetsResources(
       title: 'Tool Action',
       description: 'ServalSheets tool action reference. Use for action name autocompletion.',
       mimeType: 'application/json',
+      icons: RESOURCE_ICONS['tool_action'],
     },
     async (_uri, _variables) => {
       return { contents: [] }; // completions-only resource; no read content
@@ -941,6 +951,7 @@ export function registerServalSheetsResources(
       description:
         'Server health snapshot including circuit breakers, cache, quota, and error rates',
       mimeType: 'application/json',
+      icons: RESOURCE_ICONS['server_health'],
     },
     async () => ({
       contents: [
@@ -1007,6 +1018,7 @@ export function registerServalSheetsResources(
         title: guide.uri.replace('guide://', ''),
         description: guide.description,
         mimeType: 'text/markdown',
+        icons: GUIDE_RESOURCE_ICON,
       },
       async () => ({
         contents: [

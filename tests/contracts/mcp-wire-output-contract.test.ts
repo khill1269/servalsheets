@@ -80,7 +80,11 @@ describe('MCP wire output contracts', () => {
     const response = await mock.getHandler()({ params: {} });
     const payloadBytes = Buffer.byteLength(JSON.stringify(response), 'utf8');
 
-    expect(payloadBytes).toBeLessThan(300_000);
+    // STDIO now defaults to bundled mode (25 compound tools with full schemas).
+    // Bundled schemas are larger than deferred flat schemas — 1MB cap matches HTTP.
+    // Previous 300KB limit was for the flat+deferred mode (removed: x-defer-loading
+    // was an Anthropic Messages API field, not MCP — no MCP client honored it).
+    expect(payloadBytes).toBeLessThan(1_000_000);
     expect(response.tools.length).toBeGreaterThan(0);
   });
 

@@ -41,6 +41,4 @@ _run_with_timeout 60 node --import tsx scripts/generate-metadata.ts --validate
 
 echo ""
 echo "🔍 Checking source/dist runtime artifact consistency..."
-_run_with_timeout 30 node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist || {
-  echo "⚠️  Source/dist consistency check skipped (timeout or missing dist)"
-}
+_run_with_timeout 30 node --import tsx scripts/check-source-dist-consistency.ts --allow-missing-dist

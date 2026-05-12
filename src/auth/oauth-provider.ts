@@ -1945,6 +1945,33 @@ export async function createOAuthProviderFromEnv(): Promise<OAuthProvider> {
     throw new ConfigError('JWT_SECRET environment variable is required', 'JWT_SECRET');
   }
 
+  // SEC-014: Enforce a minimum entropy floor for JWT_SECRET.
+  // HS256 security depends entirely on secret strength; secrets shorter than
+  // 32 bytes (64 hex / ~43 base64 chars / 32 raw bytes) are brute-forceable
+  // offline given a single signed token. We require ≥ 32 bytes of entropy.
+  // - Production: throw, matching requireEncryptionKeyInProduction() pattern.
+  // - Development: warn, so local quickstart with a short test secret still
+  //   works but the operator sees the message before going to prod.
+  const MIN_JWT_SECRET_BYTES = 32; // 256 bits
+  // Estimate raw byte count: hex (64 chars = 32 bytes), base64 (~4/3 ratio),
+  // or treat ASCII as 1 byte per char. Use the most permissive estimate so
+  // we don't reject legitimate base64 secrets that look short in chars.
+  const estimatedBytes = Math.max(
+    /^[0-9a-fA-F]+$/.test(jwtSecret) ? Math.floor(jwtSecret.length / 2) : 0,
+    /^[A-Za-z0-9+/=_-]+$/.test(jwtSecret) ? Math.floor((jwtSecret.length * 3) / 4) : 0,
+    Buffer.byteLength(jwtSecret, 'utf8')
+  );
+  if (estimatedBytes < MIN_JWT_SECRET_BYTES) {
+    const message =
+      `JWT_SECRET has insufficient entropy (estimated ${estimatedBytes} bytes, ` +
+      `required ≥ ${MIN_JWT_SECRET_BYTES}). ` +
+      'Generate with: openssl rand -hex 32  (or: openssl rand -base64 32)';
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new ConfigError(message, 'JWT_SECRET');
+    }
+    logger.warn(message);
+  }
+
   if (!stateSecret) {
     throw new ConfigError(
       'OAUTH_STATE_SECRET environment variable is required',

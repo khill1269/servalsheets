@@ -150,3 +150,33 @@ afterEach(() => { vi.unstubAllEnvs(); });
 ## 18. SQL injection guard in `sql_join`
 
 `sheets_compute.sql_join` validates `alias`, `on`, and `select` fields against safe identifier patterns before interpolating into DuckDB SQL. DuckDB runs in-process and can read local files (`read_csv_auto` etc.) — injection is a sandbox escape. Do NOT remove or weaken the validation in `src/handlers/compute-actions/advanced-query.ts`.
+
+---
+
+## 24. `registerPrompt()` strips `icons` at runtime — type cast won't help
+
+The MCP SDK v1.29.0 `McpServer.registerPrompt()` config is typed as `{title?, description?, argsSchema?}`. Even if you add `icons` via type assertion (`config as any`), the SDK destructures only those three fields at `mcp.js:731` and discards everything else. The wire-level `prompts/list` response is hardcoded to serialize `{name, title, description, arguments}` — icons are never emitted.
+
+**Why:** SDK type `Prompt extends BaseMetadata, Icons` in `spec.types.d.ts:924` is correct, but `registerPrompt()` was implemented before icons were added to the spec and hasn't been updated.
+
+**How to apply:** Do NOT spend time on type casting or post-registration injection (`registered.icons = ...` is lost on `.update()` calls). Track as P21-D1 (file upstream SDK issue). Lower-level workaround via `server.server.setRequestHandler(ListPromptsRequestSchema, ...)` is possible but complex (see P21-D2).
+
+---
+
+## 25. `packages/mcp-http` stale `.tsbuildinfo` causes silent no-op rebuild
+
+TypeScript incremental build caches the last compile in `packages/mcp-http/.tsbuildinfo`. If this cache is stale (e.g., after a git pull that modifies `src/middleware.ts` but not the build artifact), `npm run build` exits 0 without regenerating dist files. `check-source-dist-consistency.ts` will then correctly detect drift and fail.
+
+**Fix:** `rm -f packages/mcp-http/.tsbuildinfo && npm run build` (in the package directory) forces a clean rebuild. The root `npm run prebuild` does NOT clear this cache.
+
+**Why it matters:** `src/http-server/middleware.ts:14` imports from `../../packages/mcp-http/dist/middleware.js`. A stale dist means the running server uses old middleware code even after source changes.
+
+**Source:** Discovered 2026-05-12 — `check-metadata-drift.sh` was previously masking this with `|| { echo "skipped" }`. After the fix (P20 → P21), the gate correctly fails when dist is stale.
+
+---
+
+## 26. `audit/protocol_compliance_report.md` is empty — never cite it
+
+`audit/protocol_compliance_report.md` was truncated to 2 bytes (two blank lines) as of 2026-05-12. Any session notes, memory files, or agent outputs that reference this file's content (grade, feature table, compliance items) are citing stale cached text, not the file. Rewriting it is P21-E1.
+
+**How to apply:** Before citing the report, run `wc -c audit/protocol_compliance_report.md`. If it returns a small number, the file is empty. Always reconstruct compliance claims from the source code directly.

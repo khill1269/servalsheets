@@ -155,7 +155,7 @@ export async function handleDeleteNamedRangeAction(
       isDestructive: true,
       spreadsheetId: req.spreadsheetId,
     },
-    skipIfElicitationUnavailable: req.safety?.confirmed === true,
+    preConfirmed: req.safety?.confirmed === true,
   });
 
   if (!confirmation.confirmed) {

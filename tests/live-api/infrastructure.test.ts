@@ -87,8 +87,9 @@ describe('Test Infrastructure', () => {
 
     it('should provide convenient accessors', () => {
       const expectedMaxRetries = Number(process.env['TEST_MAX_RETRIES'] ?? '5');
+      const expectedQuotaDelayMs = Number(process.env['TEST_QUOTA_DELAY_MS'] ?? '200');
       expect(TEST_CONFIG.retry.maxRetries).toBe(expectedMaxRetries);
-      expect(TEST_CONFIG.quota.delayBetweenTestsMs).toBe(200);
+      expect(TEST_CONFIG.quota.delayBetweenTestsMs).toBe(expectedQuotaDelayMs);
     });
   });
 
@@ -207,7 +208,7 @@ describe('Test Infrastructure', () => {
 
     beforeEach(() => {
       resetTestRateLimiter();
-      limiter = getTestRateLimiter();
+      limiter = new TestRateLimiter({ readsPerMinute: 200, writesPerMinute: 60 });
     });
 
     it('should acquire tokens', async () => {

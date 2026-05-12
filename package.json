@@ -2,7 +2,7 @@
   "name": "servalsheets",
   "mcpName": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade MCP server for Google Sheets \u2014 25 tools, 410 actions",
+  "description": "Production-grade MCP server for Google Sheets — 25 tools, 410 actions",
   "bin": {
     "servalsheets": "dist/server.js"
   },
@@ -53,7 +53,7 @@
     "verify:build": "npm run build && npm run verify",
     "release:audit": "bash scripts/release-audit.sh",
     "skill:docs": "node scripts/generate-skill-docs.mjs",
-    "schema:commit": "node scripts/generate-metadata.ts && npm run skill:docs && npm run test:run -- tests/contracts && git add src/generated/ src/schemas/action-counts.ts src/mcp/completions.ts server.json .claude/skills/google-sheets-expert/SKILL.md .claude/skills/google-sheets-expert/references/tool-guide.md 2>/dev/null || true",
+    "schema:commit": "tsx scripts/generate-metadata.ts && npm run skill:docs && npm run test:run -- tests/contracts && git add src/generated/ src/schemas/action-counts.ts src/mcp/completions.ts server.json .claude/skills/google-sheets-expert/SKILL.md .claude/skills/google-sheets-expert/references/tool-guide.md 2>/dev/null || true",
     "check:drift": "bash scripts/check-metadata-drift.sh",
     "check:layers": "depcruise --validate .dependency-cruiser.json src/",
     "check:knip": "knip",
@@ -114,6 +114,7 @@
     "test:mcp:protocol": "node scripts/mcp-protocol-smoke.mjs",
     "test:mcp:protocol:json": "node scripts/mcp-protocol-smoke.mjs --json",
     "test:mcp:protocol:tool": "node scripts/mcp-protocol-smoke.mjs --tool",
+    "test:mcp:protocol:full": "node scripts/live-probe.mjs",
     "test:mcp-http-task-contract": "vitest --run tests/packages/mcp-http",
     "test:http-transport-failover": "vitest --run tests/http-server/http-transport-failover.test.ts",
     "test:coverage:tracking": "vitest --run --coverage",
@@ -121,6 +122,10 @@
     "test:simulation:full": "vitest run tests/simulation/ tests/contracts/ tests/compliance/",
     "stress:catalog": "npx tsx tests/stress/scenario-catalog.ts --print",
     "stress:run": "STRESS_TEST=1 vitest run tests/live-api/zstress/ --timeout=300000",
+    "test:chaos": "vitest run tests/chaos/",
+    "flake:rates": "node scripts/compute-flake-rates.mjs",
+    "flake:rates:json": "node scripts/compute-flake-rates.mjs --json",
+    "live:replay": "node scripts/replay-failed-actions.mjs",
     "clean": "rm -rf dist",
     "prepare": "npm run build",
     "pretest": "npm run typecheck",
@@ -180,7 +185,7 @@
     "stripe": "^17.5.0",
     "swagger-ui-express": "^5.0.1",
     "typescript": "^5.9.3",
-    "uuid": "^13.0.0",
+    "uuid": "^14.0.0",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   },
@@ -239,8 +244,7 @@
     "vite": "^7.3.1",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.2",
-    "yaml": "^2.8.2",
-    "zod-to-json-schema": "^3.25.2"
+    "yaml": "^2.8.2"
   },
   "optionalDependencies": {
     "@esbuild/darwin-arm64": "^0.28.0",

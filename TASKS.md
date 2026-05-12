@@ -3,11 +3,115 @@
 > Persistent backlog of planned work. Updated across sessions.
 > For session-level context (what just happened, decisions), see `.serval/session-notes.md`.
 
-## Active Phase: P20 — Flat-Tool Wire Hardening (2026-04-21)
+## Active Phase: P21 — MCP Protocol Compliance & Quality Hardening (2026-05-12)
+
+Goal: Close spec compliance gaps found during the 2026-05-12 deep audit against MCP 2025-11-25 official spec (fetched live) and SDK v1.29.0. Harden test coverage for drift detection, initialize response shape, sampling probe scenarios, and live protocol smoke. Fix three spec gaps in `serverInfo`. Rewrite empty compliance report.
+
+**Baseline (2026-05-12): 1864/1864 tests passing, TypeScript 0 errors. Already done this phase: `check:drift` bug fixed (removed `|| {}` from `check-metadata-drift.sh:44`), `packages/mcp-http` clean rebuild (stale `.tsbuildinfo` deleted), 5 elicitation schemas migrated to titled `oneOf` via `selectField()`, 13 resources get `icons` per spec, `SamplingHealth.model` + startup log + `.env.quickstart` LLM var docs.**
+
+---
+
+### P21-A: Protocol Compliance Fixes
+
+- [x] **P21-A1** — Add `websiteUrl` and `title` to `serverInfo`
+  - `src/version.ts:24-29`: add `websiteUrl: 'https://github.com/khill1269/servalsheets'` and `title: 'ServalSheets'`
+  - Verify also propagated via `src/server/build-server-stdio-infrastructure.ts:45-51`
+  - Spec: `Implementation extends BaseMetadata, Icons`; `BaseMetadata.title` and `Implementation.websiteUrl` are both optional but defined
+
+- [x] **P21-A2** — Fix SEP-1649 → SEP-2127 in `src/server/well-known.ts`
+  - Lines 5, 310, 543: replace "SEP-1649" with "SEP-2127 (draft, unmerged)"
+  - SEP-2127 confirmed open PR as of 2026-05-12; `observability-core-routes.ts` already uses correct SEP number
+
+- [x] **P21-A3** — Remove dead `$schema` URL from `src/server/well-known.ts:360`
+  - `https://modelcontextprotocol.io/schemas/mcp-server-card.json` is a 404 (SEP not merged, schema not published)
+  - Remove the `$schema` field or replace with the GitHub PR URL
+
+- [x] **P21-A4** — Icon `theme` field *(resolved: no action needed)*
+  - All SVGs use `stroke="currentColor"` → theme-agnostic by design; `theme` field is for theme-specific variants only
+  - MCP spec: `theme` is optional and only applicable when server provides separate light/dark icon variants
+  - Server icon uses hardcoded colors but embedded data URI — theme field inapplicable
+  - Decision recorded in `docs/development/ADVANCED_GOTCHAS.md` context
+
+---
+
+### P21-B: Test Coverage
+
+- [x] **P21-B1** — Add stale-dist regression test
+  - File: `tests/contracts/source-dist-consistency-script.test.ts`
+  - Current gap: tests detect MISSING dist only; stale dist (files exist with old content) is untested
+  - Pattern: write old `ACTION_COUNTS` values to temp dir → backup real dist → run script → assert exit 1 + error message contains mismatch → restore real dist
+  - No new deps — reuse `mkdtempSync`, `cpSync`, `renameSync`, `rmSync` (already used by the script)
+
+- [x] **P21-B2** — Add initialize wire shape test
+  - File: `tests/contracts/mcp-protocol.test.ts` — extend the STDIO purity suite (lines 313-410)
+  - Assert: `result.protocolVersion === '2025-11-25'`, `result.serverInfo.name` defined, `result.serverInfo.icons` present, `result.capabilities.resources.subscribe === true`, `result.capabilities.tasks` defined
+  - Assert conditional: `result.capabilities.tools?.listChanged === true` when `SERVAL_STAGED_REGISTRATION` unset (default)
+  - Env: add `ENABLE_STDIO_PURITY_TEST` guard (already pattern in file)
+
+- [x] **P21-B3** — Add tools/list shape test (bundled + flat mode)
+  - File: `tests/contracts/mcp-protocol.test.ts` — same suite
+  - Bundled: exactly 25 tools, each tool has `icons` array with ≥1 entry
+  - Flat (`SERVAL_TOOL_MODE=flat`): 410 tools total (ACTION_COUNT 409 + `sheets_discover`), `sheets_discover` has `inputSchema.properties.query`
+  - listChanged absent when `SERVAL_STAGED_REGISTRATION=false`
+
+- [x] **P21-B4** — Create sampling health probe test suite
+  - File: `tests/services/sampling-health-probe.test.ts` (replaces no-op `tests/simulation/_probe.test.ts`)
+  - Mock pattern: `vi.stubGlobal('fetch', vi.fn())` per `tests/observability/otel-export.test.ts:20-25`
+  - Env isolation: `vi.stubEnv('ANTHROPIC_API_KEY', '')` / `vi.stubEnv('ENABLE_SAMPLING', 'false')`
+  - 8 scenarios: (1) 2xx success → healthy + provider + model populated, (2) ENABLE_SAMPLING=false → config:disabled, (3) no API key → config:missing_api_key, (4) HTTP 401 → probe:failed, (5) HTTP 429 → probe:failed, (6) network throw → probe:exception, (7) 3 consecutive failures → circuit_open (FAILURE_THRESHOLD=3 at `sampling-health-probe.ts:51`), (8) cache freshness: cachedUntil > Date.now()
+
+---
+
+### P21-C: Live Smoke Integration
+
+- [x] **P21-C1** — Wire `scripts/live-probe.mjs` to `package.json`
+  - Add: `"test:mcp:protocol:full": "node scripts/live-probe.mjs"`
+  - Closes resources/prompts/completion gap in `npm run test:mcp:protocol` (which only covers tool actions)
+  - Credential-free: uses fake spreadsheetId — no Google API costs
+
+- [x] **P21-C2** — Strengthen `scripts/live-probe.mjs` assertions
+  - resources/list: assert count ≥ 13, each resource has `icons` field (now present after P21 session work)
+  - prompts/list: assert count ≥ 40
+  - templates/list: assert count ≥ 6
+  - Add: one intentionally invalid tool call → assert `isError: true` in JSON-RPC response
+
+- [x] **P21-C3** — Add task-capable path to live smoke
+  - Update client `initialize` in `scripts/live-probe.mjs` to declare `capabilities: { tasks: { list: {}, cancel: {}, requests: { tools: { call: {} } } } }`
+  - Add `sheets_analyze.comprehensive` call (taskSupport: 'optional') and assert either result or task notification
+
+---
+
+### P21-D: Prompt Icons (SDK Gap — Tracked)
+
+- [ ] **P21-D1** — File upstream SDK issue for `registerPrompt()` icons
+  - SDK strips `icons` at destructure in `mcp.js:731`: `const { title, description, argsSchema } = config`
+  - Wire response hardcodes 4 fields only — icons never serialized
+  - No existing issue found in modelcontextprotocol/typescript-sdk as of 2026-05-12
+  - File at: https://github.com/modelcontextprotocol/typescript-sdk/issues
+  - Title: "`registerPrompt()` should accept MCP ToolAnnotations (icons, emoji) in config"
+  - Reference: `src/mcp/registration/prompt-registration.ts` (40 prompts, all missing icons)
+
+- [ ] **P21-D2** — Implement lower-level prompt icons workaround *(hold until D1 feedback)*
+  - `server.server.setRequestHandler(ListPromptsRequestSchema, ...)` to intercept and inject icons
+  - Must re-implement prompt serialization — complex; defer unless SDK fix not forthcoming by 2026-Q3
+
+---
+
+### P21-E: Compliance Report
+
+- [x] **P21-E1** — Rewrite `audit/protocol_compliance_report.md` from scratch
+  - File is currently 2 bytes (empty) — was truncated; **do not cite it**
+  - Write from current code state: protocol version, tools 25/409, resources 13 (icons ✅), prompts 40 (icons ❌ SDK gap), elicitation (5 schemas migrated), tasks (experimental), sampling probe, server cards (SEP-2127 draft/unmerged, two endpoints at `observability-core-routes.ts` + `well-known.ts`, inconsistent SEP numbers), websiteUrl gap, icon theme gap, listChanged wire format (correct per SDK)
+
+---
+
+## Completed Phase: P20 — Flat-Tool Wire Hardening (2026-04-21)
 
 Goal: Close the flat-tool adapter gap identified during the 2026-04-21 E2E session — six live wire bugs that scored "clean" against the compound-tool validation gates because those gates do not traverse the flat-tool projection. Add five small contract probes so the gap does not reopen.
 
-**Current baseline (2026-04-21): 25 tools, 409 actions, typecheck green, `check:drift` / `validate:alignment` / `validate:compliance` (0 errors) / `check:mutation-actions` / `check:integration-wiring` / `check:silent-fallbacks` / `check:source-dist` all green. BUG #3/#6 probe 7/7, BUG #4/#5 probe 5/5.**
+**Completed 2026-05-12. Branch: `codex-native-gap-closure`. Closing commit: `548bd9b4 Close native gap remediation`.**
+
+**Original baseline (2026-04-21): 25 tools, 410 actions, typecheck green, `check:drift` / `validate:alignment` / `validate:compliance` (0 errors) / `check:mutation-actions` / `check:integration-wiring` / `check:silent-fallbacks` / `check:source-dist` all green. BUG #3/#6 probe 7/7, BUG #4/#5 probe 5/5.**
 
 Canonical reference: [docs/audits/regression-audit-2026-04-21.md](./docs/audits/regression-audit-2026-04-21.md). Remediation backlog: [docs/remediation/source-truth-compliance-remediation-tasks-2026-04-21.md](./docs/remediation/source-truth-compliance-remediation-tasks-2026-04-21.md).
 

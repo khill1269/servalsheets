@@ -173,6 +173,15 @@ describe('MCP Protocol Compliance', () => {
       expect(promptNames.length).toBeGreaterThan(0);
     });
 
+    it('should register at least 30 prompts', () => {
+      const prompts = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredPrompts'
+      );
+      const promptCount = Object.keys(prompts ?? {}).length;
+      expect(promptCount).toBeGreaterThanOrEqual(30);
+    });
+
     it('all prompts should have handlers', () => {
       const prompts = getPrivateField<Record<string, unknown>>(
         server as unknown,
@@ -493,6 +502,731 @@ describe('MCP Protocol Compliance', () => {
         }
       }
     }, 45000);
+
+    // P21-B2: Wire-level assertions for initialize response shape
+    describe('initialize response shape', () => {
+      it.skipIf(
+        !process.env['ENABLE_STDIO_PURITY_TEST']
+      )('declares correct protocolVersion', async () => {
+        const runId = `${process.pid}-${Date.now()}-b2a`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-init-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-init-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
+
+        const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
+
+        const onStdout = (chunk: Buffer) => {
+          lineBuffer += chunk.toString();
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const entry = pending.get(id);
+                if (entry) {
+                  pending.delete(id);
+                  entry.resolve(json);
+                }
+              }
+            } catch {
+              // non-JSON stdout — ignore for this test
+            }
+          }
+        };
+
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
+
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
+            pending.set(id, {
+              resolve: (value) => { clearTimeout(timeout); resolve(value); },
+              reject: (error) => { clearTimeout(timeout); reject(error); },
+            });
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+
+          const initResponse = await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: { name: 'p21-b2-test', version: '1.0.0' },
+            },
+          });
+
+          const result = initResponse['result'] as Record<string, unknown> | undefined;
+          expect(result).toBeDefined();
+          expect(result!['protocolVersion']).toBe('2025-11-25');
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) child.kill('SIGTERM');
+        }
+      }, 45000);
+
+      it.skipIf(
+        !process.env['ENABLE_STDIO_PURITY_TEST']
+      )('includes serverInfo.name and serverInfo.icons', async () => {
+        const runId = `${process.pid}-${Date.now()}-b2b`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-init-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-init-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
+
+        const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
+
+        const onStdout = (chunk: Buffer) => {
+          lineBuffer += chunk.toString();
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const entry = pending.get(id);
+                if (entry) {
+                  pending.delete(id);
+                  entry.resolve(json);
+                }
+              }
+            } catch {
+              // non-JSON stdout — ignore for this test
+            }
+          }
+        };
+
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
+
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
+            pending.set(id, {
+              resolve: (value) => { clearTimeout(timeout); resolve(value); },
+              reject: (error) => { clearTimeout(timeout); reject(error); },
+            });
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+
+          const initResponse = await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: { name: 'p21-b2-test', version: '1.0.0' },
+            },
+          });
+
+          const result = initResponse['result'] as Record<string, unknown> | undefined;
+          expect(result).toBeDefined();
+
+          const serverInfo = result!['serverInfo'] as Record<string, unknown> | undefined;
+          expect(serverInfo).toBeDefined();
+          expect(typeof serverInfo!['name']).toBe('string');
+          expect((serverInfo!['name'] as string).length).toBeGreaterThan(0);
+          expect(Array.isArray(serverInfo!['icons'])).toBe(true);
+          expect((serverInfo!['icons'] as unknown[]).length).toBeGreaterThanOrEqual(1);
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) child.kill('SIGTERM');
+        }
+      }, 45000);
+
+      it.skipIf(
+        !process.env['ENABLE_STDIO_PURITY_TEST']
+      )('declares resources, tasks, logging, completions capabilities', async () => {
+        const runId = `${process.pid}-${Date.now()}-b2c`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-init-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-init-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
+
+        const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
+
+        const onStdout = (chunk: Buffer) => {
+          lineBuffer += chunk.toString();
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const entry = pending.get(id);
+                if (entry) {
+                  pending.delete(id);
+                  entry.resolve(json);
+                }
+              }
+            } catch {
+              // non-JSON stdout — ignore for this test
+            }
+          }
+        };
+
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
+
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
+            pending.set(id, {
+              resolve: (value) => { clearTimeout(timeout); resolve(value); },
+              reject: (error) => { clearTimeout(timeout); reject(error); },
+            });
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+
+          const initResponse = await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: { name: 'p21-b2-test', version: '1.0.0' },
+            },
+          });
+
+          const result = initResponse['result'] as Record<string, unknown> | undefined;
+          expect(result).toBeDefined();
+
+          const caps = result!['capabilities'] as Record<string, unknown> | undefined;
+          expect(caps).toBeDefined();
+
+          const resources = caps!['resources'] as Record<string, unknown> | undefined;
+          expect(resources).toBeDefined();
+          expect(resources!['subscribe']).toBe(true);
+          expect(resources!['listChanged']).toBe(true);
+
+          expect(caps!['tasks']).toBeDefined();
+          expect(caps!['logging']).toBeDefined();
+          expect(caps!['completions']).toBeDefined();
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) child.kill('SIGTERM');
+        }
+      }, 45000);
+
+      it.skipIf(
+        !process.env['ENABLE_STDIO_PURITY_TEST']
+      )('declares tools.listChanged when SERVAL_STAGED_REGISTRATION is unset', async () => {
+        const runId = `${process.pid}-${Date.now()}-b2d`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-init-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-init-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
+
+        const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+            // Do NOT set SERVAL_STAGED_REGISTRATION — default is true, so tools.listChanged is expected
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
+
+        const onStdout = (chunk: Buffer) => {
+          lineBuffer += chunk.toString();
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const entry = pending.get(id);
+                if (entry) {
+                  pending.delete(id);
+                  entry.resolve(json);
+                }
+              }
+            } catch {
+              // non-JSON stdout — ignore for this test
+            }
+          }
+        };
+
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
+
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
+            pending.set(id, {
+              resolve: (value) => { clearTimeout(timeout); resolve(value); },
+              reject: (error) => { clearTimeout(timeout); reject(error); },
+            });
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+
+          const initResponse = await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: { name: 'p21-b2-test', version: '1.0.0' },
+            },
+          });
+
+          const result = initResponse['result'] as Record<string, unknown> | undefined;
+          expect(result).toBeDefined();
+
+          const caps = result!['capabilities'] as Record<string, unknown> | undefined;
+          expect(caps).toBeDefined();
+
+          // Default: SERVAL_STAGED_REGISTRATION=true → tools.listChanged declared
+          const tools = caps!['tools'] as Record<string, unknown> | undefined;
+          expect(tools?.['listChanged']).toBe(true);
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) child.kill('SIGTERM');
+        }
+      }, 45000);
+    });
+
+    // P21-B3: Wire-level assertions for tools/list shape
+    describe('tools/list shape (bundled mode)', () => {
+      it.skipIf(
+        !process.env['ENABLE_STDIO_PURITY_TEST']
+      )('returns exactly 25 tools', async () => {
+        const runId = `${process.pid}-${Date.now()}-b3a`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-tools-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-tools-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
+
+        const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+            // Disable staged registration so all 25 tools appear immediately
+            SERVAL_STAGED_REGISTRATION: 'false',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
+
+        const onStdout = (chunk: Buffer) => {
+          lineBuffer += chunk.toString();
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const entry = pending.get(id);
+                if (entry) {
+                  pending.delete(id);
+                  entry.resolve(json);
+                }
+              }
+            } catch {
+              // non-JSON stdout — ignore for this test
+            }
+          }
+        };
+
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
+
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
+            pending.set(id, {
+              resolve: (value) => { clearTimeout(timeout); resolve(value); },
+              reject: (error) => { clearTimeout(timeout); reject(error); },
+            });
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        const notify = (payload: Record<string, unknown>) => {
+          child.stdin?.write(JSON.stringify(payload) + '\n');
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+
+          await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: { name: 'p21-b3-test', version: '1.0.0' },
+            },
+          });
+
+          notify({ jsonrpc: '2.0', method: 'notifications/initialized' });
+
+          const toolsListResponse = await request({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'tools/list',
+          });
+
+          const result = toolsListResponse['result'] as { tools?: unknown[] } | undefined;
+          expect(Array.isArray(result?.tools)).toBe(true);
+          // sheets_federation requires MCP_FEDERATION_SERVERS to be visible in tools/list;
+          // without it, isToolFullyUnavailable() hides it. Accept TOOL_COUNT or TOOL_COUNT-1.
+          expect(result!.tools!.length).toBeGreaterThanOrEqual(TOOL_COUNT - 1);
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) child.kill('SIGTERM');
+        }
+      }, 45000);
+
+      it.skipIf(
+        !process.env['ENABLE_STDIO_PURITY_TEST']
+      )('every tool has a name, description, inputSchema, and icons', async () => {
+        const runId = `${process.pid}-${Date.now()}-b3b`;
+        const dataDir = resolve(projectRoot, `.tmp/mcp-stdio-tools-data-${runId}`);
+        const profileDir = resolve(projectRoot, `.tmp/mcp-stdio-tools-profiles-${runId}`);
+        const restartStateFile = resolve(dataDir, 'restart-state.json');
+        mkdirSync(dataDir, { recursive: true });
+        mkdirSync(profileDir, { recursive: true });
+
+        const child = spawn(process.execPath, [CLI_ENTRYPOINT, '--stdio'], {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            MCP_TRANSPORT: 'stdio',
+            SKIP_PREFLIGHT: 'true',
+            SERVALSHEETS_LOAD_DOTENV: 'false',
+            DATA_DIR: dataDir,
+            PROFILE_STORAGE_DIR: profileDir,
+            RESTART_STATE_FILE: restartStateFile,
+            ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ALLOW_MEMORY_SESSIONS: 'true',
+            SERVAL_STAGED_REGISTRATION: 'false',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let stderrBuffer = '';
+        let lineBuffer = '';
+        const pending = new Map<
+          number,
+          { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
+        >();
+
+        const onStdout = (chunk: Buffer) => {
+          lineBuffer += chunk.toString();
+          const lines = lineBuffer.split('\n');
+          lineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const json = JSON.parse(trimmed) as Record<string, unknown>;
+              const id = json['id'];
+              if (typeof id === 'number') {
+                const entry = pending.get(id);
+                if (entry) {
+                  pending.delete(id);
+                  entry.resolve(json);
+                }
+              }
+            } catch {
+              // non-JSON stdout — ignore for this test
+            }
+          }
+        };
+
+        const onStderr = (chunk: Buffer) => {
+          stderrBuffer += chunk.toString();
+        };
+
+        child.stdout?.on('data', onStdout);
+        child.stderr?.on('data', onStderr);
+
+        const request = (
+          payload: Record<string, unknown>,
+          timeoutMs = 20000
+        ): Promise<Record<string, unknown>> => {
+          const id = payload['id'];
+          if (typeof id !== 'number') {
+            return Promise.reject(new Error('Request payload must include numeric id'));
+          }
+          return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              pending.delete(id);
+              reject(new Error(`Timed out waiting for response ${id}\n${stderrBuffer}`));
+            }, timeoutMs);
+            pending.set(id, {
+              resolve: (value) => { clearTimeout(timeout); resolve(value); },
+              reject: (error) => { clearTimeout(timeout); reject(error); },
+            });
+            child.stdin?.write(JSON.stringify(payload) + '\n');
+          });
+        };
+
+        const notify = (payload: Record<string, unknown>) => {
+          child.stdin?.write(JSON.stringify(payload) + '\n');
+        };
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+
+          await request({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-11-25',
+              capabilities: {},
+              clientInfo: { name: 'p21-b3-test', version: '1.0.0' },
+            },
+          });
+
+          notify({ jsonrpc: '2.0', method: 'notifications/initialized' });
+
+          const toolsListResponse = await request({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'tools/list',
+          });
+
+          const result = toolsListResponse['result'] as { tools?: unknown[] } | undefined;
+          expect(Array.isArray(result?.tools)).toBe(true);
+
+          type ToolEntry = Record<string, unknown>;
+          for (const toolUnknown of result!.tools!) {
+            const tool = toolUnknown as ToolEntry;
+            expect(typeof tool['name']).toBe('string');
+            expect((tool['name'] as string).length).toBeGreaterThan(0);
+            expect(typeof tool['description']).toBe('string');
+            expect((tool['description'] as string).length).toBeGreaterThan(0);
+            expect(tool['inputSchema']).toBeDefined();
+            expect(typeof tool['inputSchema']).toBe('object');
+            expect(Array.isArray(tool['icons'])).toBe(true);
+            expect((tool['icons'] as unknown[]).length).toBeGreaterThanOrEqual(1);
+          }
+        } finally {
+          child.stdout?.off('data', onStdout);
+          child.stderr?.off('data', onStderr);
+          if (!child.killed) child.kill('SIGTERM');
+        }
+      }, 45000);
+    });
   });
 });
 

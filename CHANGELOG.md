@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed — Flat-Tool-Surface Bugs (E2E Session)
 
-Six bugs surfaced during a natural-language E2E session against a live Google Sheet. All six live in the flat-tool adapter that projects the 25 compound tools / 409 actions into ~396 per-action MCP tools for LLM clients, or in post-dispatch helpers downstream of it. None of the 25 compound handlers or schemas were touched.
+Six bugs surfaced during a natural-language E2E session against a live Google Sheet. All six live in the flat-tool adapter that projects the 25 compound tools / 410 actions into ~396 per-action MCP tools for LLM clients, or in post-dispatch helpers downstream of it. None of the 25 compound handlers or schemas were touched.
 
 - **BUG #1** (`src/mcp/registration/flat-tool-routing.ts`): flat call envelope shape mismatch — normalized so flat calls route through the same envelope as bundled calls.
 - **BUG #2** (`src/mcp/registration/flat-tool-routing.ts`, `flat-tool-call-interceptor.ts`): `sheets_discover` was advertised on the flat surface but had no dispatch path; now routes through the standard flat-tool dispatcher.

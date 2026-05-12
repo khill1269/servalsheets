@@ -37,7 +37,7 @@ import {
 } from '../config/constants.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
 import type { AnalyzeResponse } from '../schemas/analyze.js';
-import { sendProgress } from '../utils/request-context.js';
+import { sendProgress, getRequestAbortSignal } from '../utils/request-context.js';
 
 // Phase helpers (extracted pure functions)
 import { columnToLetter, formatRange } from './phases/helpers.js';
@@ -435,6 +435,17 @@ export class ComprehensiveAnalyzer {
     const MAX_COLS_PER_SHEET = 100; // Hard limit
 
     for (const sheet of paginatedSheets) {
+      // Check cancellation at each sheet boundary — comprehensive scans are long-running
+      if (getRequestAbortSignal()?.aborted) {
+        throw new ServiceError(
+          'Comprehensive analysis cancelled by client',
+          'OPERATION_CANCELLED',
+          'comprehensive-analysis',
+          false,
+          { spreadsheetId, cancelledAtSheet: sheet.title }
+        );
+      }
+
       truncationOriginalRows += sheet.rowCount;
       truncationOriginalCols = Math.max(truncationOriginalCols, sheet.columnCount);
 

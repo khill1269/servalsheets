@@ -3,6 +3,8 @@ import { createZodValidationError } from '../../utils/error-factory.js';
 import { extractAction } from './extraction-helpers.js';
 import { getIssueCode, normalizeIssuePath } from './tool-arg-normalization.js';
 import { getToolDiscoveryHint } from './tool-discovery-hints.js';
+import { ACTION_ANNOTATIONS } from '../../schemas/index.js';
+import { recordSchemaValidationError } from '../../observability/metrics.js';
 
 type PlainRecord = Record<string, unknown>;
 
@@ -87,6 +89,31 @@ export function buildToolExecutionErrorPayload(
     retryable: false,
   };
 
+  // Inject per-action error recovery guidance from annotations for runtime errors.
+  // ACTION_ANNOTATIONS[toolName.action].errorRecovery contains code-specific recovery steps.
+  const attemptedAction = args ? (extractAction(args) ?? undefined) : undefined;
+  if (attemptedAction && errorCode !== 'INVALID_PARAMS') {
+    const annotationKey = `${toolName}.${attemptedAction}`;
+    const annotation = (ACTION_ANNOTATIONS as Record<string, unknown>)[annotationKey] as
+      | { errorRecovery?: Record<string, unknown> }
+      | undefined;
+    const recovery = annotation?.errorRecovery;
+    if (recovery && typeof recovery === 'object') {
+      const codeGuidance = (recovery as Record<string, unknown>)[errorCode];
+      if (typeof codeGuidance === 'string') {
+        errorPayload['recovery'] = codeGuidance;
+      }
+      const alternatives = (recovery as Record<string, unknown>)['alternativeActions'];
+      if (Array.isArray(alternatives) && alternatives.length > 0) {
+        errorPayload['alternativeActions'] = alternatives;
+      }
+      const steps = (recovery as Record<string, unknown>)['diagnosticSteps'];
+      if (Array.isArray(steps) && steps.length > 0) {
+        errorPayload['diagnosticSteps'] = steps;
+      }
+    }
+  }
+
   if (error instanceof z.ZodError) {
     const validationError = createZodValidationError(
       error.issues.map((issue) => {
@@ -108,6 +135,7 @@ export function buildToolExecutionErrorPayload(
     );
 
     errorCode = 'INVALID_PARAMS';
+    recordSchemaValidationError(toolName, attemptedAction ?? 'unknown', 'INVALID_PARAMS');
     errorPayload['code'] = 'INVALID_PARAMS';
     errorPayload['message'] = validationError.message;
     errorPayload['retryable'] = validationError.retryable;

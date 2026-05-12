@@ -13,7 +13,7 @@ tags: [development, status]
 
 ## Build Status: ✅ PASSING
 
-All verification checks are currently passing. 2026-04-24 session fixed two flat-tool-surface bugs that caused LLM clients to see only 100 of 409 tools:
+All verification checks are currently passing. 2026-04-24 session fixed two flat-tool-surface bugs that caused LLM clients to see only 100 of 410 tools:
 
 - `FLAT_TOOLS_PAGE_SIZE` raised from 100 → 1000 (`tools-list-compat.ts`) — MCP clients that don't follow `nextCursor` now get all tools in one page
 - `getEffectiveToolMode()` fallback fixed (`constants.ts:394`) — was returning `'bundled'` for both branches; now returns `'flat'` for non-HTTP default
@@ -40,7 +40,7 @@ Earlier session (2026-04-21) closed six flat-tool-surface bugs — see [regressi
 | Metric   | Value          | Source                      |
 | -------- | -------------- | --------------------------- |
 | Tools    | 25             | `docs/generated/facts.json` |
-| Actions  | 409            | `docs/generated/facts.json` |
+| Actions  | 410            | `src/generated/action-counts.ts` |
 | Version  | 2.0.0          | `package.json`              |
 | Protocol | MCP 2025-11-25 | `src/version.ts`            |
 
@@ -77,7 +77,7 @@ npm run check:silent-fallbacks  # No silent {} returns
 ### Audit Commands
 
 ```bash
-npm run audit:coverage      # 409-action coverage test
+npm run audit:coverage      # 410-action coverage test
 npm run audit:perf          # Performance benchmarks
 npm run audit:memory        # Memory leak detection
 npm run audit:gate          # CI gate (7 checks)

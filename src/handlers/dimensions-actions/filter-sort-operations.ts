@@ -5,6 +5,7 @@
  */
 
 import { ErrorCodes } from '../error-codes.js';
+import { selectField } from '../../mcp/elicitation.js';
 import type { sheets_v4 } from 'googleapis';
 import type {
   DimensionsSetBasicFilterInput,
@@ -374,12 +375,14 @@ export async function handleSortRange(
           requestedSchema: {
             type: 'object',
             properties: {
-              direction: {
-                type: 'string',
+              direction: selectField({
                 title: 'Sort direction',
                 description: 'Sort ascending (A→Z) or descending (Z→A)?',
-                enum: ['ASCENDING', 'DESCENDING'],
-              },
+                options: [
+                  { value: 'ASCENDING', label: 'Ascending (A → Z)' },
+                  { value: 'DESCENDING', label: 'Descending (Z → A)' },
+                ],
+              }),
             },
           },
         });

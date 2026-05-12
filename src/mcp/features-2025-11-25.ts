@@ -493,12 +493,18 @@ Classify the user's intent into a group, then pick the tool:
 
 ## ERROR SELF-CORRECTION (TAER)
 
-1. **Think** — read \`error.fixableVia\`, \`error._learnedFix\`, \`error.suggestedRecoveryActions\`
-2. **Analyze** — check \`error.retryable\`, \`error.retryAfterMs\`
-3. **Execute** — call fixableVia or suggestedRecoveryActions[0] (pre-filled params included)
+1. **Think** — read \`error.recovery\` (code-specific guidance), \`error.alternativeActions\` (pre-filled calls)
+2. **Analyze** — check \`error.retryable\`, \`error.retryAfterMs\`, \`error.diagnosticSteps\`
+3. **Execute** — call \`error.alternativeActions[0]\` (pre-filled params included)
 4. **Review** — verify fix, retry original; after 2 failures use \`sheets_analyze.scout\`
 
 Key fixes: SHEET_NOT_FOUND → \`list_sheets\` (emoji mismatch); INVALID_RANGE → add row bounds; QUOTA_EXCEEDED → use transactions/batching.
+
+## ADVANCED CAPABILITIES
+
+**Sampling:** When client declares \`sampling\` capability, \`sheets_analyze.comprehensive\`, \`sheets_fix.suggest_cleaning\`, and \`sheets_format.suggest_format\` request AI-generated insights automatically.
+
+**Background Tasks:** When client declares \`tasks\` capability, long operations (\`sheets_bigquery\`, \`sheets_appsscript.run\`, \`sheets_federation.call_remote\`, \`sheets_agent.execute\`) run as background tasks — poll via \`tasks/list\`.
 
 ## QUICK REFERENCE
 

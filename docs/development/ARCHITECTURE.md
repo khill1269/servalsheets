@@ -308,6 +308,30 @@ git restore --source=<commit-hash> -- <file>          # From specific commit
 # git checkout -- .  |  git reset --hard HEAD  |  git clean -fd
 ```
 
+## Custom MCP Annotation Extensions
+
+ServalSheets adds proprietary fields to tool annotations beyond the MCP 2025-11-25 spec.
+Per spec, clients MUST ignore unknown annotation fields — these are safe to include.
+
+### `taskSupport` (tool-level)
+
+Defined in `src/mcp/features-2025-11-25.ts:274-310`, persisted in `src/generated/annotations.ts`.
+
+| Value | Meaning |
+|-------|---------|
+| `'optional'` | Tool can run as a background Task (SEP-1686) when client declares tasks capability |
+| `'required'` | Tool MUST run as a task (long-running operations) |
+| `'forbidden'` | Task mode blocked — auth/confirm tools that need synchronous responses |
+
+### `_servalTier`, `_servalGroup`, `_servalAgency` (flat tool entries only)
+
+Only present when `SERVAL_TOOL_MODE=flat`. Source: `src/mcp/registration/flat-tool-registry.ts:334-336`.
+Data source: `src/mcp/tool-surface-metadata.ts`.
+
+- `_servalTier`: 1 (core), 2 (specialized), 3 (enterprise) — helps clients prioritize tools
+- `_servalGroup`: Functional group (e.g., `'data-io'`, `'analysis'`, `'automation'`)
+- `_servalAgency`: `'autonomous'` | `'orchestrated'` | `'direct'` — agent orchestration hint
+
 ## Deleted Files (Do Not Reference)
 
 | File                               | Deleted    | Reason                     |

@@ -40,7 +40,7 @@ function validateDuckDbSql(sql: string): void {
   if (blocked.test(normalized)) {
     throw new Error('DDL/DML statements are not allowed in DuckDB queries');
   }
-  if (/read_csv|read_json|read_parquet|glob\s*\(|scan_csv/.test(normalized)) {
+  if (/read_csv|read_json|read_parquet|glob\s*\(|scan_csv|https?:\/\/|\bpragma\b/.test(normalized)) {
     throw new Error('File system access functions are not allowed in DuckDB queries');
   }
 }

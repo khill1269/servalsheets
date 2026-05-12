@@ -90,7 +90,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   let sharedContext: MatrixExecutionContext;
   let tempServiceAccountPath: string | null = null;
   let matrixCooldownUntil = 0;
-  const results: MatrixActionResult[] = [];
+  const resultsByAction = new Map<string, MatrixActionResult>();
   const startTime = Date.now();
   let quotaCascadeActive = false;
   const cascadeDowngradedKeys = new Set<string>();
@@ -120,6 +120,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
   afterAll(async () => {
     const generatedAt = new Date().toISOString();
+    const results = getMatrixResults();
     const report = summarizeMatrixResults(results, generatedAt, Date.now() - startTime, cascadeDowngradedKeys);
     const benchDir = path.resolve('tests/benchmarks');
     const timestamp = generatedAt.replace(/[:.]/g, '-');
@@ -199,7 +200,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
             }
 
             const result = await executeFixture(fixture, capability);
-            results.push(result);
+            recordMatrixResult(result);
 
             if (!quotaCascadeActive && getQuotaManager().shouldDowngrade()) {
               quotaCascadeActive = true;
@@ -221,12 +222,13 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
 
   it('overall: action accounting matches fixture coverage', () => {
     const report = summarizeMatrixResults(
-      results,
+      getMatrixResults(),
       new Date().toISOString(),
       Date.now() - startTime,
       cascadeDowngradedKeys
     );
 
+    const results = getMatrixResults();
     expect(results).toHaveLength(MATRIX_FIXTURES.length);
     expect(report.executed + report.stagedExecuted + report.probed + report.external).toBe(
       MATRIX_FIXTURES.length
@@ -234,7 +236,7 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
   });
 
   it('overall: pass rate >= 95% for executed and probed actions', () => {
-    const attempted = results.filter((result) => result.gated);
+    const attempted = getMatrixResults().filter((result) => result.gated);
     const passed = attempted.filter((result) => result.success);
     const rate = attempted.length ? passed.length / attempted.length : 1;
 
@@ -347,6 +349,16 @@ describe.skipIf(!runLiveTests)('Live API Action Matrix', () => {
         await cleanupExecutionContext(manager, executionContext);
       }
     }
+  }
+
+  function recordMatrixResult(result: MatrixActionResult): void {
+    resultsByAction.set(result.actionKey, result);
+  }
+
+  function getMatrixResults(): MatrixActionResult[] {
+    return MATRIX_FIXTURES.map((fixture) => resultsByAction.get(`${fixture.tool}.${fixture.action}`)).filter(
+      (result): result is MatrixActionResult => result !== undefined
+    );
   }
 
   async function executeMcpAction(
@@ -791,6 +803,8 @@ async function ensureStagedResources(
       return ensureFilterView(client, context);
     case 'chart_lifecycle':
       return ensureChart(client, context);
+    case 'dimension_group_lifecycle':
+      return ensureDimensionGroup(client, context);
     default:
       return undefined;
   }
@@ -850,6 +864,33 @@ async function ensureProtectedRange(
     throw new Error('Staged protected range setup did not produce a protectedRangeId');
   }
   return { protectedRangeId };
+}
+
+async function ensureDimensionGroup(
+  client: LiveApiClient,
+  context: MatrixExecutionContext
+): Promise<Record<string, string | number>> {
+  await client.executeWrite('matrix.stage.dimensionGroup.add', async () =>
+    client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: context.primary.id,
+      requestBody: {
+        requests: [
+          {
+            addDimensionGroup: {
+              range: {
+                sheetId: context.primary.sheetId,
+                dimension: 'ROWS',
+                startIndex: 0,
+                endIndex: 5,
+              },
+            },
+          },
+        ],
+      },
+    })
+  );
+
+  return {};
 }
 
 async function ensureFilterView(

@@ -23,6 +23,7 @@ import { TOOL_ACTIONS } from '../completions.js';
 import { ACTION_ANNOTATIONS } from '../../schemas/annotations.js';
 import { logger } from '../../utils/logger.js';
 import { filterAvailableActions, isToolFullyUnavailable } from '../tool-availability.js';
+import { TOOL_TIERS, TOOL_AGENCY_HINTS } from '../tool-surface-metadata.js';
 
 // ============================================================================
 // TYPES
@@ -31,7 +32,7 @@ import { filterAvailableActions, isToolFullyUnavailable } from '../tool-availabi
 export interface FlatToolDefinition {
   /** Flat tool name: sheets_{domain}_{action} */
   readonly name: string;
-  /** Human-readable title */
+  /** Human-readable title (format: "domain: action") */
   readonly title: string;
   /** Concise description of what this single operation does */
   readonly description: string;
@@ -48,6 +49,12 @@ export interface FlatToolDefinition {
     idempotentHint?: boolean;
     openWorldHint?: boolean;
   };
+  /** ServalSheets proprietary extension: tool tier (1=core, 2=specialized, 3=enterprise) */
+  readonly '_servalTier'?: 1 | 2 | 3;
+  /** ServalSheets proprietary extension: functional group */
+  readonly '_servalGroup'?: string;
+  /** ServalSheets proprietary extension: autonomy hint for agent orchestration */
+  readonly '_servalAgency'?: string;
 }
 
 // ============================================================================
@@ -310,9 +317,11 @@ export function getFlatToolRegistry(): FlatToolDefinition[] {
       const isAlwaysLoaded = ALWAYS_LOADED_ACTIONS.has(actionKey);
       const isMutation = KNOWN_MUTATIONS.has(action);
 
+      const tierMeta = TOOL_TIERS[toolName];
+      const agencyMeta = TOOL_AGENCY_HINTS[toolName];
       registry.push({
         name: flatName,
-        title: `${action.replace(/_/g, ' ')}`,
+        title: `${toolName.replace('sheets_', '')}: ${action.replace(/_/g, ' ')}`,
         description: buildFlatDescription(toolName, action),
         parentTool: toolName,
         action,
@@ -323,6 +332,9 @@ export function getFlatToolRegistry(): FlatToolDefinition[] {
           idempotentHint: false,
           openWorldHint: true,
         },
+        ...(tierMeta?.tier !== undefined ? { '_servalTier': tierMeta.tier } : {}),
+        ...(tierMeta?.group !== undefined ? { '_servalGroup': tierMeta.group } : {}),
+        ...(agencyMeta?.level !== undefined ? { '_servalAgency': agencyMeta.level } : {}),
       });
     }
   }

@@ -1,88 +1,59 @@
 # MCP Protocol Specialist Memory
 
-## UPDATE 2026-04-28 — Counts & Spec Facts Correction
+## Index
+- [tool_discovery_landscape.md](tool_discovery_landscape.md) — `defer_loading` is Anthropic-API only (NOT MCP); SEP-1862/2127/1960 status; tool-arg completion gap
 
-**Stale facts in the 2026-02-25 audit below — use these instead:**
+## UPDATE 2026-04-29 — Latest MCP State (Web-Verified)
 
-- Tools: **25** (not 22); Actions: **409** (not 341)
-- Source of truth for counts: `src/generated/action-counts.ts` (re-exported via `src/schemas/index.ts`)
-- Annotations file: `src/generated/annotations.ts` (was `src/schemas/annotations.ts`)
-- Tool name max: **128 chars** per SEP-986 (old audits say 64 — that was pre-2025-11-25)
-- JSON Schema default: **2020-12** in 2025-11-25 spec (declare `$schema` for Draft 7 explicitly)
-- Elicitation URL mode: `features-2025-11-25.ts:280-282` declares `{ form: true, url: true }` — both modes live
-- Sampling SEP-1577 `tools` param: NOT yet passed in any `createMessage` call — this is an implementation gap, not a compliance failure (it's optional)
-- ReDoS + ETag vulnerability entries from prior audits: **BOTH RESOLVED** — see corrections.jsonl entries 20-21
+1. **Latest spec version: 2025-11-25** — no draft revision exists yet. Roadmap last updated 2026-03-05.
+2. **SDK: `@modelcontextprotocol/sdk@^1.29.0`** — ServalSheets is at latest. Released ~April 2026.
+3. **No `ref/tool` in completion spec** — `ref/prompt` and `ref/resource` only. SEP-1862 (`tools/resolve`) is the closest active proposal but not merged.
+4. **`defer_loading` is an Anthropic Messages API field, NOT MCP** — Wire format: `"defer_loading": true` on tool entries in Messages API. Tool search tool types: `tool_search_tool_regex_20251119`, `tool_search_tool_bm25_20251119`. ServalSheets's `x-defer-loading` is custom and unread by MCP clients.
+5. **SEP-2127 (was SEP-1649)** = MCP Server Cards via `/.well-known/mcp/server-card.json`. Open PR, draft.
+6. **2026 Roadmap priorities:** Transport scalability, Agent communication, Governance, Enterprise readiness. Tool discovery is "On the Horizon" only.
+7. **Active SEPs to watch:** SEP-1862 (tools/resolve), SEP-2127 (server cards), SEP-1960 (well-known manifest), SEP-1932 (DPoP), SEP-1933 (Workload Identity Federation), SEP-2133 (experimental-ext- repos).
 
----
+## Counts (2026-04-28)
 
-## Deep Compliance Audit (2026-02-25) -- MCP 2025-11-25
+- Tools: **25** · Actions: **409** · Source: `src/generated/action-counts.ts`
+- Annotations: `src/generated/annotations.ts` (was `src/schemas/annotations.ts`)
+- Tool name max: **128 chars** per SEP-986
+- JSON Schema default: **2020-12** in 2025-11-25 spec
 
-**Overall: 16/17 COMPLIANT, 1 WARNING (non-fatal error suppression)**
+## Compliance Audit (2026-02-25) — Still Valid
 
-### Key File Locations
+**Overall: 16/17 COMPLIANT, 1 WARNING**
 
-- Protocol version: `src/constants/protocol.ts:6` (MCP_PROTOCOL_VERSION = '2025-11-25')
-- Version re-export: `src/version.ts:15` (re-exports from constants/protocol.ts)
+Key files:
+- Protocol version: `src/constants/protocol.ts:6` (re-exported `src/version.ts:15`)
 - Server capabilities: `src/mcp/features-2025-11-25.ts:315-348`
-- Tool registration: `src/server.ts:429-543` (22 tools via registerTool/registerToolTask)
-- Tool definitions: `src/mcp/registration/tool-definitions.ts` (all 22 tool schemas + annotations)
+- Tool registration: `src/server.ts:429-543`
+- Tool definitions: `src/mcp/registration/tool-definitions.ts` — all 25 tools have `outputSchema`
 - Response builder: `src/mcp/registration/tool-handlers.ts:626-821` (buildToolResponse)
-- Input normalization: `src/mcp/registration/tool-handlers.ts:862-895` (normalizeToolArgs)
-- Annotations (centralized): `src/schemas/annotations.ts:15-173` (all 22 tools, 5 fields each)
-- Action annotations: `src/schemas/annotations.ts:191-692` (per-action intelligence)
-- Action counts: `src/schemas/action-counts.ts` (22 tools, 341 actions)
-- Sampling: `src/mcp/sampling.ts` (createMessage with withSamplingTimeout, GDPR consent gate)
-- Completions: `src/mcp/completions.ts` (TOOL_ACTIONS, aliases, spreadsheet cache)
-- Prompts: `src/mcp/registration/prompt-registration.ts` (38+ prompts)
-- Resources: `src/mcp/registration/resource-registration.ts` (3 URI templates + 30+ extras)
-- Icons: `src/mcp/features-2025-11-25.ts:76-231` (all 22 tools, SVG base64 data URIs)
-- Server instructions: `src/mcp/features-2025-11-25.ts:366-709` (~700 lines LLM context)
-- Task execution config: `src/mcp/features-2025-11-25.ts:248-288` (per-tool taskSupport)
-- Non-fatal error codes: `src/mcp/registration/tool-handlers.ts:130-144`
+- Sampling: `src/mcp/sampling.ts`
+- Completions: `src/mcp/completions.ts`
 
-### Compliance Matrix
+### Known Deviations
 
-| Feature | Status | Evidence |
-|---------|--------|----------|
-| Protocol Version | COMPLIANT | constants/protocol.ts:6 = '2025-11-25' |
-| Tool Definition | COMPLIANT | 22 tools, snake_case, inputSchema+outputSchema+annotations |
-| Tool Naming (SEP-986) | COMPLIANT | /^sheets_[a-z]+$/ regex validated by tests |
-| Tool Annotations | COMPLIANT | All 5 fields (title, readOnlyHint, destructiveHint, idempotentHint, openWorldHint) |
-| CallToolResult format | COMPLIANT | content[TextContent] + structuredContent + isError |
-| Error handling | WARNING | Non-fatal error suppression (isError=undefined for recoverable errors) |
-| Resources | COMPLIANT | 3 URI templates, ReadResourceResult format |
-| Prompts | COMPLIANT | 38+ prompts, GetPromptResult format |
-| Sampling (SEP-1577) | COMPLIANT | Client capability check, advisory model hints, GDPR consent |
-| Elicitation (SEP-1036) | COMPLIANT | 4 wizard flows, graceful degradation |
-| Tasks (SEP-1686) | COMPLIANT | list+cancel+requests.tools.call in capabilities |
-| Logging | COMPLIANT | logging/{} in capabilities, setLevel handler |
-| Completions | COMPLIANT | values/total/hasMore in CompleteResult |
-| Icons (SEP-973) | COMPLIANT | 22 tool icons, SVG data URIs, sizes field |
-| Server Instructions | COMPLIANT | LLM context in initialize response |
-| STDIO Transport | COMPLIANT | StdioServerTransport |
-| HTTP/SSE Transport | COMPLIANT | SSE + StreamableHTTPServerTransport |
+1. **Non-fatal error suppression** (WARNING, by design) — `tool-handlers.ts:130-144` returns `isError: undefined` for recoverable errors with `_meta.nonFatalError: true` marker. Strict spec says `isError: true` for any failed tool execution.
 
-### Known Deviation: Non-Fatal Error Suppression
+2. **Sampling toolChoice format** — `sampling.ts:1322` uses `toolChoice: { type: 'auto' }`. SDK type expects `{ mode: 'auto' | 'required' | 'none' }`. Code casts via `as` to silence TS. Only affects `createAgenticRequest()` builder; not on hot path.
 
-**File:** `tool-handlers.ts:130-144, 720-727`
-**Severity:** WARNING (not BLOCKER)
-**Description:** `buildToolResponse()` returns `isError: undefined` for error codes in `NON_FATAL_TOOL_ERROR_CODES` set. Strict spec interpretation says `isError` should be `true` for any failed tool execution.
-**Affected codes:** VALIDATION_ERROR, INVALID_PARAMS, NOT_FOUND, PRECONDITION_FAILED, PERMISSION_DENIED, INCREMENTAL_SCOPE_REQUIRED, ELICITATION_UNAVAILABLE, CONFIG_ERROR, FEATURE_UNAVAILABLE, AUTHENTICATION_REQUIRED, NOT_AUTHENTICATED, NOT_CONFIGURED, TOKEN_EXPIRED
-**Mitigation:** `_meta.nonFatalError: true` marker added to response
-**Rationale:** Deliberate UX choice to prevent LLMs from treating recoverable errors as hard failures
+### Architecture Patterns (Confirmed Stable)
 
-### Advisory Note: toolChoice Format
+1. Dual annotation sources (per-schema + centralized) — may intentionally diverge
+2. `normalizeToolArgs()` legacy envelope wrapping at `tool-handlers.ts:862-895`
+3. Output validation is advisory (logs warnings, never blocks)
+4. Response size management: >100KB → temp resource with preview
+5. Sampling consent gate: `assertSamplingConsent()` before every `createMessage()`
 
-- `sampling.ts:822` uses `toolChoice: { mode: 'auto' }` in agentic builder
-- Spec says `{ type: 'auto' }` -- only affects the agentic builder helper, not normal sampling calls
+## ServalSheets Tool-Discovery Status
 
-### Architecture Patterns (Confirmed)
-
-1. **Dual annotation sources**: Per-schema (SHEETS_*_ANNOTATIONS in tool-definitions.ts) and centralized (TOOL_ANNOTATIONS in annotations.ts). These may intentionally diverge.
-2. **Legacy envelope normalization**: normalizeToolArgs() at tool-handlers.ts:862-895 wraps flat args in `{ request: {} }` for backward compatibility
-3. **Output validation is advisory**: validateOutputSchema() at tool-handlers.ts:562-611 logs warnings but never blocks responses
-4. **Response size management**: >100KB stored as temp resource with preview, >10MB same pattern (token budget)
-5. **Sampling consent gate**: GDPR `assertSamplingConsent()` called before every createMessage()
+- `sheets_discover` tool = server-side natural-language search (ServalSheets-specific, not MCP-spec)
+- `x-defer-loading: true` extension = custom; no MCP client reads it
+- `SERVAL_TOOL_MODE=auto` = flat for STDIO (Claude Desktop), bundled for HTTP — sound choice
+- **Gap:** no `/.well-known/mcp/server-card.json` endpoint (SEP-2127 not merged yet, but useful for HTTP transport even pre-merge)
+- **Gap:** Anthropic Messages API consumers wiring through `src/http-server.ts` could benefit from server-emitted hints to set `defer_loading: true` on the action-bundled tools — currently no such bridge
 
 ---
-**Last Updated:** 2026-02-25 | **Audit Scope:** 11 source files, 2 test files
+**Last Verified:** 2026-04-29 (web research session) | **Tools:** 25 | **Actions:** 409 | **SDK:** 1.29.0 | **Protocol:** 2025-11-25

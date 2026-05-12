@@ -1,5 +1,6 @@
 import { ErrorCodes } from '../error-codes.js';
 import type { sheets_v4 } from 'googleapis';
+import { selectField } from '../../mcp/elicitation.js';
 import type { HandlerContext } from '../base.js';
 import type {
   ChartAddTrendlineInput,
@@ -191,31 +192,29 @@ export async function handleChartCreateAction(
         requestedSchema: {
           type: 'object',
           properties: {
-            chartType: {
-              type: 'string',
+            chartType: selectField({
               title: 'Chart type',
-              description:
-                'Choose the type of chart to create. Basic: BAR (horizontal bars), LINE (trend over time), PIE (proportions), COLUMN (vertical bars), SCATTER (correlation), AREA (cumulative trend). Advanced: COMBO (mixed bar+line), STEPPED_AREA (staircase area), DOUGHNUT (pie with hole), BUBBLE (3-variable scatter), CANDLESTICK (stock price OHLC), HISTOGRAM (frequency distribution), ORG (hierarchy/org chart), TREEMAP (hierarchical rectangles), WATERFALL (running total with positive/negative), SCORECARD (single KPI metric display)',
-              enum: [
-                'BAR',
-                'LINE',
-                'PIE',
-                'COLUMN',
-                'SCATTER',
-                'AREA',
-                'COMBO',
-                'STEPPED_AREA',
-                'DOUGHNUT',
-                'BUBBLE',
-                'CANDLESTICK',
-                'HISTOGRAM',
-                'ORG',
-                'TREEMAP',
-                'WATERFALL',
-                'SCORECARD',
+              description: 'Choose the type of chart to create',
+              options: [
+                { value: 'BAR', label: 'Bar (horizontal bars)' },
+                { value: 'LINE', label: 'Line (trend over time)' },
+                { value: 'PIE', label: 'Pie (proportions)' },
+                { value: 'COLUMN', label: 'Column (vertical bars)' },
+                { value: 'SCATTER', label: 'Scatter (correlation)' },
+                { value: 'AREA', label: 'Area (cumulative trend)' },
+                { value: 'COMBO', label: 'Combo (mixed bar + line)' },
+                { value: 'STEPPED_AREA', label: 'Stepped Area (staircase)' },
+                { value: 'DOUGHNUT', label: 'Doughnut (pie with hole)' },
+                { value: 'BUBBLE', label: 'Bubble (3-variable scatter)' },
+                { value: 'CANDLESTICK', label: 'Candlestick (stock OHLC)' },
+                { value: 'HISTOGRAM', label: 'Histogram (frequency distribution)' },
+                { value: 'ORG', label: 'Org Chart (hierarchy)' },
+                { value: 'TREEMAP', label: 'Treemap (hierarchical rectangles)' },
+                { value: 'WATERFALL', label: 'Waterfall (running total)' },
+                { value: 'SCORECARD', label: 'Scorecard (single KPI metric)' },
               ],
               default: 'BAR',
-            },
+            }),
           },
           required: ['chartType'],
         },

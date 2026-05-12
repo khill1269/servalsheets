@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(currentDir, '../..');
@@ -44,4 +44,31 @@ describe('check-source-dist-consistency.ts', () => {
       expect(output).toMatch(/Source\/dist consistency/i);
     }
   });
+
+  it.skipIf(!existsSync(resolve(projectRoot, 'packages/mcp-http/dist/middleware.js')))(
+    'detects stale dist artifacts (content mismatch)',
+    () => {
+      // Corrupt packages/mcp-http/dist/middleware.js — this file is validated byte-for-byte
+      // by check-source-dist-consistency.ts but is NOT imported by dist/cli.js at startup,
+      // so corrupting it cannot interfere with concurrent tests that spawn the CLI.
+      const targetPath = resolve(projectRoot, 'packages/mcp-http/dist/middleware.js');
+      const original = readFileSync(targetPath, 'utf8');
+      try {
+        writeFileSync(targetPath, `${original}\n// stale-marker`, 'utf8');
+
+        const env = { ...process.env, NODE_ENV: 'test' };
+        const result = spawnSync('node', ['--import', 'tsx', scriptPath], {
+          cwd: projectRoot,
+          encoding: 'utf8',
+          env,
+        });
+
+        const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`.trim();
+        expect(result.status, output).toBe(1);
+        expect(output).toMatch(/Source\/dist consistency check failed/i);
+      } finally {
+        writeFileSync(targetPath, original, 'utf8');
+      }
+    }
+  );
 });

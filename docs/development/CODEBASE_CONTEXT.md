@@ -9,7 +9,7 @@ tags: [sheets, architecture, mcp]
 
 # ServalSheets — Complete Codebase Context
 
-> Persistent reference for coding sessions. Covers all 25 tools (409 actions), MCP compliance,
+> Persistent reference for coding sessions. Covers all 25 tools (410 actions), MCP compliance,
 > Google API patterns, anti-patterns, and architecture decisions.
 > Updated: 2026-03-22.
 
@@ -18,7 +18,7 @@ tags: [sheets, architecture, mcp]
 | Metric               | Value                          | Source                         |
 | -------------------- | ------------------------------ | ------------------------------ |
 | Tools                | 25                             | src/schemas/action-counts.ts   |
-| Actions              | 409                            | src/generated/action-counts.ts |
+| Actions              | 410                            | src/generated/action-counts.ts |
 | Version              | 2.0.0                          | package.json                   |
 | MCP Protocol         | 2025-11-25                     | src/version.ts:14              |
 | Contract Tests       | 2742/2742 pass                 | npm run test:fast              |

@@ -9,6 +9,7 @@
  */
 
 import { ErrorCodes } from '../error-codes.js';
+import { selectField } from '../../mcp/elicitation.js';
 import { getRequestLogger, sendProgress } from '../../utils/request-context.js';
 import { getEnv } from '../../config/env.js';
 import { withTimeout } from '../../utils/timeout.js';
@@ -60,12 +61,16 @@ export async function handleImportCsvAction(
         requestedSchema: {
           type: 'object',
           properties: {
-            delimiter: {
-              type: 'string',
+            delimiter: selectField({
               title: 'CSV delimiter',
-              description: 'Character separating fields (comma, semicolon, tab, or pipe)',
-              enum: [',', ';', '\t', '|'],
-            },
+              description: 'Character separating fields',
+              options: [
+                { value: ',', label: 'Comma (,)' },
+                { value: ';', label: 'Semicolon (;)' },
+                { value: '\t', label: 'Tab' },
+                { value: '|', label: 'Pipe (|)' },
+              ],
+            }),
           },
         },
       });

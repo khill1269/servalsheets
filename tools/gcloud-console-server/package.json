@@ -26,7 +26,8 @@
   "license": "MIT",
   "main": "dist/index.js",
   "overrides": {
-    "@tootallnate/once": "^3.0.1"
+    "@tootallnate/once": "^3.0.1",
+    "uuid": "^14.0.0"
   },
   "scripts": {
     "build": "tsc",

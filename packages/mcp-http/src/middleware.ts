@@ -119,6 +119,24 @@ export function registerHttpFoundationMiddleware<
 
   const oauthIssuerHost = resolveOauthIssuerHost(envConfig.OAUTH_ISSUER);
 
+  // SEC-012: Reject CORS wildcard in production.
+  //
+  // `cors({ credentials: true })` paired with `origin: '*'` is a known XSS
+  // pivot for token exfiltration. Most cors implementations disable
+  // wildcard-with-credentials at runtime, but we want to fail loud at
+  // startup rather than rely on undefined behaviour later. Development
+  // environments may legitimately want wildcard for local tooling, so
+  // we only enforce in production.
+  if (nodeEnv === 'production') {
+    const hasWildcard = corsOrigins.some((o) => o === '*' || o.trim() === '*');
+    if (hasWildcard) {
+      throw new Error(
+        'CORS_ORIGINS contains "*" but NODE_ENV=production. ' +
+          'Wildcard CORS combined with credentialed requests is unsafe — set an explicit allowlist.'
+      );
+    }
+  }
+
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -127,7 +145,13 @@ export function registerHttpFoundationMiddleware<
           scriptSrc: ["'self'"],
           styleSrc: ["'self'"],
           connectSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:'],
+          // SEC-011: data: URIs intentionally omitted from img-src.
+          // Allowing data: opens an inline-SVG XSS surface if user-controlled
+          // data ever reaches an <img src> attribute. The MCP HTTP transport
+          // does not need to render base64 images server-side; clients render
+          // images they fetch directly. If a future feature truly requires
+          // data: images, scope the relaxation to a specific route.
+          imgSrc: ["'self'"],
         },
       },
       strictTransportSecurity:

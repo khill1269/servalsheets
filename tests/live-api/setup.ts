@@ -7,6 +7,7 @@
  */
 
 import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { join } from 'node:path';
 import {
   TEST_CONFIG,
   getQuotaManager,
@@ -19,6 +20,7 @@ import {
 } from './setup/index.js';
 import { validatePreTestConditions, getTestIsolationGuard } from './guards/index.js';
 import { shouldRunIntegrationTests, loadTestCredentials } from '../helpers/credential-loader.js';
+import { getTraceAggregator } from '../../src/services/trace-aggregator.js';
 
 /**
  * Global state for test run
@@ -214,6 +216,15 @@ afterEach(async (context) => {
 
   // End test in isolation guard
   getTestIsolationGuard().exitTest();
+
+  // Export failed traces as CI artifacts when a test fails
+  if (status === 'failed' && process.env['CI']) {
+    const testSlug = (context as unknown as { task?: { name?: string } })?.task?.name
+      ?.replace(/[^a-z0-9]/gi, '-')
+      .slice(0, 60) ?? 'unknown';
+    const traceFile = join(process.cwd(), '.tmp', 'traces', `${testSlug}-${Date.now()}.json`);
+    getTraceAggregator().exportFailedTraces(traceFile);
+  }
 
   // Apply quota delay between tests
   await applyQuotaDelay();

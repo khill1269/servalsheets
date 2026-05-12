@@ -2,7 +2,7 @@
  * ServalSheets - .well-known Discovery Endpoints
  *
  * Implements RFC 8615 well-known URIs for server discovery:
- * - /.well-known/mcp.json: MCP Server Card (SEP-1649) - primary discovery
+ * - /.well-known/mcp.json: MCP Server Card (SEP-2127 (draft)) - primary discovery
  * - /.well-known/mcp/tool-hashes: Tool description integrity manifest
  * - /.well-known/mcp-configuration: MCP server capabilities (legacy)
  * - /.well-known/oauth-authorization-server: OAuth 2.0 metadata (RFC 8414)
@@ -11,7 +11,7 @@
  * These endpoints allow clients and registries to discover server
  * capabilities without establishing an MCP connection.
  *
- * @see https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1649 - SEP-1649 Server Cards
+ * @see https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127 - SEP-2127 (draft) Server Cards
  * @see https://www.rfc-editor.org/rfc/rfc8615 - Well-Known URIs
  * @see https://www.rfc-editor.org/rfc/rfc8414 - OAuth 2.0 Authorization Server Metadata
  * @see https://www.rfc-editor.org/rfc/rfc9728 - OAuth 2.0 Protected Resource Metadata
@@ -128,7 +128,7 @@ export interface OAuthAuthorizationServerMetadata {
 }
 
 /**
- * MCP Server Card (SEP-1649)
+ * MCP Server Card (SEP-2127 (draft))
  *
  * Structured metadata document for HTTP-based MCP server discovery.
  * Exposed at /.well-known/mcp.json to enable:
@@ -137,7 +137,7 @@ export interface OAuthAuthorizationServerMetadata {
  * - Static capability verification before connection
  * - Reduced latency for server information display
  *
- * @see https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1649
+ * @see https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127
  */
 export interface McpServerCard {
   /** Schema version for the server card format */
@@ -307,7 +307,7 @@ export function getMcpConfiguration(): McpServerConfiguration {
 }
 
 /**
- * Get MCP Server Card (SEP-1649)
+ * Get MCP Server Card (SEP-2127 (draft))
  *
  * Returns the server card for /.well-known/mcp.json endpoint.
  * This is the primary discovery mechanism for HTTP-based MCP servers.
@@ -357,7 +357,6 @@ function composeMcpServerCard(
   }
 
   return {
-    $schema: 'https://modelcontextprotocol.io/schemas/mcp-server-card.json',
     mcp_version: SERVER_INFO.protocolVersion,
     server_name: SERVER_INFO.name,
     server_version: VERSION,
@@ -540,7 +539,7 @@ export function getOAuthProtectedResourceMetadata(
 }
 
 /**
- * Express handler for /.well-known/mcp.json (SEP-1649 Server Card)
+ * Express handler for /.well-known/mcp.json (SEP-2127 (draft) Server Card)
  *
  * Primary discovery endpoint for HTTP-based MCP servers.
  * Returns structured metadata without requiring MCP connection.
@@ -707,7 +706,7 @@ export function registerWellKnownHandlers(
     ? createMcpServerCardHandler(runtimeConfig)
     : mcpServerCardHandler;
 
-  // SEP-1649: MCP Server Card - primary discovery endpoint
+  // SEP-2127 (draft): MCP Server Card - primary discovery endpoint
   app.get('/.well-known/mcp.json', cardHandler);
   app.get('/.well-known/mcp/server-card.json', cardHandler);
   // Tool integrity manifest

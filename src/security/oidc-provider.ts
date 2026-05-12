@@ -666,6 +666,27 @@ export function createOidcProviderFromEnv(
     return null;
   }
 
+  // SEC-015: Enforce minimum entropy for SSO_JWT_SECRET (parity with JWT_SECRET
+  // and SAML provider; see src/security/saml-provider.ts:createSamlProviderFromEnv).
+  // The same secret signs both SAML and OIDC issued tokens — checking it in only
+  // one path leaves a gap when a deployment uses OIDC without SAML.
+  const MIN_SSO_JWT_SECRET_BYTES = 32;
+  const ssoEstimatedBytes = Math.max(
+    /^[0-9a-fA-F]+$/.test(SSO_JWT_SECRET) ? Math.floor(SSO_JWT_SECRET.length / 2) : 0,
+    /^[A-Za-z0-9+/=_-]+$/.test(SSO_JWT_SECRET) ? Math.floor((SSO_JWT_SECRET.length * 3) / 4) : 0,
+    Buffer.byteLength(SSO_JWT_SECRET, 'utf8')
+  );
+  if (ssoEstimatedBytes < MIN_SSO_JWT_SECRET_BYTES) {
+    const message =
+      `SSO_JWT_SECRET has insufficient entropy (estimated ${ssoEstimatedBytes} bytes, ` +
+      `required ≥ ${MIN_SSO_JWT_SECRET_BYTES}). ` +
+      'Generate with: openssl rand -hex 32  (or: openssl rand -base64 32)';
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new ConfigError(message, 'SSO_JWT_SECRET');
+    }
+    logger.warn(message);
+  }
+
   const scopes = env.OIDC_SCOPES
     ? env.OIDC_SCOPES.split(/[\s,]+/).filter(Boolean)
     : ['openid', 'profile', 'email'];

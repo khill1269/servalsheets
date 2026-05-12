@@ -62,6 +62,16 @@ import {
  * MCP 2025-11-25 spec. If prompt count grows significantly, consider
  * implementing a custom ListPromptsRequestSchema handler with cursor support.
  *
+ * SDK-WORKAROUND-NEEDED (P21-D2): registerPrompt() discards `icons` from the
+ * config before storing it — icons are never present in prompts/list wire
+ * responses. Root cause: @modelcontextprotocol/sdk mcp.js:734 destructures
+ * only `{ title, description, argsSchema }`, silently dropping all other
+ * fields. Workaround is to intercept prompts/list via
+ * server.server.setRequestHandler(ListPromptsRequestSchema, ...) and re-inject
+ * icons from a parallel Map<name, Icon[]>. Holding until upstream resolution
+ * (P21-D1 filed at https://github.com/modelcontextprotocol/typescript-sdk/issues)
+ * — display-only gap, does not affect tool functionality.
+ *
  * @param server - McpServer instance
  */
 export function registerServalSheetsPrompts(server: McpServer): void {

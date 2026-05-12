@@ -34,7 +34,7 @@ ServalSheets is a **production-grade, gold-standard MCP server**. It is one of t
 | CI workflows                                            | 18              | .github/workflows/             |
 | Build scripts                                           | 140             | scripts/                       |
 | Tools                                                   | 25              | src/generated/action-counts.ts |
-| Actions                                                 | 407             | src/generated/action-counts.ts |
+| Actions                                                 | 410             | src/generated/action-counts.ts |
 | Source LOC (est.)                                       | ~262,000        | wc -l (prior audit)            |
 | Monorepo packages                                       | 5               | packages/                      |
 | Schema files                                            | 36              | src/schemas/                   |
@@ -164,11 +164,11 @@ These implement `handle()` directly and manage their own error handling.
 
 | Mode    | Tool Count               | Token Cost     | Activation                 |
 | ------- | ------------------------ | -------------- | -------------------------- |
-| Bundled | 25 compound tools        | ~53K tokens    | `SERVAL_TOOL_MODE=bundled` |
-| Flat    | ~407 individual tools    | ~1,500 tokens  | `SERVAL_TOOL_MODE=flat`    |
-| Auto    | STDIO→flat, HTTP→bundled | ~1,500 or ~53K | Default                    |
+| Bundled | 25 compound tools        | ~53K tokens    | `SERVAL_TOOL_MODE=bundled` (default) |
+| Flat    | ~410 individual tools    | ~1,500 tokens  | `SERVAL_TOOL_MODE=flat`              |
+| Auto    | always resolves to bundled | ~53K tokens  | unset (no client currently supports MCP-level tool deferral) |
 
-**97% token reduction** when flat mode is active. Always-loaded set: 15 actions (auth bootstrap + session + data essentials). Remaining 392 are deferred, loaded via `sheets_discover` meta-tool.
+**Note (2026-04-29):** prior versions of this doc claimed "auto: STDIO→flat, HTTP→bundled" — that was never the actual code path. `getEffectiveToolMode()` returns `bundled` for any unset/auto value. Flat mode is opt-in only. See `src/config/constants.ts:getEffectiveToolMode()`.
 
 ---
 

@@ -96,8 +96,9 @@ describe.skipIf(!runLiveTests)('sheets_compute Live API Tests', () => {
         request: {
           action: 'statistical',
           spreadsheetId: testSpreadsheet.id,
-          range: 'TestData!A2:A6',
-          metrics: ['mean', 'median', 'stddev', 'min', 'max'],
+          range: { a1: 'TestData!A2:A6' },
+          hasHeaders: false,
+          columns: ['A'],
         },
       });
 
