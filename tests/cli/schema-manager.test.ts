@@ -76,7 +76,7 @@ describe('SchemaManagerCli', () => {
   });
 
   describe('fetch command', () => {
-    it.skip('should fetch and cache schemas', async () => {
+    it.skip('should fetch and cache schemas', async () => { // SKIP: reason unclear — CLI fetch path and log strings appear implemented; may be an ordering/singleton reset issue
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         status: 200,
@@ -122,7 +122,7 @@ describe('SchemaManagerCli', () => {
   });
 
   describe('versions command', () => {
-    it.skip('should list available versions', async () => {
+    it.skip('should list available versions', async () => { // SKIP: reason unclear — listAvailableVersions() is implemented and URL pattern matches; may be singleton reset issue
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         status: 200,
@@ -144,7 +144,7 @@ describe('SchemaManagerCli', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('v4'));
     });
 
-    it.skip('should list versions for all APIs', async () => {
+    it.skip('should list versions for all APIs', async () => { // SKIP: reason unclear — listAvailableVersions() implemented; may be singleton/mock reset issue causing fetch call count to differ
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         status: 200,

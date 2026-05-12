@@ -13,7 +13,7 @@ describe('CI Integration', () => {
   const workflowPath = path.join(__dirname, '../../.github/workflows/multi-agent-analysis.yml');
 
   describe('Workflow File', () => {
-    it.skip('should exist', () => {
+    it.skip('should exist', () => { // SKIP: reason unclear — multi-agent-analysis.yml exists at .github/workflows/; likely stale skip from before the file was created
       expect(fs.existsSync(workflowPath)).toBe(true);
     });
 
@@ -145,7 +145,7 @@ describe('CI Integration', () => {
     });
   });
 
-  describe.skip('NPM Scripts', () => {
+  describe.skip('NPM Scripts', () => { // SKIP: implementation gap — analyze:file/all/watch/fix/report scripts missing from package.json
     const packagePath = path.join(__dirname, '../../package.json');
 
     it('should have analyze:file script', () => {

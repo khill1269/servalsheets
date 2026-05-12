@@ -102,7 +102,7 @@ describe('BatchingSystem', () => {
       });
     });
 
-    it.skip('should execute batch immediately when maxBatchSize is reached', async () => {
+    it.skip('should execute batch immediately when maxBatchSize is reached', async () => { // SKIP: implementation gap — BatchingSystem.execute() never checks maxBatchSize for immediate flush
       // Arrange
       const spreadsheetId = 'test-sheet-2';
       const smallBatchSystem = new BatchingSystem(mockSheetsApi, {
@@ -211,7 +211,7 @@ describe('BatchingSystem', () => {
       expect(mockSheetsApi.spreadsheets.values.batchClear).toHaveBeenCalledTimes(1);
     });
 
-    it.skip('should handle empty batches gracefully', async () => {
+    it.skip('should handle empty batches gracefully', async () => { // SKIP: implementation gap — executeBatch(batchKey) signature not present; public API changed
       // Arrange - create batch but don't add any operations
       const batchKey = 'test-sheet-1:values:update';
 
@@ -222,7 +222,7 @@ describe('BatchingSystem', () => {
       expect(mockSheetsApi.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
     });
 
-    it.skip('should cancel timer and clear batch after execution', async () => {
+    it.skip('should cancel timer and clear batch after execution', async () => { // SKIP: implementation gap — internal fields renamed (pendingBatches/batchTimers no longer exist)
       // Arrange
       const spreadsheetId = 'test-sheet-3';
       mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
@@ -249,7 +249,7 @@ describe('BatchingSystem', () => {
   });
 
   describe('Values Append Batching', () => {
-    it.skip('should batch multiple appends into single batchUpdate with appendCells', async () => {
+    it.skip('should batch multiple appends into single batchUpdate with appendCells', async () => { // SKIP: implementation gap — values:append batch path (appendCells + sheet metadata lookup) not implemented
       // Arrange
       const spreadsheetId = 'append-test';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
@@ -311,7 +311,7 @@ describe('BatchingSystem', () => {
       expect(results[0].updates.updatedColumns).toBe(2);
     });
 
-    it.skip('should batch tableId appends without metadata lookup', async () => {
+    it.skip('should batch tableId appends without metadata lookup', async () => { // SKIP: implementation gap — tableId-based append path not implemented in executeBatchOps
       const spreadsheetId = 'append-table';
       mockSheetsApi.spreadsheets.get = vi.fn();
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
@@ -345,7 +345,7 @@ describe('BatchingSystem', () => {
       expect(batchCall.requestBody.requests[1].appendCells.tableId).toBe('table-2');
     });
 
-    it.skip('should distribute append responses correctly to callers', async () => {
+    it.skip('should distribute append responses correctly to callers', async () => { // SKIP: implementation gap — per-operation response distribution not implemented; all callers get undefined
       // Arrange
       const spreadsheetId = 'append-test-2';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
@@ -388,7 +388,7 @@ describe('BatchingSystem', () => {
       expect(result2.updates.updatedCells).toBe(2);
     });
 
-    it.skip('should handle formulas and different value types in appends', async () => {
+    it.skip('should handle formulas and different value types in appends', async () => { // SKIP: implementation gap — appendCells value-type conversion not implemented
       // Arrange
       const spreadsheetId = 'append-formulas';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
@@ -425,7 +425,7 @@ describe('BatchingSystem', () => {
       expect(rows[0].values[3].userEnteredValue.formulaValue).toBe('=SUM(A1:A2)');
     });
 
-    it.skip('should handle append with unresolvable sheet ID', async () => {
+    it.skip('should handle append with unresolvable sheet ID', async () => { // SKIP: implementation gap — sheet ID resolution + error path not implemented for values:append
       // Arrange
       const spreadsheetId = 'append-bad-sheet';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
@@ -453,7 +453,7 @@ describe('BatchingSystem', () => {
   });
 
   describe('BatchUpdate Operations', () => {
-    it.skip('should merge multiple batchUpdate requests', async () => {
+    it.skip('should merge multiple batchUpdate requests', async () => { // SKIP: implementation gap — format:update/sheet:update merging does not preserve per-operation request arrays; params shape mismatch
       // Arrange
       const spreadsheetId = 'batch-update-test';
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
@@ -509,7 +509,7 @@ describe('BatchingSystem', () => {
       expect(batchCall.requestBody.requests[2]).toHaveProperty('mergeCells');
     });
 
-    it.skip('should preserve request order in batch', async () => {
+    it.skip('should preserve request order in batch', async () => { // SKIP: implementation gap — sheet:update type not handled; ops go to formatOps path, not a dedicated sheet batch
       // Arrange
       const spreadsheetId = 'order-test';
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
@@ -548,7 +548,7 @@ describe('BatchingSystem', () => {
       expect(batchCall.requestBody.requests[2].addSheet.properties.title).toBe('Third');
     });
 
-    it.skip('should distribute batchUpdate responses to correct operations', async () => {
+    it.skip('should distribute batchUpdate responses to correct operations', async () => { // SKIP: implementation gap — per-operation response distribution not implemented; all resolve(undefined)
       // Arrange
       const spreadsheetId = 'response-test';
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
@@ -627,7 +627,7 @@ describe('BatchingSystem', () => {
       });
     });
 
-    it.skip('should resolve all clear operations with same response', async () => {
+    it.skip('should resolve all clear operations with same response', async () => { // SKIP: implementation gap — executeBatchOps resolves all ops with undefined, not the batchClear response
       // Arrange
       const spreadsheetId = 'clear-test-2';
       const mockResponse = { clearedRanges: ['A1', 'B1'] };
@@ -661,7 +661,7 @@ describe('BatchingSystem', () => {
   });
 
   describe('Efficiency Metrics', () => {
-    it.skip('should calculate batch efficiency ratio correctly', async () => {
+    it.skip('should calculate batch efficiency ratio correctly', async () => { // SKIP: implementation gap — BatchingStats missing totalApiCalls/apiCallsSaved/reductionPercentage/avgBatchSize/maxBatchSize/minBatchSize
       // Arrange
       const spreadsheetId = 'metrics-test';
       mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
@@ -717,7 +717,7 @@ describe('BatchingSystem', () => {
       expect(stats.minBatchSize).toBe(5);
     });
 
-    it.skip('should track operations saved across multiple batches', async () => {
+    it.skip('should track operations saved across multiple batches', async () => { // SKIP: implementation gap — BatchingStats missing totalApiCalls/apiCallsSaved/reductionPercentage/avgBatchSize fields
       // Arrange
       const spreadsheetId = 'metrics-test-2';
       mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
@@ -789,7 +789,7 @@ describe('BatchingSystem', () => {
       expect(stats.avgBatchSize).toBe(3);
     });
 
-    it.skip('should track batch duration metrics', async () => {
+    it.skip('should track batch duration metrics', async () => { // SKIP: implementation gap — avgBatchDuration not tracked in BatchingStats
       // Arrange
       const spreadsheetId = 'duration-test';
       mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockImplementation(async () => {
@@ -814,7 +814,7 @@ describe('BatchingSystem', () => {
       expect(stats.avgBatchDuration).toBeGreaterThan(0);
     });
 
-    it.skip('should reset statistics correctly', async () => {
+    it.skip('should reset statistics correctly', async () => { // SKIP: implementation gap — resetStats() does not clear apiCallsSaved/maxBatchSize/minBatchSize (fields not tracked)
       // Arrange
       const spreadsheetId = 'reset-test';
       mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
@@ -942,7 +942,7 @@ describe('BatchingSystem', () => {
   });
 
   describe('Disabled Batching Mode', () => {
-    it.skip('should execute operations immediately when batching is disabled', async () => {
+    it.skip('should execute operations immediately when batching is disabled', async () => { // SKIP: implementation gap — enabled:false mode not implemented; BatchingSystemOptions lacks an "enabled" field
       // Arrange
       const noBatchSystem = new BatchingSystem(mockSheetsApi, {
         enabled: false,
@@ -978,7 +978,7 @@ describe('BatchingSystem', () => {
       noBatchSystem.destroy();
     });
 
-    it.skip('should execute append immediately when batching is disabled', async () => {
+    it.skip('should execute append immediately when batching is disabled', async () => { // SKIP: implementation gap — enabled:false passthrough mode not implemented; BatchingSystemOptions lacks an "enabled" field
       // Arrange
       const noBatchSystem = new BatchingSystem(mockSheetsApi, {
         enabled: false,
@@ -1149,7 +1149,7 @@ describe('BatchingSystem', () => {
       expect(mockSheetsApi.spreadsheets.values.batchUpdate).toHaveBeenCalledTimes(1);
     });
 
-    it.skip('should clear all timers and batches on destroy', () => {
+    it.skip('should clear all timers and batches on destroy', () => { // SKIP: implementation gap — internal fields renamed (pendingBatches/batchTimers → pending/timer); test inspects old private API
       // Arrange
       const spreadsheetId = 'destroy-test';
       batchingSystem.execute({

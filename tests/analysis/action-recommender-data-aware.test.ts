@@ -209,7 +209,7 @@ describe('getRecommendedActions — previously uncovered actions', () => {
     expect(tools).toContain('sheets_session.get_context');
   });
 
-  it.skip('each new rule returns suggestions with non-empty tool, action, and reason', () => {
+  it.skip('each new rule returns suggestions with non-empty tool, action, and reason', () => { // SKIP: implementation gap — hangs during test run; possible infinite loop in recommendation rules
     // NOTE: Skipped — hangs during test run. Root cause unknown; recommendation rules are defined.
     // This test appears to trigger infinite loop or blocking I/O in recommendation rules.
     const newActions: [string, string][] = [

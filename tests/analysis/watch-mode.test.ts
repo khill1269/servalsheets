@@ -44,7 +44,7 @@ describe('WatchMode', () => {
   });
 
   describe('Initialization', () => {
-    it.skip('should create watch mode with default options', () => {
+    it.skip('should create watch mode with default options', () => { // SKIP: reason unclear — defaults match implementation (debounceMs:500, clearConsole:true, autoFix:false); needs investigation
       const watcher = new WatchMode();
 
       expect(watcher).toBeDefined();
