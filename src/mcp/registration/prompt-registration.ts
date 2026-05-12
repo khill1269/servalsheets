@@ -69,7 +69,7 @@ import {
  * fields. Workaround is to intercept prompts/list via
  * server.server.setRequestHandler(ListPromptsRequestSchema, ...) and re-inject
  * icons from a parallel Map<name, Icon[]>. Holding until upstream resolution
- * (P21-D1 filed at https://github.com/modelcontextprotocol/typescript-sdk/issues)
+ * (P21-D1: https://github.com/modelcontextprotocol/typescript-sdk/issues/2054)
  * — display-only gap, does not affect tool functionality.
  *
  * @param server - McpServer instance

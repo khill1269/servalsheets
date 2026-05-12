@@ -83,11 +83,11 @@ Goal: Close spec compliance gaps found during the 2026-05-12 deep audit against 
 
 ### P21-D: Prompt Icons (SDK Gap — Tracked)
 
-- [ ] **P21-D1** — File upstream SDK issue for `registerPrompt()` icons
+- [x] **P21-D1** — File upstream SDK issue for `registerPrompt()` icons
   - SDK strips `icons` at destructure in `mcp.js:731`: `const { title, description, argsSchema } = config`
   - Wire response hardcodes 4 fields only — icons never serialized
   - No existing issue found in modelcontextprotocol/typescript-sdk as of 2026-05-12
-  - File at: https://github.com/modelcontextprotocol/typescript-sdk/issues
+  - Filed: https://github.com/modelcontextprotocol/typescript-sdk/issues/2054
   - Title: "`registerPrompt()` should accept MCP ToolAnnotations (icons, emoji) in config"
   - Reference: `src/mcp/registration/prompt-registration.ts` (40 prompts, all missing icons)
 
