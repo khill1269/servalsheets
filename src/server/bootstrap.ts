@@ -24,6 +24,7 @@ function registerSamplingConsentGuard(): void {
       );
     }
     // Non-strict: sampling is allowed; operators can override with a stricter checker.
+    baseLogger.debug('Sampling consent: permissive mode (set ENABLE_SAMPLING_CONSENT=strict to enforce)');
   });
 }
 

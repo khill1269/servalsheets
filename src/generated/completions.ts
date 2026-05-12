@@ -1094,7 +1094,7 @@ export const EMPTY_COMPLETION: CompleteResult = {
 };
 
 // ============================================================================
-// ISSUE-062: 6 Missing MCP Completions
+// Entity completion caches — populated by handlers on successful reads/writes
 // ============================================================================
 
 /** Simple bounded LRU set for recently-seen entity values */
