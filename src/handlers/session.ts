@@ -371,6 +371,36 @@ export async function handleSheetsSession(
         };
       }
 
+      case 'search_tools': {
+        const { query, category, maxResults = 5 } = req as {
+          action: 'search_tools';
+          query: string;
+          category?: 'data' | 'format' | 'analyze' | 'collaborate' | 'utility';
+          maxResults?: number;
+        };
+        const { discoverActions } = await import('../services/action-discovery.js');
+        const matches = discoverActions(query, category, maxResults);
+        return {
+          response: {
+            success: true as const,
+            action: 'search_tools' as const,
+            query,
+            matchCount: matches.length,
+            matches: matches.map((m) => ({
+              tool: m.tool,
+              action: m.action,
+              confidence: m.confidence,
+              description: m.description,
+              whenToUse: m.whenToUse,
+              commonMistake: m.commonMistake,
+            })),
+            hint: matches.length === 0
+              ? 'No matches found. Try rephrasing or check guide://tool-selection for routing guidance.'
+              : `Found ${matches.length} match${matches.length === 1 ? '' : 'es'}. Use the top result or call sheets_session.get_context for broader orientation.`,
+          },
+        };
+      }
+
       default: {
         const exhaustiveCheck: never = action;
         throw new ValidationError(`Unknown action: ${exhaustiveCheck}`, 'action');

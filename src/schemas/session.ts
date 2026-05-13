@@ -397,6 +397,14 @@ const ScheduleRunNowActionSchema = CommonFieldsSchema.extend({
   jobId: z.string().min(1).describe('Job ID to trigger immediately'),
 }).strict();
 
+// P23-C1: Natural language tool/action discovery in bundled mode
+const SearchToolsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('search_tools'),
+  query: z.string().min(1).max(200).describe('Natural language query to find relevant tools and actions (e.g. "how do I sort rows", "find duplicates")'),
+  category: z.enum(['data', 'format', 'analyze', 'collaborate', 'utility']).optional().describe('Optional category filter to narrow results'),
+  maxResults: z.number().int().min(1).max(10).optional().describe('Maximum number of results (1-10, default 5)'),
+}).strict();
+
 // Pipeline step schema (used by execute_pipeline)
 const PipelineStepSchema = z.object({
   id: z.string().min(1).describe('Unique step identifier — referenced by other steps dependsOn'),
@@ -486,6 +494,7 @@ export const SheetsSessionInputSchema = z.object({
     ScheduleListActionSchema,
     ScheduleCancelActionSchema,
     ScheduleRunNowActionSchema,
+    SearchToolsActionSchema,
   ]),
 });
 
@@ -583,6 +592,7 @@ const SessionActionSchema = z.enum([
   'schedule_list',
   'schedule_cancel',
   'schedule_run_now',
+  'search_tools',
 ]);
 
 // Success responses
@@ -753,6 +763,23 @@ const SessionSuccessSchema = z.object({
     )
     .optional()
     .describe('List of scheduled jobs'),
+  // search_tools response fields (P23-C1)
+  query: z.string().optional().describe('The search query that was executed'),
+  matchCount: z.number().optional().describe('Number of matches found'),
+  matches: z
+    .array(
+      z.object({
+        tool: z.string(),
+        action: z.string(),
+        confidence: z.number(),
+        description: z.string().optional(),
+        whenToUse: z.string().optional(),
+        commonMistake: z.string().optional(),
+      })
+    )
+    .optional()
+    .describe('Matching tools and actions ranked by relevance'),
+  hint: z.string().optional().describe('Guidance for next steps based on search results'),
 });
 
 // Error response

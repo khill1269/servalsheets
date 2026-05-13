@@ -396,6 +396,9 @@ export function createServerCapabilities(): ServerCapabilities {
 
     // Note: tools, prompts, resources capabilities are auto-registered by McpServer
     // when using registerTool(), registerPrompt(), registerResource()
+
+    // SEP-1821 (open draft): on merge, add tools: { listChanged: true, filtering: true }
+    // and accept query?: string in the tools/list request handler (tools-list-compat.ts).
   };
 }
 
@@ -426,6 +429,10 @@ Available tools may vary by deployment settings or staged registration. Treat \`
 1. **Auth check:** \`sheets_auth action:"status"\` — BEFORE any other tool. If \`authenticated: false\`: \`sheets_auth action:"login"\` → show authUrl → user provides code → \`sheets_auth action:"callback" code:"..."\`
 2. **Connector discovery:** \`sheets_session action:"get_context"\` — response includes \`connectorOnboarding\` with structured next-call guidance. ASK the user which connectors they want before configuring. For each chosen connector: \`sheets_connectors action:"configure" connectorId:"..."\` — zero-auth connectors configure instantly; API key and OAuth connectors will prompt the user via secure URL elicitation (localhost page). For multi-connector setup: use \`sheets_confirm action:"wizard_start"\` with steps for each connector.
 3. **Set context:** \`sheets_session action:"set_active" spreadsheetId:"1ABC..."\` — enables omitting spreadsheetId and using column names as ranges.
+
+**Staged tools:** Tools load in 3 stages to minimize initial context. Stage 1 (5 tools) at connect → Stage 2 (+6) on set_active → Stage 3 (all 25) on first stage-3 call. Call \`tools/list\` again after set_active to see full surface.
+
+**Tool discovery:** \`sheets_session action:"search_tools" query:"natural language"\` finds tools/actions by intent without loading all schemas.
 
 ## WORKFLOW
 
