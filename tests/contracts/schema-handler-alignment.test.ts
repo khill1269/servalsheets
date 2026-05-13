@@ -28,6 +28,7 @@ import {
   isSingleActionTool,
 } from '../../src/utils/ast-schema-parser.js';
 import { ACCEPTABLE_DEVIATIONS, getToolDeviation } from '../../src/schemas/handler-deviations.js';
+import { ACTION_COUNTS } from '../../src/schemas/action-counts.js';
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
@@ -162,33 +163,11 @@ describe('Schema-Handler Alignment', () => {
 
   describe('Sanity checks: Expected action counts', () => {
     it('should have correct action counts per tool', () => {
-      const expectedCounts: Record<string, number> = {
-        advanced: 31,
-        agent: 8,
-        analyze: 26,
-        appsscript: 19,
-        auth: 5,
-        bigquery: 17,
-        collaborate: 41,
-        composite: 21,
-        compute: 16,
-        confirm: 5,
-        connectors: 10,
-        core: 21,
-        data: 25,
-        dependencies: 10,
-        dimensions: 31,
-        federation: 4,
-        fix: 6,
-        format: 25,
-        history: 10,
-        quality: 4,
-        session: 32,
-        templates: 8,
-        transaction: 6,
-        visualize: 18,
-        webhook: 11,
-      };
+      // Derived from ACTION_COUNTS (src/generated/action-counts.ts) — no hardcoded numbers.
+      // When actions are added/removed, run `npm run schema:commit`; this test auto-updates.
+      const expectedCounts = Object.fromEntries(
+        Object.entries(ACTION_COUNTS).map(([key, count]) => [key.replace(/^sheets_/, ''), count])
+      );
 
       Object.entries(expectedCounts).forEach(([tool, expectedCount]) => {
         const schemaPath = path.join(PROJECT_ROOT, `src/schemas/${tool}.ts`);

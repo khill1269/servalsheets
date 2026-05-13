@@ -1,7 +1,7 @@
 /**
  * Action Schema Invariants — Property Tests
  *
- * Verifies structural invariants across ALL 25 tools and 410 actions:
+ * Verifies structural invariants across ALL tools and actions:
  * - Action names are unique within a tool (no discriminator collision)
  * - Every tool has at least one action
  * - All action annotation keys match TOOL_ACTIONS keys
@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
 import { ACTION_ANNOTATIONS } from '../../src/schemas/annotations.js';
+import { ACTION_COUNT } from '../../src/schemas/action-counts.js';
 
 describe('Action schema invariants', () => {
   it('action names are unique within each tool (no discriminator collision)', () => {
@@ -43,9 +44,9 @@ describe('Action schema invariants', () => {
     }
   });
 
-  it('total action count matches expected 410', () => {
+  it('total action count matches ACTION_COUNT constant', () => {
     const total = Object.values(TOOL_ACTIONS).reduce((sum, actions) => sum + actions.length, 0);
-    expect(total).toBe(410);
+    expect(total).toBe(ACTION_COUNT);
   });
 
   it('every annotation key matches a real tool.action', () => {
