@@ -51,13 +51,28 @@ export async function handleWatchChanges(
     });
 
     const resourceId = response.data.resourceId ?? '';
-    await getWebhookManager()?.storeWatchChannel(
-      channelId,
-      resourceId,
-      input.spreadsheetId,
-      input.webhookUrl,
-      expiration
-    );
+    try {
+      await getWebhookManager()?.storeWatchChannel(
+        channelId,
+        resourceId,
+        input.spreadsheetId,
+        input.webhookUrl,
+        expiration
+      );
+    } catch (storeErr) {
+      // Compensate: stop the Drive channel to avoid an unowned channel emitting events
+      try {
+        await handler.driveApi.channels.stop({
+          requestBody: { id: channelId, resourceId },
+        });
+      } catch (stopErr) {
+        logger.warn('Failed to stop Drive channel after storage failure', {
+          channelId,
+          error: stopErr instanceof Error ? stopErr.message : String(stopErr),
+        });
+      }
+      throw storeErr;
+    }
 
     logger.info('Drive files.watch channel created', {
       channelId,

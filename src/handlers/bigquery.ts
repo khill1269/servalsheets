@@ -295,6 +295,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     params: QueryJobParams
   ): Promise<QueryJobResult> {
     // Step 1: Try synchronous query first (fast path for small queries)
+    // Cap sync query timeout at 30s; params.timeoutMs governs total polling deadline below
+    const syncTimeoutMs = Math.min(params.timeoutMs ?? 10000, 30000);
     const syncResponse = await this._withBigQueryCircuitBreaker(() =>
       bigquery.jobs.query({
         projectId: params.projectId,
@@ -302,7 +304,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           query: params.query,
           maxResults: params.maxResults ?? 10000,
           useLegacySql: params.useLegacySql ?? false,
-          timeoutMs: params.timeoutMs ?? 10000,
+          timeoutMs: syncTimeoutMs,
           maximumBytesBilled: params.maximumBytesBilled,
           dryRun: params.dryRun ?? false,
           useQueryCache: params.useQueryCache ?? true,

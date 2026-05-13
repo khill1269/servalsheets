@@ -1164,21 +1164,11 @@ export async function handleClear(
 
   try {
     const timeoutMs = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '60000', 10);
-    const gridRange = await a1ToGridRange(ha, input.spreadsheetId, range);
-    await Promise.race([
+    const clearResponse = await Promise.race([
       ha.withCircuitBreaker('values.clear', () =>
-        ha.api.spreadsheets.batchUpdate({
+        ha.api.spreadsheets.values.clear({
           spreadsheetId: input.spreadsheetId,
-          requestBody: {
-            requests: [
-              {
-                updateCells: {
-                  range: toGridRange(gridRange),
-                  fields: 'userEnteredValue',
-                },
-              },
-            ],
-          },
+          range,
         })
       ),
       new Promise<never>((_, reject) =>
@@ -1188,6 +1178,7 @@ export async function handleClear(
         )
       ),
     ]);
+    const clearedRange = clearResponse?.data?.clearedRange ?? range;
 
     const duration = Date.now() - startTime;
     logger.info('Clear operation completed', { duration, range });
@@ -1221,7 +1212,7 @@ export async function handleClear(
     }
 
     return ha.makeSuccess('clear', {
-      updatedRange: range,
+      updatedRange: clearedRange,
     });
   } catch (error) {
     const duration = Date.now() - startTime;

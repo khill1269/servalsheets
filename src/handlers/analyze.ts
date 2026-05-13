@@ -13,7 +13,7 @@ import { ErrorCodes } from './error-codes.js';
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, unwrapRequest, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import { DataError } from '../core/errors.js';
+import { DataError, ServiceError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
 import { getRequestContext } from '../utils/request-context.js';
 import { buildFormulaSamplingRequest } from '../services/sampling-analysis.js';
@@ -1144,11 +1144,29 @@ export class AnalyzeHandler extends BaseHandler<SheetsAnalyzeInput, SheetsAnalyz
     if (!ranges) {
       const metadataResponse = await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: 'sheets(properties(title))',
+        fields: 'sheets(properties(title,gridProperties(rowCount,columnCount)))',
       });
-      const sheetTitles = (metadataResponse.data.sheets ?? [])
+      const metaSheets = metadataResponse.data.sheets ?? [];
+      const sheetTitles = metaSheets
         .map((sheet) => sheet.properties?.title)
         .filter((title): title is string => typeof title === 'string' && title.length > 0);
+
+      // Guard: refuse unbounded includeGridData on workbooks >500K cells to prevent 413/timeout
+      const totalCells = metaSheets.reduce((sum, s) => {
+        const rows = s.properties?.gridProperties?.rowCount ?? 1000;
+        const cols = s.properties?.gridProperties?.columnCount ?? 26;
+        return sum + rows * cols;
+      }, 0);
+      if (totalCells > 500_000) {
+        throw new ServiceError(
+          `Spreadsheet too large for formula health check (${totalCells.toLocaleString()} cells across ${sheetTitles.length} sheets). ` +
+            `Provide a specific range parameter to limit the scan.`,
+          ErrorCodes.INTERNAL_ERROR,
+          'sheets-api',
+          false,
+          { totalCells, sheetCount: sheetTitles.length }
+        );
+      }
 
       sheetCountTotal = sheetTitles.length;
       const boundedTitles = sheetTitles.slice(0, maxSheets);

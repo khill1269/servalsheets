@@ -421,7 +421,7 @@ export async function handleDataPipelineAction(
     await deps.sheetsApi.spreadsheets.values.update({
       spreadsheetId: input.spreadsheetId,
       range: outputRangeA1,
-      valueInputOption: 'RAW',
+      valueInputOption: 'USER_ENTERED',
       requestBody: { values: outputRows as unknown[][] },
     });
 
@@ -565,7 +565,7 @@ export async function handleInstantiateTemplateAction(
   await deps.sheetsApi.spreadsheets.values.update({
     spreadsheetId: targetSpreadsheetId,
     range: `'${targetSheetName}'!A1`,
-    valueInputOption: 'RAW',
+    valueInputOption: 'USER_ENTERED',
     requestBody: { values: substitutedRows as unknown[][] },
   });
 
@@ -676,7 +676,7 @@ export async function handleMigrateSpreadsheetAction(
       await deps.sheetsApi.spreadsheets.values.append({
         spreadsheetId: input.destinationSpreadsheetId,
         range: input.destinationRange,
-        valueInputOption: 'RAW',
+        valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: migratedRows as unknown[][] },
       });
@@ -684,7 +684,7 @@ export async function handleMigrateSpreadsheetAction(
       await deps.sheetsApi.spreadsheets.values.update({
         spreadsheetId: input.destinationSpreadsheetId,
         range: input.destinationRange,
-        valueInputOption: 'RAW',
+        valueInputOption: 'USER_ENTERED',
         requestBody: { values: outputRows as unknown[][] },
       });
     }

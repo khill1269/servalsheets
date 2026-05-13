@@ -286,13 +286,21 @@ export async function handleShareAddAction(
 
   // Idempotency guard: check if permission already exists
   try {
-    const existingPermissions = await deps.driveApi.permissions.list({
-      fileId: resolvedInput.spreadsheetId!,
-      fields: 'permissions(id,type,role,emailAddress,domain)',
-      supportsAllDrives: true,
-    });
+    const allPermissions: drive_v3.Schema$Permission[] = [];
+    let permPageToken: string | undefined;
+    do {
+      const permPage = await deps.driveApi.permissions.list({
+        fileId: resolvedInput.spreadsheetId!,
+        fields: 'permissions(id,type,role,emailAddress,domain),nextPageToken',
+        supportsAllDrives: true,
+        pageSize: 100,
+        ...(permPageToken && { pageToken: permPageToken }),
+      });
+      allPermissions.push(...(permPage.data.permissions ?? []));
+      permPageToken = permPage.data.nextPageToken ?? undefined;
+    } while (permPageToken);
 
-    const permissions = existingPermissions.data.permissions ?? [];
+    const permissions = allPermissions;
     let matchingPermission: drive_v3.Schema$Permission | undefined;
 
     if (resolvedInput.type === 'user' || resolvedInput.type === 'group') {
