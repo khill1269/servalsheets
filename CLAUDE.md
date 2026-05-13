@@ -16,7 +16,7 @@ Live project state (auto-generated): @.serval/state.md
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 410 actions.
+ServalSheets is a production-grade MCP server for Google Sheets with 25 tools and 411 actions.
 Runtime: Node.js + TypeScript (strict). See `src/schemas/index.ts` for authoritative counts.
 
 ### Core Pipeline
@@ -185,15 +185,17 @@ LLM clients using ServalSheets MUST follow these patterns:
 **Rule:** Never move code from `src/http-server/` into `packages/mcp-http/` unless it has zero
 ServalSheets-specific imports. The package layer must remain product-agnostic.
 
-### 19. Tool Mode: Bundled is Default, Flat is Opt-In
+### 19. Tool Mode: Bundled Only (Flat Mode Removed — P23, 2026-05-12)
 
-**Default** (`SERVAL_TOOL_MODE` unset): 25 compound tools in bundled mode. All transports now default to bundled — `getEffectiveToolMode()` at `src/config/constants.ts:380`.
+**Only mode**: 25 compound tools in bundled mode. `SERVAL_TOOL_MODE` is no longer recognized — `getEffectiveToolMode()` always returns `'bundled'` (`src/config/constants.ts`).
 
-**`SERVAL_TOOL_MODE=flat`**: Opt-in only. Exposes ~410 individual tools. Only use with clients that natively implement Anthropic Messages API `defer_loading` (NOT the same as the removed `x-defer-loading` MCP extension).
+**Flat mode was removed in P23** (2026-05-12). It was never valid MCP — it required Anthropic Messages API `defer_loading` which no MCP client reads. All flat-mode source files deleted: `flat-tool-registry.ts`, `flat-tool-call-interceptor.ts`, `flat-input-schemas.ts`, `flat-discover-handler.ts`, `flat-tool-routing.ts`.
 
-**`x-defer-loading`** (removed): Was a ServalSheets custom field in MCP tool definitions. It was NOT an MCP spec field — no MCP client read it. The real `defer_loading` is an Anthropic Messages API feature, not MCP. Removed from `tools-list-compat.ts`.
+**`x-defer-loading`** (removed earlier): Was a ServalSheets custom JSON Schema extension. Not an MCP spec field. Removed from `tools-list-compat.ts`.
 
-**Staged registration** (`SERVAL_STAGED_REGISTRATION`): Defaults **true**. Stage 1 (5 tools) → set_active triggers Stage 2 (+6) → first stage-3 tool call triggers Stage 3 (all 25). Set `SERVAL_STAGED_REGISTRATION=false` for smoke tests or clients that don't support `tools/list_changed`. Source: `src/config/constants.ts:334`, `src/server/handler-dispatch.ts:61-71`.
+**Staged registration** (`SERVAL_STAGED_REGISTRATION`): Defaults **true**. Stage 1 (5 tools at connect) → set_active triggers Stage 2 (+6 tools) → first stage-3 call triggers Stage 3 (all 25). Clients receive `notifications/tools/list_changed` at each transition. Set `SERVAL_STAGED_REGISTRATION=false` for smoke tests. Source: `src/config/constants.ts:334`, `src/server/handler-dispatch.ts:61-71`.
+
+**Tool discovery in bundled mode**: `sheets_session action:"search_tools" query:"..."` finds relevant tools/actions by natural language (P23-C1). No need for flat mode to discover actions.
 
 **Server Cards** (`/.well-known/mcp/server-card.json`): SEP-2127-compatible static discovery endpoint on HTTP transport. Source: `src/http-server/observability-core-routes.ts`. **SEP-2127 is an open, unmerged PR as of 2026-05-12** — say "SEP-2127-compatible (draft)" not "compliant". Note: `src/server/well-known.ts` still cites the old SEP-1649 number and has a dead `$schema` URL — both are P21-A2/A3 work items.
 

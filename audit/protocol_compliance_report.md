@@ -28,7 +28,7 @@ The `icon.theme` field is **deliberately omitted** because the inline SVG render
 
 ## Tools
 
-- **TOOL_COUNT = 25**, **ACTION_COUNT = 410** (computed from `src/generated/action-counts.ts:42,47` — sum of the `ACTION_COUNTS` map)
+- **TOOL_COUNT = 25**, **ACTION_COUNT = 411** (computed from `src/generated/action-counts.ts:42,47` — sum of the `ACTION_COUNTS` map)
 - Tools are registered via `server.registerTool()` in `src/server.ts` and `src/mcp/registration/`
 - Each tool exposes a top-level `icons: Icon[]` field (NOT nested in `annotations`) — matches the spec's `Tool` interface
 - Annotations use the `Hint` suffix per SEP-986 (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) — sourced from `src/generated/annotations.ts`
