@@ -11,7 +11,7 @@ tasks:
     title: 'Design: Simple Cache Test'
     description: 'Design a simple cache invalidation rule for read_range action'
     owner: null
-    status: PENDING
+    status: ACTIVE
     priority: HIGH
     estimated_hours: 2
     dependencies: []

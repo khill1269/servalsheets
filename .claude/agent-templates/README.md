@@ -1,5 +1,9 @@
 # Agent Templates for ServalSheets
 
+> **DEPRECATED:** Use agent definitions in `.claude/agents/` instead. These templates
+> are preserved for reference but the named agents provide richer context and tooling.
+> See `.claude/agents/README.md` for the full agent index.
+
 **Purpose:** Pre-configured agent templates with optimal model selection for common workflows.
 
 **Last Updated:** 2026-02-17

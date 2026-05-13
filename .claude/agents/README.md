@@ -1,8 +1,6 @@
-
-
 # ServalSheets Specialized Agents
 
-> 21 task-specific agents for Claude Code. Each agent provides focused expertise
+> 25 task-specific agents for Claude Code. Each agent provides focused expertise
 > and tooling for a particular aspect of the ServalSheets codebase.
 >
 > **Architecture:** Hub-and-spoke audit system. `servalsheets-director` owns the master dossier
@@ -25,7 +23,8 @@
 | Agent                        | File                                   | Purpose                                                                               |
 | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------- |
 | **Testing Specialist**       | `testing-specialist.md`                | Test strategy design — property-based tests, mutation testing, critical path coverage |
-| **Comprehensive Tester**     | `servalsheets-comprehensive-tester.md` | Real-API testing of all 25 tools / 410 actions with performance analysis              |
+| **Comprehensive Tester**     | `servalsheets-comprehensive-tester.md` | Real-API testing of all 25 tools / 411 actions with performance analysis              |
+| **MCP Protocol Tester**      | `servalsheets-mcp-tester.md`           | Automated JSON-RPC protocol testing of all 411 actions — replaces manual MCP Inspector |
 | **Code Review Orchestrator** | `code-review-orchestrator.md`          | Multi-perspective review — type checking, linting, MCP compliance, security, tests    |
 | **Security Auditor**         | `security-auditor.md`                  | OWASP review, OAuth/credential handling, SQL injection, authorization gaps            |
 | **Performance Optimizer**    | `performance-optimizer.md`             | Profiling, bottleneck identification, quota optimization, regression validation       |
@@ -52,6 +51,13 @@
 > **Dossier:** `.serval/audit/specialists/` — YAML files written by each specialist. Director reads all and synthesizes.
 > **Other specialists** (protocol, security, testing, functional) use existing agents in audit mode — see their descriptions.
 
+### Business & Strategy
+
+| Agent | File | Purpose |
+|---|---|---|
+| **Business Model Analyst** | `servalsheets-business-model.md` | Pricing tiers, revenue trajectory, unit economics, comparable company analysis |
+| **Strategic Positioning** | `servalsheets-strategic-positioning.md` | Market position synthesis, competitive moat analysis, acquirer attractiveness scoring |
+
 ### Protocol & Configuration
 
 | Agent                       | File                         | Purpose                                                                          |
@@ -59,6 +65,26 @@
 | **MCP Protocol Expert**     | `mcp-protocol-expert.md`     | Protocol compliance validation against MCP 2025-11-25 spec                       |
 | **MCP Protocol Specialist** | `mcp-protocol-specialist.md` | Elite protocol specialist — compliance, implementation, transport layer guidance |
 | **Claude Config Optimizer** | `claude-config-optimizer.md` | Meta-agent for optimizing Claude Code configuration and MCP server usage         |
+
+### Choosing Between Similar Agents
+
+| If you need... | Use | Not |
+|---|---|---|
+| Quick MCP compliance check | mcp-protocol-expert (sonnet, fast) | mcp-protocol-specialist |
+| Deep protocol research, spec interpretation | mcp-protocol-specialist (opus, can web search) | mcp-protocol-expert |
+| Google API implementation guidance | google-api-expert (sonnet, focused) | google-api-architect |
+| Cross-API design, can dispatch sub-agents | google-api-architect (opus, orchestrator) | google-api-expert |
+
+## Custom Skills (`.claude/skills/`)
+
+| Skill | Trigger | Purpose |
+|---|---|---|
+| google-sheets-expert | /google-sheets-expert | Domain knowledge for spreadsheet design |
+| debug | /debug | Debugging workflow |
+| implement | /implement | Implementation workflow |
+| review | /review | Code review workflow |
+| schema | /schema | Schema design workflow |
+| ship | /ship | Deployment workflow |
 
 ## Usage
 
@@ -76,6 +102,7 @@ Each agent file contains its own system prompt with specialized instructions, to
 - **Investigating a bug?** → Debug Tracer → ServalSheets Research
 - **Pre-commit check?** → ServalSheets Validation
 - **Writing tests?** → Testing Specialist (unit/property) or Comprehensive Tester (live API)
+- **Protocol testing?** → MCP Protocol Tester (automated JSON-RPC)
 - **Code review?** → Code Review Orchestrator
 - **Performance issue?** → Performance Optimizer
 - **Security concern?** → Security Auditor
@@ -85,5 +112,7 @@ Each agent file contains its own system prompt with specialized instructions, to
 - **"Where are we competitively?"** → ServalSheets Director (synthesizes from dossier)
 - **Refresh competitive data?** → Competitive Intelligence
 - **"What should we build next?"** → Product Gap Analyst (needs functional + competitive YAML)
+- **Pricing/revenue question?** → Business Model Analyst
+- **"What is our moat?"** → Strategic Positioning
 - **Docs/DX audit?** → Doc DX Auditor
 - **Full dossier refresh?** → Director dispatches all specialists

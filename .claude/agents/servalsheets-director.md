@@ -88,7 +88,7 @@ output_type: scorecard
 generated: "YYYY-MM-DD"
 categories:
   - name: "Read/Write Capabilities"
-    servalsheets: {score: 9, notes: "410 actions"}
+    servalsheets: {score: 9, notes: "411 actions"}
     gemini_sheets: {score: 7, notes: ""}
     copilot_excel: {score: 7, notes: ""}
     xing5_oss: {score: 4, notes: "~19 tools"}

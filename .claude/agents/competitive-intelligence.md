@@ -88,7 +88,7 @@ products:
       capabilities: []
       servalsheets_advantages:
         - "25 tools vs N tools"
-        - "410 actions vs N actions"
+        - "411 actions vs N actions"
     haris_excel_mcp:
       repo: "github.com/haris-musa/excel-mcp-server"
       stars: unknown
@@ -120,7 +120,7 @@ products:
 summary:
   servalsheets_unique_advantages:
     - "MCP-native — works with any MCP client, not locked to one AI model"
-    - "410 actions vs single-digit tools in OSS alternatives"
+    - "411 actions vs single-digit tools in OSS alternatives"
     - "Production-grade: auth, RBAC, audit logging, circuit breakers"
   servalsheets_gaps:
     - id: "gap_1"

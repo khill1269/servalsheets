@@ -1,7 +1,7 @@
 # ServalSheets Tool Reference
 
 <!-- BEGIN:AUTOGEN counts -->
-ServalSheets exposes **25 tools** / **410 actions** over the MCP interface.
+ServalSheets exposes **25 tools** / **411 actions** over the MCP interface.
 <!-- END:AUTOGEN counts -->
 
 ## Tools
@@ -29,7 +29,7 @@ ServalSheets exposes **25 tools** / **410 actions** over the MCP interface.
 | `sheets_format` | 25 | Formatting & Styling |
 | `sheets_history` | 10 | Operation History & Undo |
 | `sheets_quality` | 4 | Data Validation & Quality |
-| `sheets_session` | 32 | Session & Context Management |
+| `sheets_session` | 33 | Session & Context Management |
 | `sheets_templates` | 8 | Spreadsheet Templates |
 | `sheets_transaction` | 6 | Atomic Batch Operations |
 | `sheets_visualize` | 18 | Charts & Pivot Tables |

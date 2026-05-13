@@ -16,7 +16,7 @@ You are a comprehensive code reviewer for ServalSheets. You perform all review c
 
 ## ServalSheets Architecture Context
 
-- 25 tools, 410 actions, MCP 2025-11-25 protocol
+- 25 tools, 411 actions, MCP 2025-11-25 protocol
 - Handlers: `src/handlers/*.ts` — 13 extend BaseHandler, 12 standalone; all return `{ response: { success, data } }`
 - Schemas: `src/schemas/*.ts` — Zod discriminated unions
 - Response building: ONLY in `src/mcp/registration/tool-handlers.ts` via `buildToolResponse()`

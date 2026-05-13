@@ -100,7 +100,7 @@ bash scripts/validation-gates.sh
 | A4 | Integration wiring | ~1s |
 | A5 | No silent fallbacks | ~2s |
 | A6 | No debug prints | ~2s |
-| A7 | Action coverage (410 actions) | ~5s |
+| A7 | Action coverage (411 actions) | ~5s |
 | A8 | Memory leak tests | ~3s |
 | A9 | Contract tests | ~8s |
 | A10 | Google API compliance | ~2s |
@@ -161,7 +161,7 @@ npm run test:snapshots # Schema shape regression
 
 | Tier | Command | Files | Tests |
 |------|---------|-------|-------|
-| Audit | `npm run audit:coverage/perf/memory` | 5 | 410 actions validated |
+| Audit | `npm run audit:coverage/perf/memory` | 5 | 411 actions validated |
 | Contract | `npm run test:fast` (included) | 41 | Schema guarantees |
 | Handler | `npm run test:fast` (included) | 73 | Tool business logic |
 | Services | `npm run test:services` | 81 | Cache, circuit breaker, etc. |
