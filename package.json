@@ -148,7 +148,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.74.0",
     "@opentelemetry/exporter-prometheus": "^0.216.0",
     "@opentelemetry/sdk-metrics": "^2.6.0",
-    "@opentelemetry/sdk-node": "^0.216.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/sdk-trace-node": "^2.6.0",
     "@serval/core": "workspace:*",
     "@serval/mcp-client": "workspace:*",
