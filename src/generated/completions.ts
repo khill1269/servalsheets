@@ -13,7 +13,7 @@ import { getAvailableToolActions, getAvailableToolNames } from '../mcp/tool-regi
 
 /**
  * Action names for each tool (for autocompletion)
- * Total: 410 actions across 25 tools
+ * Total: 411 actions across 25 tools
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
@@ -428,6 +428,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'schedule_list',
     'schedule_cancel',
     'schedule_run_now',
+    'search_tools',
     'execute_pipeline',
   ],
   sheets_templates: [
