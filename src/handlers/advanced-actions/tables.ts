@@ -27,6 +27,59 @@ interface Schema$Table {
   columnProperties?: Schema$TableColumnProperties[];
 }
 
+// Extended spreadsheet data shapes for Tables API preview responses
+interface Schema$SheetWithTables {
+  properties?: { sheetId?: number; title?: string };
+  basicFilter?: { range?: sheets_v4.Schema$GridRange };
+  bandedRanges?: Array<{ bandedRangeId?: number; range?: sheets_v4.Schema$GridRange }>;
+  tables?: Schema$Table[];
+}
+
+interface Schema$SpreadsheetWithTables {
+  sheets?: Schema$SheetWithTables[];
+}
+
+// Tables API batchUpdate request types (preview — not yet in googleapis typings)
+interface Schema$AddTableRequest {
+  addTable?: {
+    table?: {
+      range?: sheets_v4.Schema$GridRange;
+      columnProperties?: Schema$TableColumnProperties[];
+      name?: string;
+    };
+  };
+}
+
+interface Schema$DeleteTableRequest {
+  deleteTable?: { tableId?: string };
+}
+
+interface Schema$UpdateTableRequest {
+  updateTable?: {
+    table?: {
+      tableId?: string;
+      range?: sheets_v4.Schema$GridRange;
+      columnProperties?: Schema$TableColumnProperties[];
+    };
+    fields?: string;
+  };
+}
+
+type Schema$TablesRequest =
+  | Schema$AddTableRequest
+  | Schema$DeleteTableRequest
+  | Schema$UpdateTableRequest
+  | sheets_v4.Schema$Request;
+
+// Reply from addTable batchUpdate
+interface Schema$AddTableReply {
+  addTable?: { table?: Schema$Table };
+}
+
+interface Schema$BatchUpdateWithTablesResponse {
+  replies?: Schema$AddTableReply[];
+}
+
 type CreateTableRequest = Extract<SheetsAdvancedInput['request'], { action: 'create_table' }>;
 type DeleteTableRequest = Extract<SheetsAdvancedInput['request'], { action: 'delete_table' }>;
 type ListTablesRequest = Extract<SheetsAdvancedInput['request'], { action: 'list_tables' }>;
@@ -113,11 +166,9 @@ async function validateCreateTablePreconditions(
       'sheets(properties(sheetId,title),basicFilter.range,bandedRanges(bandedRangeId,range),tables(tableId,range))',
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const targetSheet = ((metadata.data as any)?.sheets ?? []).find(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (sheet: any) => sheet.properties?.sheetId === targetRange.sheetId
-  );
+  const targetSheet = (
+    (metadata.data as unknown as Schema$SpreadsheetWithTables)?.sheets ?? []
+  ).find((sheet) => sheet.properties?.sheetId === targetRange.sheetId);
   const targetSheetName = targetSheet?.properties?.title ?? `Sheet ${targetRange.sheetId}`;
   const requestedRangeA1 = formatGridRange(targetRange, targetSheetName);
 
@@ -139,8 +190,7 @@ async function validateCreateTablePreconditions(
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const overlappingBanding = (targetSheet?.bandedRanges ?? []).find((bandedRange: any) =>
+  const overlappingBanding = (targetSheet?.bandedRanges ?? []).find((bandedRange) =>
     rangesOverlap(targetRange, bandedRange.range)
   );
   if (overlappingBanding) {
@@ -244,27 +294,24 @@ export async function handleCreateTableAction(
     }));
   }
 
+  const addTableRequest: Schema$TablesRequest = {
+    addTable: {
+      table: {
+        range: toGridRange(gridRange),
+        columnProperties,
+        ...(req.tableName && { name: req.tableName }),
+      },
+    },
+  };
   const response = await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
-      requests: [
-        {
-          addTable: {
-            table: {
-              range: toGridRange(gridRange),
-              columnProperties,
-              ...(req.tableName && { name: req.tableName }),
-            },
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-      ],
+      requests: [addTableRequest as sheets_v4.Schema$Request],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const table = (response.data as any)?.replies?.[0]?.addTable?.table;
+  const batchReply = response.data as unknown as Schema$BatchUpdateWithTablesResponse;
+  const table = batchReply?.replies?.[0]?.addTable?.table;
 
   return deps.success('create_table', {
     table: table
@@ -297,20 +344,15 @@ export async function handleDeleteTableAction(
     req.safety
   );
 
+  const deleteTableRequest: Schema$TablesRequest = {
+    deleteTable: { tableId: req.tableId },
+  };
   await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
-      requests: [
-        {
-          deleteTable: {
-            tableId: req.tableId,
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-      ],
+      requests: [deleteTableRequest as sheets_v4.Schema$Request],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 
   return deps.success('delete_table', {
     snapshotId: snapshot?.snapshotId,
@@ -328,10 +370,9 @@ export async function handleListTablesAction(
   });
 
   const allItems: NonNullable<AdvancedSuccess['tables']> = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const sheet of (response.data as any)?.sheets ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const table of (sheet as any).tables ?? []) {
+  const listData = response.data as unknown as Schema$SpreadsheetWithTables;
+  for (const sheet of listData?.sheets ?? []) {
+    for (const table of sheet.tables ?? []) {
       const range = table.range;
       const columnCount = table.columnProperties?.length ?? 0;
       const rowCount = range ? (range.endRowIndex ?? 0) - (range.startRowIndex ?? 0) : 0;
@@ -377,16 +418,13 @@ export async function handleUpdateTableAction(
       endColumnIndex: parsed.endCol,
     };
 
-    updates.push({
+    const updateRangeRequest: Schema$TablesRequest = {
       updateTable: {
-        table: {
-          tableId: req.tableId,
-          range: toGridRange(gridRange),
-        },
+        table: { tableId: req.tableId, range: toGridRange(gridRange) },
         fields: 'range',
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    };
+    updates.push(updateRangeRequest as sheets_v4.Schema$Request);
   }
 
   if (updates.length > 0) {
@@ -414,10 +452,9 @@ export async function handleRenameTableColumnAction(
   });
 
   let targetTable: Schema$Table | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const sheet of (response.data as any)?.sheets ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const table of (sheet as any).tables ?? []) {
+  const renameData = response.data as unknown as Schema$SpreadsheetWithTables;
+  for (const sheet of renameData?.sheets ?? []) {
+    for (const table of sheet.tables ?? []) {
       if (table.tableId === req.tableId) {
         targetTable = table;
         break;
@@ -457,24 +494,18 @@ export async function handleRenameTableColumnAction(
     columnName: req.newName,
   };
 
+  const renameRequest: Schema$TablesRequest = {
+    updateTable: {
+      table: { tableId: req.tableId, columnProperties: updatedColumnProperties },
+      fields: 'columnProperties',
+    },
+  };
   await deps.sheetsApi.spreadsheets.batchUpdate({
     spreadsheetId: req.spreadsheetId!,
     requestBody: {
-      requests: [
-        {
-          updateTable: {
-            table: {
-              tableId: req.tableId,
-              columnProperties: updatedColumnProperties,
-            },
-            fields: 'columnProperties',
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-      ],
+      requests: [renameRequest as sheets_v4.Schema$Request],
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 
   return deps.success('rename_table_column', {});
 }
@@ -494,10 +525,9 @@ export async function handleSetTableColumnPropertiesAction(
   });
 
   let targetTable: Schema$Table | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const sheet of (response.data as any)?.sheets ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const table of (sheet as any).tables ?? []) {
+  const setColData = response.data as unknown as Schema$SpreadsheetWithTables;
+  for (const sheet of setColData?.sheets ?? []) {
+    for (const table of sheet.tables ?? []) {
       if (table.tableId === req.tableId) {
         targetTable = table;
         break;
@@ -539,18 +569,13 @@ export async function handleSetTableColumnPropertiesAction(
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const requests: any[] = [
-    {
-      updateTable: {
-        table: {
-          tableId: req.tableId,
-          columnProperties: updatedColumnProperties,
-        },
-        fields: 'columnProperties',
-      },
+  const setColRequest: Schema$TablesRequest = {
+    updateTable: {
+      table: { tableId: req.tableId, columnProperties: updatedColumnProperties },
+      fields: 'columnProperties',
     },
-  ];
+  };
+  const requests: sheets_v4.Schema$Request[] = [setColRequest as sheets_v4.Schema$Request];
 
   // If column type is DROPDOWN, add data validation
   if (req.columnType === 'DROPDOWN') {

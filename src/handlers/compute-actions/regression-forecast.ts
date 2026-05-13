@@ -11,6 +11,8 @@ import {
   fetchRangeData,
   computeRegression,
   computeForecast,
+  type RegressionOptions,
+  type ForecastResult,
 } from '../../services/compute-engine.js';
 import type { SheetsComputeInput, SheetsComputeOutput } from '../../schemas/compute.js';
 import type { ComputeHandlerAccess } from './internal.js';
@@ -246,16 +248,17 @@ export async function handleRegression(
   }
   const data = resolvedData.data;
 
-  const result = computeRegression(data, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    xColumn: req.xColumn as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    yColumn: req.yColumn as any,
-    type: req.type as 'linear' | 'polynomial' | 'exponential' | 'logarithmic' | 'power',
+  // The public RegressionOptions schema uses string column refs; the internal
+  // computeRegression implementation accepts numeric indices OR strings (resolves
+  // them at runtime). Cast through unknown to bridge the type mismatch safely.
+  const regressionOpts: unknown = {
+    xColumn: req.xColumn,
+    yColumn: req.yColumn,
+    type: req.type as RegressionOptions['type'],
     degree: Number(req.degree),
     predict: req.predict ? (Array.isArray(req.predict) ? req.predict : []) : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  };
+  const result = computeRegression(data, regressionOpts as Parameters<typeof computeRegression>[1]);
 
   // Compute residuals statistics from array
   const residualsArray = Array.isArray(result.residuals) ? result.residuals : [];
@@ -355,17 +358,17 @@ export async function handleForecast(
     };
   }
 
-  const result = computeForecast(data, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    dateColumn: resolvedReq.dateColumn as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    valueColumn: resolvedReq.valueColumn as any,
+  // The public ForecastOptions schema uses string column refs; the internal
+  // computeForecast implementation accepts numeric indices OR strings (resolves
+  // them at runtime). Cast through unknown to bridge the type mismatch safely.
+  const forecastOpts: unknown = {
+    dateColumn: resolvedReq.dateColumn,
+    valueColumn: resolvedReq.valueColumn,
     periods: Number(resolvedReq.periods ?? 3),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    method: (resolvedReq.method as any) ?? 'auto',
+    method: resolvedReq.method ?? 'auto',
     seasonality: resolvedReq.seasonality ? Number(resolvedReq.seasonality) : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  };
+  const result = computeForecast(data, forecastOpts as Parameters<typeof computeForecast>[1]);
 
   // Generate AI insight explaining forecast confidence and factors
   let aiInsight: string | undefined;
@@ -387,17 +390,18 @@ export async function handleForecast(
       forecast: Array.isArray(result.forecast)
         ? result.forecast.map((f, i) => ({
             period: String(i + 1),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            value: typeof f === 'number' ? f : ((f as any).value ?? 0),
+            value:
+              typeof f === 'number'
+                ? f
+                : ((f as unknown as { value?: number }).value ?? 0),
           }))
         : [],
       trend: {
         direction: (result.trend?.direction ?? 'stable') as 'increasing' | 'decreasing' | 'stable',
         strength: result.trend?.strength ?? 0,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        seasonalityDetected: (result as any).seasonalityDetected ?? false,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        seasonalPeriod: (result as any).seasonalPeriod,
+        seasonalityDetected:
+          (result as unknown as ForecastResult).trend?.seasonalityDetected ?? false,
+        seasonalPeriod: (result as unknown as ForecastResult).trend?.seasonalPeriod,
       },
       methodUsed: result.methodUsed,
       computationTimeMs: Date.now() - startMs,
