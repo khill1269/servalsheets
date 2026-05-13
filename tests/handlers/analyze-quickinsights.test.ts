@@ -171,6 +171,118 @@ describe('AnalyzeHandler — quick_insights action (S3-A)', () => {
     });
   });
 
+  describe('data type detection', () => {
+    it('should classify columns as number when they contain numeric values', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:B4',
+          values: [
+            ['Revenue', 'Units'],
+            ['100', '10'],
+            ['200', '20'],
+            ['300', '30'],
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B4',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.stats.dataTypes).toEqual(['number', 'number']);
+    });
+
+    it('should classify columns as date when they contain date values', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:B3',
+          values: [
+            ['Date', 'Value'],
+            ['2024-01-01', '100'],
+            ['2024-01-02', '200'],
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B3',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.stats.dataTypes[0]).toBe('date');
+    });
+
+    it('should report emptyRate=0 when all cells are populated', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:A3',
+          values: [['Name'], ['Alice'], ['Bob']],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:A3',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.stats.emptyRate).toBe(0);
+    });
+
+    it('should return empty-sheet response when data is empty', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: { range: 'Sheet1!A1:Z100', values: [] },
+      });
+
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.stats.rowCount).toBe(0);
+      expect(resp.stats.columnCount).toBe(0);
+      expect(resp.insights.length).toBeGreaterThan(0);
+      expect(resp.insights[0]).toContain('empty');
+    });
+  });
+
+  describe('maxInsights limiting', () => {
+    it('should return exactly 0 insights when maxInsights=0', async () => {
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+        maxInsights: 0,
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.insights.length).toBe(0);
+    });
+
+    it('should return at most 1 insight when maxInsights=1', async () => {
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+        maxInsights: 1,
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.insights.length).toBeLessThanOrEqual(1);
+    });
+  });
+
   describe('error cases', () => {
     it('should return success:false when spreadsheet fetch fails', async () => {
       mockApi.spreadsheets.values.get.mockRejectedValueOnce(
@@ -187,6 +299,22 @@ describe('AnalyzeHandler — quick_insights action (S3-A)', () => {
 
       expect(result.response.success).toBe(false);
       expect((result.response as any).error).toBeDefined();
+    });
+
+    it('should return error with code defined for API failures', async () => {
+      mockApi.spreadsheets.values.get.mockRejectedValueOnce(
+        Object.assign(new Error('Quota exceeded'), { code: 429 })
+      );
+
+      const result = await handler.handle({
+        action: 'quick_insights',
+        spreadsheetId: 'test-id',
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      const resp = result.response as any;
+      expect(resp.error).toBeDefined();
+      expect(typeof resp.error.code).toBe('string');
     });
   });
 });

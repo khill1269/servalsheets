@@ -87,4 +87,77 @@ describe('sheets_auth.status capabilities block', () => {
     expect(response.capabilities.elicitation).toBe(response.readiness.elicitation.supported);
     expect(response.capabilities.sampling).toBe(response.readiness.sampling.available);
   });
+
+  it('status returns authenticated=true when google client has tokens', async () => {
+    const handler = new AuthHandler({ googleClient: createMockGoogleClient('service_account', true) });
+    const result = await handler.handle({ action: 'status' } as any);
+
+    expect(result.response.success).toBe(true);
+    const response = result.response as Record<string, unknown>;
+    expect(response.authenticated).toBe(true);
+  });
+
+  it('status returns authenticated=false when oauth client has no valid tokens', async () => {
+    // service_account auth always reports authenticated=true; use oauth to test
+    // the token-validation path where hasTokens=false → authenticated=false.
+    const handler = new AuthHandler({
+      googleClient: createMockGoogleClient('oauth', false),
+    });
+    const result = await handler.handle({ action: 'status' } as any);
+
+    expect(result.response.success).toBe(true);
+    const response = result.response as Record<string, unknown>;
+    expect(response.authenticated).toBe(false);
+  });
+
+  it('status returns authType=service_account for service account client', async () => {
+    const handler = new AuthHandler({
+      googleClient: createMockGoogleClient('service_account', true),
+    });
+    const result = await handler.handle({ action: 'status' } as any);
+
+    expect(result.response.success).toBe(true);
+    const response = result.response as Record<string, unknown>;
+    expect(response.authType).toBe('service_account');
+  });
+
+  it('status returns authType=oauth for oauth client', async () => {
+    const handler = new AuthHandler({
+      googleClient: createMockGoogleClient('oauth', true),
+    });
+    const result = await handler.handle({ action: 'status' } as any);
+
+    expect(result.response.success).toBe(true);
+    const response = result.response as Record<string, unknown>;
+    expect(response.authType).toBe('oauth');
+  });
+
+  it('status includes readiness block with elicitation and sampling fields', async () => {
+    const handler = new AuthHandler({ googleClient: createMockGoogleClient('service_account') });
+    const result = await handler.handle({ action: 'status' } as any);
+
+    const response = result.response as Record<string, any>;
+    expect(response.readiness).toBeDefined();
+    expect(response.readiness.elicitation).toBeDefined();
+    expect(typeof response.readiness.elicitation.supported).toBe('boolean');
+    expect(response.readiness.sampling).toBeDefined();
+    expect(typeof response.readiness.sampling.available).toBe('boolean');
+  });
+
+  it('status action is schema-valid (SheetsAuthOutputSchema round-trip)', async () => {
+    const handler = new AuthHandler({ googleClient: null });
+    const result = await handler.handle({ action: 'status' } as any);
+    const parsed = SheetsAuthOutputSchema.safeParse(result);
+    expect(parsed.success).toBe(true);
+  });
+
+  it('login returns a response (success or structured error) when no OAuth creds', async () => {
+    const handler = new AuthHandler({ googleClient: null });
+    const result = await handler.handle({ action: 'login' } as any);
+
+    // Without valid OAuth credentials configured, login returns a response —
+    // must not throw and must have a success field.
+    expect(result.response).toBeDefined();
+    expect(typeof result.response.success).toBe('boolean');
+  });
 });

@@ -255,6 +255,114 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
     });
   });
 
+  describe('date pattern fill', () => {
+    it('should extend a date series with strategy=date', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:A3',
+          values: [['2024-01-01'], ['2024-01-02'], ['2024-01-03']],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'auto_fill',
+        spreadsheetId: 'test-id',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A5' },
+        strategy: 'date',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.detectedPattern).toBe('date');
+      expect(resp.cellsFilled).toBe(2);
+
+      expect(mockApi.spreadsheets.values.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: { values: [['2024-01-04'], ['2024-01-05']] },
+        })
+      );
+    });
+
+    it('should auto-detect date series with strategy=detect', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:A3',
+          values: [['2024-03-01'], ['2024-03-02'], ['2024-03-03']],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'auto_fill',
+        spreadsheetId: 'test-id',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A4' },
+        strategy: 'detect',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.detectedPattern).toBe('date');
+    });
+  });
+
+  describe('dryRun mode', () => {
+    it('should return preview without writing when safety.dryRun=true', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:A3',
+          values: [['5'], ['10'], ['15']],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'auto_fill',
+        spreadsheetId: 'test-id',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A6' },
+        strategy: 'linear',
+        safety: { dryRun: true },
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.dryRun).toBe(true);
+      expect(resp.cellsFilled).toBe(0);
+      expect(resp.previewCells).toBe(3);
+      expect(resp.detectedPattern).toBe('linear');
+
+      // Should NOT write to the spreadsheet
+      expect(mockApi.spreadsheets.values.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('multi-column fill', () => {
+    it('should fill a multi-column range with repeat strategy', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:B2',
+          values: [
+            ['Jan', '100'],
+            ['Feb', '200'],
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'auto_fill',
+        spreadsheetId: 'test-id',
+        sourceRange: { a1: 'Sheet1!A1:B2' },
+        fillRange: { a1: 'Sheet1!A3:B4' },
+        strategy: 'repeat',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.cellsFilled).toBe(4);
+      expect(resp.detectedPattern).toBe('repeat');
+    });
+  });
+
   describe('error cases', () => {
     it('should return success:false when spreadsheet fetch fails', async () => {
       mockApi.spreadsheets.values.get.mockRejectedValueOnce(
@@ -285,6 +393,52 @@ describe('SheetsDataHandler — auto_fill action (S3-B)', () => {
       } as any);
 
       expect(result.response.success).toBe(false);
+    });
+
+    it('should return success:false when the write API call fails', async () => {
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:A3',
+          values: [['1'], ['2'], ['3']],
+        },
+      });
+      mockApi.spreadsheets.values.update.mockRejectedValueOnce(
+        Object.assign(new Error('Insufficient permissions'), { code: 403 })
+      );
+
+      const result = await handler.handle({
+        action: 'auto_fill',
+        spreadsheetId: 'test-id',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A6' },
+        strategy: 'linear',
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+    });
+
+    it('should fall back to repeat pattern for non-linear mixed text', async () => {
+      // Mixed text values fall back to repeat — should still succeed
+      mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+        data: {
+          range: 'Sheet1!A1:A3',
+          values: [['hello'], ['world'], ['foo']],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'auto_fill',
+        spreadsheetId: 'test-id',
+        sourceRange: { a1: 'Sheet1!A1:A3' },
+        fillRange: { a1: 'Sheet1!A4:A6' },
+        strategy: 'linear',
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      const resp = result.response as any;
+      expect(resp.detectedPattern).toBe('repeat');
+      expect(resp.cellsFilled).toBe(3);
     });
   });
 });

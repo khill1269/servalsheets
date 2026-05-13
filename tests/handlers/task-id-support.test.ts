@@ -11,6 +11,8 @@ import { SheetsAppsScriptHandler } from '../../src/handlers/appsscript.js';
 import { CompositeHandler } from '../../src/handlers/composite.js';
 import { HistoryHandler } from '../../src/handlers/history.js';
 import { FederationHandler } from '../../src/handlers/federation.js';
+import { SessionHandler } from '../../src/handlers/session.js';
+import { ComputeHandler } from '../../src/handlers/compute.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 
 const mockFederationClient = {
@@ -320,5 +322,134 @@ describe('handler task ID cleanup', () => {
     expect(result.response).not.toHaveProperty('taskId');
     expect(taskStore.createTask).not.toHaveBeenCalled();
     expect(taskStore.updateTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('session get_preferences does not emit manual task IDs', async () => {
+    // SessionHandler takes an optional SessionContextManager (no HandlerContext)
+    const handler = new SessionHandler();
+
+    const result = await handler.handle({
+      request: { action: 'get_preferences' },
+    });
+
+    expect(result.response.success).toBe(true);
+    expect(result.response).not.toHaveProperty('taskId');
+  });
+
+  it('compute aggregate does not emit manual task IDs', async () => {
+    const mockSheetsApi = {
+      spreadsheets: {
+        values: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              range: 'Sheet1!A1:B3',
+              values: [
+                ['x', 'y'],
+                ['1', '10'],
+                ['2', '20'],
+              ],
+            },
+          }),
+        },
+      },
+    };
+
+    // ComputeHandler takes sheetsApi as first arg (not HandlerContext)
+    const handler = new ComputeHandler(mockSheetsApi as any);
+
+    const result = await handler.handle({
+      request: {
+        action: 'aggregate',
+        spreadsheetId: 'test-id',
+        range: { a1: 'Sheet1!A1:B3' },
+        functions: ['sum', 'average'],
+      },
+    });
+
+    expect(result.response.success).toBe(true);
+    expect(result.response).not.toHaveProperty('taskId');
+  });
+
+  it('history undo does not emit manual task IDs', async () => {
+    const taskStore = createMockTaskStore();
+    const handler = new HistoryHandler({
+      driveApi: {
+        revisions: {
+          list: vi.fn().mockResolvedValue({
+            data: { revisions: [] },
+          }),
+        },
+      } as any,
+      taskStore: taskStore as unknown as HandlerContext['taskStore'],
+    });
+
+    const result = await handler.handle({
+      request: {
+        action: 'undo',
+        spreadsheetId: 'test-id',
+      },
+    });
+
+    // undo with no revisions may return success:false, but must not have taskId
+    expect(result.response).not.toHaveProperty('taskId');
+    expect(taskStore.createTask).not.toHaveBeenCalled();
+    expect(taskStore.updateTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it('handlers do not call taskStore.storeTaskResult', async () => {
+    const taskStore = createMockTaskStore();
+    const mockSheetsApi = {
+      spreadsheets: {
+        values: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              values: [
+                ['id', 'name'],
+                ['1', 'Alice'],
+              ],
+            },
+          }),
+          update: vi.fn().mockResolvedValue({ data: {} }),
+        },
+        batchUpdate: vi.fn().mockResolvedValue({
+          data: {
+            replies: [{ addSheet: { properties: { sheetId: 999, title: 'BigQuery Results' } } }],
+          },
+        }),
+      },
+    };
+
+    const handler = new SheetsBigQueryHandler(
+      {
+        googleClient: {} as HandlerContext['googleClient'],
+        taskStore: taskStore as unknown as HandlerContext['taskStore'],
+      } as HandlerContext,
+      mockSheetsApi as any,
+      {
+        tabledata: { insertAll: vi.fn().mockResolvedValue({ data: { insertErrors: [] } }) },
+        jobs: {
+          query: vi.fn().mockResolvedValue({
+            data: {
+              rows: [{ f: [{ v: '1' }, { v: 'Alice' }] }],
+              schema: { fields: [{ name: 'id', type: 'INTEGER' }, { name: 'name', type: 'STRING' }] },
+              totalRows: '1',
+              jobComplete: true,
+            },
+          }),
+        },
+      } as any
+    );
+
+    await handler.handle({
+      request: {
+        action: 'export_to_bigquery',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B2',
+        destination: { projectId: 'p', datasetId: 'd', tableId: 't' },
+      },
+    });
+
+    expect(taskStore.storeTaskResult).not.toHaveBeenCalled();
+    expect(taskStore.createTask).not.toHaveBeenCalled();
   });
 });

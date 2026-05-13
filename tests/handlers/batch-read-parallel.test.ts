@@ -144,4 +144,115 @@ describe('ParallelExecutor - Batch Read Integration', () => {
     expect(stats.totalSucceeded).toBeGreaterThanOrEqual(5);
     expect(stats.totalFailed).toBe(0);
   });
+
+  it('should execute a single task and return one result', async () => {
+    const tasks: ParallelTask<string>[] = [
+      {
+        id: 'single-task',
+        fn: async () => 'single-result',
+      },
+    ];
+
+    const results = await executor.executeAll(tasks);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.success).toBe(true);
+    expect(results[0]?.result).toBe('single-result');
+    expect(results[0]?.id).toBe('single-task');
+  });
+
+  it('should reset statistics after resetStats()', async () => {
+    const tasks: ParallelTask<number>[] = Array.from({ length: 3 }, (_, i) => ({
+      id: `reset-task-${i}`,
+      fn: async () => i,
+    }));
+
+    await executor.executeAll(tasks);
+    expect(executor.getStats().totalExecuted).toBeGreaterThan(0);
+
+    executor.resetStats();
+    const stats = executor.getStats();
+    expect(stats.totalExecuted).toBe(0);
+    expect(stats.totalSucceeded).toBe(0);
+    expect(stats.totalFailed).toBe(0);
+  });
+
+  it('should report correct failed count when tasks fail without retry', async () => {
+    const noRetryExecutor = new ParallelExecutor({
+      concurrency: 3,
+      retryOnError: false,
+      maxRetries: 0,
+      retryDelayMs: 0,
+      verboseLogging: false,
+    });
+
+    const tasks: ParallelTask<string>[] = [
+      { id: 'ok-1', fn: async () => 'good' },
+      { id: 'fail-1', fn: async () => { throw new Error('boom'); } },
+      { id: 'fail-2', fn: async () => { throw new Error('boom2'); } },
+    ];
+
+    const results = await noRetryExecutor.executeAll(tasks);
+
+    expect(results).toHaveLength(3);
+    const successResults = results.filter((r: ParallelResult<string>) => r.success);
+    const failResults = results.filter((r: ParallelResult<string>) => !r.success);
+    expect(successResults).toHaveLength(1);
+    expect(failResults).toHaveLength(2);
+
+    const stats = noRetryExecutor.getStats();
+    expect(stats.totalFailed).toBe(2);
+    expect(stats.totalSucceeded).toBe(1);
+  });
+
+  it('should respect per-task timeout and mark timed-out task as failed', async () => {
+    const tasks: ParallelTask<string>[] = [
+      {
+        id: 'fast-task',
+        fn: async () => 'done',
+      },
+      {
+        id: 'slow-task',
+        timeout: 50, // 50ms timeout
+        fn: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          return 'too-late';
+        },
+      },
+    ];
+
+    const results = await executor.executeAll(tasks);
+
+    const fastResult = results.find((r: ParallelResult<string>) => r.id === 'fast-task');
+    const slowResult = results.find((r: ParallelResult<string>) => r.id === 'slow-task');
+
+    expect(fastResult?.success).toBe(true);
+    expect(fastResult?.result).toBe('done');
+    expect(slowResult?.success).toBe(false);
+    expect(slowResult?.error?.message).toContain('timeout');
+  }, 10000);
+
+  it('should handle tasks that return falsy values (0, false, empty string)', async () => {
+    const tasks: ParallelTask<number | boolean | string>[] = [
+      { id: 'zero', fn: async () => 0 },
+      { id: 'false', fn: async () => false as boolean },
+      { id: 'empty', fn: async () => '' as string },
+    ];
+
+    const results = await executor.executeAll(tasks);
+
+    expect(results).toHaveLength(3);
+    for (const r of results) {
+      expect((r as ParallelResult<number | boolean | string>).success).toBe(true);
+    }
+
+    const zeroResult = results.find((r) => r.id === 'zero');
+    expect(zeroResult?.result).toBe(0);
+
+    const falseResult = results.find((r) => r.id === 'false');
+    expect(falseResult?.result).toBe(false);
+
+    const emptyResult = results.find((r) => r.id === 'empty');
+    expect(emptyResult?.result).toBe('');
+  });
 });
