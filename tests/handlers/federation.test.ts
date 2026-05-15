@@ -109,8 +109,32 @@ describe('FederationHandler', () => {
       expect(mockFederationClient.callRemoteTool).toHaveBeenCalledWith(
         'test-server',
         'get_weather',
-        { location: 'SF' }
+        { location: 'SF' },
+        { signal: undefined } // no request context outside dispatcher; signal is undefined
       );
+    });
+
+    it('should forward AbortSignal from request context to remote client', async () => {
+      const { createRequestContext, runWithRequestContext } = await import(
+        '../../src/utils/request-context.js'
+      );
+      const controller = new AbortController();
+      mockFederationClient.callRemoteTool.mockResolvedValue({ ok: true });
+
+      const ctx = createRequestContext({ abortSignal: controller.signal });
+      await runWithRequestContext(ctx, () =>
+        handler.handle({
+          request: {
+            action: 'call_remote',
+            serverName: 'test-server',
+            toolName: 'get_weather',
+            toolInput: { location: 'NYC' },
+          },
+        })
+      );
+
+      const lastCall = mockFederationClient.callRemoteTool.mock.calls.at(-1);
+      expect(lastCall?.[3]).toEqual({ signal: controller.signal });
     });
 
     it('should fail when serverName is missing', async () => {

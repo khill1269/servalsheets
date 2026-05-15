@@ -158,7 +158,12 @@ export class FederatedMcpClient {
     return client;
   }
 
-  async callRemoteTool(serverName: string, toolName: string, input: unknown): Promise<unknown> {
+  async callRemoteTool(
+    serverName: string,
+    toolName: string,
+    input: unknown,
+    options?: { signal?: AbortSignal }
+  ): Promise<unknown> {
     const cacheKey = `${serverName}:${toolName}:${JSON.stringify(input)}`;
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() < cached.expiresAt) {
@@ -170,20 +175,28 @@ export class FederatedMcpClient {
       return cached.result;
     }
 
+    if (options?.signal?.aborted) {
+      throw this.dependencies.createServiceError('Remote call cancelled before dispatch', false);
+    }
+
     const result = await this.getCircuitBreaker(serverName).execute(async () => {
       const client = await this.getClientForServer(serverName);
       const config = this.serverConfigs.get(serverName);
       const timeoutMs = config?.timeoutMs ?? this.defaultTimeoutMs;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const mergedSignal = options?.signal
+        ? AbortSignal.any([options.signal, timeoutSignal])
+        : timeoutSignal;
 
       try {
-        const response = await client.callTool({
-          name: toolName,
-          arguments: input as Record<string, unknown>,
-        });
-
-        clearTimeout(timeoutId);
+        const response = await client.callTool(
+          {
+            name: toolName,
+            arguments: input as Record<string, unknown>,
+          },
+          undefined,
+          { signal: mergedSignal }
+        );
 
         this.dependencies.log.info('Remote tool call succeeded', {
           component: 'federated-mcp-client',
@@ -193,9 +206,19 @@ export class FederatedMcpClient {
 
         return response;
       } catch (error) {
-        clearTimeout(timeoutId);
-
-        if ((error as { name?: string }).name === 'AbortError') {
+        const errName = (error as { name?: string }).name;
+        if (errName === 'AbortError' || errName === 'TimeoutError') {
+          if (options?.signal?.aborted) {
+            this.dependencies.log.warn?.('Remote tool call cancelled by client', {
+              component: 'federated-mcp-client',
+              serverName,
+              toolName,
+            });
+            throw this.dependencies.createServiceError(
+              'Remote call cancelled by client (notifications/cancelled)',
+              false
+            );
+          }
           this.dependencies.log.error('Remote tool call timed out', {
             component: 'federated-mcp-client',
             serverName,

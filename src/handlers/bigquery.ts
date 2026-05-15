@@ -60,6 +60,7 @@ import type {
   MutationSummary,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+import { getRequestAbortSignal } from '../utils/request-context.js';
 import type {
   BigQueryHandlerAccess,
   QueryJobParams,
@@ -383,7 +384,24 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const INITIAL_POLL_MS = 1000;
     const MAX_POLL_MS = 10000;
 
+    const requestAbortSignal = getRequestAbortSignal() ?? this.context.abortSignal;
     for (let attempt = 0; ; attempt++) {
+      if (requestAbortSignal?.aborted) {
+        // Best-effort: cancel the running BigQuery job; ignore failures.
+        bigquery.jobs
+          .cancel({ projectId: params.projectId, jobId, location: params.location })
+          .catch((err: unknown) => {
+            logger.debug('Failed to cancel BigQuery job after abort', {
+              jobId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        throw new ServiceError(
+          `BigQuery query cancelled by client (notifications/cancelled). Job ID: ${jobId}`,
+          'OPERATION_CANCELLED',
+          'bigquery'
+        );
+      }
       if (Date.now() > deadlineMs) {
         throw new ServiceError(
           `BigQuery query exceeded timeout of ${params.timeoutMs ?? 600000}ms. Job ID: ${jobId} - check BigQuery console for status.`,

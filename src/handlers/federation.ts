@@ -19,7 +19,7 @@ import { ValidationError } from '../core/errors.js';
 import { getFederationConfig } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { parseFederationServers } from '../config/federation-config.js';
-import { sendProgress } from '../utils/request-context.js';
+import { sendProgress, getRequestAbortSignal } from '../utils/request-context.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
@@ -223,9 +223,12 @@ export class FederationHandler {
 
     await sendProgress(0, 100, `Connecting to remote server: ${serverName}...`);
 
-    // 16-S3: Wrap remote call with circuit breaker
+    // 16-S3: Wrap remote call with circuit breaker; forward client cancellation (notifications/cancelled)
+    const abortSignal = getRequestAbortSignal();
     const result = await this.circuitBreaker.execute(async () => {
-      return await client.callRemoteTool(serverName, toolName, toolInput || {});
+      return await client.callRemoteTool(serverName, toolName, toolInput || {}, {
+        signal: abortSignal,
+      });
     });
 
     await sendProgress(100, 100, 'Remote call complete');
