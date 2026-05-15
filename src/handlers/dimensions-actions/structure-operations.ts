@@ -169,8 +169,7 @@ export async function handleDelete(
 
   // Trigger background quality analysis after destructive operation
   const analysisConfig = getBackgroundAnalysisConfig();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (analysisConfig.enabled && count >= (analysisConfig as any).minCells) {
+  if (analysisConfig.enabled && count >= analysisConfig.minCells) {
     const analyzer = getBackgroundAnalyzer();
     // Estimate affected cells (conservative: rows * 26 columns OR columns * 1000 rows)
     const estimatedCells = isRows ? count * 26 : count * 1000;
@@ -181,10 +180,8 @@ export async function handleDelete(
       ha.sheetsApi,
       {
         qualityThreshold: 70,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        minCellsChanged: (analysisConfig as any).minCells,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        debounceMs: (analysisConfig as any).debounceMs,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
       }
     );
   }

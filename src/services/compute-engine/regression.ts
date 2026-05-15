@@ -27,9 +27,9 @@ export class RegressionService {
 // Standalone function (used by compute handler via index.ts re-export)
 // ============================================================================
 
-interface RegressionOptions {
-  xColumn?: number;
-  yColumn?: number;
+export interface RegressionOptions {
+  xColumn?: number | string;
+  yColumn?: number | string;
   type?: string;
   degree?: number;
   predict?: number[];
@@ -43,9 +43,37 @@ interface RegressionResult {
   residuals?: number[];
 }
 
+function resolveColumnIndex(
+  col: number | string | undefined,
+  header: unknown[] | undefined,
+  fallback: number
+): number {
+  if (typeof col === 'number' && Number.isInteger(col) && col >= 0) return col;
+  if (typeof col === 'string' && col.length > 0) {
+    if (/^\d+$/.test(col)) return Number(col);
+    // Column letter (A..ZZ)
+    if (/^[A-Za-z]+$/.test(col)) {
+      let idx = 0;
+      const upper = col.toUpperCase();
+      for (let i = 0; i < upper.length; i++) {
+        idx = idx * 26 + (upper.charCodeAt(i) - 64);
+      }
+      return idx - 1;
+    }
+    // Header name match
+    if (header) {
+      const found = header.findIndex(
+        (h) => typeof h === 'string' && h.toLowerCase() === col.toLowerCase()
+      );
+      if (found >= 0) return found;
+    }
+  }
+  return fallback;
+}
+
 export function computeRegression(data: unknown[][], options: RegressionOptions): RegressionResult {
-  const xCol = options.xColumn ?? 0;
-  const yCol = options.yColumn ?? 1;
+  const xCol = resolveColumnIndex(options.xColumn, data[0], 0);
+  const yCol = resolveColumnIndex(options.yColumn, data[0], 1);
 
   // Extract numeric x/y values from data (skip header row)
   const x: number[] = [];

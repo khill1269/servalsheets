@@ -435,8 +435,15 @@ export function getDistributedCacheConfig(): { enabled: boolean } {
   return { enabled: false };
 }
 
-export function getBackgroundAnalysisConfig(): { enabled: boolean; intervalMs: number } {
-  return { enabled: true, intervalMs: 60000 };
+export interface BackgroundAnalysisConfig {
+  enabled: boolean;
+  intervalMs: number;
+  minCells: number;
+  debounceMs: number;
+}
+
+export function getBackgroundAnalysisConfig(): BackgroundAnalysisConfig {
+  return { enabled: true, intervalMs: 60000, minCells: 100, debounceMs: 2000 };
 }
 
 export function getFederationConfig(): { enabled: boolean } {

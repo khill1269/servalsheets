@@ -156,10 +156,14 @@ export function responseRedactionMiddleware() {
             return originalJson(JSON.parse(output));
           }
         } catch (err) {
-          // If redaction fails, send original (safety: don't block responses)
-          logger.warn('Response redaction failed, sending original', {
+          // Fail closed: do NOT leak unredacted response on serialization failure
+          logger.error('Response redaction failed — returning 500', {
             error: err instanceof Error ? err.message : String(err),
+            path: _req.path,
+            method: _req.method,
           });
+          res.status(500);
+          return originalJson({ error: 'Internal Server Error', code: 'REDACTION_FAILED' });
         }
       }
 

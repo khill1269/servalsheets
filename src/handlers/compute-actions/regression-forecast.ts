@@ -247,15 +247,12 @@ export async function handleRegression(
   const data = resolvedData.data;
 
   const result = computeRegression(data, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    xColumn: req.xColumn as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    yColumn: req.yColumn as any,
-    type: req.type as 'linear' | 'polynomial' | 'exponential' | 'logarithmic' | 'power',
+    xColumn: req.xColumn,
+    yColumn: req.yColumn,
+    type: req.type,
     degree: Number(req.degree),
     predict: req.predict ? (Array.isArray(req.predict) ? req.predict : []) : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 
   // Compute residuals statistics from array
   const residualsArray = Array.isArray(result.residuals) ? result.residuals : [];
@@ -356,16 +353,12 @@ export async function handleForecast(
   }
 
   const result = computeForecast(data, {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    dateColumn: resolvedReq.dateColumn as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    valueColumn: resolvedReq.valueColumn as any,
+    dateColumn: resolvedReq.dateColumn,
+    valueColumn: resolvedReq.valueColumn,
     periods: Number(resolvedReq.periods ?? 3),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    method: (resolvedReq.method as any) ?? 'auto',
+    method: resolvedReq.method ?? 'auto',
     seasonality: resolvedReq.seasonality ? Number(resolvedReq.seasonality) : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any);
+  });
 
   // Generate AI insight explaining forecast confidence and factors
   let aiInsight: string | undefined;
@@ -387,17 +380,14 @@ export async function handleForecast(
       forecast: Array.isArray(result.forecast)
         ? result.forecast.map((f, i) => ({
             period: String(i + 1),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            value: typeof f === 'number' ? f : ((f as any).value ?? 0),
+            value: f,
           }))
         : [],
       trend: {
         direction: (result.trend?.direction ?? 'stable') as 'increasing' | 'decreasing' | 'stable',
         strength: result.trend?.strength ?? 0,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        seasonalityDetected: (result as any).seasonalityDetected ?? false,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        seasonalPeriod: (result as any).seasonalPeriod,
+        seasonalityDetected: result.seasonalityDetected ?? false,
+        seasonalPeriod: result.seasonalPeriod,
       },
       methodUsed: result.methodUsed,
       computationTimeMs: Date.now() - startMs,

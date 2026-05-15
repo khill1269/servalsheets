@@ -13,7 +13,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../../utils/logger.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
-import { sendProgress } from '../../utils/request-context.js';
+import { sendProgress, getRequestAbortSignal } from '../../utils/request-context.js';
 import type { ErrorDetail } from '../../schemas/shared.js';
 import type {
   ExecutionStep,
@@ -35,6 +35,7 @@ import {
 import { confirmDestructiveAction, type ElicitationServer } from '../../mcp/elicitation.js';
 import { planStore, persistPlanState } from './plan-store.js';
 import { createCheckpoint } from './checkpoints.js';
+import { getCacheInvalidationGraph } from '../cache-invalidation-graph.js';
 
 // ============================================================================
 // Destructive action registry — triggers mid-execution elicitation
@@ -808,10 +809,55 @@ async function runStepWithGuards(
   }
 
   try {
+    const stepAbortSignal = getRequestAbortSignal();
+    if (stepAbortSignal?.aborted) {
+      return {
+        status: 'pause',
+        errorDetail: {
+          code: 'OPERATION_CANCELLED',
+          message: 'Step cancelled before execution (notifications/cancelled)',
+          retryable: false,
+        },
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          error: 'Cancelled by client before execution',
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
     const result =
       step.type === 'inject_cross_sheet_lookup' || step.action === 'inject_cross_sheet_lookup'
         ? await executeInjectCrossSheetLookup(step, plan, executeHandler)
         : await executeHandler(step.tool, step.action, validation.params);
+
+    // If client cancelled while step was in-flight, treat post-hoc as paused so
+    // downstream steps don't run. The step's actual mutations may have partially
+    // committed; follow-up will wire TransactionManager per-step for rollback.
+    if (stepAbortSignal?.aborted) {
+      logger.warn('Step completed after client cancellation; downstream steps suppressed', {
+        planId: plan.planId,
+        stepId: step.stepId,
+      });
+      return {
+        status: 'pause',
+        errorDetail: {
+          code: 'OPERATION_CANCELLED',
+          message: 'Cancelled by client (notifications/cancelled) — step result may be partial',
+          retryable: false,
+        },
+        stepResult: {
+          stepId: step.stepId,
+          success: false,
+          result,
+          error: 'Cancelled mid-step',
+          startedAt,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
 
     const validationIssue = validateStepResult(result, step);
     if (validationIssue) {
@@ -1027,7 +1073,37 @@ export async function executePlan(
   plan.status = 'executing';
   plan.updatedAt = now;
 
+  const abortSignal = getRequestAbortSignal();
   for (let i = plan.currentStepIndex; i < plan.steps.length; i++) {
+    if (abortSignal?.aborted) {
+      plan.status = 'paused';
+      plan.error = `Plan execution cancelled by client (notifications/cancelled) at step ${i}/${plan.steps.length}`;
+      plan.errorDetail = {
+        code: 'OPERATION_CANCELLED',
+        message: plan.error,
+        retryable: false,
+      };
+
+      // Compute cache invalidation scope for the partially executed plan so
+      // downstream consumers (caches, LLM session, observability) know what
+      // data may be stale after a mid-plan abort.
+      const cacheGraph = getCacheInvalidationGraph();
+      const staleStep = plan.steps[i];
+      const invalidationPatterns = staleStep
+        ? cacheGraph.getInvalidationKeys(staleStep.tool, staleStep.action)
+        : [];
+
+      logger.info('Plan execution cancelled by client abort signal', {
+        planId,
+        stepIndex: i,
+        totalSteps: plan.steps.length,
+        completedSteps: plan.results?.length ?? 0,
+        ...(staleStep && { abortedAt: `${staleStep.tool}.${staleStep.action}` }),
+        invalidationPatterns,
+      });
+      persistPlanState(plan);
+      return plan;
+    }
     const step = plan.steps[i];
     if (!step) continue; // Safety: skip if step is undefined
     const outcome = await runStepWithGuards(

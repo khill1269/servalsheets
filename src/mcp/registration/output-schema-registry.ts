@@ -8,8 +8,11 @@
  * Lazily loaded to avoid circular dependencies with schema modules.
  */
 
+import { createRequire } from 'node:module';
 import type { ZodType } from 'zod';
 import { logger } from '../../utils/logger.js';
+
+const require = createRequire(import.meta.url);
 
 let _registry: Map<string, ZodType | null> | null = null;
 

@@ -248,10 +248,15 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     return this.resolveRange(spreadsheetId, range as Parameters<typeof this.resolveRange>[1]);
   }
 
-  public _a1ToGridRange(spreadsheetId: string, a1: string): Promise<GridRangeInput> {
+  public async _a1ToGridRange(spreadsheetId: string, a1: string): Promise<GridRangeInput> {
     const parsed = parseA1Notation(a1);
-    return this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi).then((sheetId) =>
-      buildGridRangeInput(sheetId, parsed.startRow, parsed.endRow, parsed.startCol, parsed.endCol)
+    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
+    return buildGridRangeInput(
+      sheetId,
+      parsed.startRow,
+      parsed.endRow,
+      parsed.startCol,
+      parsed.endCol
     );
   }
 

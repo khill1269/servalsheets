@@ -32,15 +32,18 @@ export async function handleQuery(
       // dryRun: validate query and return cost estimate without executing
       if (req.dryRun) {
         const dryRunResponse = await ha.withBigQueryCircuitBreaker(() =>
-          bigquery.jobs.query({
-            projectId: req.projectId,
-            requestBody: {
-              query: req.query,
-              useLegacySql: false,
-              dryRun: true,
-              location: req.location,
+          bigquery.jobs.query(
+            {
+              projectId: req.projectId,
+              requestBody: {
+                query: req.query,
+                useLegacySql: false,
+                dryRun: true,
+                location: req.location,
+              },
             },
-          })
+            { signal: ha.context.abortSignal }
+          )
         );
         const estimatedBytes = parseInt(dryRunResponse.data.totalBytesProcessed ?? '0', 10);
         return ha.success('query', {
@@ -179,14 +182,17 @@ export async function handlePreview(
     // Opt-in cost estimation: run dry run first when estimateCost is true
     if (req.estimateCost && !req.dryRun) {
       const dryRunResponse = await ha.withBigQueryCircuitBreaker(() =>
-        bigquery.jobs.query({
-          projectId: req.projectId,
-          requestBody: {
-            query: req.query,
-            useLegacySql: false,
-            dryRun: true,
+        bigquery.jobs.query(
+          {
+            projectId: req.projectId,
+            requestBody: {
+              query: req.query,
+              useLegacySql: false,
+              dryRun: true,
+            },
           },
-        })
+          { signal: ha.context.abortSignal }
+        )
       );
       const estimatedBytes = parseInt(dryRunResponse.data.totalBytesProcessed ?? '0', 10);
       const estimatedGB = estimatedBytes / (1024 * 1024 * 1024);

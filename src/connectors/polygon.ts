@@ -55,7 +55,9 @@ export class PolygonConnector implements SpreadsheetConnector {
   async healthCheck(): Promise<HealthStatus> {
     const start = Date.now();
     try {
-      const resp = await fetch(`${BASE_URL}/v3/reference/tickers?limit=1&apiKey=${this.apiKey}`);
+      const resp = await fetch(`${BASE_URL}/v3/reference/tickers?limit=1`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
       return {
         healthy: resp.ok,
         latencyMs: Date.now() - start,
@@ -267,7 +269,9 @@ export class PolygonConnector implements SpreadsheetConnector {
   async query(endpoint: string, params: QueryParams): Promise<DataResult> {
     this.trackRequest();
     const url = this.buildUrl(endpoint, params);
-    const resp = await fetch(url);
+    const resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
     if (!resp.ok) {
       throw new ServiceError(
         `Polygon API error: HTTP ${resp.status} ${resp.statusText}`,
@@ -318,20 +322,17 @@ export class PolygonConnector implements SpreadsheetConnector {
       const url = new URL(
         `${BASE_URL}/v2/aggs/ticker/${ticker}/range/${mult}/${span}/${from}/${to}`
       );
-      url.searchParams.set('apiKey', this.apiKey!);
       if (params['limit']) url.searchParams.set('limit', String(params['limit']));
       return url.toString();
     }
 
     if (endpoint === 'snapshot/ticker' && ticker) {
       const url = new URL(`${BASE_URL}/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`);
-      url.searchParams.set('apiKey', this.apiKey!);
       return url.toString();
     }
 
     if (endpoint === 'reference/tickers') {
       const url = new URL(`${BASE_URL}/v3/reference/tickers`);
-      url.searchParams.set('apiKey', this.apiKey!);
       for (const [k, v] of Object.entries(params)) {
         if (v !== undefined) url.searchParams.set(k, String(v));
       }
@@ -340,21 +341,18 @@ export class PolygonConnector implements SpreadsheetConnector {
 
     if (endpoint === 'reference/ticker-details' && ticker) {
       const url = new URL(`${BASE_URL}/v3/reference/tickers/${ticker}`);
-      url.searchParams.set('apiKey', this.apiKey!);
       return url.toString();
     }
 
     if (endpoint === 'open-close' && ticker) {
       const date = params['date'] ?? '';
       const url = new URL(`${BASE_URL}/v1/open-close/${ticker}/${date}`);
-      url.searchParams.set('apiKey', this.apiKey!);
       return url.toString();
     }
 
     if (endpoint === 'grouped/daily') {
       const date = params['date'] ?? '';
       const url = new URL(`${BASE_URL}/v2/aggs/grouped/locale/us/market/stocks/${date}`);
-      url.searchParams.set('apiKey', this.apiKey!);
       return url.toString();
     }
 

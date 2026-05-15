@@ -13,6 +13,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { logger } from './logger.js';
 
 // ============================================================================
 // CONSTANTS
@@ -585,7 +586,17 @@ export class ConnectionPool {
     while (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
       const next = this.queue.shift();
       if (next) {
-        this.runOperation(next.operation).then(next.resolve).catch(next.reject);
+        this.runOperation(next.operation)
+          .then(next.resolve)
+          .catch((err) => {
+            if (typeof next.reject === 'function') {
+              next.reject(err);
+            } else {
+              logger.error('Queued operation failed with no rejection handler', {
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          });
       }
     }
   }

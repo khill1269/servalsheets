@@ -40,6 +40,7 @@ import {
 import { getCircuitBreakerConfig, getEnv } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
+import { LRUCache } from 'lru-cache';
 import { getRequestContext } from '../utils/request-context.js';
 import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
@@ -257,10 +258,13 @@ export class GoogleApiClient {
   private httpAgents: { http: HttpAgent; https: HttpsAgent };
   private _authType: GoogleAuthType;
   private tokenManager?: TokenManager;
-  // Existence pre-check cache: spreadsheetId → expiry timestamp (Fix B).
-  // Survives reinitializeApis() calls; invalidated explicitly on 404.
-  private readonly spreadsheetExistenceCache = new Map<string, number>();
+  // Existence pre-check cache: spreadsheetId → true (presence indicates verified existence).
+  // Survives reinitializeApis() calls; invalidated explicitly on 404. Bounded LRU with TTL prevents unbounded growth.
   private static readonly EXISTENCE_TTL_MS = 5 * 60 * 1000;
+  private readonly spreadsheetExistenceCache = new LRUCache<string, true>({
+    max: 1000,
+    ttl: GoogleApiClient.EXISTENCE_TTL_MS,
+  });
   private poolMonitorInterval?: NodeJS.Timeout;
   // Token validation cache to avoid excessive API calls
   private lastValidationResult?: { valid: boolean; error?: string };
@@ -519,13 +523,9 @@ export class GoogleApiClient {
     // Capture raw (pre-wrap) sheetsApi so the existence checker never re-enters the proxy.
     const rawSheetsForExistenceInit = sheetsApi;
     const existenceCheckerInit = async (spreadsheetId: string): Promise<void> => {
-      const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
-      if (expiry !== undefined && Date.now() < expiry) return;
+      if (this.spreadsheetExistenceCache.has(spreadsheetId)) return;
       await rawSheetsForExistenceInit.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' });
-      this.spreadsheetExistenceCache.set(
-        spreadsheetId,
-        Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
-      );
+      this.spreadsheetExistenceCache.set(spreadsheetId, true);
     };
 
     this._sheets = wrapGoogleApi(sheetsApi, {
@@ -654,16 +654,12 @@ export class GoogleApiClient {
     // Rebuild existence checker against the new raw sheetsApi after reinit.
     const rawSheetsForExistenceReinit = sheetsApi;
     const existenceCheckerReinit = async (spreadsheetId: string): Promise<void> => {
-      const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
-      if (expiry !== undefined && Date.now() < expiry) return;
+      if (this.spreadsheetExistenceCache.has(spreadsheetId)) return;
       await rawSheetsForExistenceReinit.spreadsheets.get({
         spreadsheetId,
         fields: 'spreadsheetId',
       });
-      this.spreadsheetExistenceCache.set(
-        spreadsheetId,
-        Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
-      );
+      this.spreadsheetExistenceCache.set(spreadsheetId, true);
     };
 
     this._sheets = wrapGoogleApi(sheetsApi, {

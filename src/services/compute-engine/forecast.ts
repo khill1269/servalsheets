@@ -34,9 +34,9 @@ export class ForecastService {
 // Standalone functions (used by compute handler via index.ts re-export)
 // ============================================================================
 
-interface ForecastOptions {
-  dateColumn?: number;
-  valueColumn?: number;
+export interface ForecastOptions {
+  dateColumn?: number | string;
+  valueColumn?: number | string;
   periods: number;
   method?: string;
   seasonality?: number;
@@ -51,8 +51,34 @@ interface ForecastResult {
   confidence: number;
 }
 
+function resolveColumnIndex(
+  col: number | string | undefined,
+  header: unknown[] | undefined,
+  fallback: number
+): number {
+  if (typeof col === 'number' && Number.isInteger(col) && col >= 0) return col;
+  if (typeof col === 'string' && col.length > 0) {
+    if (/^\d+$/.test(col)) return Number(col);
+    if (/^[A-Za-z]+$/.test(col)) {
+      let idx = 0;
+      const upper = col.toUpperCase();
+      for (let i = 0; i < upper.length; i++) {
+        idx = idx * 26 + (upper.charCodeAt(i) - 64);
+      }
+      return idx - 1;
+    }
+    if (header) {
+      const found = header.findIndex(
+        (h) => typeof h === 'string' && h.toLowerCase() === col.toLowerCase()
+      );
+      if (found >= 0) return found;
+    }
+  }
+  return fallback;
+}
+
 export function computeForecast(data: unknown[][], options: ForecastOptions): ForecastResult {
-  const valCol = options.valueColumn ?? 1;
+  const valCol = resolveColumnIndex(options.valueColumn, data[0], 1);
 
   // Extract numeric values (skip header)
   const values: number[] = [];
