@@ -9,43 +9,43 @@
 - This is intentional for handlers that don't require Google API calls (auth, transaction, history), but creates inconsistency
 - Non-BaseHandler handlers each re-implement: applyVerbosityFilter, error handling, requireAuth patterns
 
-### v1-compat Inversion Bug (confirmed 2026-02-17)
+### v1-compat Inversion Bug (confirmed 2026-02-17, still present 2026-05-13)
 
 - File: `src/versioning/v1-compat.ts:15-17`
 - `ACTION_MAPPINGS_V2_TO_V1` is built by inverting V1_TO_V2, but the map has many-to-one (hide_sheet, show_sheet, rename_sheet all map to update_sheet)
 - Result: only ONE of those v1 actions survives in the inverse map (last-write wins = rename_sheet → update_sheet)
 - `getV1ActionName('update_sheet')` returns `'rename_sheet'` instead of being meaningfully ambiguous
 
-### Retry Logic / 401 Bug (confirmed 2026-02-17)
+### Retry Logic / 401 Bug (RESOLVED as of 2026-05-13)
 
-- File: `src/utils/retry.ts:216`
-- RETRYABLE_STATUS includes 401, and isRetryableError returns true for messages containing 'unauthorized'
-- Test `should NOT retry on 401 unauthorized` times out because the 401+unauthorized error IS retried
-- Test file: `tests/utils/retry.test.ts:191`
+- File: `src/utils/retry.ts:159-175`
+- 401 handling was previously too broad; now it only retries for specific token-expired/revoked messages
+- 401 + generic "access denied" message is correctly NOT retried (returns after 1 attempt)
+- Test `should NOT retry on 401 with non-token error message` at `tests/utils/retry.test.ts:191` — PASSES
+- All 1871 tests pass as of 2026-05-13
 
-### process.env Direct Access in Source (confirmed 2026-02-17)
+### process.env Direct Access in Source (confirmed 2026-02-17, updated 2026-05-13)
 
-- `src/handlers/auth.ts:225-226` — OAUTH_USE_CALLBACK_SERVER, OAUTH_AUTO_OPEN_BROWSER not in env.ts
-- `src/handlers/helpers/validation-helpers.ts:19` — ENABLE_AGGRESSIVE_FIELD_MASKS read directly (but IS in env.ts)
-- `src/utils/retry.ts:25-31` — GOOGLE_API_TIMEOUT_MS, GOOGLE_API_MAX_RETRIES etc. read directly (not in env.ts)
+- `src/handlers/auth-actions/auth-flow.ts:70` — OAUTH_USE_CALLBACK_SERVER read directly
+- `src/handlers/auth-actions/feature-setup.ts:384,460,579-580` — process.env WRITES for runtime config (intentional hot-wiring pattern, not a bug)
+- `src/handlers/analyze.ts:299-300,527-528` — ANALYZE_MAX_ROWS, ANALYZE_MAX_COLS read directly (not in env.ts)
+- `src/handlers/data-actions/read-write.ts:1061,1166` — GOOGLE_API_TIMEOUT_MS read directly (also in retry.ts GOOGLE_SHEETS_RETRY_CONFIG)
+- `src/handlers/analyze-actions/semantic-search.ts:28` — GOOGLE_API_KEY read directly
+- `src/utils/retry.ts:26-46` — GOOGLE_API_MAX_RETRIES etc. read directly (confirmed pattern, low priority)
 
-### ESLint Warnings (confirmed 2026-02-17)
+### ESLint Warnings (confirmed 2026-02-17, status 2026-05-13)
 
-- 61 total warnings (0 errors)
-- ~58 warnings in `src/cli/replay.ts` (console.log acceptable for CLI tool)
-- 1 warning in `src/graphql/server.ts:18` (missing return type)
-- 1 warning in `src/middleware/schema-version.ts:40` (unnecessary eslint-disable)
-- The CLI console.log warnings are explicitly allowed per eslint.config.js:141-145
+- `npm run lint` passes with `--max-warnings 0` (0 errors, 0 warnings presented)
+- CLI console.log warnings handled correctly per eslint.config.js
 
-### Silent Fallback Check Findings
+### Silent Fallback Check
 
-- Most `return undefined` hits are in service/utility files (not handlers) and are legitimate
-- Real problematic ones: `src/utils/action-intelligence.ts:85` returns `{}` without logging
+- `npm run check:silent-fallbacks` — PASSES (no silent fallbacks detected)
 
-### Test Failures (4 failing in test:fast)
+### Test Health (confirmed 2026-05-13)
 
-- `tests/utils/retry.test.ts` — 401 unauthorized retry logic bug (times out)
-- `tests/utils/enhanced-errors-resources.test.ts` — RATE_LIMIT error missing resources field
+- `npm run test:fast` — 1871 passed (84 files), 0 failures
+- All known prior failures (retry 401, enhanced-errors-resources) are resolved
 
 ### Data Schema vs Handler Alignment
 
@@ -58,3 +58,27 @@
 - Container class is implemented but handlers are NOT wired through it
 - Handlers are instantiated directly in tool-handlers.ts via createHandlers()
 - The container exists as infrastructure but has no registrations in production code
+
+### Flat Mode Source Files NOT Removed (found 2026-05-13)
+
+- CLAUDE.md gotcha #19 and commit cbf32ee8 ("docs: update action count to 411, document flat-mode removal (P23)") claim flat mode was REMOVED in P23
+- The commit only updated docs/CLAUDE.md — it did NOT delete any source files
+- These files still exist and are functional: flat-tool-registry.ts (350 lines), flat-tool-routing.ts (115), flat-discover-handler.ts (100), flat-input-schemas.ts (231), flat-tool-call-interceptor.ts (217)
+- `registerFlatToolCallInterceptor` is called in tool-handlers.ts:2155 and build-server-stdio-tool-runtime.ts:261 — it's live code, not dead
+- `getEffectiveToolMode()` in src/config/constants.ts:394 still returns 'flat' when SERVAL_TOOL_MODE=flat
+- RESOLUTION NEEDED: Either (a) actually delete flat-mode files and remove all callers, or (b) update documentation to say "flat mode is discouraged but still available via SERVAL_TOOL_MODE=flat"
+
+### Google API Scout includeGridData Without Ranges (found 2026-05-13)
+
+- File: `src/handlers/analyze-actions/scout.ts:65-73`
+- `spreadsheets.get` with `includeGridData: true` but no `ranges:` parameter
+- Comment says "narrow the range aggressively: one cell per sheet" but the call fetches ALL rows (no ranges= causes API to return all row data)
+- `fields` mask limits payload to formulaValue only, so bandwidth impact is reduced but still fetches all cells
+- Fix: add `ranges: ['A1']` (or sheet-scoped ranges) to constrain API response size for large spreadsheets
+
+### BigQuery SQL Query Schema (note 2026-05-13)
+
+- `src/schemas/bigquery.ts` — query field is `z.string().min(1)` with no length cap
+- Parameterized queries are supported via `queryParameters` field, but not enforced
+- BigQuery's own parsing prevents injection via parameterization; direct injection is a BigQuery-level concern
+- No immediate code change needed, but adding a note in the schema description to prefer parameterized queries would be good practice

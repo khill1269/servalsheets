@@ -2,9 +2,23 @@
 
 **Agent:** servalsheets-research (Haiku model)  
 **Specialty:** Fast pattern analysis, code reading, implementation strategy  
-**Updated:** Session 117 (Ground Truth Registry Research)
+**Updated:** Session 131 (Comprehensive Architecture Audit)
 
-## ⭐ AI INTELLIGENCE LAYER AUDIT (NEW — Session 130)
+## ⭐ COMPREHENSIVE ARCHITECTURE AUDIT (NEW — Session 131)
+
+**See [`comprehensive-architecture-audit-2026-05-13.md`](comprehensive-architecture-audit-2026-05-13.md)** — Complete inventory of handler patterns, error handling, schema alignment, middleware chain, services, config, and code quality.
+
+**Key findings:**
+- **13 BaseHandler subclasses + 12 standalone handlers** (all 25 verified by class declarations)
+- **Error handling:** 0 silent fallbacks, all errors use ErrorCode enum + recovery hints
+- **Action naming:** All 411 actions use consistent verb or verb_noun pattern
+- **Layer enforcement:** .dependency-cruiser.json enforces strict layer violations; 0 circular deps (except 2 allowed: sampling.ts, elicitation.ts)
+- **Middleware stack:** 9 layers (audit, write-lock, mutation-safety, idempotency, rate-limit, rbac, redaction, tenant-isolation, schema-version)
+- **Services:** ~85+ specialized services with clear separation of concerns
+- **Schema-handler alignment:** All 411 actions have discriminated union entries + switch cases (verified via audit test)
+- **Code quality:** 0 TODOs/FIXMEs, complete auto-generation pipeline, 629 test files
+
+## ⭐ AI INTELLIGENCE LAYER AUDIT (Session 130)
 
 **See [`ai-intelligence-layer-audit.md`](ai-intelligence-layer-audit.md)** — Comprehensive audit of response intelligence, session context richness, and AI-optimization for Claude/LLM clients.
 

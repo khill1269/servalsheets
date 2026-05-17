@@ -178,7 +178,7 @@ node tests/manual/runner.js  # (if exists)
 ## Summary
 
 - Tools tested: 25/25 ✅
-- Actions tested: 410/410 ✅
+- Actions tested: 411/411 ✅
 - Unit tests: run `npm run test:fast` for current count
 - Live API tests: X/Y pass (X failures listed below)
 - MCP compliance: PASS ✅

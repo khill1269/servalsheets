@@ -18,6 +18,7 @@ if [ -n "$STAGED_ALL" ]; then
     case "$staged_file" in
       *.png|*.jpg|*.ico|*.woff*|*.ttf|package-lock.json) continue ;;
       .husky/*) continue ;; # skip self-scan (scanner contains its own detection patterns)
+      tests/security/*) continue ;; # redaction tests use fake tokens as test fixtures
     esac
 
     file_content=$(git show ":$staged_file" 2>/dev/null || true)

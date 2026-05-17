@@ -50,7 +50,7 @@ npm run validate:alignment       # Schema-handler alignment (25 tools)
 npm run check:integration-wiring # Mutation action registration
 npm run check:mutation-actions   # MUTATION_ACTION_NAMES consistency
 ```
-Checks: Action count: 410, Tool count: 25 — source: `src/generated/action-counts.ts`
+Checks: Action count: 411, Tool count: 25 — source: `src/generated/action-counts.ts`
 
 **G2: Phase Behavior (~90s)**
 ```bash

@@ -48,7 +48,7 @@ meta:
   staleness_threshold_days: 90
   servalsheets_reference:
     tools: 25
-    actions: 410
+    actions: 411
     protocol: "MCP 2025-11-25"
 
 products:
