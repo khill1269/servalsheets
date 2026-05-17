@@ -357,6 +357,7 @@ function composeMcpServerCard(
   }
 
   return {
+    $schema: 'https://modelcontextprotocol.io/schemas/mcp-server-card.json',
     mcp_version: SERVER_INFO.protocolVersion,
     server_name: SERVER_INFO.name,
     server_version: VERSION,

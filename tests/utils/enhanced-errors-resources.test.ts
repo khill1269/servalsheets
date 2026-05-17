@@ -61,8 +61,8 @@ describe('Enhanced Errors - Quick Win #2: Resource Linking', () => {
     expect(error.resources![1].description).toContain('reduce API calls');
   });
 
-  it('should include resource link for RATE_LIMIT', () => {
-    const error = enhanceError('RATE_LIMIT', 'Rate limit exceeded');
+  it('should include resource link for RATE_LIMITED', () => {
+    const error = enhanceError('RATE_LIMITED', 'Rate limit exceeded');
 
     expect(error.resources).toBeDefined();
     expect(error.resources).toHaveLength(1);

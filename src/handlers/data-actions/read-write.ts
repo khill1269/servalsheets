@@ -13,6 +13,7 @@ import { getBackgroundAnalyzer } from '../../services/background-analyzer.js';
 import { getRequestLogger } from '../../utils/request-context.js';
 import {
   calculateAffectedCells,
+  createSnapshotIfNeeded,
   getConfirmationDecision,
   requestSafetyConfirmation,
 } from '../../utils/safety-helpers.js';
@@ -343,6 +344,18 @@ export async function handleWrite(
     return payloadTooLargeError(ha, 'write', payloadValidation);
   }
   const cellCount = input.values.reduce((sum: number, row: unknown[]) => sum + row.length, 0);
+
+  if (input.safety?.autoSnapshot) {
+    await createSnapshotIfNeeded(
+      ha.context.snapshotService,
+      {
+        operationType: 'write',
+        isDestructive: false,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+  }
 
   if (input.dataFilter) {
     if (input.safety?.dryRun) {

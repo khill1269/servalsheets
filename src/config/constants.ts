@@ -357,14 +357,8 @@ export const STAGED_REGISTRATION = process.env['SERVAL_STAGED_REGISTRATION'] !==
  *   Only use flat mode with clients that natively support tool deferral.
  *
  * - 'auto' (default): Detects transport/runtime context.
- *   - MCP_TRANSPORT=stdio → 'bundled' (Claude Desktop: all flat tools load)
- *   - MCP_TRANSPORT=http and other explicit non-stdio transports → 'bundled'
- *   - Direct HTTP entry points (`--http`, `http-server.js`) → 'bundled'
- *   - Unattached/in-memory server instances default to 'bundled'
- *   - Override: SERVAL_TOOL_MODE=flat|bundled always takes precedence
- *
- * @see src/mcp/registration/flat-tool-registry.ts
- * @see src/mcp/registration/flat-tool-routing.ts
+ *   - All transports default to 'bundled' (flat mode removed in P23)
+ *   - Override: SERVAL_TOOL_MODE env var is no longer recognized
  */
 export type ToolMode = 'flat' | 'bundled' | 'auto';
 
@@ -430,6 +424,7 @@ export const STAGE_3_TOOLS = [
   'sheets_dependencies',
   'sheets_federation',
   'sheets_compute',
+  'sheets_connectors',
   'sheets_agent',
 ] as const;
 

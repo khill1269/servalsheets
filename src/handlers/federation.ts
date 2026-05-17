@@ -19,7 +19,7 @@ import { ValidationError } from '../core/errors.js';
 import { getFederationConfig } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { parseFederationServers } from '../config/federation-config.js';
-import { sendProgress } from '../utils/request-context.js';
+import { getRequestAbortSignal, sendProgress } from '../utils/request-context.js';
 import { mapStandaloneError } from './helpers/error-mapping.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
@@ -135,9 +135,7 @@ export class FederationHandler {
       };
     }
 
-    // Parse server configurations
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const servers = parseFederationServers((config as any).serversJson);
+    const servers = parseFederationServers(process.env['MCP_FEDERATION_SERVERS']);
     if (servers.length === 0 && action !== 'list_servers') {
       const federationError = buildFederationError(
         new ValidationError(
@@ -219,6 +217,17 @@ export class FederationHandler {
 
     if (!toolName) {
       throw new ValidationError('Missing required parameter: toolName', 'federation');
+    }
+
+    const abortSignal = getRequestAbortSignal();
+    if (abortSignal?.aborted) {
+      return {
+        response: {
+          success: false,
+          action: 'call_remote',
+          error: 'Federation call cancelled by client',
+        },
+      };
     }
 
     logger.info('Calling remote MCP tool', {

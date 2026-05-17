@@ -8,8 +8,7 @@
  *
  * Scope:
  *   - Keyed by `{toolName}.{oldAction}` to avoid collisions across tools.
- *   - Only action renames — NOT tool renames (those are handled in
- *     src/mcp/registration/flat-tool-call-interceptor.ts).
+ *   - Only action renames — NOT tool renames.
  *
  * Adding an alias:
  *   1. Add an entry below with `deprecatedSince` (semver of the rename PR).
@@ -62,9 +61,6 @@ export const ACTION_ALIASES: Readonly<Record<string, ActionAlias>> = Object.free
   },
 
   // NOTE: `sheets_connectors.list_connectors` is CANONICAL (not an alias).
-  // The flat form `sheets_connectors_list_connectors` is handled by the
-  // flat-tool interceptor (`src/mcp/registration/flat-tool-call-interceptor.ts`);
-  // no action rewrite is required here.
 });
 
 /**

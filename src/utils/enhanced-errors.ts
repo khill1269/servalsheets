@@ -632,7 +632,7 @@ function getErrorResources(code: string): Array<{ uri: string; description: stri
         description: 'How to reduce API calls',
       },
     ],
-    RATE_LIMIT: [
+    RATE_LIMITED: [
       {
         uri: 'servalsheets://reference/rate-limiting',
         description: 'Rate limit policies and quota limits',

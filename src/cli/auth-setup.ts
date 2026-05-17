@@ -203,7 +203,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 /**
  * Start temporary HTTP server to receive OAuth callback
  */
-async function startCallbackServer(port: number): Promise<string> {
+async function startCallbackServer(port: number, expectedState: string): Promise<string> {
   // Load branded HTML templates first
   const successHtml = await fsPromises.readFile(path.join(__dirname, 'auth-success.html'), 'utf-8');
   const errorHtmlTemplate = await fsPromises.readFile(
@@ -217,8 +217,14 @@ async function startCallbackServer(port: number): Promise<string> {
         const url = new URL(req.url, `http://localhost:${port}`);
         const code = url.searchParams.get('code');
         const error = url.searchParams.get('error');
+        const state = url.searchParams.get('state');
 
-        if (error) {
+        if (!state || state !== expectedState) {
+          res.writeHead(403, { 'Content-Type': 'text/html' });
+          res.end('<html><body><h1>CSRF validation failed</h1><p>State parameter mismatch. Please restart authentication.</p></body></html>');
+          server.close();
+          reject(new Error('CSRF validation failed: OAuth state parameter mismatch'));
+        } else if (error) {
           res.writeHead(400, { 'Content-Type': 'text/html' });
           // Inject error message into template via query parameter (handled by client-side JS)
           const errorHtml = errorHtmlTemplate.replace(
@@ -472,12 +478,16 @@ async function main(): Promise<void> {
     });
     console.log('');
 
+    // Generate CSRF nonce for OAuth state parameter
+    const oauthState = randomBytes(16).toString('hex');
+
     // Generate authorization URL with full scopes upfront
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent',
       include_granted_scopes: true,
+      state: oauthState,
     });
 
     console.log('Opening browser for Google authentication...');
@@ -499,7 +509,7 @@ async function main(): Promise<void> {
 
     // Start callback server and wait for authorization
     const port = new URL(redirectUri).port || '3000';
-    const authCode = await startCallbackServer(parseInt(port, 10));
+    const authCode = await startCallbackServer(parseInt(port, 10), oauthState);
 
     console.log(`${colors.green}✓ Authorization code received${colors.reset}`);
     console.log('');

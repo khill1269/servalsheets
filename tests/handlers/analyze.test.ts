@@ -860,7 +860,7 @@ describe('AnalyzeHandler', () => {
         1,
         expect.objectContaining({
           spreadsheetId: 'test-id',
-          fields: 'sheets(properties(title))',
+          fields: 'sheets(properties(title,gridProperties(rowCount,columnCount)))',
         })
       );
       expect(mockApi.spreadsheets.get).toHaveBeenNthCalledWith(

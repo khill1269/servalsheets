@@ -374,8 +374,7 @@ export async function handleClearSheetAction(
   };
 
   if (resetSheet) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const targetTables = (targetSheet as any).tables ?? [];
+    const targetTables = targetSheet.tables ?? [];
     for (const table of targetTables) {
       if (table.tableId) {
         requests.push({
@@ -387,8 +386,7 @@ export async function handleClearSheetAction(
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const targetFilterViews = (targetSheet as any).filterViews ?? [];
+    const targetFilterViews = targetSheet.filterViews ?? [];
     for (const filterView of targetFilterViews) {
       if (filterView.filterViewId !== undefined && filterView.filterViewId !== null) {
         requests.push({

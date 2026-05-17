@@ -300,8 +300,8 @@ const ChartCreateActionSchema = CommonFieldsSchema.extend({
     ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where chart will be placed'),
-  chartType: ChartTypeSchema.describe(
-    'Chart type. BAR=horizontal bars, COLUMN=vertical bars. PIE, LINE, SCATTER, AREA, COMBO also available.'
+  chartType: ChartTypeSchema.optional().describe(
+    'Chart type. BAR=horizontal bars, COLUMN=vertical bars. PIE, LINE, SCATTER, AREA, COMBO also available. Omit to trigger elicitation wizard.'
   ),
   data: ChartDataSchema.describe(
     'Chart data source. NOTE: BAR charts only support BOTTOM_AXIS (horizontal bars). Use COLUMN for vertical bars.'

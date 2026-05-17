@@ -264,6 +264,25 @@ export const EnvSchema = z
     MCP_REMOTE_EXECUTOR_TOOLS: z.string().optional(),
     MCP_REMOTE_EXECUTOR_AUTH_TYPE: z.string().optional(),
     MCP_REMOTE_EXECUTOR_AUTH_TOKEN: z.string().optional(),
+
+    // Feature flags used in source but previously unvalidated
+    ENABLE_RESPONSE_REDACTION: StrictBooleanSchema.default(true),
+    ENABLE_EXPERIMENTAL_BACKENDS: StrictBooleanSchema.default(false),
+    ENABLE_HEAP_MONITORING: StrictBooleanSchema.default(false),
+    ENABLE_HEAP_SNAPSHOTS: StrictBooleanSchema.default(false),
+    ENABLE_HTTP2_POOL_MONITORING: StrictBooleanSchema.default(false),
+    ENABLE_PROGRESS_NOTIFICATIONS: StrictBooleanSchema.default(true),
+    ENABLE_SAMPLING_CONSENT: StrictBooleanSchema.default(false),
+    ENABLE_STDIO_RESTART_BACKOFF: StrictBooleanSchema.default(true),
+    ENABLE_TENANT_ISOLATION: StrictBooleanSchema.default(false),
+
+    // Prefetch tuning parameters
+    PREFETCH_ENABLED: StrictBooleanSchema.default(true),
+    PREFETCH_VERBOSE: StrictBooleanSchema.default(false),
+    PREFETCH_BACKGROUND_REFRESH: StrictBooleanSchema.default(true),
+    PREFETCH_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
+    PREFETCH_MAX_HISTORY: z.coerce.number().int().min(1).default(100),
+    PREFETCH_PATTERN_WINDOW: z.coerce.number().int().min(1).default(10),
   })
   .passthrough();
 

@@ -134,7 +134,7 @@ const QueryActionSchema = CommonFieldsSchema.extend({
   action: z.literal('query').describe('Execute a BigQuery SQL query via Connected Sheets'),
   dataSourceId: z.string().optional().describe('Existing data source ID (if updating query)'),
   projectId: z.string().min(1).describe('GCP project ID for billing'),
-  query: z.string().min(1).describe('SQL query to execute'),
+  query: z.string().min(1).max(1048576).describe('SQL query to execute'),
   sheetId: SheetIdSchema.optional().describe('Target sheet for results (creates new if omitted)'),
   sheetName: z.string().optional().describe('Name for results sheet'),
   maxResults: z.coerce
@@ -197,7 +197,7 @@ const QueryActionSchema = CommonFieldsSchema.extend({
 const PreviewActionSchema = z.object({
   action: z.literal('preview').describe('Preview BigQuery query results without full execution'),
   projectId: z.string().min(1).describe('GCP project ID for billing'),
-  query: z.string().min(1).describe('SQL query to preview'),
+  query: z.string().min(1).max(1048576).describe('SQL query to preview'),
   maxRows: z.coerce
     .number()
     .int()
@@ -330,7 +330,7 @@ const ExportToBigQueryActionSchema = CommonFieldsSchema.extend({
 const ImportFromBigQueryActionSchema = CommonFieldsSchema.extend({
   action: z.literal('import_from_bigquery').describe('Import BigQuery query results to a sheet'),
   projectId: z.string().min(1).describe('GCP project ID for billing'),
-  query: z.string().min(1).describe('SQL query to execute'),
+  query: z.string().min(1).max(1048576).describe('SQL query to execute'),
   sheetId: SheetIdSchema.optional().describe('Target sheet (creates new if omitted)'),
   sheetName: z.string().optional().describe('Name for target sheet'),
   startCell: z.string().optional().default('A1').describe('Starting cell for data (e.g., "A1")'),
@@ -396,7 +396,7 @@ const CreateScheduledQueryActionSchema = z.object({
       'Create a scheduled query that runs automatically on a schedule via BigQuery Data Transfer Service'
     ),
   projectId: z.string().min(1).describe('Google Cloud project ID'),
-  query: z.string().min(1).describe('SQL query to schedule'),
+  query: z.string().min(1).max(1048576).describe('SQL query to schedule'),
   displayName: z.string().min(1).describe('Human-readable name for the scheduled query'),
   schedule: z
     .string()

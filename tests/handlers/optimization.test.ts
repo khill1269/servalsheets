@@ -129,7 +129,7 @@ describe('Response Builders', () => {
     });
 
     it('should set retryable flag', () => {
-      const result = fastError('RATE_LIMIT', 'Too many requests', true);
+      const result = fastError('RATE_LIMITED', 'Too many requests', true);
       expect(result.error.retryable).toBe(true);
     });
   });

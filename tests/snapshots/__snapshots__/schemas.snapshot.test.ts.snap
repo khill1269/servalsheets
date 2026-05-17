@@ -20378,6 +20378,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsBigQueryInputSchema should mat
             },
             "query": {
               "description": "SQL query to execute",
+              "maxLength": 1048576,
               "minLength": 1,
               "type": "string"
             },
@@ -20573,6 +20574,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsBigQueryInputSchema should mat
             },
             "query": {
               "description": "SQL query to preview",
+              "maxLength": 1048576,
               "minLength": 1,
               "type": "string"
             },
@@ -21312,6 +21314,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsBigQueryInputSchema should mat
             },
             "query": {
               "description": "SQL query to execute",
+              "maxLength": 1048576,
               "minLength": 1,
               "type": "string"
             },
@@ -21511,6 +21514,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsBigQueryInputSchema should mat
             },
             "query": {
               "description": "SQL query to schedule",
+              "maxLength": 1048576,
               "minLength": 1,
               "type": "string"
             },
@@ -64333,6 +64337,54 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             "jobId"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "search_tools",
+              "type": "string"
+            },
+            "category": {
+              "description": "Optional category filter to narrow results",
+              "enum": [
+                "data",
+                "format",
+                "analyze",
+                "collaborate",
+                "utility"
+              ],
+              "type": "string"
+            },
+            "maxResults": {
+              "description": "Maximum number of results (1-10, default 5)",
+              "maximum": 10,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "query": {
+              "description": "Natural language query to find relevant tools and actions (e.g. \\"how do I sort rows\\", \\"find duplicates\\")",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "verbosity": {
+              "default": "standard",
+              "description": "Response detail level: minimal (essential info only, ~25-88% fewer tokens; measured mean 62%), standard (balanced), detailed (full metadata)",
+              "enum": [
+                "minimal",
+                "standard",
+                "detailed"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "verbosity",
+            "action",
+            "query"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -65082,7 +65134,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsVisualizeInputSchema should ma
               "type": "string"
             },
             "chartType": {
-              "description": "Chart type. BAR=horizontal bars, COLUMN=vertical bars. PIE, LINE, SCATTER, AREA, COMBO also available.",
+              "description": "Chart type. BAR=horizontal bars, COLUMN=vertical bars. PIE, LINE, SCATTER, AREA, COMBO also available. Omit to trigger elicitation wizard.",
               "enum": [
                 "BAR",
                 "LINE",
@@ -65799,7 +65851,6 @@ exports[`Schema Snapshots > Input Schemas > SheetsVisualizeInputSchema should ma
             "action",
             "spreadsheetId",
             "sheetId",
-            "chartType",
             "data",
             "position"
           ],
@@ -166057,7 +166108,8 @@ exports[`Schema Snapshots > Output Schemas > SheetsSessionOutputSchema should ma
                 "schedule_create",
                 "schedule_list",
                 "schedule_cancel",
-                "schedule_run_now"
+                "schedule_run_now",
+                "search_tools"
               ],
               "type": "string"
             },
@@ -166299,6 +166351,10 @@ exports[`Schema Snapshots > Output Schemas > SheetsSessionOutputSchema should ma
             "hasCritical": {
               "type": "boolean"
             },
+            "hint": {
+              "description": "Guidance for next steps based on search results",
+              "type": "string"
+            },
             "jobId": {
               "description": "Created or targeted job ID",
               "type": "string"
@@ -166399,6 +166455,43 @@ exports[`Schema Snapshots > Output Schemas > SheetsSessionOutputSchema should ma
                   "type": "null"
                 }
               ]
+            },
+            "matchCount": {
+              "description": "Number of matches found",
+              "type": "number"
+            },
+            "matches": {
+              "description": "Matching tools and actions ranked by relevance",
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "commonMistake": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "type": "number"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "whenToUse": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tool",
+                  "action",
+                  "confidence"
+                ],
+                "type": "object"
+              },
+              "type": "array"
             },
             "message": {
               "type": "string"
@@ -166863,6 +166956,10 @@ exports[`Schema Snapshots > Output Schemas > SheetsSessionOutputSchema should ma
                   "type": "null"
                 }
               ]
+            },
+            "query": {
+              "description": "The search query that was executed",
+              "type": "string"
             },
             "recentSpreadsheets": {
               "items": {

@@ -26,7 +26,11 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
             sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
           },
         }),
-        values: {},
+        values: {
+          clear: vi.fn().mockResolvedValue({
+            data: { clearedRange: 'Sheet1!A1:B10' },
+          }),
+        },
         batchUpdate: vi.fn().mockResolvedValue({
           data: {
             replies: [{}],
@@ -99,26 +103,11 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
       expect(result.response.updatedRange).toBe('Sheet1!A1:B10');
 
       // Verify API was called
-      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
-      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+      expect(mockApi.spreadsheets.values.clear).toHaveBeenCalledTimes(1);
+      expect(mockApi.spreadsheets.values.clear).toHaveBeenCalledWith(
         expect.objectContaining({
           spreadsheetId: 'test-id',
-          requestBody: {
-            requests: [
-              {
-                updateCells: {
-                  range: {
-                    sheetId: 0,
-                    startRowIndex: 0,
-                    endRowIndex: 10,
-                    startColumnIndex: 0,
-                    endColumnIndex: 2,
-                  },
-                  fields: 'userEnteredValue',
-                },
-              },
-            ],
-          },
+          range: 'Sheet1!A1:B10',
         })
       );
 
@@ -129,7 +118,7 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
 
     it('should return updatedRange even when API returns no clearedRange', async () => {
       // Mock API returns empty response
-      mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+      mockApi.spreadsheets.values.clear.mockResolvedValue({
         data: {},
       });
 
@@ -146,7 +135,7 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
 
     it('should handle errors and still return result', async () => {
       // Mock API error
-      mockApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('Permission denied'));
+      mockApi.spreadsheets.values.clear.mockRejectedValue(new Error('Permission denied'));
 
       const result = await handler.handle({
         action: 'clear',
@@ -214,7 +203,7 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
 
       expect(result.response.success).toBe(true);
       expect(result.response.action).toBe('clear');
-      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+      expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
     });
   });
 });

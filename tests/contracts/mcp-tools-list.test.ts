@@ -104,71 +104,9 @@ describe('MCP tools/list runtime ownership', () => {
     });
   });
 
-  it('returns all flat tools in a single page (no client-side pagination needed)', async () => {
-    // FLAT_TOOLS_PAGE_SIZE raised to 1000 so all ~409 tools fit in one response.
-    // MCP clients that don't follow nextCursor would miss page 2+ — the large page
-    // size fixes the tool-discovery gap reported by real LLM clients.
-    vi.doMock('../../src/config/constants.js', async () => {
-      const actual = await vi.importActual<typeof import('../../src/config/constants.js')>(
-        '../../src/config/constants.js'
-      );
-      return {
-        ...actual,
-        getEffectiveToolMode: () => 'flat' as const,
-      };
-    });
-
-    const mock = createMockServer();
-    const { registerToolsListCompatibilityHandler } =
-      await import('../../src/mcp/registration/tools-list-compat.js');
-    registerToolsListCompatibilityHandler(mock.server);
-
-    const firstPage = await mock.getHandler()({ params: {} });
-    // All ~410 flat tools + discover fit in one page — no nextCursor needed
-    expect(firstPage.tools.length).toBeGreaterThan(100);
-    expect(firstPage.tools[0]['name']).toBe('sheets_discover');
-    expect(firstPage.nextCursor).toBeUndefined();
-
-    // Cursor encoding still works for clients that explicitly request a page
-    const explicitPage = await mock.getHandler()({
-      params: { cursor: Buffer.from(JSON.stringify({ offset: 0 }), 'utf8').toString('base64url') },
-    });
-    expect(explicitPage.tools.length).toBe(firstPage.tools.length);
-  });
-
-  it('rejects invalid flat tools/list cursors as invalid params', async () => {
-    vi.doMock('../../src/config/constants.js', async () => {
-      const actual = await vi.importActual<typeof import('../../src/config/constants.js')>(
-        '../../src/config/constants.js'
-      );
-      return {
-        ...actual,
-        getEffectiveToolMode: () => 'flat' as const,
-      };
-    });
-
-    const mock = createMockServer();
-    const { registerToolsListCompatibilityHandler } =
-      await import('../../src/mcp/registration/tools-list-compat.js');
-    registerToolsListCompatibilityHandler(mock.server);
-
-    await expect(
-      mock.getHandler()({ params: { cursor: 'not-a-valid-cursor' } })
-    ).rejects.toMatchObject({
-      code: -32602,
-    });
-  });
-
   it('does not depend on _registeredTools inside the compatibility handler source', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile('src/mcp/registration/tools-list-compat.ts', 'utf-8');
-
-    expect(source).not.toContain('_registeredTools');
-  });
-
-  it('does not depend on _registeredTools inside the flat tool call interceptor source', async () => {
-    const { readFile } = await import('node:fs/promises');
-    const source = await readFile('src/mcp/registration/flat-tool-call-interceptor.ts', 'utf-8');
 
     expect(source).not.toContain('_registeredTools');
   });

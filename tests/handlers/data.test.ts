@@ -777,7 +777,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear');
-        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+        expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
@@ -1473,8 +1473,8 @@ describe('SheetsDataHandler', () => {
     });
 
     it('should handle batch operation failures', async () => {
-      // Test API-level failures (replaced batchCompiler pattern with direct API calls)
-      mockApi.spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('Clear operation failed'));
+      // Test API-level failures (clear uses values.clear API)
+      mockApi.spreadsheets.values.clear.mockRejectedValueOnce(new Error('Clear operation failed'));
 
       const result = await handler.handle({
         action: 'clear',

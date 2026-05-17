@@ -10,6 +10,8 @@ import { startKeepalive } from '../utils/keepalive.js';
 import { checkRateLimit } from '../middleware/rate-limit-middleware.js';
 import { detectMutationSafetyViolation } from '../middleware/mutation-safety-middleware.js';
 import { getSessionContext } from '../services/session-context.js';
+import { getRbacManager } from '../services/rbac-manager.js';
+import { getEnv } from '../config/env.js';
 
 type ServerToolHandler = (args: unknown, extra?: unknown) => Promise<unknown>;
 type ServerToolHandlerMap = Record<string, ServerToolHandler>;
@@ -167,6 +169,60 @@ export async function dispatchServerToolCall(
       handlerMap,
     };
   }
+
+  // RBAC enforcement (parity with HTTP path in tool-handlers.ts:1229-1294)
+  if (getEnv()['ENABLE_RBAC'])
+    try {
+      const rbacReq = rawArgs['request'] as Record<string, unknown> | undefined;
+      const rbacActionName =
+        (typeof rbacReq?.['action'] === 'string' ? rbacReq['action'] : null) ??
+        (typeof rawArgs['action'] === 'string' ? rawArgs['action'] : null) ??
+        undefined;
+      const rbacResourceId =
+        (typeof rbacReq?.['spreadsheetId'] === 'string' ? rbacReq['spreadsheetId'] : null) ??
+        (typeof rawArgs['spreadsheetId'] === 'string' ? rawArgs['spreadsheetId'] : null) ??
+        undefined;
+      const rbacResult = await getRbacManager().checkPermission({
+        userId: costTrackingTenantId,
+        toolName,
+        actionName: rbacActionName,
+        resourceId: rbacResourceId,
+      });
+      if (!rbacResult.allowed) {
+        return {
+          kind: 'error',
+          response: buildToolResponse({
+            response: {
+              success: false,
+              error: {
+                code: 'PERMISSION_DENIED',
+                message: rbacResult.reason ?? 'Permission denied',
+                retryable: false,
+              },
+            },
+          }),
+          handlerMap,
+        };
+      }
+    } catch (rbacError) {
+      const strict = getEnv()['RBAC_STRICT'];
+      if (strict) {
+        return {
+          kind: 'error',
+          response: buildToolResponse({
+            response: {
+              success: false,
+              error: {
+                code: 'PERMISSION_DENIED',
+                message: 'RBAC authorization check failed. Access denied (RBAC_STRICT=true).',
+                retryable: false,
+              },
+            },
+          }),
+          handlerMap,
+        };
+      }
+    }
 
   const keepalive = startKeepalive({
     operationName: toolName,

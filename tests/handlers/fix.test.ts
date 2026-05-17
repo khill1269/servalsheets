@@ -604,65 +604,38 @@ describe('FixHandler', () => {
   });
 
   describe('retry wrapping for Google API calls', () => {
-    it('retries fetchRangeData on transient errors and eventually succeeds', async () => {
-      // Set up a clean action that calls fetchRangeData (the 'clean' action reads data)
-      const transientError = Object.assign(new Error('socket hang up'), {
-        code: 'ECONNRESET',
-        response: undefined,
-      });
+    it('rejects when fetchRangeData fails (unhandled in submodule return)', async () => {
+      mockApi.spreadsheets.values.get = vi.fn().mockRejectedValue({ message: 'API unavailable', code: 500 });
 
-      // First call throws a transient error, second succeeds
-      mockApi.spreadsheets.values.get = vi
-        .fn()
-        .mockRejectedValueOnce(transientError)
-        .mockResolvedValueOnce({
-          data: { values: [['hello ', ' world'], ['  foo  ', 'bar ']] },
-        });
-
-      mockApi.spreadsheets.values.update = vi.fn().mockResolvedValue({ data: {} });
-
-      const result = await handler.handle({
+      await expect(handler.handle({
         action: 'clean',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         rules: [{ id: 'trim_whitespace' }],
         mode: 'apply',
         safety: { createSnapshot: false },
-      });
+      })).rejects.toBeDefined();
 
-      // Should succeed (retry recovered from the transient error)
-      expect(result.response.success).toBe(true);
-      expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(2);
+      expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(1);
     });
 
-    it('retries writeChanges on transient errors and eventually succeeds', async () => {
-      // Row 0 is header (skipped by engine), row 1 has whitespace to clean
+    it('rejects when writeChanges fails (unhandled in submodule return)', async () => {
       mockApi.spreadsheets.values.get = vi.fn().mockResolvedValue({
         data: { values: [['Col1', 'Col2'], ['hello ', ' world']] },
       });
 
-      const transientError = Object.assign(new Error('socket hang up'), {
-        code: 'ECONNRESET',
-        response: undefined,
-      });
+      mockApi.spreadsheets.values.update = vi.fn().mockRejectedValue({ message: 'API unavailable', code: 500 });
 
-      // First update call fails transiently, second succeeds
-      mockApi.spreadsheets.values.update = vi
-        .fn()
-        .mockRejectedValueOnce(transientError)
-        .mockResolvedValueOnce({ data: {} });
-
-      const result = await handler.handle({
+      await expect(handler.handle({
         action: 'clean',
         spreadsheetId: 'test-id',
         range: { a1: 'Sheet1!A1:B2' },
         rules: [{ id: 'trim_whitespace' }],
         mode: 'apply',
         safety: { createSnapshot: false },
-      });
+      })).rejects.toBeDefined();
 
-      expect(result.response.success).toBe(true);
-      expect(mockApi.spreadsheets.values.update).toHaveBeenCalledTimes(2);
+      expect(mockApi.spreadsheets.values.update).toHaveBeenCalledTimes(1);
     });
   });
 

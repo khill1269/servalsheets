@@ -524,7 +524,7 @@ export class OidcProvider {
           const body = await tokenRes.text();
           logger.error('OIDC token exchange failed', {
             status: tokenRes.status,
-            body: body.slice(0, 200),
+            body: body.slice(0, 200).replace(/((?:access_token|refresh_token|id_token)["']?\s*[:=]\s*["']?)[A-Za-z0-9\-._~+/]+={0,2}/gi, '$1[REDACTED]'),
           });
           res.status(502).json({
             error: 'OIDC_TOKEN_EXCHANGE_FAILED',

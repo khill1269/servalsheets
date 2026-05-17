@@ -110,7 +110,6 @@ import {
 } from '../../schemas/index.js';
 import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
-import { registerFlatToolCallInterceptor } from './flat-tool-call-interceptor.js';
 import { resetRegisteredToolRuntime, setRegisteredToolRuntime } from './registered-tool-runtime.js';
 import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 import { registerPipelineDispatch } from '../../services/pipeline-registry.js';
@@ -221,14 +220,20 @@ function pruneSelfCorrectionFailures(nowMs: number): void {
     }
   }
 
-  // Phase 2: Enforce size cap — evict oldest entries if over limit (H-6)
-  if (recentFailuresByPrincipal.size > SELF_CORRECTION_MAX_ENTRIES) {
-    const sortedEntries = Array.from(recentFailuresByPrincipal.entries()).sort(
-      (a, b) => a[1].timestampMs - b[1].timestampMs
-    );
-    const toRemove = recentFailuresByPrincipal.size - SELF_CORRECTION_MAX_ENTRIES;
-    for (let i = 0; i < toRemove; i++) {
-      recentFailuresByPrincipal.delete(sortedEntries[i]![0]);
+  // Phase 2: Enforce size cap — evict oldest entry via O(n) single-pass scan
+  while (recentFailuresByPrincipal.size > SELF_CORRECTION_MAX_ENTRIES) {
+    let oldestKey: string | undefined;
+    let oldestTs = Infinity;
+    for (const [key, value] of recentFailuresByPrincipal.entries()) {
+      if (value.timestampMs < oldestTs) {
+        oldestTs = value.timestampMs;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey !== undefined) {
+      recentFailuresByPrincipal.delete(oldestKey);
+    } else {
+      break;
     }
   }
 }
@@ -2148,11 +2153,6 @@ export async function registerServalSheetsTools(
   // Override tools/list to safely serialize schemas with transforms/pipes.
   registerToolsListCompatibilityHandler(server);
 
-  // In flat mode, intercept tools/call to rewrite flat tool names → compound names.
-  // Must come after registerToolsListCompatibilityHandler (tools/list) and after
-  // all compound tools are registered with the MCP server.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  registerFlatToolCallInterceptor(server as any);
   if (getEnv()['ENABLE_TOOLS_LIST_CHANGED_NOTIFICATIONS']) {
     resourceNotifications.syncToolList(
       ACTIVE_TOOL_DEFINITIONS.map((tool) => tool.name),

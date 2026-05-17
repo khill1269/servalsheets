@@ -14,7 +14,7 @@ import { ErrorCodes } from '../error-codes.js';
 import { ServiceError } from '../../core/errors.js';
 import { validateBigQuerySql, safeBqTableRef } from './helpers.js';
 import { logger } from '../../utils/logger.js';
-import { sendProgress } from '../../utils/request-context.js';
+import { getRequestAbortSignal, sendProgress } from '../../utils/request-context.js';
 import { MAX_CELLS_PER_SPREADSHEET } from '../../config/google-limits.js';
 
 export async function handleExportToBigQuery(
@@ -223,6 +223,15 @@ export async function handleExportToBigQuery(
     await sendProgress(0, totalChunks, `Exporting ${totalRows} rows to BigQuery...`);
 
     for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
+      const abortSignal = getRequestAbortSignal();
+      if (abortSignal?.aborted) {
+        return ha.error({
+          code: ErrorCodes.OPERATION_CANCELLED,
+          message: `Export cancelled after ${Math.floor(i / CHUNK_SIZE)} of ${totalChunks} chunks`,
+          retryable: true,
+        });
+      }
+
       const chunk = rows.slice(i, Math.min(i + CHUNK_SIZE, totalRows));
       const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
 
@@ -303,6 +312,15 @@ export async function handleImportFromBigQuery(
         value: String(param.parameterValue.value),
       },
     }));
+
+    const importAbortSignal = getRequestAbortSignal();
+    if (importAbortSignal?.aborted) {
+      return ha.error({
+        code: ErrorCodes.OPERATION_CANCELLED,
+        message: 'Import cancelled before query execution',
+        retryable: true,
+      });
+    }
 
     await sendProgress(0, 3, 'Running BigQuery query...');
 

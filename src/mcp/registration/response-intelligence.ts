@@ -691,7 +691,7 @@ function getRecoveryPlaybook(
       };
 
     case 'QUOTA_EXCEEDED':
-    case 'RATE_LIMIT':
+    case 'RATE_LIMITED':
       return {
         description: 'API quota exceeded — wait and switch to batched operations',
         maxRetries: 2,

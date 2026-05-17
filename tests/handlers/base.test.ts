@@ -271,7 +271,7 @@ describe('BaseHandler', () => {
 
     it('should preserve error details and metadata', () => {
       const errorDetail: ErrorDetail = {
-        code: 'RATE_LIMIT',
+        code: 'RATE_LIMITED',
         message: 'Too many requests',
         retryable: true,
         retryAfterMs: 5000,
@@ -280,7 +280,7 @@ describe('BaseHandler', () => {
       };
       const result = handler.testError(errorDetail);
 
-      expect(result.error.code).toBe('RATE_LIMIT');
+      expect(result.error.code).toBe('RATE_LIMITED');
       expect(result.error.retryAfterMs).toBe(5000);
       expect(result.error.resolutionSteps).toHaveLength(2);
     });

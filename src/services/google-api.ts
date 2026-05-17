@@ -27,6 +27,7 @@ import {
   workspaceevents_v1,
 } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
+import { LRUCache } from 'lru-cache';
 import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
@@ -286,9 +287,7 @@ export class GoogleApiClient {
 
   // Shared Drive rate limiter
   private sharedDriveRateLimiter: SharedDriveRateLimiter;
-  private sharedDriveMembershipCache = new Map<string, { value: boolean; timestamp: number }>();
-  private static readonly DRIVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-  private static readonly DRIVE_CACHE_MAX = 1000; // LRU eviction threshold
+  private sharedDriveMembershipCache = new LRUCache<string, boolean>({ max: 1000, ttl: 5 * 60 * 1000 });
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -1684,35 +1683,12 @@ export class GoogleApiClient {
     return this.sharedDriveRateLimiter.waitForToken();
   }
 
-  /**
-   * Get cached shared drive membership with TTL expiration check
-   */
   private getSharedDriveMembership(driveId: string): boolean | undefined {
-    const entry = this.sharedDriveMembershipCache.get(driveId);
-    if (!entry) return undefined; // OK: Explicit empty
-    // Check if TTL has expired
-    if (Date.now() - entry.timestamp > GoogleApiClient.DRIVE_CACHE_TTL_MS) {
-      this.sharedDriveMembershipCache.delete(driveId);
-      return undefined; // OK: Explicit empty
-    }
-    return entry.value;
+    return this.sharedDriveMembershipCache.get(driveId);
   }
 
-  /**
-   * Set cached shared drive membership with LRU eviction at max size
-   */
   private setSharedDriveMembership(driveId: string, value: boolean): void {
-    // Evict oldest entry if at max capacity
-    if (this.sharedDriveMembershipCache.size >= GoogleApiClient.DRIVE_CACHE_MAX) {
-      const oldestKey = this.sharedDriveMembershipCache.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.sharedDriveMembershipCache.delete(oldestKey);
-      }
-    }
-    this.sharedDriveMembershipCache.set(driveId, {
-      value,
-      timestamp: Date.now(),
-    });
+    this.sharedDriveMembershipCache.set(driveId, value);
   }
 
   /**

@@ -155,7 +155,7 @@ describe('Error Response Builder', () => {
   });
 
   it('should set retryable flag for rate limit errors', () => {
-    const result = buildErrorResponse('RATE_LIMIT', 'Too many requests');
+    const result = buildErrorResponse('RATE_LIMITED', 'Too many requests');
 
     const response = (result.structuredContent as Record<string, unknown>)['response'] as Record<
       string,

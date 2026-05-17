@@ -7,6 +7,7 @@ import { TOOL_COUNT } from '../../src/schemas/action-counts.js';
 type ListToolsResponse = {
   tools: Array<{
     name: string;
+    description?: string;
     inputSchema: { type: string; properties?: Record<string, unknown>; [key: string]: unknown };
     outputSchema?: { type: string; properties?: Record<string, unknown>; [key: string]: unknown };
     icons?: Array<{
@@ -131,7 +132,7 @@ describe('tools/list Schema Serialization', () => {
       expect(tool, `Tool ${toolName} should be registered`).toBeDefined();
       expect(tool!.inputSchema.properties).toBeDefined();
 
-      const propertyCount = Object.keys(tool!.inputSchema.properties).length;
+      const propertyCount = Object.keys(tool!.inputSchema.properties ?? {}).length;
       expect(propertyCount, `Tool ${toolName} should have non-empty schema`).toBeGreaterThan(0);
     }
   });
@@ -142,12 +143,12 @@ describe('tools/list Schema Serialization', () => {
     // All ServalSheets tools use { request: ... } pattern
     for (const tool of response.tools) {
       expect(
-        tool.inputSchema.properties.request,
+        tool.inputSchema.properties?.['request'],
         `Tool ${tool.name} should have request property`
       ).toBeDefined();
 
       // Request should have oneOf or properties
-      const request = tool.inputSchema.properties.request as Record<string, unknown>;
+      const request = (tool.inputSchema.properties?.['request'] ?? {}) as Record<string, unknown>;
       const hasOneOf = 'oneOf' in request;
       const hasProperties = 'properties' in request;
 
@@ -315,7 +316,7 @@ describe('tools/list Schema Serialization', () => {
       Object.values(sessionActionParams).filter((hint) =>
         Object.prototype.hasOwnProperty.call(hint, 'required')
       )
-    ).toHaveLength(32);
+    ).toHaveLength(33);
     expect(sessionActionParams['get_context']?.required).toEqual([]);
     expect(sessionActionParams['set_active']?.required).toEqual(['spreadsheetId']);
 

@@ -1002,6 +1002,10 @@ const FIXTURE_OVERRIDES: Record<string, Record<string, PartialFixture>> = {
       validInput: { jobId: 'job-123' },
       requiredFields: ['jobId'],
     },
+    search_tools: {
+      validInput: { query: 'how to sort data' },
+      requiredFields: ['query'],
+    },
   },
 
   sheets_transaction: {

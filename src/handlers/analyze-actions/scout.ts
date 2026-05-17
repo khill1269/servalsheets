@@ -67,9 +67,10 @@ export async function handleScoutAction(
         fields:
           'sheets(properties(sheetId),charts(chartId),protectedRanges(protectedRangeId),basicFilter,filterViews,data(rowData(values(userEnteredValue(formulaValue)))))',
         includeGridData: true,
-        // Narrow the range aggressively: one cell per sheet is enough
-        // to answer "does this sheet have at least one formula?" when
-        // combined with a separate spreadsheets.values.batchGet below.
+        // Limit grid data to first 5 rows per sheet — enough to detect formula presence
+        // without fetching entire sheets. Combined with the narrow fields mask above,
+        // this keeps the payload small even on large workbooks.
+        ranges: ['1:5'],
       });
       for (const s of probe.data.sheets ?? []) {
         const sheetId = s.properties?.sheetId;
