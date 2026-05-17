@@ -74,10 +74,15 @@ describe('FederationHandler', () => {
   let handler: FederationHandler;
 
   beforeEach(() => {
+    process.env['MCP_FEDERATION_SERVERS'] = JSON.stringify([
+      { name: 'test-server', url: 'http://localhost:3001' },
+      { name: 'ml-server', url: 'http://localhost:3002' },
+    ]);
     handler = new FederationHandler();
   });
 
   afterEach(() => {
+    delete process.env['MCP_FEDERATION_SERVERS'];
     vi.clearAllMocks();
   });
 
@@ -590,6 +595,7 @@ describe('FederationHandler', () => {
         enabled: true,
         serversJson: '[]',
       });
+      process.env['MCP_FEDERATION_SERVERS'] = '[]';
 
       const result = await handler.handle({
         request: {

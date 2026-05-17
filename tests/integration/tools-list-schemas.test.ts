@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { resetEnvForTest } from '../../src/config/env.js';
-import { ServalSheetsServer } from '../../src/server.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DEFER_SCHEMAS } from '../../src/config/constants.js';
+import { resetEnvForTest } from '../../src/config/env.js';
 import { TOOL_COUNT } from '../../src/schemas/action-counts.js';
+import { ServalSheetsServer } from '../../src/server.js';
 
 type ListToolsResponse = {
   tools: Array<{
