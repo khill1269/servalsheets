@@ -1,0 +1,45 @@
+{
+  "toolCount": 25,
+  "actionCount": 411,
+  "protocolVersion": "MCP 2025-11-25",
+  "buildVersion": "2.0.0",
+  "lastUpdated": "2026-03-24",
+  "handlers": {
+    "total": 25,
+    "missing_tests": []
+  },
+  "verification": {
+    "gates": [
+      "G0",
+      "G1",
+      "G2",
+      "G3",
+      "G4",
+      "G5"
+    ],
+    "fastCommand": "npm run test:fast",
+    "fullCommand": "npm run verify"
+  },
+  "audit": {
+    "commands": {
+      "coverage": "npm run audit:coverage",
+      "performance": "npm run audit:perf",
+      "memory": "npm run audit:memory",
+      "gate": "npm run audit:gate",
+      "snapshot": "npm run audit:snapshot",
+      "full": "npm run audit:full"
+    },
+    "testCounts": {
+      "actionCoverage": 981,
+      "contractTests": 815,
+      "memoryLeakTests": 5
+    }
+  },
+  "continuity": {
+    "system": "Option D (hybrid auto-gen + session notes)",
+    "stateFile": ".serval/state.md",
+    "sessionNotes": ".serval/session-notes.md",
+    "generator": ".serval/generate-state.mjs",
+    "hook": "SessionStart in .claude/hooks.json"
+  }
+}

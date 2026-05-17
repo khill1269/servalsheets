@@ -1,22 +1,22 @@
 {
-  "generatedAt": "2026-04-02T03:25:47.924Z",
+  "generatedAt": "2026-05-17T13:49:13.881Z",
   "package": {
     "name": "servalsheets",
     "version": "2.0.0",
-    "description": "Production-grade Google Sheets MCP server - 25 tools, 409 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+    "description": "Production-grade MCP server for Google Sheets — 25 tools, 411 actions"
   },
   "server": {
     "name": "io.github.khill1269/servalsheets",
     "version": "2.0.0",
     "protocolVersion": "2025-11-25",
-    "description": "Production-grade Google Sheets MCP server with 25 tools and 409 actions"
+    "description": "Production-grade Google Sheets MCP server with 25 tools and 411 actions"
   },
   "counts": {
     "tools": 25,
-    "actions": 409,
+    "actions": 411,
     "prompts": 40,
-    "resources": 56,
-    "resourceTemplates": 12
+    "resources": 55,
+    "resourceTemplates": 9
   },
   "tools": [
     {
@@ -360,7 +360,7 @@
     },
     {
       "name": "sheets_dimensions",
-      "actionCount": 30,
+      "actionCount": 31,
       "actions": [
         "insert",
         "delete",
@@ -372,6 +372,7 @@
         "freeze",
         "group",
         "ungroup",
+        "update_dimension_group",
         "append",
         "set_basic_filter",
         "clear_basic_filter",
@@ -475,7 +476,7 @@
     },
     {
       "name": "sheets_session",
-      "actionCount": 32,
+      "actionCount": 33,
       "actions": [
         "set_active",
         "get_active",
@@ -508,6 +509,7 @@
         "schedule_list",
         "schedule_cancel",
         "schedule_run_now",
+        "search_tools",
         "execute_pipeline"
       ]
     },

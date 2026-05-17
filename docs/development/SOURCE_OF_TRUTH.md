@@ -21,7 +21,7 @@ tags: [sheets, prometheus]
 | Metric           | Source File                 | Line             | Current Value | Verification Command                             |
 | ---------------- | --------------------------- | ---------------- | ------------- | ------------------------------------------------ |
 | **TOOL_COUNT**   | `docs/generated/facts.json` | `counts.tools`   | `25`          | `jq '.counts.tools' docs/generated/facts.json`   |
-| **ACTION_COUNT** | `docs/generated/facts.json` | `counts.actions` | `410`         | `jq '.counts.actions' docs/generated/facts.json` |
+| **ACTION_COUNT** | `docs/generated/facts.json` | `counts.actions` | `411`         | `jq '.counts.actions' docs/generated/facts.json` |
 
 **Verification:**
 
@@ -30,7 +30,7 @@ tags: [sheets, prometheus]
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 25 tools, 410 actions
+# ✅ Total: 25 tools, 411 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -120,18 +120,18 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 | `sheets_format`       | 25      | `src/schemas/format.ts`       |
 | `sheets_history`      | 10      | `src/schemas/history.ts`      |
 | `sheets_quality`      | 4       | `src/schemas/quality.ts`      |
-| `sheets_session`      | 32      | `src/schemas/session.ts`      |
+| `sheets_session`      | 33      | `src/schemas/session.ts`      |
 | `sheets_templates`    | 8       | `src/schemas/templates.ts`    |
 | `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
 | `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
 | `sheets_webhook`      | 11      | `src/schemas/webhook.ts`      |
-| **TOTAL**             | **410** | —                             |
+| **TOTAL**             | **411** | —                             |
 
 **Verification:**
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 25 tools, 410 actions
+# Output: ✅ Total: 25 tools, 411 actions
 ```
 
 ---
@@ -211,10 +211,10 @@ Evidence: <file:line> OR <command → output>
 ✅ **Good:**
 
 ```
-Claim: ServalSheets has 410 actions
-Evidence: docs/generated/facts.json reports counts.actions = 410
+Claim: ServalSheets has 411 actions
+Evidence: docs/generated/facts.json reports counts.actions = 411
 Command: jq '.counts.actions' docs/generated/facts.json
-Output: 410
+Output: 411
 ```
 
 ❌ **Bad:**
@@ -258,7 +258,7 @@ npm run verify
 
 ```
 TOOL_COUNT:         25
-ACTION_COUNT:       410
+ACTION_COUNT:       411
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        ^4.3.6
 SDK_VERSION:        ^1.29.0
@@ -305,10 +305,10 @@ Q: How many actions does ServalSheets have?
 A: Let me verify...
 
 Command: jq '.counts.actions' docs/generated/facts.json
-Output: 410
+Output: 411
 
-ServalSheets has 410 actions across 25 tools.
-Evidence: docs/generated/facts.json reports counts.actions = 410
+ServalSheets has 411 actions across 25 tools.
+Evidence: docs/generated/facts.json reports counts.actions = 411
 ```
 
 ---

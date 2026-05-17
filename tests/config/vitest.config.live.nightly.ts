@@ -1,7 +1,7 @@
 /**
  * Vitest Configuration — Live API NIGHTLY tier
  *
- * Full 409-action matrix + cross-tool + stress + edge-case coverage.
+ * Full 411-action matrix + cross-tool + stress + edge-case coverage.
  * Expected wall-time: 30-45 minutes. Expected API spend: multiple 60/min
  * quota windows (explicit backoff between waves is mandatory).
  *
