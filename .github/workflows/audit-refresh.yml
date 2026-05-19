@@ -1,0 +1,158 @@
+name: Audit Dossier Refresh
+
+# Purpose
+# -------
+# Keeps the strategic audit dossier at .serval/audit/ current by running
+# specialist agents on schedule and on schema changes. Three modes:
+#
+#   nightly-competitive — refresh competitive.yaml from live web sources
+#   schema-triggered    — re-run functional + protocol on src/schemas/ changes
+#   weekly-full         — full 10-specialist refresh + Director synthesis
+#
+# Secrets required
+# ----------------
+#   ANTHROPIC_API_KEY — for claude-code-action
+
+on:
+  schedule:
+    # Nightly competitive refresh: 06:00 UTC (01:00 ET)
+    - cron: '0 6 * * *'
+    # Weekly full refresh: Sunday 07:00 UTC
+    - cron: '0 7 * * 0'
+  push:
+    branches: [main]
+    paths:
+      - 'src/schemas/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Refresh mode'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - competitive
+          - schema
+          - full
+
+permissions:
+  contents: write
+
+concurrency:
+  group: audit-refresh-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Nightly: refresh competitive intelligence ───────────────────────────────
+  nightly-competitive:
+    name: Competitive Intelligence Refresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: |
+      (github.event_name == 'schedule' && contains(github.event.schedule, '0 6')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'competitive')
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@d59651bd82c48d81756854675ce4fa4d69722200 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: >-
+            --max-turns 8
+            --model claude-sonnet-4-6
+            --append-system-prompt "You are refreshing the ServalSheets competitive intelligence dossier. Dispatch the competitive-intelligence agent to update .serval/audit/specialists/competitive.yaml with any competitor changes from the past 24 hours. Focus on: Gemini in Sheets updates, Copilot in Excel updates, OSS MCP server changes (xing5, haris-musa, sbroenne). After the agent completes, verify the file was updated and has a current last_updated date. Do not modify any src/ files."
+          prompt: |
+            Dispatch the competitive-intelligence agent to refresh .serval/audit/specialists/competitive.yaml.
+            Search for competitor updates from the last 24 hours only.
+            After it completes, confirm the YAML was written with today's date.
+
+      - name: Commit updated competitive.yaml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .serval/audit/specialists/competitive.yaml
+          git diff --staged --quiet || git commit -m "chore(audit): nightly competitive intelligence refresh [skip ci]"
+          git push
+
+  # ── Schema change: re-run functional + protocol ─────────────────────────────
+  schema-triggered:
+    name: Schema Change Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'schema')
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci --ignore-scripts
+
+      - uses: anthropics/claude-code-action@d59651bd82c48d81756854675ce4fa4d69722200 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: >-
+            --max-turns 10
+            --model claude-sonnet-4-6
+            --append-system-prompt "Schema files changed. Re-run the functional and protocol audits. Dispatch servalsheets-research to update specialists/functional.yaml (re-inventory all actions from src/schemas/*.ts). Then dispatch mcp-protocol-expert in audit mode to update specialists/protocol.yaml (run npm run check:drift and npm run validate:alignment). Do not modify any src/ files."
+          prompt: |
+            Schema files changed on this push. Dispatch:
+            1. servalsheets-research → refresh specialists/functional.yaml
+            2. mcp-protocol-expert (audit mode) → refresh specialists/protocol.yaml
+            Run npm run check:drift and npm run validate:alignment as part of the protocol audit.
+            Confirm both YAML files are updated with today's date before finishing.
+
+      - name: Commit updated audit YAMLs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .serval/audit/specialists/functional.yaml .serval/audit/specialists/protocol.yaml
+          git diff --staged --quiet || git commit -m "chore(audit): refresh functional + protocol after schema change [skip ci]"
+          git push
+
+  # ── Weekly: full 10-specialist refresh + Director synthesis ─────────────────
+  weekly-full:
+    name: Full Dossier Refresh
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: |
+      (github.event_name == 'schedule' && contains(github.event.schedule, '0 7')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci --ignore-scripts
+
+      - uses: anthropics/claude-code-action@d59651bd82c48d81756854675ce4fa4d69722200 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: >-
+            --max-turns 30
+            --model claude-sonnet-4-6
+            --append-system-prompt "You are running the weekly full audit dossier refresh for ServalSheets. Dispatch the servalsheets-director agent. The Director will read all existing specialist YAMLs, dispatch up to 3 specialists at a time to refresh stale ones (> 7 days old), and finally rewrite master-dossier.yaml. Do not modify any src/ files. The Director owns the synthesis — let it drive."
+          prompt: |
+            Run a full dossier refresh. Dispatch the servalsheets-director agent with this instruction:
+            "Run a full dossier refresh. Read all specialists/*.yaml files. For any specialist with last_updated older than 7 days, dispatch the appropriate specialist agent to refresh it (max 3 in parallel). After all specialists are fresh, rewrite master-dossier.yaml with updated strategic_position, specialist_freshness, and open_questions_count. Today is $(date +%Y-%m-%d)."
+
+      - name: Commit refreshed dossier
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .serval/audit/
+          git diff --staged --quiet || git commit -m "chore(audit): weekly full dossier refresh [skip ci]"
+          git push
