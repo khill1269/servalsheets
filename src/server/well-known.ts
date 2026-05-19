@@ -357,7 +357,10 @@ function composeMcpServerCard(
   }
 
   return {
-    $schema: 'https://modelcontextprotocol.io/schemas/mcp-server-card.json',
+    // SEP-2127 (draft) Server Cards — the official $schema URL will be published
+    // once the SEP merges. Until then we reference the open PR so readers can find
+    // the in-flight schema shape. P21-A3 work item.
+    $schema: 'https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127',
     mcp_version: SERVER_INFO.protocolVersion,
     server_name: SERVER_INFO.name,
     server_version: VERSION,

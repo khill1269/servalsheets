@@ -291,6 +291,32 @@ function resolveDeferDescriptions(): boolean {
 export const DEFER_DESCRIPTIONS = resolveDeferDescriptions();
 
 /**
+ * SEP-1576-aligned `tools/list` compaction.
+ *
+ * When enabled, the `tools/list` handler omits optional fields that the LLM
+ * rarely needs (`icons`, `outputSchema`, and `execution` per-tool config) to
+ * shrink the response payload. These fields remain available on-demand:
+ *   - `icons`         — surfaced in HTTP server cards (/.well-known/mcp.json)
+ *   - `outputSchema`  — readable via `schema://tools/{name}` resource
+ *   - `execution`     — only useful to clients that support SEP-1686 tasks
+ *
+ * Auto-enabled for STDIO transports (Claude Desktop, where every byte counts);
+ * disabled for HTTP (browser-style clients that benefit from rich metadata).
+ *
+ * Override with SERVAL_TOOLS_LIST_COMPACT=true|false.
+ */
+function resolveToolsListCompact(): boolean {
+  const envVal = process.env['SERVAL_TOOLS_LIST_COMPACT'];
+  if (envVal === 'true') return true;
+  if (envVal === 'false') return false;
+  const entry = path.basename(process.argv[1] ?? '');
+  const isHttp =
+    process.argv.includes('--http') || entry === 'http-server.js' || entry === 'http-server.ts';
+  return !isHttp;
+}
+export const TOOLS_LIST_COMPACT = resolveToolsListCompact();
+
+/**
  * Strip inline descriptions from JSON schemas
  *
  * When enabled, removes the "description" field from JSON Schema properties.

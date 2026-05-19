@@ -372,18 +372,93 @@ export async function handleSheetsSession(
       }
 
       case 'search_tools': {
-        const { query, category, maxResults = 5 } = req as {
+        // SEP-1888 (draft) Progressive Disclosure meta-tool surface.
+        // mode="operations" (default) — natural-language tool/action search.
+        // mode="types"               — return JSON Schema for the named tool.
+        const {
+          mode = 'operations',
+          query,
+          target,
+          category,
+          maxResults = 5,
+        } = req as {
           action: 'search_tools';
-          query: string;
+          mode?: 'operations' | 'types';
+          query?: string;
+          target?: string;
           category?: 'data' | 'format' | 'analyze' | 'collaborate' | 'utility';
           maxResults?: number;
         };
+
+        if (mode === 'types') {
+          if (!target || target.trim().length === 0) {
+            throw new ValidationError(
+              'search_tools mode="types" requires `target` (tool name, e.g. "sheets_data").',
+              'target'
+            );
+          }
+          // Reuse the same schema renderer that powers schema://tools/{name}
+          // so the two surfaces never drift. Returns the full JSON Schema doc
+          // (with $id, inputSchema, outputSchema, annotations) for the named tool.
+          const { getToolSchema } = await import('../resources/schemas.js');
+          const targetName = target.trim();
+          const schemaJson = getToolSchema(targetName);
+          if (!schemaJson) {
+            return {
+              response: {
+                success: false,
+                error: mapStandaloneError(
+                  new ValidationError(
+                    `Unknown tool "${targetName}". Use mode="operations" with a query to discover tool names first.`,
+                    'target'
+                  )
+                ),
+              },
+            };
+          }
+          let schemaDoc: Record<string, unknown>;
+          try {
+            schemaDoc = JSON.parse(schemaJson) as Record<string, unknown>;
+          } catch (err) {
+            logger.error('Failed to parse cached tool schema JSON', {
+              tool: targetName,
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return {
+              response: {
+                success: false,
+                error: mapStandaloneError(
+                  new Error(`Internal error: cached schema for "${targetName}" was not valid JSON.`)
+                ),
+              },
+            };
+          }
+          return {
+            response: {
+              success: true as const,
+              action: 'search_tools' as const,
+              mode: 'types' as const,
+              target: targetName,
+              inputSchema: schemaDoc,
+              hint: `Schema for ${targetName} returned (equivalent to schema://tools/${targetName}). Compose a call to ${targetName} with the action you need. For another tool, call search_tools again with mode="types" and a new target.`,
+            },
+          };
+        }
+
+        // mode === 'operations'
+        if (!query || query.trim().length === 0) {
+          throw new ValidationError(
+            'search_tools mode="operations" requires `query` (natural language search).',
+            'query'
+          );
+        }
         const { discoverActions } = await import('../services/action-discovery.js');
         const matches = discoverActions(query, category, maxResults);
         return {
           response: {
             success: true as const,
             action: 'search_tools' as const,
+            mode: 'operations' as const,
             query,
             matchCount: matches.length,
             matches: matches.map((m) => ({
@@ -394,9 +469,10 @@ export async function handleSheetsSession(
               whenToUse: m.whenToUse,
               commonMistake: m.commonMistake,
             })),
-            hint: matches.length === 0
-              ? 'No matches found. Try rephrasing or check guide://tool-selection for routing guidance.'
-              : `Found ${matches.length} match${matches.length === 1 ? '' : 'es'}. Use the top result or call sheets_session.get_context for broader orientation.`,
+            hint:
+              matches.length === 0
+                ? 'No matches found. Try rephrasing or call search_tools with mode="types" and target="<tool>" if you already know the tool you need.'
+                : `Found ${matches.length} match${matches.length === 1 ? '' : 'es'}. Use the top result, or call search_tools with mode="types" and target:"${matches[0]?.tool}" to fetch its schema.`,
           },
         };
       }

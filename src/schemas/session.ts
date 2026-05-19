@@ -398,11 +398,46 @@ const ScheduleRunNowActionSchema = CommonFieldsSchema.extend({
 }).strict();
 
 // P23-C1: Natural language tool/action discovery in bundled mode
+// SEP-1888 (draft) alignment: `mode: "operations" | "types"` covers both halves
+// of the Progressive-Disclosure meta-tool contract. `operations` (default) does
+// natural-language search over all 411 actions. `types` returns the JSON Schema
+// for a specific tool — equivalent to reading the `schema://tools/{target}`
+// resource but exposed as a tool call for clients without resource support.
 const SearchToolsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('search_tools'),
-  query: z.string().min(1).max(200).describe('Natural language query to find relevant tools and actions (e.g. "how do I sort rows", "find duplicates")'),
-  category: z.enum(['data', 'format', 'analyze', 'collaborate', 'utility']).optional().describe('Optional category filter to narrow results'),
-  maxResults: z.number().int().min(1).max(10).optional().describe('Maximum number of results (1-10, default 5)'),
+  mode: z
+    .enum(['operations', 'types'])
+    .optional()
+    .describe(
+      'SEP-1888 (draft) mode. "operations" (default) = natural-language search across all tool actions. "types" = return the JSON Schema for the tool named in `target` so the LLM can compose calls without loading the full surface.'
+    ),
+  query: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'Natural language query (required when mode="operations"). Examples: "how do I sort rows", "find duplicates", "add chart".'
+    ),
+  target: z
+    .string()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe(
+      'Tool name (required when mode="types"). Returns the JSON Schema for this tool. Example: "sheets_data".'
+    ),
+  category: z
+    .enum(['data', 'format', 'analyze', 'collaborate', 'utility'])
+    .optional()
+    .describe('Optional category filter for mode="operations".'),
+  maxResults: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe('Maximum number of operations-mode results (1-10, default 5).'),
 }).strict();
 
 // Pipeline step schema (used by execute_pipeline)
@@ -763,9 +798,13 @@ const SessionSuccessSchema = z.object({
     )
     .optional()
     .describe('List of scheduled jobs'),
-  // search_tools response fields (P23-C1)
-  query: z.string().optional().describe('The search query that was executed'),
-  matchCount: z.number().optional().describe('Number of matches found'),
+  // search_tools response fields (P23-C1 + SEP-1888 draft alignment)
+  mode: z
+    .enum(['operations', 'types'])
+    .optional()
+    .describe('SEP-1888 mode used for this response.'),
+  query: z.string().optional().describe('The search query that was executed (mode="operations").'),
+  matchCount: z.number().optional().describe('Number of matches found (mode="operations").'),
   matches: z
     .array(
       z.object({
@@ -778,8 +817,13 @@ const SessionSuccessSchema = z.object({
       })
     )
     .optional()
-    .describe('Matching tools and actions ranked by relevance'),
-  hint: z.string().optional().describe('Guidance for next steps based on search results'),
+    .describe('Matching tools and actions ranked by relevance (mode="operations").'),
+  target: z.string().optional().describe('Tool name whose schema was returned (mode="types").'),
+  inputSchema: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('JSON Schema for the target tool (mode="types"). Equivalent to schema://tools/{target}.'),
+  hint: z.string().optional().describe('Guidance for next steps based on search results.'),
 });
 
 // Error response

@@ -775,6 +775,11 @@ builtin_string | builtin_number | builtin_boolean | builtin_date | builtin_posit
 [Alerts] get_alerts, acknowledge_alert, clear_alerts
 [Profile] set_user_id, get_profile, update_profile_preferences
 [Formula Learning] record_successful_formula, reject_suggestion, get_top_formulas
+[Discovery] search_tools — SEP-1888 (draft) progressive-disclosure meta-tool.
+  mode:"operations" (default) = natural-language search over all 411 actions.
+  mode:"types" + target:"<tool>" = return JSON Schema for one tool (equivalent to schema://tools/{target}).
+  Use this instead of asking the user to load more tools when the answer is "what action do I need".
+  This is the same engine that backs the SEP-1821 \`tools/list?query\` surface.
 [Reset] reset
 
 **🚀 CALL THIS FIRST IN MULTI-STEP WORKFLOWS:**

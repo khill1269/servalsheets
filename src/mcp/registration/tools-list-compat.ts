@@ -8,7 +8,33 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from '../../lib/schema.js';
-import { DEFER_SCHEMAS } from '../../config/constants.js';
+import { DEFER_SCHEMAS, TOOLS_LIST_COMPACT } from '../../config/constants.js';
+import { discoverActions } from '../../services/action-discovery.js';
+
+/**
+ * SEP-1821 (draft) Dynamic Tool Discovery — extends the SDK's
+ * ListToolsRequestSchema with an optional `query?: string` on `params`. The
+ * stock SDK schema is built from `z.object()` which strips unknown fields, so
+ * we pass this extended variant to `setRequestHandler` to preserve the field
+ * across validation. Empty/missing query reproduces the pre-SEP-1821 behavior
+ * (no filtering, full bundled tool set returned).
+ */
+const ListToolsRequestSchemaWithQuery = ListToolsRequestSchema.extend({
+  params: ListToolsRequestSchema.shape.params
+    .unwrap()
+    .extend({
+      query: z.string().min(1).max(500).optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Cap on how many tool names a single SEP-1821 `query` can surface in one
+ * `tools/list` response. The underlying `discoverActions()` returns
+ * ranked action-level matches; we collapse them up to MAX_QUERY_MATCHED_TOOLS
+ * unique tools so the response stays bounded even on broad queries.
+ */
+const MAX_QUERY_MATCHED_TOOLS = 25;
 import { getEnv } from '../../config/env.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { logger } from '../../utils/logger.js';
@@ -518,8 +544,12 @@ async function buildRequestAwareAccessFilter(
  * Each flat tool has a simple z.object schema with just the action's parameters
  * (no discriminated union, no 'action' field, no 'request' envelope).
  *
- * Tools marked defer_loading: true are discoverable via tool_search but
- * not loaded into the LLM's initial context.
+ * Tools omitted from the current registration stage are still discoverable via
+ * the SEP-1821 (draft) `query?: string` parameter on `tools/list`, or via the
+ * `servalsheets_search` meta-tool (SEP-1888 progressive disclosure). Note: the
+ * legacy `defer_loading: true` flag was removed in P23 (2026-05-12) — it was
+ * never a valid MCP field; see `docs/development/CLAUDE_CODE_RULES.md` gotcha
+ * #19 and `src/config/constants.ts:STAGE_*_TOOLS` for the current staging model.
  */
 
 function getBundledToolsForList(): readonly (typeof ACTIVE_TOOL_DEFINITIONS)[number][] {
@@ -536,13 +566,52 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
   };
 
   protocolServer.setRequestHandler(
-    ListToolsRequestSchema,
-    async (request: z.infer<typeof ListToolsRequestSchema>, extra?: ToolsListRequestExtra) => {
+    ListToolsRequestSchemaWithQuery as unknown as typeof ListToolsRequestSchema,
+    async (
+      request: z.infer<typeof ListToolsRequestSchemaWithQuery>,
+      extra?: ToolsListRequestExtra
+    ) => {
       const bundledTools = getBundledToolsForList();
       const accessFilter = await buildRequestAwareAccessFilter(
         bundledTools.map((tool) => tool.name),
         extra
       );
+
+      // ── SEP-1821 (draft) QUERY FILTERING ──────────────────────────────
+      // If the client passed `params.query`, narrow the bundled-tool set to
+      // tools whose actions match the natural-language query. The engine is
+      // `discoverActions()` from src/services/action-discovery.ts, which
+      // indexes all 411 actions across all 25 tools regardless of the
+      // current registration stage. We then intersect with access-controls
+      // below so unauthorized tools never leak through search.
+      const rawQuery = request.params?.query;
+      const query = typeof rawQuery === 'string' ? rawQuery.trim() : undefined;
+      let queryAllowedTools: Set<string> | undefined;
+      if (query && query.length > 0) {
+        try {
+          // Pull up to (MAX_QUERY_MATCHED_TOOLS * 3) action matches so we have
+          // headroom after dedup to tool names; cap at the documented max.
+          const matches = discoverActions(
+            query,
+            undefined,
+            Math.min(10, MAX_QUERY_MATCHED_TOOLS * 3)
+          );
+          queryAllowedTools = new Set(matches.map((m) => m.tool));
+          logger.debug('SEP-1821 tools/list query applied', {
+            query,
+            matchCount: matches.length,
+            uniqueTools: queryAllowedTools.size,
+          });
+        } catch (err) {
+          // Search failure should NOT break tools/list — fall back to the
+          // full bundled surface and log for diagnostics.
+          logger.warn('SEP-1821 query filtering failed; returning full surface', {
+            query,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          queryAllowedTools = undefined;
+        }
+      }
 
       // ── BUNDLED MODE ──────────────────────────────────────────────────
       // Return 25 compound tools with discriminated union schemas
@@ -560,6 +629,11 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
               logger.debug('Excluding tool from tools/list: request access filter', {
                 tool: tool.name,
               });
+              return false;
+            }
+            // SEP-1821 query filter — applied AFTER access control so the
+            // query can never broaden the visible surface, only narrow it.
+            if (queryAllowedTools && !queryAllowedTools.has(tool.name)) {
               return false;
             }
             return true;
@@ -580,17 +654,27 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
               description: enrichToolDescription(name, tool.description),
               inputSchema,
               annotations: tool.annotations,
-              icons: TOOL_ICONS[name],
-              execution: TOOL_EXECUTION_CONFIG[name],
             };
 
-            // outputSchema: prefer tool-level, fall back to registry lookup
-            const resolvedOutputSchema = tool.outputSchema ?? getOutputSchemaForTool(name);
-            if (resolvedOutputSchema) {
-              toolDefinition['outputSchema'] = toJsonSchema(resolvedOutputSchema, {
-                toolName: name,
-                schemaType: 'output',
-              });
+            // SEP-1576-aligned compaction (controlled by SERVAL_TOOLS_LIST_COMPACT,
+            // auto-on for STDIO). Strips icons / outputSchema / execution from
+            // tools/list when enabled — clients can still fetch them via
+            // /.well-known/mcp.json and schema://tools/{name}.
+            if (!TOOLS_LIST_COMPACT) {
+              toolDefinition['icons'] = TOOL_ICONS[name];
+              toolDefinition['execution'] = TOOL_EXECUTION_CONFIG[name];
+            }
+
+            // outputSchema: prefer tool-level, fall back to registry lookup.
+            // Skipped entirely in compact mode.
+            if (!TOOLS_LIST_COMPACT) {
+              const resolvedOutputSchema = tool.outputSchema ?? getOutputSchemaForTool(name);
+              if (resolvedOutputSchema) {
+                toolDefinition['outputSchema'] = toJsonSchema(resolvedOutputSchema, {
+                  toolName: name,
+                  schemaType: 'output',
+                });
+              }
             }
 
             return toolDefinition;

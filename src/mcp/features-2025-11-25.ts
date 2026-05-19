@@ -389,16 +389,22 @@ export function createServerCapabilities(): ServerCapabilities {
     // Add entries here when adopting future experimental MCP features.
     experimental: {},
 
-    // When staged registration is enabled, we emit tools/list_changed after each stage.
-    // Declare this so clients know to re-fetch the tool list on notification.
-    // When disabled, all tools register at once — no notification needed.
-    ...(STAGED_REGISTRATION ? { tools: { listChanged: true } } : {}),
-
-    // Note: tools, prompts, resources capabilities are auto-registered by McpServer
-    // when using registerTool(), registerPrompt(), registerResource()
-
-    // SEP-1821 (open draft): on merge, add tools: { listChanged: true, filtering: true }
-    // and accept query?: string in the tools/list request handler (tools-list-compat.ts).
+    // Tools capability
+    // - listChanged: emitted after each staged-registration transition
+    //   (clients re-fetch tools/list when staging is enabled)
+    // - filtering: SEP-1821 (draft) — `tools/list` accepts an optional
+    //   `query?: string` parameter for natural-language tool search.
+    //   Wired in `src/mcp/registration/tools-list-compat.ts` against the
+    //   existing `discoverActions()` engine (src/services/action-discovery.ts).
+    //   NOTE: `filtering` is not yet in the MCP SDK's ServerCapabilities type
+    //   (SEP-1821 still draft). Clients per spec ignore unknown capability
+    //   fields, so the cast is safe. Remove the cast once SEP-1821 merges and
+    //   the SDK ServerCapabilities type adds `tools.filtering`. Same gotcha
+    //   pattern as `taskSupport` annotation extension (see gotcha #21).
+    tools: {
+      ...(STAGED_REGISTRATION ? { listChanged: true } : {}),
+      filtering: true,
+    } as ServerCapabilities['tools'],
   };
 }
 
@@ -432,7 +438,10 @@ Available tools may vary by deployment settings or staged registration. Treat \`
 
 **Staged tools:** Tools load in 3 stages to minimize initial context. Stage 1 (5 tools) at connect → Stage 2 (+6) on set_active → Stage 3 (all 25) on first stage-3 call. Call \`tools/list\` again after set_active to see full surface.
 
-**Tool discovery:** \`sheets_session action:"search_tools" query:"natural language"\` finds tools/actions by intent without loading all schemas.
+**Tool discovery (two equivalent surfaces):**
+- **MCP-standard (SEP-1821 draft):** Pass \`params.query\` to \`tools/list\` (e.g. \`tools/list { query: "add chart" }\`). Server capability \`tools.filtering: true\` advertises support. Works with \`notifications/tools/list_changed\`: store the query, re-issue \`tools/list\` with the same query after each notification to receive only updated matches.
+- **ServalSheets action surface:** \`sheets_session action:"search_tools" query:"natural language"\` returns ranked tool+action matches without changing the registered tool set.
+Both surfaces are backed by the same in-memory index over all 411 actions, so results are equivalent.
 
 ## WORKFLOW
 
