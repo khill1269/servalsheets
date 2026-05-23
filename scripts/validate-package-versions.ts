@@ -5,9 +5,24 @@
  * before npm install runs. Catches version mismatches early.
  */
 
-import { execSync } from 'child_process';
+import { execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+
+const NPM_EXEC_OPTS: ExecSyncOptionsWithStringEncoding = {
+  stdio: 'pipe',
+  encoding: 'utf-8',
+  timeout: 15_000,
+};
+
+function isNetworkError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  return /ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNREFUSED|E429/i.test(msg);
+}
+
+function npmView(spec: string): string {
+  return execSync(`npm view ${spec} version`, NPM_EXEC_OPTS).trim();
+}
 
 interface ValidationResult {
   package: string;
@@ -65,50 +80,30 @@ async function validateVersion(pkg: string, version: string): Promise<Validation
     };
   }
 
+  // Remove semver range characters to get exact version
+  const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
+
   try {
-    // Remove semver range characters to get exact version
-    const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
-
-    const EXEC_OPTS = { stdio: 'pipe' as const, encoding: 'utf-8' as const, timeout: 15000 };
-
-    // Check if this exact version exists on npm
+    npmView(`${pkg}@${cleanVersion}`);
+    return { package: pkg, specified: version, exists: true };
+  } catch (lookupErr) {
+    if (isNetworkError(lookupErr)) {
+      return { package: pkg, specified: version, exists: true, skipped: true };
+    }
+    // Version not found — fetch latest to include in the error message.
     try {
-      execSync(`npm view ${pkg}@${cleanVersion} version`, EXEC_OPTS);
+      const latest = npmView(pkg);
       return {
         package: pkg,
         specified: version,
-        exists: true,
+        exists: false,
+        latest,
+        error: `Version ${version} not found. Latest: ${latest}`,
       };
-    } catch (innerErr) {
-      // Distinguish a genuine "version not found" from a transient network error.
-      // npm exits non-zero for both; network errors include ETIMEDOUT / ENOTFOUND / E429.
-      const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
-      const isNetworkError = /ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNREFUSED|E429|network/i.test(msg);
-      if (isNetworkError) {
-        return { package: pkg, specified: version, exists: true, skipped: true };
-      }
-      // Version genuinely doesn't exist — try to get the latest for a helpful message.
-      try {
-        const latest = execSync(`npm view ${pkg} version`, EXEC_OPTS).trim();
-        return {
-          package: pkg,
-          specified: version,
-          exists: false,
-          latest,
-          error: `Version ${version} not found. Latest: ${latest}`,
-        };
-      } catch {
-        // Cannot reach registry to get latest either — treat as network skip.
-        return { package: pkg, specified: version, exists: true, skipped: true };
-      }
+    } catch {
+      // Registry unreachable for the fallback call too — skip rather than fail.
+      return { package: pkg, specified: version, exists: true, skipped: true };
     }
-  } catch (error) {
-    return {
-      package: pkg,
-      specified: version,
-      exists: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-    };
   }
 }
 
