@@ -19,8 +19,6 @@ function isNetworkError(err: unknown): boolean {
   return /ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNREFUSED|E429/i.test(msg);
 }
 
-// Allowlist for npm package specs: scoped names (@scope/pkg), versions, semver chars.
-// Validates before exec to break taint flow and prevent argument injection.
 const SAFE_PKG_SPEC_RE = /^[@a-zA-Z0-9_\-./+]+$/;
 
 function npmView(spec: string): string {
