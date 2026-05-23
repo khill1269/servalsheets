@@ -77,6 +77,20 @@
 | **Review By** | 2026-07-21 |
 | **Owner** | @khill1269 |
 
+### SE-006: OpenTelemetry Prometheus exporter DoS (GHSA-q7rr-3cgh-j5r3)
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-q7rr-3cgh-j5r3 |
+| **Severity** | High |
+| **Dependency Chain** | `@opentelemetry/auto-instrumentations-node`, `@opentelemetry/exporter-prometheus`, `@opentelemetry/sdk-node` |
+| **Root Cause** | Prometheus exporter crashes on malformed HTTP request; fix requires major semver bump (`>=0.217.0`/`>=0.76.0`) |
+| **Mitigation** | Prometheus exporter endpoint is not exposed in default deployments; requires explicit opt-in via `OTEL_EXPORTER_PROMETHEUS_*` env vars |
+| **Resolution Path** | Upgrade `@opentelemetry/sdk-node` to `>=0.218.0` and `@opentelemetry/auto-instrumentations-node` to `>=0.76.0` in a dedicated dependency-upgrade PR |
+| **Created** | 2026-05-23 |
+| **Review By** | 2026-08-23 |
+| **Owner** | @khill1269 |
+
 ## Resolved Exceptions
 
 _None yet._
