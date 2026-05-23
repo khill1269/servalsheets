@@ -69,29 +69,38 @@ async function validateVersion(pkg: string, version: string): Promise<Validation
     // Remove semver range characters to get exact version
     const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
 
+    const EXEC_OPTS = { stdio: 'pipe' as const, encoding: 'utf-8' as const, timeout: 15000 };
+
     // Check if this exact version exists on npm
     try {
-      execSync(`npm view ${pkg}@${cleanVersion} version`, {
-        stdio: 'pipe',
-        encoding: 'utf-8',
-      });
+      execSync(`npm view ${pkg}@${cleanVersion} version`, EXEC_OPTS);
       return {
         package: pkg,
         specified: version,
         exists: true,
       };
-    } catch {
-      // Version doesn't exist, get latest
-      const latest = execSync(`npm view ${pkg} version`, {
-        encoding: 'utf-8',
-      }).trim();
-      return {
-        package: pkg,
-        specified: version,
-        exists: false,
-        latest,
-        error: `Version ${version} not found. Latest: ${latest}`,
-      };
+    } catch (innerErr) {
+      // Distinguish a genuine "version not found" from a transient network error.
+      // npm exits non-zero for both; network errors include ETIMEDOUT / ENOTFOUND / E429.
+      const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+      const isNetworkError = /ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNREFUSED|E429|network/i.test(msg);
+      if (isNetworkError) {
+        return { package: pkg, specified: version, exists: true, skipped: true };
+      }
+      // Version genuinely doesn't exist — try to get the latest for a helpful message.
+      try {
+        const latest = execSync(`npm view ${pkg} version`, EXEC_OPTS).trim();
+        return {
+          package: pkg,
+          specified: version,
+          exists: false,
+          latest,
+          error: `Version ${version} not found. Latest: ${latest}`,
+        };
+      } catch {
+        // Cannot reach registry to get latest either — treat as network skip.
+        return { package: pkg, specified: version, exists: true, skipped: true };
+      }
     }
   } catch (error) {
     return {
