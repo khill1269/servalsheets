@@ -5,31 +5,9 @@
  * before npm install runs. Catches version mismatches early.
  */
 
-import { spawnSync, SpawnSyncOptionsWithStringEncoding } from 'child_process';
+import { execSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-
-const NPM_SPAWN_OPTS: SpawnSyncOptionsWithStringEncoding = {
-  encoding: 'utf-8',
-  timeout: 15_000,
-};
-
-function isNetworkError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
-  return /ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNREFUSED|E429/i.test(msg);
-}
-
-const SAFE_PKG_SPEC_RE = /^[@a-zA-Z0-9_\-./+]+$/;
-
-function npmView(spec: string): string {
-  if (!SAFE_PKG_SPEC_RE.test(spec)) {
-    throw new Error(`Invalid package spec: ${spec}`);
-  }
-  const result = spawnSync('npm', ['view', spec, 'version'], NPM_SPAWN_OPTS);
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stderr || `npm view failed for ${spec}`);
-  return result.stdout.trim();
-}
 
 interface ValidationResult {
   package: string;
@@ -87,19 +65,26 @@ async function validateVersion(pkg: string, version: string): Promise<Validation
     };
   }
 
-  // Remove semver range characters to get exact version
-  const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
-
   try {
-    npmView(`${pkg}@${cleanVersion}`);
-    return { package: pkg, specified: version, exists: true };
-  } catch (lookupErr) {
-    if (isNetworkError(lookupErr)) {
-      return { package: pkg, specified: version, exists: true, skipped: true };
-    }
-    // Version not found — fetch latest to include in the error message.
+    // Remove semver range characters to get exact version
+    const cleanVersion = version.replace(/[\^~>=<]/, '').trim();
+
+    // Check if this exact version exists on npm
     try {
-      const latest = npmView(pkg);
+      execSync(`npm view ${pkg}@${cleanVersion} version`, {
+        stdio: 'pipe',
+        encoding: 'utf-8',
+      });
+      return {
+        package: pkg,
+        specified: version,
+        exists: true,
+      };
+    } catch {
+      // Version doesn't exist, get latest
+      const latest = execSync(`npm view ${pkg} version`, {
+        encoding: 'utf-8',
+      }).trim();
       return {
         package: pkg,
         specified: version,
@@ -107,10 +92,14 @@ async function validateVersion(pkg: string, version: string): Promise<Validation
         latest,
         error: `Version ${version} not found. Latest: ${latest}`,
       };
-    } catch {
-      // Registry unreachable for the fallback call too — skip rather than fail.
-      return { package: pkg, specified: version, exists: true, skipped: true };
     }
+  } catch (error) {
+    return {
+      package: pkg,
+      specified: version,
+      exists: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
   }
 }
 
