@@ -6,9 +6,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EncryptedFileTokenStore } from '../../src/services/token-store.js';
 import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import path from 'path';
 
-const tmpDir = path.join(process.cwd(), 'tests', '.tmp');
+const tmpDir = path.join(tmpdir(), 'servalsheets-token-store-test');
 const tokenFile = path.join(tmpDir, 'tokens.enc');
 
 describe('EncryptedFileTokenStore', () => {
