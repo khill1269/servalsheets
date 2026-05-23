@@ -5,15 +5,9 @@
  * before npm install runs. Catches version mismatches early.
  */
 
-import { execSync, ExecSyncOptionsWithStringEncoding } from 'child_process';
+import { spawnSync } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-
-const NPM_EXEC_OPTS: ExecSyncOptionsWithStringEncoding = {
-  stdio: 'pipe',
-  encoding: 'utf-8',
-  timeout: 15_000,
-};
 
 function isNetworkError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
@@ -21,7 +15,13 @@ function isNetworkError(err: unknown): boolean {
 }
 
 function npmView(spec: string): string {
-  return execSync(`npm view ${spec} version`, NPM_EXEC_OPTS).trim();
+  const result = spawnSync('npm', ['view', '--', spec, 'version'], {
+    encoding: 'utf-8',
+    timeout: 15_000,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr || `npm view failed for ${spec}`);
+  return result.stdout.trim();
 }
 
 interface ValidationResult {
