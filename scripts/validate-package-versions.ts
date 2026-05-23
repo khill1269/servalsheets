@@ -5,9 +5,14 @@
  * before npm install runs. Catches version mismatches early.
  */
 
-import { spawnSync } from 'child_process';
+import { spawnSync, SpawnSyncOptionsWithStringEncoding } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+
+const NPM_SPAWN_OPTS: SpawnSyncOptionsWithStringEncoding = {
+  encoding: 'utf-8',
+  timeout: 15_000,
+};
 
 function isNetworkError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
@@ -15,10 +20,7 @@ function isNetworkError(err: unknown): boolean {
 }
 
 function npmView(spec: string): string {
-  const result = spawnSync('npm', ['view', '--', spec, 'version'], {
-    encoding: 'utf-8',
-    timeout: 15_000,
-  });
+  const result = spawnSync('npm', ['view', '--', spec, 'version'], NPM_SPAWN_OPTS);
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(result.stderr || `npm view failed for ${spec}`);
   return result.stdout.trim();
