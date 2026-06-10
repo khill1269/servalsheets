@@ -9,7 +9,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 
-const tmpDir = path.join(tmpdir(), 'servalsheets-token-store-test');
+const tmpDir = path.join(tmpdir(), 'servalsheets-test-tokens');
 const tokenFile = path.join(tmpDir, 'tokens.enc');
 
 describe('EncryptedFileTokenStore', () => {
