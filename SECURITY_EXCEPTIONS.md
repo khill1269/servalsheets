@@ -91,6 +91,20 @@
 | **Review By** | 2026-08-23 |
 | **Owner** | @khill1269 |
 
+### SE-007: shell-quote newline escaping in object .op values (dev-only)
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-w7jw-789q-3m8p |
+| **Severity** | Critical |
+| **Dependency Chain** | `npm-run-all` → `shell-quote` |
+| **Root Cause** | `shell-quote` quote() does not escape newlines in object .op values; npm-run-all pins `^1.6.1` and no patched release resolves the advisory |
+| **Mitigation** | Dev dependency only — not present in production bundle; only invoked by npm run scripts during local development and CI builds |
+| **Resolution Path** | Wait for `shell-quote` to release a patched version, or migrate from `npm-run-all` to a maintained alternative |
+| **Created** | 2026-06-10 |
+| **Review By** | 2026-09-10 |
+| **Owner** | @khill1269 |
+
 ## Resolved Exceptions
 
 _None yet._
