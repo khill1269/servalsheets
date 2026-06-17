@@ -119,6 +119,7 @@
     "test:coverage:tracking": "vitest --run --coverage",
     "test:simulation": "vitest run tests/simulation/",
     "test:simulation:full": "vitest run tests/simulation/ tests/contracts/ tests/compliance/",
+    "test:chaos": "vitest run tests/chaos/",
     "stress:catalog": "npx tsx tests/stress/scenario-catalog.ts --print",
     "stress:run": "STRESS_TEST=1 vitest run tests/live-api/zstress/ --timeout=300000",
     "clean": "rm -rf dist",
@@ -258,7 +259,8 @@
     "diff": ">=8.0.3",
     "protobufjs": "^7.5.5",
     "esbuild": ">=0.24.3",
-    "smol-toml": ">=1.6.1"
+    "smol-toml": ">=1.6.1",
+    "fast-uri": ">=3.1.2"
   },
   "workspaces": [
     "packages/serval-core",
