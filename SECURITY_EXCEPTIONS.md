@@ -105,6 +105,104 @@
 | **Review By** | 2026-09-10 |
 | **Owner** | @khill1269 |
 
+### SE-008: @grpc/grpc-js server/client crash via malformed messages (transitive)
+
+| Field | Value |
+|-------|-------|
+| **Advisories** | GHSA-5375-pq7m-f5r2, GHSA-99f4-grh7-6pcq |
+| **Severity** | High |
+| **Dependency Chain** | `@opentelemetry/sdk-node`, `@opentelemetry/auto-instrumentations-node` → `@grpc/grpc-js` |
+| **Root Cause** | Malformed requests or compressed messages can crash the gRPC server/client; fix requires upgrading `@grpc/grpc-js` past the patched version |
+| **Mitigation** | gRPC endpoint is internal telemetry only; not exposed to untrusted external clients in default deployments |
+| **Resolution Path** | Upgrade OpenTelemetry packages to versions that depend on patched `@grpc/grpc-js` |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
+### SE-009: esbuild Deno module missing binary integrity verification
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-gv7w-rqvm-qjhr |
+| **Severity** | High |
+| **Package** | `esbuild` |
+| **Root Cause** | Missing binary integrity check in Deno module allows RCE via custom `NPM_CONFIG_REGISTRY`; distinct from SE-003 (GHSA-67mh-4wv8-2f99) |
+| **Mitigation** | Dev dependency only — not in production bundle; `NPM_CONFIG_REGISTRY` is not user-controlled in CI or production |
+| **Resolution Path** | Upgrade esbuild to a version that adds binary integrity verification |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
+### SE-010: form-data CRLF injection via unescaped field names
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-hmw2-7cc7-3qxx |
+| **Severity** | High |
+| **Dependency Chain** | `googleapis` → `gaxios` → `form-data` |
+| **Root Cause** | `form-data` does not escape newlines in multipart field names and filenames, enabling CRLF injection |
+| **Mitigation** | Field names and filenames in ServalSheets API calls are internally constructed from validated spreadsheet data, not from untrusted user input |
+| **Resolution Path** | Upgrade `form-data` to a patched version once googleapis releases an updated dependency |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
+### SE-011: hono CORS middleware reflects arbitrary Origin with credentials
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-88fw-hqm2-52qc |
+| **Severity** | High |
+| **Package** | `hono` (transitive via MCP SDK or tooling) |
+| **Root Cause** | hono CORS middleware reflects any `Origin` header with credentials when `origin` option defaults to wildcard |
+| **Mitigation** | ServalSheets HTTP server uses its own CORS middleware (`cors` package) with explicit origin allowlisting; hono is not used in the request path |
+| **Resolution Path** | Upgrade transitive hono dependency once upstream packages release patched versions |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
+### SE-012: protobufjs DoS via unbounded Any expansion in JSON conversion
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-wcpc-wj8m-hjx6 |
+| **Severity** | High |
+| **Dependency Chain** | `googleapis` → `google-gax` → `protobufjs` |
+| **Root Cause** | Unbounded recursion in `Any` type expansion during JSON conversion enables DoS; existing override `"protobufjs": "^7.5.5"` does not cover this advisory |
+| **Mitigation** | Protobuf JSON conversion is only called with trusted internal payloads from the Google API; no untrusted input reaches this path |
+| **Resolution Path** | Update override to `"protobufjs": ">=7.5.x"` where x includes the patch, once the fixed version is identified |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
+### SE-013: vite server.fs.deny bypass on Windows alternate paths
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-fx2h-pf6j-xcff |
+| **Severity** | High |
+| **Package** | `vite` (also affects `vitepress`); distinct from SE-005 (GHSA-4w7w-66w2-5vf9) |
+| **Root Cause** | Windows alternate path syntax (`/`) bypasses `server.fs.deny` restrictions in Vite dev server |
+| **Mitigation** | Dev dependency only — not in production bundle; production runs on Linux, not Windows; Vite dev server not exposed externally |
+| **Resolution Path** | Upgrade vite to a version that patches this bypass |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
+### SE-014: ws memory exhaustion DoS via tiny fragments
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-96hv-2xvq-fx4p |
+| **Severity** | High |
+| **Dependency Chain** | `@modelcontextprotocol/sdk`, dev tooling → `ws` |
+| **Root Cause** | Sending many tiny HTTP/WS fragments causes memory exhaustion; no upstream patch available that satisfies all transitive constraints |
+| **Mitigation** | MCP WebSocket connections are authenticated and rate-limited; untrusted clients cannot reach the ws listener in default deployments |
+| **Resolution Path** | Upgrade `ws` transitive dependency once upstream MCP SDK or tooling releases a patched version |
+| **Created** | 2026-06-17 |
+| **Review By** | 2026-09-17 |
+| **Owner** | @khill1269 |
+
 ## Resolved Exceptions
 
 _None yet._
