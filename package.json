@@ -119,6 +119,7 @@
     "test:coverage:tracking": "vitest --run --coverage",
     "test:simulation": "vitest run tests/simulation/",
     "test:simulation:full": "vitest run tests/simulation/ tests/contracts/ tests/compliance/",
+    "test:chaos": "vitest --run --config tests/config/vitest.config.chaos.ts",
     "stress:catalog": "npx tsx tests/stress/scenario-catalog.ts --print",
     "stress:run": "STRESS_TEST=1 vitest run tests/live-api/zstress/ --timeout=300000",
     "clean": "rm -rf dist",
