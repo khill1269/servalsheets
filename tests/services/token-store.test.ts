@@ -7,8 +7,9 @@ import { EncryptedFileTokenStore } from '../../src/services/token-store.js';
 import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { tmpdir } from 'os';
 
-const tmpDir = path.join(process.cwd(), 'tests', '.tmp');
+const tmpDir = path.join(tmpdir(), 'servalsheets-test-tokens');
 const tokenFile = path.join(tmpDir, 'tokens.enc');
 
 describe('EncryptedFileTokenStore', () => {
