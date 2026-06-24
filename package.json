@@ -61,6 +61,7 @@
     "check:placeholders": "bash scripts/no-placeholders.sh",
     "check:doc-action-counts": "bash scripts/check-doc-action-counts.sh",
     "check:debug-prints": "bash scripts/check-debug-prints.sh",
+    "check:test-paths": "bash scripts/check-test-paths.sh",
     "check:silent-fallbacks": "bash scripts/check-silent-fallbacks.sh",
     "check:integration-wiring": "node scripts/check-integration-wiring.mjs",
     "check:mutation-actions": "node scripts/check-mutation-actions.mjs",
