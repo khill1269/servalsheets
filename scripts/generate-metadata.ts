@@ -646,7 +646,16 @@ const serverJson = {
     description: `${a.toolName} operations (${a.actionCount} actions)`,
     actions: a.actions,
   })),
-  capabilities: ['tools', 'resources', 'prompts', 'logging', 'completions', 'tasks', 'sampling', 'elicitation'],
+  capabilities: [
+    'tools',
+    'resources',
+    'prompts',
+    'logging',
+    'completions',
+    'tasks',
+    'sampling',
+    'elicitation',
+  ],
   transports: ['stdio', 'streamable-http', 'http-sse'],
   metadata: {
     toolCount: TOOL_COUNT,
@@ -909,8 +918,163 @@ function validateSpecialCaseCounts(): boolean {
   return allValid;
 }
 
+type ActionMetadataLike = {
+  readOnly: boolean;
+  apiCalls: number | 'dynamic';
+  quotaCost: number | string;
+  requiresConfirmation: boolean;
+  destructive: boolean;
+  idempotent: boolean;
+};
+
+type ActionCostEstimateLike = {
+  apiCalls: number | 'dynamic';
+  latency: 'instant' | 'fast' | 'medium' | 'slow' | 'background';
+};
+
+function formatList(values: string[]): string {
+  return values.length > 0 ? values.join(', ') : 'none';
+}
+
+function validateExactKeys(
+  label: string,
+  actualKeys: string[],
+  expectedKeys: string[],
+  errors: string[]
+): void {
+  const expected = new Set(expectedKeys);
+  const actual = new Set(actualKeys);
+  const missing = expectedKeys.filter((key) => !actual.has(key));
+  const stale = actualKeys.filter((key) => !expected.has(key));
+
+  if (missing.length > 0 || stale.length > 0) {
+    errors.push(`${label} key drift. Missing: ${formatList(missing)}; stale: ${formatList(stale)}`);
+  }
+}
+
+async function validateMetadataContracts(): Promise<boolean> {
+  if (!VALIDATE_MODE) {
+    return true;
+  }
+
+  console.log('\n🔍 Validating metadata contracts against schemas and handlers...\n');
+
+  const errors: string[] = [];
+  const expectedToolNames = sortedToolAnalyses.map((analysis) => `sheets_${analysis.toolName}`);
+  const expectedActionsByTool = new Map(
+    sortedToolAnalyses.map((analysis) => [`sheets_${analysis.toolName}`, analysis.actions])
+  );
+
+  const { TOOL_DESCRIPTIONS } = await import('../src/schemas/descriptions.js');
+  const { TOOL_DESCRIPTIONS_MINIMAL } = await import('../src/schemas/descriptions-minimal.js');
+  const { ACTION_METADATA } = await import('../src/schemas/action-metadata.js');
+  const { getActionCostEstimates } =
+    await import('../src/mcp/registration/tool-discovery-hints.js');
+  const { extractHandlerCases, isSingleActionTool } =
+    await import('../src/utils/ast-schema-parser.js');
+  const { getToolDeviation } = await import('../src/schemas/handler-deviations.js');
+
+  validateExactKeys('TOOL_DESCRIPTIONS', Object.keys(TOOL_DESCRIPTIONS), expectedToolNames, errors);
+  validateExactKeys(
+    'TOOL_DESCRIPTIONS_MINIMAL',
+    Object.keys(TOOL_DESCRIPTIONS_MINIMAL),
+    expectedToolNames,
+    errors
+  );
+  validateExactKeys('ACTION_METADATA', Object.keys(ACTION_METADATA), expectedToolNames, errors);
+
+  for (const [toolName, expectedActions] of expectedActionsByTool) {
+    const metadataForTool = ACTION_METADATA[toolName] as
+      | Record<string, ActionMetadataLike>
+      | undefined;
+    validateExactKeys(
+      `${toolName} ACTION_METADATA`,
+      Object.keys(metadataForTool ?? {}),
+      expectedActions,
+      errors
+    );
+
+    const costEstimates = getActionCostEstimates(toolName) as
+      | Record<string, ActionCostEstimateLike>
+      | undefined;
+    validateExactKeys(
+      `${toolName} cost estimates`,
+      Object.keys(costEstimates ?? {}),
+      expectedActions,
+      errors
+    );
+
+    for (const actionName of expectedActions) {
+      const metadata = metadataForTool?.[actionName];
+      const costEstimate = costEstimates?.[actionName];
+
+      if (!metadata || !costEstimate) {
+        continue;
+      }
+
+      if (metadata.readOnly && metadata.destructive) {
+        errors.push(`${toolName}.${actionName} cannot be both readOnly and destructive`);
+      }
+      if (costEstimate.apiCalls !== metadata.apiCalls) {
+        errors.push(
+          `${toolName}.${actionName} cost estimate apiCalls (${costEstimate.apiCalls}) ` +
+            `does not match ACTION_METADATA (${metadata.apiCalls})`
+        );
+      }
+    }
+  }
+
+  const handlerNameOverrides: Record<string, string> = {
+    webhook: 'webhooks',
+  };
+
+  for (const analysis of sortedToolAnalyses) {
+    const handlerName = handlerNameOverrides[analysis.toolName] ?? analysis.toolName;
+    const handlerPath = join(ROOT, 'src/handlers', `${handlerName}.ts`);
+    if (!existsSync(handlerPath)) {
+      errors.push(`Missing handler file for sheets_${analysis.toolName}: ${handlerPath}`);
+      continue;
+    }
+
+    const handlerCases = extractHandlerCases(handlerPath);
+    if (isSingleActionTool(analysis.actions, handlerCases)) {
+      continue;
+    }
+
+    const extra = handlerCases.filter((caseName) => !analysis.actions.includes(caseName));
+    const missing = analysis.actions.filter((actionName) => !handlerCases.includes(actionName));
+    const deviation = getToolDeviation(analysis.toolName);
+    const documentedExtra = deviation?.extraCases ?? [];
+    const documentedMissing = deviation?.missingCases ?? [];
+    const undocumentedExtra = extra.filter((caseName) => !documentedExtra.includes(caseName));
+    const undocumentedMissing = missing.filter(
+      (actionName) => !documentedMissing.includes(actionName)
+    );
+
+    if (undocumentedExtra.length > 0 || undocumentedMissing.length > 0) {
+      errors.push(
+        `sheets_${analysis.toolName} handler drift. Extra: ${formatList(
+          undocumentedExtra
+        )}; missing: ${formatList(undocumentedMissing)}`
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      console.error(`  ❌ ${error}`);
+    }
+    console.error('\n❌ Metadata contract validation failed\n');
+    return false;
+  }
+
+  console.log('✅ Metadata descriptions, costs, capabilities, and handler cases are aligned\n');
+  return true;
+}
+
 // Always run special case validation
 const specialCasesValid = validateSpecialCaseCounts();
+const metadataContractsValid = await validateMetadataContracts();
 
 // ============================================================================
 // VALIDATION MODE: Compare pending writes with existing files
@@ -956,12 +1120,15 @@ if (VALIDATE_MODE) {
     }
   }
 
-  if (driftFound || !specialCasesValid) {
+  if (driftFound || !specialCasesValid || !metadataContractsValid) {
     if (driftFound) {
       console.error('\n❌ METADATA DRIFT DETECTED — run `npm run gen:metadata` to fix');
     }
     if (!specialCasesValid) {
       console.error('❌ SPECIAL_CASE_TOOLS MISMATCH — update counts in generate-metadata.ts');
+    }
+    if (!metadataContractsValid) {
+      console.error('❌ METADATA CONTRACT MISMATCH — update descriptions/costs/handlers');
     }
     console.error('');
     process.exit(1);
