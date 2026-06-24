@@ -47,7 +47,7 @@ jobs:
         id: detect
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+            git fetch --no-tags origin "${{ github.base_ref }}"
             CHANGED_FILES=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
           elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             CHANGED_FILES=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
@@ -172,6 +172,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
@@ -209,7 +211,7 @@ jobs:
         id: tool-changes
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git fetch --no-tags origin "${{ github.base_ref }}" --depth=1
+            git fetch --no-tags origin "${{ github.base_ref }}"
             CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
           elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")

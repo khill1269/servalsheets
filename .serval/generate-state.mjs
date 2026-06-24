@@ -129,10 +129,11 @@ if (existsSync(`${ROOT}/docs/development/PROJECT_STATUS.md`)) {
   }
 }
 
-// Check drift script (fixed in Session 12; 15s timeout is generous)
-const driftResult = exec('timeout 15 npm run check:drift 2>&1', 20000);
-if (driftResult === null || driftResult.includes('timeout')) {
-  knownIssues.push('- npm run check:drift hangs/times out');
+// Check drift script — rely on execSync's own timeout (portable across macOS/Linux;
+// shell-level `timeout` is GNU-only and missing on macOS, which produced false positives).
+const driftResult = exec('npm run check:drift 2>&1', 30000);
+if (driftResult === null) {
+  knownIssues.push('- npm run check:drift hangs/times out (>30s)');
 }
 
 // Check README.md staleness

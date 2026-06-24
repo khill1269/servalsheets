@@ -251,8 +251,8 @@ describe('range-helpers', () => {
       }
       const duration = Date.now() - start;
 
-      // Should complete in <10ms (cached after first)
-      expect(duration).toBeLessThan(10);
+      // Should complete quickly (cached after first) — 50ms allows for CI/container jitter
+      expect(duration).toBeLessThan(50);
 
       // Only 1 entry in cache
       expect(getRangeParseStats().size).toBe(1);

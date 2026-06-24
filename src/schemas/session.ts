@@ -43,7 +43,7 @@ const SetActiveActionSchema = CommonFieldsSchema.extend({
     .optional()
     .describe(
       'Human-readable title for natural language references like "my budget" or "Q1 report". ' +
-        'Optional — fetched from the API if not provided. ' +
+        'Optional — caller-supplied; if omitted, set_active stores a generated default id from the spreadsheet ID. ' +
         'Example: "Q1 2026 Sales Report"'
     ),
   sheetNames: z
@@ -52,7 +52,7 @@ const SetActiveActionSchema = CommonFieldsSchema.extend({
     .default([])
     .describe(
       'Names of the sheets (tabs) in this spreadsheet. Used to resolve references like "the Revenue sheet". ' +
-        'Optional — fetched from the API if not provided. ' +
+        'Optional — caller-supplied; if omitted, sheet-name reference resolution is disabled until names are supplied. ' +
         'Example: ["Sheet1", "Revenue", "Costs", "Summary"]'
     ),
 });
