@@ -3,7 +3,7 @@
 
 # ─── Stage 1: Build TypeScript ────────────────────────────────────────────────
 # NOTE: Pin to specific digest for reproducibility. Update digest when upgrading Node.
-FROM node:26-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS builder
+FROM node:26-alpine@sha256:725aeba2364a9b16beae49e180d83bd597dbd0b15c47f1f28875c290bfd255b9 AS builder
 
 WORKDIR /app
 
@@ -31,7 +31,7 @@ RUN npm prune --omit=dev \
   && npm cache clean --force
 
 # ─── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM node:26-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea
+FROM node:26-alpine@sha256:725aeba2364a9b16beae49e180d83bd597dbd0b15c47f1f28875c290bfd255b9
 
 # Security: install only essential runtime packages
 RUN apk add --no-cache curl tini \
