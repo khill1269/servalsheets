@@ -14,6 +14,7 @@ const CRITICAL_INCLUDE = [
   'tests/utils/retry.test.ts',
   'tests/utils/circuit-breaker-states.test.ts',
   'tests/utils/circuit-breaker-fallback.test.ts',
+  'tests/utils/quota-circuit-breaker.test.ts',
   'tests/unit/circuit-breaker-fallback.test.ts',
 ];
 
