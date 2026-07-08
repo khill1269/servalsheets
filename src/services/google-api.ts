@@ -518,14 +518,15 @@ export class GoogleApiClient {
 
     // Capture raw (pre-wrap) sheetsApi so the existence checker never re-enters the proxy.
     const rawSheetsForExistenceInit = sheetsApi;
-    const existenceCheckerInit = async (spreadsheetId: string): Promise<void> => {
+    const existenceCheckerInit = async (spreadsheetId: string): Promise<boolean> => {
       const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
-      if (expiry !== undefined && Date.now() < expiry) return;
+      if (expiry !== undefined && Date.now() < expiry) return false;
       await rawSheetsForExistenceInit.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' });
       this.spreadsheetExistenceCache.set(
         spreadsheetId,
         Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
       );
+      return true;
     };
 
     this._sheets = wrapGoogleApi(sheetsApi, {
@@ -653,9 +654,9 @@ export class GoogleApiClient {
     // Wrap with retry/circuit breaker (maintain existing error handling)
     // Rebuild existence checker against the new raw sheetsApi after reinit.
     const rawSheetsForExistenceReinit = sheetsApi;
-    const existenceCheckerReinit = async (spreadsheetId: string): Promise<void> => {
+    const existenceCheckerReinit = async (spreadsheetId: string): Promise<boolean> => {
       const expiry = this.spreadsheetExistenceCache.get(spreadsheetId);
-      if (expiry !== undefined && Date.now() < expiry) return;
+      if (expiry !== undefined && Date.now() < expiry) return false;
       await rawSheetsForExistenceReinit.spreadsheets.get({
         spreadsheetId,
         fields: 'spreadsheetId',
@@ -664,6 +665,7 @@ export class GoogleApiClient {
         spreadsheetId,
         Date.now() + GoogleApiClient.EXISTENCE_TTL_MS
       );
+      return true;
     };
 
     this._sheets = wrapGoogleApi(sheetsApi, {
@@ -1802,13 +1804,13 @@ export async function createGoogleApiClient(
   return client;
 }
 
-function wrapGoogleApi<T extends object>(
+export function wrapGoogleApi<T extends object>(
   api: T,
   options?: RetryOptions & {
     circuit?: ICircuitBreaker;
     client?: GoogleApiClient;
     /** Called before write operations to fast-fail on unknown spreadsheetIds (Fix B). */
-    existenceChecker?: (spreadsheetId: string) => Promise<void>;
+    existenceChecker?: (spreadsheetId: string) => Promise<boolean>;
   }
 ): T {
   const cache = new WeakMap<object, unknown>();
@@ -1873,7 +1875,14 @@ function wrapGoogleApi<T extends object>(
                 // Fast-fail on unknown spreadsheetId before consuming quota (Fix B).
                 // Uses raw (pre-wrap) sheets API; cached 5 min to avoid redundant probes.
                 if (isWriteOp && sharedDriveFileId && options?.existenceChecker) {
-                  await options.existenceChecker(sharedDriveFileId);
+                  const precheckCalledApi = await options.existenceChecker(sharedDriveFileId);
+                  if (precheckCalledApi) {
+                    client.recordCallResult(true);
+                    const ctx = getRequestContext();
+                    if (ctx) {
+                      ctx.apiCallsMade++;
+                    }
+                  }
                 }
 
                 if (isWriteOp && (await client.isSharedDriveFile(sharedDriveFileId))) {

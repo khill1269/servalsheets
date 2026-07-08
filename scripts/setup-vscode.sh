@@ -39,16 +39,13 @@ extensions=(
   "mattpocock.ts-error-translator"
 
   # Testing
-  "ZixuanChen.vitest-explorer"
+  "vitest.explorer"
 
   # Productivity
-  "wix.vscode-import-cost"
   "gruntfuggly.todo-tree"
   "aaron-bond.better-comments"
-  "streetsidesoftware.code-spell-checker"
 
   # MCP Development (2026)
-  "newbpydev.mcp-diagnostics-extension"
   "maaz-tajammul.diagnostics-mcp-server"
 
   # Documentation
@@ -87,6 +84,8 @@ if [ -f ".vscode/settings.json" ]; then
 {
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsserver.maxTsServerMemory": 2048,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
   "typescript.preferences.strictNullChecks": true,
   "typescript.preferences.noImplicitAny": true,
   "typescript.preferences.strictFunctionTypes": true,
@@ -95,6 +94,9 @@ if [ -f ".vscode/settings.json" ]; then
   "typescript.inlayHints.variableTypes.enabled": true,
   "typescript.inlayHints.propertyDeclarationTypes.enabled": true,
   "typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+  "typescript.suggest.autoImports": false,
+  "javascript.suggest.autoImports": false,
+  "typescript.preferences.includePackageJsonAutoImports": "off",
   "eslint.enable": true,
   "eslint.run": "onType",
   "eslint.validate": ["typescript", "javascript"],
@@ -103,9 +105,17 @@ if [ -f ".vscode/settings.json" ]; then
   },
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.autoSave": "off",
   "files.watcherExclude": {
     "**/node_modules/**": true,
     "**/dist/**": true,
+    "**/coverage/**": true,
+    "**/.stryker-tmp/**": true,
+    "**/.tmp/**": true,
+    "**/.tmp-analysis/**": true,
+    "**/tests/.tmp/**": true,
+    "**/.serval/archive/**": true,
+    "**/logs/**": true,
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true
   },
@@ -114,11 +124,32 @@ if [ -f ".vscode/settings.json" ]; then
     "**/dist": true,
     "**/.git": true,
     "**/coverage": true,
+    "**/.stryker-tmp": true,
+    "**/.tmp": true,
+    "**/.tmp-analysis": true,
+    "**/tests/.tmp": true,
+    "**/.serval/archive": true,
+    "**/logs": true,
     "**/.eslintcache": true
   },
   "git.enableCommitSigning": false,
   "git.postCommitCommand": "none",
+  "git.autofetch": false,
+  "git.openRepositoryInParentFolders": "never",
   "javascript.suggestionActions.enabled": false,
+  "cSpell.enabled": false,
+  "gitlens.codeLens.enabled": false,
+  "gitlens.currentLine.enabled": false,
+  "gitlens.hovers.enabled": false,
+  "diagnostics-mcp-server.autoStart": false,
+  "mcpDiagnostics.showAutoRegistrationNotification": false,
+  "snyk.scanningMode": "manual",
+  "snyk.securityAtInception.autoConfigureSnykMcpServer": false,
+  "snyk.securityAtInception.executionFrequency": "Manual",
+  "jupyter.runStartupCommands": [],
+  "github.copilot.nextEditSuggestions.enabled": false,
+  "npm.enableScriptExplorer": true,
+  "npm.scriptExplorerAction": "open",
   "errorLens.enabledDiagnosticLevels": ["error", "warning"],
   "errorLens.excludeBySource": ["eslint(no-console)"],
   "errorLens.messageTemplate": "$message - $source",
@@ -143,6 +174,8 @@ else
 {
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsserver.maxTsServerMemory": 2048,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
   "typescript.preferences.strictNullChecks": true,
   "typescript.preferences.noImplicitAny": true,
   "typescript.preferences.strictFunctionTypes": true,
@@ -151,6 +184,9 @@ else
   "typescript.inlayHints.variableTypes.enabled": true,
   "typescript.inlayHints.propertyDeclarationTypes.enabled": true,
   "typescript.inlayHints.functionLikeReturnTypes.enabled": true,
+  "typescript.suggest.autoImports": false,
+  "javascript.suggest.autoImports": false,
+  "typescript.preferences.includePackageJsonAutoImports": "off",
   "eslint.enable": true,
   "eslint.run": "onType",
   "eslint.validate": ["typescript", "javascript"],
@@ -159,9 +195,17 @@ else
   },
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.autoSave": "off",
   "files.watcherExclude": {
     "**/node_modules/**": true,
     "**/dist/**": true,
+    "**/coverage/**": true,
+    "**/.stryker-tmp/**": true,
+    "**/.tmp/**": true,
+    "**/.tmp-analysis/**": true,
+    "**/tests/.tmp/**": true,
+    "**/.serval/archive/**": true,
+    "**/logs/**": true,
     "**/.git/objects/**": true,
     "**/.git/subtree-cache/**": true
   },
@@ -170,11 +214,32 @@ else
     "**/dist": true,
     "**/.git": true,
     "**/coverage": true,
+    "**/.stryker-tmp": true,
+    "**/.tmp": true,
+    "**/.tmp-analysis": true,
+    "**/tests/.tmp": true,
+    "**/.serval/archive": true,
+    "**/logs": true,
     "**/.eslintcache": true
   },
   "git.enableCommitSigning": false,
   "git.postCommitCommand": "none",
+  "git.autofetch": false,
+  "git.openRepositoryInParentFolders": "never",
   "javascript.suggestionActions.enabled": false,
+  "cSpell.enabled": false,
+  "gitlens.codeLens.enabled": false,
+  "gitlens.currentLine.enabled": false,
+  "gitlens.hovers.enabled": false,
+  "diagnostics-mcp-server.autoStart": false,
+  "mcpDiagnostics.showAutoRegistrationNotification": false,
+  "snyk.scanningMode": "manual",
+  "snyk.securityAtInception.autoConfigureSnykMcpServer": false,
+  "snyk.securityAtInception.executionFrequency": "Manual",
+  "jupyter.runStartupCommands": [],
+  "github.copilot.nextEditSuggestions.enabled": false,
+  "npm.enableScriptExplorer": true,
+  "npm.scriptExplorerAction": "open",
   "errorLens.enabledDiagnosticLevels": ["error", "warning"],
   "errorLens.excludeBySource": ["eslint(no-console)"],
   "errorLens.messageTemplate": "$message - $source",
@@ -214,14 +279,38 @@ if [ -f ".vscode/extensions.json" ]; then
     "usernamehw.errorlens",
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
-    "wix.vscode-import-cost",
     "eamodio.gitlens",
     "gruntfuggly.todo-tree",
-    "ZixuanChen.vitest-explorer",
+    "vitest.explorer",
     "mattpocock.ts-error-translator",
     "aaron-bond.better-comments"
   ],
-  "unwantedRecommendations": []
+  "unwantedRecommendations": [
+    "zixuanchen.vitest-explorer",
+    "hbenl.vscode-test-explorer",
+    "wallabyjs.wallaby-vscode",
+    "wallabyjs.quokka-vscode",
+    "wallabyjs.console-ninja",
+    "streetsidesoftware.code-spell-checker",
+    "newbpydev.mcp-diagnostics-extension",
+    "ms-vscode.test-adapter-converter",
+    "openai.chatgpt",
+    "google.geminicodeassist",
+    "github.copilot",
+    "github.copilot-chat",
+    "googlecloudtools.cloudcode",
+    "googlecloudtools.datacloud",
+    "snyk-security.snyk-vulnerability-scanner",
+    "ms-toolsai.jupyter",
+    "ms-toolsai.jupyter-keymap",
+    "ms-toolsai.jupyter-renderers",
+    "ms-toolsai.vscode-jupyter-cell-tags",
+    "ms-toolsai.vscode-jupyter-slideshow",
+    "wix.vscode-import-cost",
+    "kisstkondoros.vscode-codemetrics",
+    "mhutchie.git-graph",
+    "donjayamanne.githistory"
+  ]
 }
 EOF
     echo "✅ .vscode/extensions.json created"
@@ -233,14 +322,38 @@ else
     "usernamehw.errorlens",
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
-    "wix.vscode-import-cost",
     "eamodio.gitlens",
     "gruntfuggly.todo-tree",
-    "ZixuanChen.vitest-explorer",
+    "vitest.explorer",
     "mattpocock.ts-error-translator",
     "aaron-bond.better-comments"
   ],
-  "unwantedRecommendations": []
+  "unwantedRecommendations": [
+    "zixuanchen.vitest-explorer",
+    "hbenl.vscode-test-explorer",
+    "wallabyjs.wallaby-vscode",
+    "wallabyjs.quokka-vscode",
+    "wallabyjs.console-ninja",
+    "streetsidesoftware.code-spell-checker",
+    "newbpydev.mcp-diagnostics-extension",
+    "ms-vscode.test-adapter-converter",
+    "openai.chatgpt",
+    "google.geminicodeassist",
+    "github.copilot",
+    "github.copilot-chat",
+    "googlecloudtools.cloudcode",
+    "googlecloudtools.datacloud",
+    "snyk-security.snyk-vulnerability-scanner",
+    "ms-toolsai.jupyter",
+    "ms-toolsai.jupyter-keymap",
+    "ms-toolsai.jupyter-renderers",
+    "ms-toolsai.vscode-jupyter-cell-tags",
+    "ms-toolsai.vscode-jupyter-slideshow",
+    "wix.vscode-import-cost",
+    "kisstkondoros.vscode-codemetrics",
+    "mhutchie.git-graph",
+    "donjayamanne.githistory"
+  ]
 }
 EOF
   echo "✅ .vscode/extensions.json created"
@@ -291,19 +404,12 @@ fi
 
 echo ""
 
-# Phase 6: Update dependencies
-echo "📦 Phase 6: Updating dependencies"
-echo "--------------------------------"
-echo "Updating TypeScript ESLint packages..."
-npm update @typescript-eslint/eslint-plugin @typescript-eslint/parser
-
-echo "Updating Vitest packages..."
-npm update @vitest/coverage-v8 vitest
-
-echo "Updating documentation tools..."
-npm update typedoc
-
-echo "✅ Dependencies updated"
+# Phase 6: Dependency guidance
+echo "📦 Phase 6: Dependency guidance"
+echo "------------------------------"
+echo "Skipping dependency updates. VS Code setup should not mutate package versions."
+echo "Run npm update explicitly when dependency maintenance is intended."
+echo "✅ Dependencies left unchanged"
 echo ""
 
 # Phase 7: Verify installation

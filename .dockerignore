@@ -14,8 +14,10 @@ coverage
 # ─── Environment and secrets ─────────────────────────────────────────────────
 .env
 .env.*
+.mcp.json
 .secrets/
 *.enc
+*.tokens.enc
 *.pem
 *.key
 servalsheets.tokens.enc
@@ -60,6 +62,8 @@ benchmarks
 # ─── Logs and temporary files ────────────────────────────────────────────────
 logs
 *.log
+*.jsonl
+output.log
 tmp
 temp
 .cache
@@ -105,3 +109,4 @@ repo_manifest.json
 !server.json
 !packages/
 !packages/**
+packages/*/.dist-check-*/
