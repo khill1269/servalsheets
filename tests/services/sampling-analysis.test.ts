@@ -137,7 +137,7 @@ describe('SamplingAnalysisService', () => {
       const samplingRequest = buildAnalysisSamplingRequest(data, request);
 
       expect(samplingRequest.modelPreferences).toBeDefined();
-      expect(samplingRequest.modelPreferences?.hints).toEqual([{ name: 'claude-3-sonnet' }]);
+      expect(samplingRequest.modelPreferences?.hints).toEqual([{ name: 'claude-sonnet-4-6' }]);
       expect(samplingRequest.modelPreferences?.intelligencePriority).toBe(0.8);
       expect(samplingRequest.modelPreferences?.speedPriority).toBe(0.5);
     });
@@ -251,7 +251,7 @@ describe('SamplingAnalysisService', () => {
       const samplingRequest = buildFormulaSamplingRequest('Calculate sum', {});
 
       expect(samplingRequest.modelPreferences).toBeDefined();
-      expect(samplingRequest.modelPreferences?.hints).toEqual([{ name: 'claude-3-sonnet' }]);
+      expect(samplingRequest.modelPreferences?.hints).toEqual([{ name: 'claude-sonnet-4-6' }]);
       expect(samplingRequest.modelPreferences?.intelligencePriority).toBe(0.9);
       expect(samplingRequest.modelPreferences?.speedPriority).toBe(0.5);
     });
@@ -332,7 +332,7 @@ describe('SamplingAnalysisService', () => {
       const samplingRequest = buildChartSamplingRequest(data, {});
 
       expect(samplingRequest.modelPreferences).toBeDefined();
-      expect(samplingRequest.modelPreferences?.hints).toEqual([{ name: 'claude-3-sonnet' }]);
+      expect(samplingRequest.modelPreferences?.hints).toEqual([{ name: 'claude-sonnet-4-6' }]);
       expect(samplingRequest.modelPreferences?.intelligencePriority).toBe(0.7);
       expect(samplingRequest.modelPreferences?.speedPriority).toBe(0.6);
     });

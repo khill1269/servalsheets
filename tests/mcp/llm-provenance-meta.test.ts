@@ -37,7 +37,7 @@ describe('LLM provenance response metadata', () => {
             getClientCapabilities: () => ({ sampling: {} }),
             createMessage: vi.fn().mockResolvedValue({
               content: [{ type: 'text', text: 'sampled-response' }],
-              model: 'claude-sonnet-4',
+              model: 'claude-sonnet-4-6',
             }),
           },
           {
@@ -59,7 +59,7 @@ describe('LLM provenance response metadata', () => {
 
     expect((result.structuredContent as any)._meta.aiMode).toBe('sampling');
     expect((result.structuredContent as any)._meta.aiProvider).toBe('mcp');
-    expect((result.structuredContent as any)._meta.aiModelUsed).toBe('claude-sonnet-4');
+    expect((result.structuredContent as any)._meta.aiModelUsed).toBe('claude-sonnet-4-6');
   });
 
   it('surfaces direct fallback provenance in tool-response _meta', async () => {

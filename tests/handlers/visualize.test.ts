@@ -171,7 +171,7 @@ const createMockContext = (overrides?: Partial<HandlerContext>): HandlerContext 
   requestId: 'test-request',
   server: {
     createMessage: vi.fn().mockResolvedValue({
-      model: 'claude-3-sonnet',
+      model: 'claude-sonnet-4-6',
       role: 'assistant',
       content: [
         {
@@ -1532,7 +1532,7 @@ describe('VisualizeHandler', () => {
       mockContext = createMockContext({
         server: {
           createMessage: vi.fn().mockResolvedValue({
-            model: 'claude-3-sonnet',
+            model: 'claude-sonnet-4-6',
             role: 'assistant',
             content: [{ type: 'text', text: 'not valid json' }],
           }),

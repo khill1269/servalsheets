@@ -437,7 +437,7 @@ grep -rn "maxTokens:" src/mcp/sampling.ts | head -20
 thinking: { type: 'enabled', budget_tokens: 15000 }
 
 // Option B (if model selection is the mechanism):
-model: 'claude-opus-4-7'  // More capable model for complex tasks
+model: 'claude-opus-4-8'  // More capable model for complex tasks
 ```
 
 **Targeted Actions:** `analyze_data`, `diagnose_errors`, `semantic_search`, `comprehensive`, `generate_formula`, `model_scenario`

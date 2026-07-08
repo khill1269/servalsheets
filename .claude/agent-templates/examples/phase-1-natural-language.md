@@ -245,7 +245,7 @@ Features:
 - <100ms p95 latency
 - 20+ test cases with 82% coverage
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
 
 ---
