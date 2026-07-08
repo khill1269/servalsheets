@@ -11,6 +11,7 @@ import { typeDefs } from './schema.js';
 import { resolvers, type GraphQLContext } from './resolvers.js';
 import type { HandlerContext } from '../handlers/index.js';
 import { logger } from '../utils/logger.js';
+import { requireAdminAuth } from '../admin/index.js';
 
 /**
  * Create and configure Apollo Server
@@ -57,7 +58,7 @@ export async function addGraphQLEndpoint(
   await server.start();
 
   // Handle GraphQL requests manually
-  app.post('/graphql', json(), async (req, res) => {
+  app.post('/graphql', requireAdminAuth, json(), async (req, res) => {
     try {
       // Extract auth token from Authorization header
       const authHeader = req.headers['authorization'];
@@ -103,7 +104,7 @@ export async function addGraphQLEndpoint(
   });
 
   // GraphQL Playground (GET requests)
-  app.get('/graphql', (_req, res) => {
+  app.get('/graphql', requireAdminAuth, (_req, res) => {
     res.send(`
       <!DOCTYPE html>
       <html>
