@@ -349,8 +349,10 @@ jobs:
         run: |
           npm run test:chaos -- --reporter=verbose 2>&1 | tee chaos-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
-          CHAOS_PASS=$(grep -c ' ✓ ' chaos-output.txt 2>/dev/null || echo 0)
-          CHAOS_FAIL=$(grep -c ' ✗ \| × ' chaos-output.txt 2>/dev/null || echo 0)
+          CHAOS_PASS=$(grep -c ' ✓ ' chaos-output.txt 2>/dev/null || true)
+          CHAOS_FAIL=$(grep -c ' ✗ \| × ' chaos-output.txt 2>/dev/null || true)
+          CHAOS_PASS=${CHAOS_PASS:-0}
+          CHAOS_FAIL=${CHAOS_FAIL:-0}
           echo "chaos_pass=$CHAOS_PASS" >> $GITHUB_OUTPUT
           echo "chaos_fail=$CHAOS_FAIL" >> $GITHUB_OUTPUT
           exit $EXIT_CODE

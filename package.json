@@ -2,7 +2,7 @@
   "name": "servalsheets",
   "mcpName": "io.github.khill1269/servalsheets",
   "version": "2.0.0",
-  "description": "Production-grade MCP server for Google Sheets \u2014 25 tools, 410 actions",
+  "description": "Production-grade MCP server for Google Sheets — 25 tools, 410 actions",
   "bin": {
     "servalsheets": "dist/server.js"
   },
@@ -160,7 +160,7 @@
     "@serval/mcp-runtime": "workspace:*",
     "@serval/mcp-stdio": "workspace:*",
     "@types/node-cron": "^3.0.11",
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.11.1",
     "chalk": "^5.6.2",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
