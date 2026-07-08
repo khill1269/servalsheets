@@ -12,6 +12,7 @@
  */
 
 import { ErrorCodes } from './error-codes.js';
+import { assertNever } from '../utils/type-utils.js';
 import { randomUUID } from 'crypto';
 import { unwrapRequest, type HandlerContext } from './base.js';
 import {
@@ -164,7 +165,6 @@ export class ConfirmHandler {
     };
     const verbosity = req.verbosity ?? 'standard';
     const confirmService = getConfirmationService();
-    const requestActionLabel = String((req as { action?: unknown }).action ?? 'unknown');
 
     try {
       let response: ConfirmResponse;
@@ -455,21 +455,8 @@ export class ConfirmHandler {
           break;
         }
 
-        default: {
-          // Exhaustiveness guard: compile error if a new ConfirmActionSchema action is added
-          // without a corresponding case here.
-          const _exhaustiveCheck: never = req as never;
-          void _exhaustiveCheck;
-          response = {
-            success: false,
-            error: {
-              code: ErrorCodes.INVALID_PARAMS,
-              message: `Unknown action: ${requestActionLabel}`,
-              retryable: false,
-            },
-          };
-          break;
-        }
+        default:
+          assertNever(req);
       }
 
       // Apply verbosity filtering (LLM optimization)

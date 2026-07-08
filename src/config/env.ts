@@ -89,12 +89,17 @@ const RedisSchema = z.object({
 
 const OtelSchema = z.object({
   OTEL_ENABLED: StrictBooleanSchema,
-  OTEL_EXPORTER_TYPE: z.enum(['jaeger', 'zipkin', 'honeycomb']).optional(),
+  OTEL_EXPORTER_TYPE: z
+    .enum(['jaeger', 'zipkin', 'honeycomb', 'otlp', 'console', 'none'])
+    .optional(),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   OTEL_JAEGER_ENDPOINT: URLSchema.optional(),
   OTEL_ZIPKIN_ENDPOINT: URLSchema.optional(),
   OTEL_HONEYCOMB_API_KEY: z.string().optional(),
   OTEL_SERVICE_NAME: z.string().default('servalsheets'),
   OTEL_TRACE_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+  OTEL_METRICS_PORT: z.coerce.number().int().min(1024).max(65535).default(9464),
+  OTEL_TRACES_EXPORTER: z.enum(['otlp', 'console', 'none']).default('none'),
   OTEL_LOG_LEVEL: LogLevelSchema,
 });
 
@@ -205,6 +210,7 @@ export const EnvSchema = z
     ENABLE_LEGACY_SSE: StrictBooleanSchema.default(false),
     STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().int().min(1000).default(300000),
     STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().min(1).default(1000),
+    SESSION_TIMEOUT_MS: z.coerce.number().int().min(60000).default(1800000),
 
     // Cache TTL overrides — defaults match the 300 000 ms alignment strategy in constants.ts.
     // Spreadsheet metadata and cell values rarely need different TTLs in practice, but

@@ -38,6 +38,7 @@ Thumbs.db
 .env.local
 .env.*.local
 .env.test
+.mcp.json
 
 # Credentials
 *.pem
@@ -72,6 +73,7 @@ claude-desktop-config.json
 
 # Logs
 *.log
+*.jsonl
 npm-debug.log*
 audit-logs/
 
@@ -93,6 +95,11 @@ test-results*.json
 # Temporary files
 tmp/
 temp/
+.tmp/
+.tmp-analysis/
+tests/.tmp/
+.dist-check-*/
+packages/*/.dist-check-*/
 *.tmp
 *.bak
 *.old
@@ -197,6 +204,7 @@ sdks/
 # Agent Framework (ephemeral context)
 .agent-context/
 .claude/agent-memory-local/
+.serval/archive/
 
 # Stryker mutation testing sandboxes
 .stryker-tmp/

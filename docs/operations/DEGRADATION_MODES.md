@@ -3,7 +3,7 @@ title: Degradation Modes
 description: How ServalSheets behaves under various failure conditions
 category: runbook
 tags: [degradation, circuit-breaker, rate-limiting, error-handling, monitoring]
-author: Claude Sonnet 4.5
+author: Claude Sonnet 4.6
 date: 2026-02-16
 last_updated: 2026-02-16
 ---

@@ -10,6 +10,7 @@ import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
 import { filterAvailableActions } from '../tool-availability.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { TOOL_DEFINITIONS } from './tool-definitions.js';
+import { ACTION_METADATA } from '../../schemas/action-metadata.js';
 
 type JsonRecord = Record<string, unknown>;
 type HintEnumValue = string | number | boolean | null;
@@ -2305,7 +2306,7 @@ export function clearDiscoveryHintCache(): void {
  * slow (2-10s), background (>10s)
  */
 export interface ActionCostEstimate {
-  apiCalls: number;
+  apiCalls: number | 'dynamic';
   latency: 'instant' | 'fast' | 'medium' | 'slow' | 'background';
 }
 
@@ -2524,12 +2525,78 @@ const ACTION_COST_ESTIMATES: Record<string, Record<string, ActionCostEstimate>> 
   },
 };
 
+function parseLatencyUpperBoundMs(rawLatency: string | undefined): number | undefined {
+  if (!rawLatency) {
+    return undefined;
+  }
+
+  const matches = Array.from(rawLatency.matchAll(/(\d+(?:\.\d+)?)\s*(ms|s)/gi));
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  return Math.max(
+    ...matches.map((match) => {
+      const value = Number(match[1]);
+      const unit = match[2]?.toLowerCase();
+      return unit === 's' ? value * 1000 : value;
+    })
+  );
+}
+
+function latencyTierFromMetadata(
+  apiCalls: number | 'dynamic',
+  typicalLatency: string | undefined
+): ActionCostEstimate['latency'] {
+  if (apiCalls === 0) {
+    return 'instant';
+  }
+
+  const upperBoundMs = parseLatencyUpperBoundMs(typicalLatency);
+  if (upperBoundMs === undefined) {
+    return apiCalls === 'dynamic' ? 'slow' : 'medium';
+  }
+
+  if (upperBoundMs <= 50) {
+    return 'instant';
+  }
+  if (upperBoundMs <= 300) {
+    return 'fast';
+  }
+  if (upperBoundMs <= 2000) {
+    return 'medium';
+  }
+  if (upperBoundMs <= 10000) {
+    return 'slow';
+  }
+  return 'background';
+}
+
+function deriveActionCostEstimatesFromMetadata(
+  toolName: string
+): Record<string, ActionCostEstimate> | undefined {
+  const toolMetadata = ACTION_METADATA[toolName];
+  if (!toolMetadata) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(toolMetadata).map(([actionName, metadata]) => [
+      actionName,
+      {
+        apiCalls: metadata.apiCalls,
+        latency: latencyTierFromMetadata(metadata.apiCalls, metadata.typicalLatency),
+      } satisfies ActionCostEstimate,
+    ])
+  );
+}
+
 /**
  * Get cost estimates for a tool's actions.
- * Returns only estimates for available actions (respects tool-availability filtering).
+ * Returns canonical schema-aligned estimates derived from ACTION_METADATA.
  */
 export function getActionCostEstimates(
   toolName: string
 ): Record<string, ActionCostEstimate> | undefined {
-  return ACTION_COST_ESTIMATES[toolName];
+  return deriveActionCostEstimatesFromMetadata(toolName) ?? ACTION_COST_ESTIMATES[toolName];
 }

@@ -125,7 +125,7 @@ describe('X.2: Rate limiting — QuotaCircuitBreaker trips after 3 consecutive 4
 
   it('X.2.3: Three consecutive 429s trip the quota gate', async () => {
     const quotaError = new Error('429 Too Many Requests');
-    (quotaError as any).status = 429; // Add status for proper detection
+    (quotaError as any).response = { status: 429 };
     const op = vi.fn().mockRejectedValue(quotaError);
 
     // Execute 3 quota errors
@@ -150,7 +150,7 @@ describe('X.2: Rate limiting — QuotaCircuitBreaker trips after 3 consecutive 4
   });
 
   it('X.2.4: Quota gate resets after cool-down period', async () => {
-    const quotaError = new Error('429 Too Many Requests');
+    const quotaError = Object.assign(new Error('429 Too Many Requests'), { response: { status: 429 } });
     const op = vi
       .fn()
       .mockRejectedValueOnce(quotaError)

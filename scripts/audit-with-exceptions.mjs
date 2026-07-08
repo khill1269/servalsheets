@@ -9,7 +9,7 @@
 
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from 'node:url';
 
 const SECURITY_EXCEPTIONS_PATH = fileURLToPath(new URL('../SECURITY_EXCEPTIONS.md', import.meta.url));
 

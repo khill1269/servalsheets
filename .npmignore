@@ -57,10 +57,16 @@ yarn-error.log*
 .env.*
 .env.local
 .env.*.local
+.mcp.json
+.secrets/
 credentials*
 client_secret*
+service-account*.json
+gha-creds-*.json
 *.pem
 *.key
+*.enc
+*.tokens.enc
 .vaultrc
 
 # Deployment and Docker
@@ -101,6 +107,11 @@ temp/
 *.bak*
 .cache/
 dist-cache/
+logs/
+*.log
+*.jsonl
+packages/*/.dist-check-*/
+docs/.vitepress/dist/
 
 # Database and cache
 *.db

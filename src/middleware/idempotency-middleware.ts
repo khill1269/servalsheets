@@ -134,7 +134,6 @@ export function withIdempotency(
       if (executionError) {
         idempotencyManager.storeResult(idempotencyKey, toolName, action, fingerprint, {
           error: executionError.message,
-          stack: executionError.stack,
         });
       } else {
         idempotencyManager.storeResult(idempotencyKey, toolName, action, fingerprint, result);

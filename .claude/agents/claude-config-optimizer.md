@@ -43,7 +43,7 @@ You are a **meta-optimization agent** that analyzes and improves how Claude Code
     "messages": [{ "role": "user", "content": "Generate optimized BigQuery query" }],
     "systemPrompt": "You are a BigQuery expert...",
     "modelPreferences": {
-      "hints": [{ "name": "claude-3-5-sonnet" }],
+      "hints": [{ "name": "claude-sonnet-4-6" }],
       "costPriority": 0.5,
       "speedPriority": 0.3
     },

@@ -173,7 +173,7 @@ Always respond in this JSON schema:
 
 Example finding: "Column B (Revenue) has 3 null values in rows 14, 27, 31 (4.2% of 71 rows). These are likely missing transactions. Use sheets_fix.fill_missing with strategy:'mean' to impute."`,
     modelPreferences: {
-      hints: [{ name: 'claude-3-sonnet' }],
+      hints: [{ name: 'claude-sonnet-4-6' }],
       intelligencePriority: 0.8,
       speedPriority: 0.5,
     },
@@ -260,7 +260,7 @@ Format your response as JSON:
     ],
     systemPrompt: `You are an expert in Google Sheets formulas. You create efficient, accurate formulas and explain them clearly. Always consider edge cases and provide alternatives when appropriate.`,
     modelPreferences: {
-      hints: [{ name: 'claude-3-sonnet' }],
+      hints: [{ name: 'claude-sonnet-4-6' }],
       intelligencePriority: 0.9,
       speedPriority: 0.5,
     },
@@ -340,7 +340,7 @@ Format your response as JSON:
     ],
     systemPrompt: `You are a data visualization expert. You recommend the most effective chart types based on data characteristics and visualization goals. Consider data types, relationships, and the story the data tells.`,
     modelPreferences: {
-      hints: [{ name: 'claude-3-sonnet' }],
+      hints: [{ name: 'claude-sonnet-4-6' }],
       intelligencePriority: 0.7,
       speedPriority: 0.6,
     },

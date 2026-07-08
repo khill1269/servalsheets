@@ -167,7 +167,7 @@ if (filesModified > 0) {
     try {
       execSync('git add README.md docs/STATUS.md', { stdio: 'inherit' });
       execSync(
-        `git commit -m "docs: sync audit results (${results.total_percentage}%)" -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"`,
+        `git commit -m "docs: sync audit results (${results.total_percentage}%)" -m "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`,
         { stdio: 'inherit' }
       );
       console.log('✓ Changes committed');

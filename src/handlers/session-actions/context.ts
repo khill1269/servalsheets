@@ -25,13 +25,14 @@ export async function handleSetActive(
   if (typeof spreadsheetId !== 'string' || spreadsheetId.trim().length === 0) {
     throw new ValidationError('Missing required parameter: spreadsheetId', 'spreadsheetId');
   }
-  // Title is optional - use spreadsheetId as fallback if not provided
-  // This allows LLMs to quickly set active without knowing the title
+  // Title is optional - use spreadsheetId as fallback if not provided.
+  // This allows LLMs to quickly set active without knowing the title.
   const resolvedTitle = title ?? `Spreadsheet ${spreadsheetId.slice(0, 8)}...`;
+  const resolvedSheetNames = sheetNames ?? [];
   const context: SpreadsheetContext = {
     spreadsheetId,
     title: resolvedTitle,
-    sheetNames: sheetNames ?? [],
+    sheetNames: resolvedSheetNames,
     activatedAt: Date.now(),
   };
   session.setActiveSpreadsheet(context);
@@ -48,16 +49,25 @@ export async function handleSetActive(
       spreadsheetId,
     });
   }
+  const messages: string[] = [];
+  if (title === undefined) {
+    messages.push(
+      'Title was auto-generated from spreadsheetId. Provide title for better natural language references.'
+    );
+  }
+  if (sheetNames === undefined) {
+    messages.push(
+      'Sheet names were not supplied. Sheet-name reference resolution is disabled until sheetNames are supplied.'
+    );
+  }
+
   return {
     response: {
       success: true,
       action: 'set_active',
       spreadsheet: context,
       summary: session.getContextSummary(),
-      ...(title === undefined && {
-        message:
-          'Title was auto-generated from spreadsheetId. Provide title for better natural language references.',
-      }),
+      ...(messages.length > 0 && { message: messages.join(' ') }),
     },
   };
 }

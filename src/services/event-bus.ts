@@ -84,9 +84,17 @@ type InMemoryListener = (event: SheetChangeEvent) => void;
 
 export class InMemoryEventBus implements EventBusBackend {
   readonly name = 'memory';
+  private static readonly MAX_LISTENERS = 1000;
   private listeners: InMemoryListener[] = [];
 
   subscribe(listener: InMemoryListener): () => void {
+    if (this.listeners.length >= InMemoryEventBus.MAX_LISTENERS) {
+      logger.warn('EventBus listener limit reached, rejecting subscription', {
+        current: this.listeners.length,
+        max: InMemoryEventBus.MAX_LISTENERS,
+      });
+      return () => {};
+    }
     this.listeners.push(listener);
     return () => {
       this.listeners = this.listeners.filter((l) => l !== listener);

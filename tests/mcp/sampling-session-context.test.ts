@@ -47,7 +47,7 @@ function makeMockServer(capturedMessages: unknown[][]): SamplingServer {
       return Promise.resolve({
         role: 'assistant',
         content: { type: 'text', text: 'analysis result' },
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-haiku-4-5-20251001',
         stopReason: 'end_turn',
       });
     }),

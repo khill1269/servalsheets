@@ -174,12 +174,9 @@ export class CacheInvalidationGraph {
     // Format suggestions (read-only)
     rules['sheets_format.suggest_format'] = { invalidates: [] }; // Read-only
 
-    // Actual action names used by the handler
+    // set_text_format, set_alignment, apply_preset, set_rich_text are unique to this block
     rules['sheets_format.set_text_format'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.set_background'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.set_alignment'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.set_borders'] = { invalidates: ['metadata:*'] };
-    rules['sheets_format.clear_format'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.apply_preset'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.set_rich_text'] = { invalidates: ['metadata:*'] };
     rules['sheets_format.sparkline_add'] = { invalidates: ['values:*', 'metadata:*'] };

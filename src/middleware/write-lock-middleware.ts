@@ -16,6 +16,7 @@ import { MUTATION_ACTION_NAMES } from './mutation-actions.constants.js';
 
 // Per-spreadsheet write queues. Max 1 concurrent write per spreadsheet.
 const writeLocks = new Map<string, PQueue>();
+const MAX_WRITE_LOCKS = 10000;
 
 // Clean idle locks every 5 minutes to prevent memory leaks
 const LOCK_CLEANUP_MS = 5 * 60 * 1000;
@@ -164,6 +165,14 @@ function collectSpreadsheetIds(
 export function getWriteLock(spreadsheetId: string): PQueue {
   let queue = writeLocks.get(spreadsheetId);
   if (!queue) {
+    if (writeLocks.size >= MAX_WRITE_LOCKS) {
+      for (const [key, q] of writeLocks) {
+        if (q.size === 0 && q.pending === 0) {
+          writeLocks.delete(key);
+          break;
+        }
+      }
+    }
     queue = new PQueue({ concurrency: 1, timeout: LOCK_TIMEOUT_MS });
     writeLocks.set(spreadsheetId, queue);
     logger.debug('Write lock created for spreadsheet', {

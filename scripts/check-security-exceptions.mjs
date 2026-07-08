@@ -32,6 +32,7 @@ const findings = [];
 
 for (const section of sections) {
   const [headingLine] = section.split('\n', 1);
+  if (/RESOLVED/i.test(headingLine)) continue;
   const id = headingLine.split(':', 1)[0]?.trim() ?? 'unknown';
   const reviewMatch = section.match(/\|\s+\*\*Review By\*\*\s+\|\s+(\d{4}-\d{2}-\d{2})\s+\|/);
 

@@ -1,7 +1,7 @@
 ---
 title: VS Code Setup Guide for ServalSheets
 category: development
-last_updated: 2026-01-31
+last_updated: 2026-07-08
 description: 'Last Updated: 2026-01-13'
 version: 2.0.0
 tags: [setup, configuration, sheets]
@@ -9,10 +9,16 @@ tags: [setup, configuration, sheets]
 
 # VS Code Setup Guide for ServalSheets
 
-**Last Updated:** 2026-01-13
+**Last Updated:** 2026-07-08
 **Version:** 2.0 (2026 MCP Best Practices)
 
 Complete guide for setting up Visual Studio Code for ServalSheets MCP development with 2026 best practices and MCP-specific tooling.
+
+## Resource Policy
+
+ServalSheets should be opened in a lean VS Code profile. Keep the workspace profile focused on TypeScript, linting, formatting, Vitest, YAML, and MCP diagnostics that are actively used. Heavy cloud, security, AI, notebook, coverage, code-metric, and continuous-test extensions should be installed only in profiles where they are needed.
+
+The workspace intentionally marks duplicate or high-overhead extensions as unwanted recommendations, including the old Vitest explorer, Test Explorer adapter stack, Code Spell Checker, Wallaby/Quokka/Console Ninja, and the failing MCP diagnostics extension.
 
 ---
 
@@ -64,11 +70,11 @@ bash scripts/setup-vscode.sh
 
 **What it does:**
 
-- ✅ Installs 17 recommended extensions (including 2026 MCP tools)
+- ✅ Installs a lean recommended extension set
 - ✅ Creates [.vscode/settings.json](.vscode/settings.json) with workspace config
 - ✅ Creates [.vscode/extensions.json](.vscode/extensions.json) with recommendations
 - ✅ Creates [.prettierrc.json](.prettierrc.json) with formatting rules
-- ✅ Updates dependencies (TypeScript ESLint, Vitest, TypeDoc)
+- ✅ Leaves dependency versions unchanged
 - ✅ Verifies installation
 
 **After running:**
@@ -77,6 +83,14 @@ bash scripts/setup-vscode.sh
 # Reload VS Code
 # Press Cmd+Shift+P → "Developer: Reload Window"
 ```
+
+**Health check:**
+
+```bash
+npm run doctor:vscode
+```
+
+This reports stale VS Code tasks, high-overhead extension IDs, MCP `@latest` usage, duplicate MCP endpoints, and plaintext-like sensitive MCP values without printing secret values.
 
 ---
 
@@ -95,7 +109,7 @@ code --install-extension yoavbls.pretty-ts-errors
 code --install-extension mattpocock.ts-error-translator
 
 # Testing
-code --install-extension ZixuanChen.vitest-explorer
+code --install-extension vitest.explorer
 
 # Git
 code --install-extension eamodio.gitlens
@@ -103,11 +117,8 @@ code --install-extension eamodio.gitlens
 # Productivity
 code --install-extension gruntfuggly.todo-tree
 code --install-extension aaron-bond.better-comments
-code --install-extension wix.vscode-import-cost
-code --install-extension streetsidesoftware.code-spell-checker
 
 # MCP Development (2026)
-code --install-extension newbpydev.mcp-diagnostics-extension
 code --install-extension maaz-tajammul.diagnostics-mcp-server
 
 # Documentation
@@ -145,7 +156,6 @@ This ensures you're using the project's TypeScript (not VS Code's bundled versio
 
 | Extension                     | Feature                                          |
 | ----------------------------- | ------------------------------------------------ |
-| **MCP Diagnostics Extension** | Exposes VS Code diagnostics to AI agents via MCP |
 | **Diagnostics MCP Server**    | HTTP-based MCP server for real-time diagnostics  |
 
 ### MCP Diagnostics Workflow
@@ -164,8 +174,8 @@ Use this workflow to ensure VS Code diagnostics are available to MCP clients:
 | ---------------------- | -------------------------------- |
 | **GitLens**            | Git blame, history, compare      |
 | **TODO Tree**          | Find all TODOs in project        |
-| **Import Cost**        | Show package import sizes inline |
-| **Code Spell Checker** | Catch typos in strings/comments  |
+| **Import Cost**        | Optional profile-only package import sizing |
+| **Code Spell Checker** | Not recommended for this workspace profile |
 
 ---
 
@@ -216,7 +226,7 @@ Press `F5` or open **Run and Debug** panel to see all configurations:
 
 **Use MCP Inspector:**
 
-- Press `Cmd+Shift+P` → "Tasks: Run Task" → "🔬 MCP Inspector (stdio)"
+- Press `Cmd+Shift+P` → "Tasks: Run Task" → "MCP Inspector Stdio"
 - Browser opens at `http://localhost:6274`
 - Test tools interactively
 
@@ -236,10 +246,10 @@ Press `F5` or open **Run and Debug** panel to see all configurations:
 
 - `Cmd+Shift+P` → "Tasks: Run Task"
 - Select:
-  - "03 - Test" - Run all tests
-  - "🧪 Test Current File" - Run open file's tests
-  - "🧪 Test Watch" - Watch mode
-  - "Test Coverage" - Generate coverage report
+  - "Test Run" - Run all tests once
+  - "Test Current File" - Run open file's tests
+  - "Background: Test Watch (manual stop)" - Watch mode
+  - "Open Coverage Report" - Open an existing coverage report
 
 **Option 3: Keyboard**
 
@@ -249,10 +259,10 @@ Press `F5` or open **Run and Debug** panel to see all configurations:
 
 ```bash
 # Generate coverage
-npm run test:coverage
+npm run test:coverage:tracking
 
 # Open report (VS Code task)
-# Cmd+Shift+P → Tasks: Run Task → 📊 Open Coverage Report
+# Cmd+Shift+P → Tasks: Run Task → Open Coverage Report
 ```
 
 Report opens in browser: [coverage/index.html](../../coverage/index.html)
@@ -338,12 +348,12 @@ Add these to [.vscode/keybindings.json](../../.vscode/keybindings.json):
 {
   "key": "cmd+shift+r",
   "command": "workbench.action.tasks.runTask",
-  "args": "🚀 Start MCP Server (HTTP)"
+  "args": "Background: Start HTTP Server (manual stop)"
 },
 {
   "key": "cmd+shift+i",
   "command": "workbench.action.tasks.runTask",
-  "args": "🔬 MCP Inspector (stdio)"
+  "args": "MCP Inspector Stdio"
 }
 ```
 
