@@ -15,6 +15,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { trace, metrics, type Tracer, type Meter } from '@opentelemetry/api';
 import { logger } from '../utils/logger.js';
+import { getEnv } from '../config/env.js';
 
 let sdk: NodeSDK | null = null;
 
@@ -23,19 +24,17 @@ let sdk: NodeSDK | null = null;
  * Only runs if OTEL_ENABLED=true (set in env.ts Zod schema); otherwise no-op.
  */
 export async function initTelemetry(): Promise<void> {
-  // Use the canonical env var name from src/config/env.ts:91 (OTEL_ENABLED).
-  // Previously read ENABLE_OTEL which did not match the Zod schema, causing
-  // OTel to silently never start even when OTEL_ENABLED=true was set.
-  if (process.env['OTEL_ENABLED'] !== 'true') {
+  const env = getEnv();
+  if (!env.OTEL_ENABLED) {
     logger.debug('OpenTelemetry disabled (OTEL_ENABLED not set)');
     return;
   }
 
   try {
-    const serviceName = process.env['OTEL_SERVICE_NAME'] || 'servalsheets';
-    const metricsPort = parseInt(process.env['OTEL_METRICS_PORT'] || '9464', 10);
-    const tracesExporter = process.env['OTEL_TRACES_EXPORTER'] || 'none';
-    const otlpEndpoint = process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
+    const serviceName = env.OTEL_SERVICE_NAME;
+    const metricsPort = env.OTEL_METRICS_PORT;
+    const tracesExporter = env.OTEL_TRACES_EXPORTER;
+    const otlpEndpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
     // Span processors for traces
     const spanProcessors: BatchSpanProcessor[] = [];
