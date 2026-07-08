@@ -9,8 +9,9 @@
 
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 
-const SECURITY_EXCEPTIONS_PATH = new URL('../SECURITY_EXCEPTIONS.md', import.meta.url).pathname;
+const SECURITY_EXCEPTIONS_PATH = fileURLToPath(new URL('../SECURITY_EXCEPTIONS.md', import.meta.url));
 
 // Parse GHSA IDs from SECURITY_EXCEPTIONS.md
 function loadAllowedGhsas() {

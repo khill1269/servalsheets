@@ -490,7 +490,16 @@ export function registerHttpTransportRoutes<
         });
         sessionsTotal.set(sessions.size);
 
+        const heartbeatInterval = setInterval(() => {
+          try {
+            res.write(':heartbeat\n\n');
+          } catch {
+            clearInterval(heartbeatInterval);
+          }
+        }, 30000);
+
         req.on('close', () => {
+          clearInterval(heartbeatInterval);
           disposeSession(sessionId, {
             closeTransport: false,
           });
