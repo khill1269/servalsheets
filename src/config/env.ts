@@ -89,7 +89,9 @@ const RedisSchema = z.object({
 
 const OtelSchema = z.object({
   OTEL_ENABLED: StrictBooleanSchema,
-  OTEL_EXPORTER_TYPE: z.enum(['jaeger', 'zipkin', 'honeycomb', 'otlp', 'console', 'none']).optional(),
+  OTEL_EXPORTER_TYPE: z
+    .enum(['jaeger', 'zipkin', 'honeycomb', 'otlp', 'console', 'none'])
+    .optional(),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   OTEL_JAEGER_ENDPOINT: URLSchema.optional(),
   OTEL_ZIPKIN_ENDPOINT: URLSchema.optional(),
