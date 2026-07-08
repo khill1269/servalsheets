@@ -62958,7 +62958,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
             },
             "sheetNames": {
               "default": [],
-              "description": "Names of the sheets (tabs) in this spreadsheet. Used to resolve references like \\"the Revenue sheet\\". Optional — fetched from the API if not provided. Example: [\\"Sheet1\\", \\"Revenue\\", \\"Costs\\", \\"Summary\\"]",
+              "description": "Names of the sheets (tabs) in this spreadsheet. Used to resolve references like \\"the Revenue sheet\\". Optional — caller-supplied; if omitted, sheet-name reference resolution is disabled until names are supplied. Example: [\\"Sheet1\\", \\"Revenue\\", \\"Costs\\", \\"Summary\\"]",
               "items": {
                 "type": "string"
               },
@@ -62969,7 +62969,7 @@ exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should matc
               "type": "string"
             },
             "title": {
-              "description": "Human-readable title for natural language references like \\"my budget\\" or \\"Q1 report\\". Optional — fetched from the API if not provided. Example: \\"Q1 2026 Sales Report\\"",
+              "description": "Human-readable title for natural language references like \\"my budget\\" or \\"Q1 report\\". Optional — caller-supplied; if omitted, set_active stores a generated default id from the spreadsheet ID. Example: \\"Q1 2026 Sales Report\\"",
               "type": "string"
             },
             "verbosity": {

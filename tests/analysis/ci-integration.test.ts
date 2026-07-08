@@ -131,12 +131,10 @@ describe('CI Integration', () => {
         const labels = tasks.tasks.map((t: any) => t.label);
 
         expect(Array.isArray(tasks.tasks)).toBe(true);
-        // Check for tasks related to analysis/fixing/watching (exact match not required due to emoji prefixes)
-        expect(labels.some((l: string) => l.includes('Analysis'))).toBe(true);
-        expect(labels.some((l: string) => l.includes('Auto-Fix') || l.includes('Auto'))).toBe(true);
+        expect(labels.some((l: string) => l.includes('Typecheck'))).toBe(true);
+        expect(labels.some((l: string) => l.includes('Test'))).toBe(true);
         expect(labels.some((l: string) => l.includes('Watch'))).toBe(true);
-        expect(labels.some((l: string) => l.includes('Report'))).toBe(true);
-        expect(labels.some((l: string) => l.includes('Changed'))).toBe(true);
+        expect(labels.some((l: string) => l.includes('Verify'))).toBe(true);
         return;
       }
 
