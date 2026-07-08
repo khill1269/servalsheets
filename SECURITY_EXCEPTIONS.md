@@ -62,6 +62,36 @@
 | **Review By** | 2026-07-21 |
 | **Owner** | @khill1269 |
 
+### SE-006: OpenTelemetry Prometheus exporter crash via malformed HTTP request
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-q7rr-3cgh-j5r3 |
+| **Severity** | High |
+| **Packages** | `@opentelemetry/auto-instrumentations-node`, `@opentelemetry/exporter-prometheus`, `@opentelemetry/sdk-node` |
+| **Root Cause** | Malformed HTTP request to the Prometheus metrics endpoint can crash the exporter process. Fix requires bumping `@opentelemetry/auto-instrumentations-node` 0.76 → 0.77 (major version, breaking API changes throughout the OTel stack). |
+| **Mitigation** | Prometheus exporter only listens on the configured metrics port (default 9091); not exposed to untrusted networks in production. Requires network-level access to exploit. |
+| **CI Impact** | Allowlisted via `node scripts/audit-with-exceptions.mjs` (auto-detected from SECURITY_EXCEPTIONS.md). |
+| **Resolution Path** | Schedule a separate OTel upgrade sprint to bump the full instrumentation stack and validate the breaking API changes don't regress traces/metrics. |
+| **Created** | 2026-06-24 |
+| **Review By** | 2026-09-24 |
+| **Owner** | @khill1269 |
+
+### SE-007: Vite server.fs.deny bypass on Windows alternate paths
+
+| Field | Value |
+|-------|-------|
+| **Advisory** | GHSA-fx2h-pf6j-xcff |
+| **Severity** | High |
+| **Package** | `vite` (via `vitepress`) |
+| **Root Cause** | On Windows, `server.fs.deny` can be bypassed using alternate file path representations. Vite dev server only. |
+| **Mitigation** | Dev dependency only — Vite dev server is not exposed in production. Project is developed on macOS/Linux; Windows-only attack vector. Vitepress docs build does not run a long-lived server. |
+| **CI Impact** | Allowlisted via `node scripts/audit-with-exceptions.mjs` (auto-detected from SECURITY_EXCEPTIONS.md). |
+| **Resolution Path** | Upgrade Vite when a patched version ships that also satisfies `vitepress` peer constraints. |
+| **Created** | 2026-06-24 |
+| **Review By** | 2026-09-24 |
+| **Owner** | @khill1269 |
+
 ## Resolved Exceptions
 
 ### SE-001: node-saml transitive vulnerability (node-forge) — RESOLVED 2026-07-08
