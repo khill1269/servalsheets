@@ -29,7 +29,7 @@ const CommonFieldsSchema = z.object({
 // Individual Action Schemas
 // ============================================================================
 
-const ListActionSchema = CommonFieldsSchema.extend({
+export const ListActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list').describe('List operation history'),
   spreadsheetId: z
     .string()
@@ -59,16 +59,16 @@ const ListActionSchema = CommonFieldsSchema.extend({
     .describe('Maximum number of items per page (default: 100, max: 1000)'),
 });
 
-const GetActionSchema = CommonFieldsSchema.extend({
+export const GetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get').describe('Get details of a specific operation'),
   operationId: z.string().min(1).describe('Operation ID to retrieve'),
 });
 
-const StatsActionSchema = CommonFieldsSchema.extend({
+export const StatsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('stats').describe('Get operation history statistics'),
 });
 
-const UndoActionSchema = CommonFieldsSchema.extend({
+export const UndoActionSchema = CommonFieldsSchema.extend({
   action: z.literal('undo').describe('Undo the last operation on a spreadsheet'),
   spreadsheetId: z
     .string()
@@ -76,7 +76,7 @@ const UndoActionSchema = CommonFieldsSchema.extend({
     .describe('Spreadsheet ID from URL'),
 });
 
-const RedoActionSchema = CommonFieldsSchema.extend({
+export const RedoActionSchema = CommonFieldsSchema.extend({
   action: z.literal('redo').describe('Redo the last undone operation on a spreadsheet'),
   spreadsheetId: z
     .string()
@@ -84,7 +84,7 @@ const RedoActionSchema = CommonFieldsSchema.extend({
     .describe('Spreadsheet ID from URL'),
 });
 
-const RevertToActionSchema = CommonFieldsSchema.extend({
+export const RevertToActionSchema = CommonFieldsSchema.extend({
   action: z.literal('revert_to').describe('Revert to a specific operation in history'),
   operationId: z.string().min(1).describe('Operation ID to revert to'),
   safety: z
@@ -99,7 +99,7 @@ const RevertToActionSchema = CommonFieldsSchema.extend({
     .optional(),
 });
 
-const ClearActionSchema = CommonFieldsSchema.extend({
+export const ClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear').describe('Clear operation history'),
   spreadsheetId: z
     .string()
@@ -112,7 +112,7 @@ const ClearActionSchema = CommonFieldsSchema.extend({
 // F5: Time-Travel Debugger (3 actions)
 // ============================================================================
 
-const TimelineActionSchema = CommonFieldsSchema.extend({
+export const TimelineActionSchema = CommonFieldsSchema.extend({
   action: z.literal('timeline').describe('View chronological change history for a spreadsheet'),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
   range: RangeInputSchema.optional().describe('Focus on specific range'),
@@ -121,7 +121,7 @@ const TimelineActionSchema = CommonFieldsSchema.extend({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50).describe('Max revisions'),
 });
 
-const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
+export const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
   action: z.literal('diff_revisions').describe('Compare two revisions to see cell-level changes'),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
   revisionId1: z.string().min(1).describe('First revision ID (older)'),
@@ -129,7 +129,7 @@ const DiffRevisionsActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.optional().describe('Focus diff on specific range'),
 });
 
-const RestoreCellsActionSchema = CommonFieldsSchema.extend({
+export const RestoreCellsActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('restore_cells')
     .describe('Restore specific cells from a past revision (surgical restore, not full rollback)'),
@@ -384,39 +384,14 @@ export type SheetsHistoryOutput = z.infer<typeof SheetsHistoryOutputSchema>;
 export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 
 // Type narrowing helpers for handler methods
-// These provide type safety similar to discriminated union Extract<>
-export type HistoryListInput = SheetsHistoryInput['request'] & { action: 'list' };
-export type HistoryGetInput = SheetsHistoryInput['request'] & {
-  action: 'get';
-  operationId: string;
-};
-export type HistoryStatsInput = SheetsHistoryInput['request'] & { action: 'stats' };
-export type HistoryUndoInput = SheetsHistoryInput['request'] & {
-  action: 'undo';
-  spreadsheetId: string;
-};
-export type HistoryRedoInput = SheetsHistoryInput['request'] & {
-  action: 'redo';
-  spreadsheetId: string;
-};
-export type HistoryRevertToInput = SheetsHistoryInput['request'] & {
-  action: 'revert_to';
-  operationId: string;
-};
-export type HistoryClearInput = SheetsHistoryInput['request'] & { action: 'clear' };
-export type HistoryTimelineInput = SheetsHistoryInput['request'] & {
-  action: 'timeline';
-  spreadsheetId: string;
-};
-export type HistoryDiffRevisionsInput = SheetsHistoryInput['request'] & {
-  action: 'diff_revisions';
-  spreadsheetId: string;
-  revisionId1: string;
-  revisionId2: string;
-};
-export type HistoryRestoreCellsInput = SheetsHistoryInput['request'] & {
-  action: 'restore_cells';
-  spreadsheetId: string;
-  revisionId: string;
-  cells: string[];
-};
+// Derived directly from action schemas via z.infer for compile-time drift detection (C-1).
+export type HistoryListInput = z.infer<typeof ListActionSchema>;
+export type HistoryGetInput = z.infer<typeof GetActionSchema>;
+export type HistoryStatsInput = z.infer<typeof StatsActionSchema>;
+export type HistoryUndoInput = z.infer<typeof UndoActionSchema>;
+export type HistoryRedoInput = z.infer<typeof RedoActionSchema>;
+export type HistoryRevertToInput = z.infer<typeof RevertToActionSchema>;
+export type HistoryClearInput = z.infer<typeof ClearActionSchema>;
+export type HistoryTimelineInput = z.infer<typeof TimelineActionSchema>;
+export type HistoryDiffRevisionsInput = z.infer<typeof DiffRevisionsActionSchema>;
+export type HistoryRestoreCellsInput = z.infer<typeof RestoreCellsActionSchema>;
